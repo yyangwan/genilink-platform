@@ -1,10 +1,22 @@
 "use client";
 
-import React from "react";
+import React, { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import UpgradePrompt from "@/components/billing/upgrade-prompt";
 
 export default function UpgradePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen" style={{ backgroundColor: "var(--bg-base)" }} />
+      }
+    >
+      <UpgradeContent />
+    </Suspense>
+  );
+}
+
+function UpgradeContent() {
   const searchParams = useSearchParams();
   const module = searchParams.get("module") as "visibility" | "content" | null;
 
