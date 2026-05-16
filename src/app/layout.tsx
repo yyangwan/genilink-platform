@@ -56,6 +56,7 @@ export default function RootLayout({
     <html
       lang="zh-CN"
       className={`${sora.variable} ${plusJakarta.variable} ${jetbrainsMono.variable} ${notoSansSC.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
