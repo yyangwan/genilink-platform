@@ -1,0 +1,20 @@
+{
+  "name": "@genilink/design-tokens",
+  "version": "0.1.0",
+  "description": "GeniLink design tokens — colors, typography, spacing, and more",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

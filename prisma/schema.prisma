@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth & Identity ────────────────────────────────────────────────
+
+model User {
+  id                  String   @id @default(cuid()) @db.Text
+  email               String?  @unique @db.Text
+  passwordHash        String?  @db.Text
+  name                String   @db.Text
+  phone               String?  @unique @db.Text
+  image               String?  @db.Text
+  wechatOpenid        String?  @unique @db.Text
+  wechatUnionid       String?  @unique @db.Text
+  onboardingCompleted Boolean  @default(false)
+  onboardingStep      String   @default("welcome") @db.Text
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  memberships   WorkspaceMember[]
+  accounts      Account[]
+  subscriptions Subscription[]
+}
+
+model Account {
+  id                String  @id @default(cuid()) @db.Text
+  userId            String  @db.Text
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String  @db.Text
+  provider          String  @db.Text
+  providerAccountId String  @db.Text
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String? @db.Text
+  scope             String? @db.Text
+  id_token          String? @db.Text
+
+  @@unique([provider, providerAccountId])
+}
+
+model WechatLoginSession {
+  id        String   @id @default(cuid()) @db.Text
+  scene     String   @unique @db.Text
+  status    String   @default("pending") @db.Text
+  openid    String?  @db.Text
+  userId    String?  @db.Text
+  token     String?  @unique @db.Text
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+// ─── Multi-tenancy ──────────────────────────────────────────────────
+
+model Workspace {
+  id        String   @id @default(cuid()) @db.Text
+  name      String   @db.Text
+  industry  String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members       WorkspaceMember[]
+  projects      Project[]
+  invites       WorkspaceInvite[]
+  subscriptions Subscription[]
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid()) @db.Text
+  workspaceId String    @db.Text
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String    @db.Text
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        String    @default("member") @db.Text
+  joinedAt    DateTime  @default(now())
+
+  @@unique([workspaceId, userId])
+}
+
+model WorkspaceInvite {
+  id          String    @id @default(cuid()) @db.Text
+  workspaceId String    @db.Text
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  token       String    @unique @default(cuid()) @db.Text
+  email       String    @db.Text
+  role        String    @default("member") @db.Text
+  invitedBy   String    @db.Text
+  usedAt      DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+}
+
+// ─── Projects & Resources ───────────────────────────────────────────
+
+model Project {
+  id          String    @id @default(cuid()) @db.Text
+  name        String    @db.Text
+  url         String?   @db.Text
+  industry    String?   @db.Text
+  workspaceId String    @db.Text
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  externalMappings ExternalResourceMapping[]
+
+  @@unique([workspaceId, name])
+}
+
+model ExternalResourceMapping {
+  id         String   @id @default(cuid()) @db.Text
+  projectId  String   @db.Text
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  service    String   @db.Text
+  externalId String   @db.Text
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@unique([projectId, service])
+}
+
+// ─── Billing ────────────────────────────────────────────────────────
+
+model Subscription {
+  id                 String    @id @default(cuid()) @db.Text
+  userId             String    @db.Text
+  user               User      @relation(fields: [userId], references: [id])
+  workspaceId        String    @db.Text
+  workspace          Workspace @relation(fields: [workspaceId], references: [id])
+  module             String    @db.Text
+  status             String    @db.Text
+  billingCycle       String    @db.Text
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  trialEnd           DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([userId, workspaceId, module])
+}

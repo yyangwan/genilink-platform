@@ -1,26 +1,175 @@
 @import "tailwindcss";
+@import "@genilink/design-tokens/dist/tokens.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* ========================================
+   Tailwind theme integration
+   ======================================== */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--bg-base);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ========================================
+   Base styles
+   ======================================== */
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ========================================
+   Focus-visible ring (a11y)
+   ======================================== */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Remove default outline for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ========================================
+   Skip-to-content (a11y)
+   ======================================== */
+.skip-to-content {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 9999;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-primary);
+  color: #fff;
+  font-size: var(--text-body);
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  transition: left var(--duration-short) var(--ease);
+}
+
+.skip-to-content:focus {
+  left: 50%;
+  transform: translateX(-50%);
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ========================================
+   Animations
+   ======================================== */
+
+/* Skeleton pulse */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.animate-skeleton-pulse {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+/* Spinner rotation */
+@keyframes spinner-rotate {
+  to { transform: rotate(360deg); }
+}
+
+.animate-spinner {
+  animation: spinner-rotate 1s linear infinite;
+}
+
+/* Dashboard gauge fill */
+@keyframes gauge-fill {
+  from { stroke-dashoffset: 283; }
+}
+
+.animate-gauge-fill {
+  animation: gauge-fill 1s ease-out forwards;
+}
+
+/* ========================================
+   Reduced motion (a11y)
+   ======================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-skeleton-pulse,
+  .animate-spinner,
+  .animate-gauge-fill {
+    animation: none !important;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ========================================
+   Responsive utilities
+   ======================================== */
+
+/* Hide on mobile, show on tablet+ */
+@media (max-width: 639px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+/* Show on mobile only */
+@media (min-width: 640px) {
+  .show-mobile-only {
+    display: none !important;
+  }
+}
+
+/* Hide on tablet, show on desktop+ */
+@media (max-width: 1023px) {
+  .hide-tablet {
+    display: none !important;
+  }
+}
+
+/* Show on tablet/desktop only */
+@media (max-width: 639px) {
+  .show-tablet-up {
+    display: none !important;
+  }
+}
+
+/* ========================================
+   Scrollbar styling
+   ======================================== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ========================================
+   Selection styling
+   ======================================== */
+::selection {
+  background: var(--color-primary-dim);
+  color: var(--text-primary);
 }
