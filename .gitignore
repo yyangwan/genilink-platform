@@ -50,3 +50,4 @@ next-env.d.ts
 
 # keys (RSA key pair for JWT)
 .keys/
+.gstack/
