@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   KPIScorecard,
@@ -252,6 +252,14 @@ function PriorityBadge({ priority }: { priority: string }) {
 
 // ─── Main Dashboard Page ────────────────────────────────────
 export default function DashboardPage() {
+  return (
+    <Suspense>
+      <DashboardContent />
+    </Suspense>
+  );
+}
+
+function DashboardContent() {
   const searchParams = useSearchParams();
   const project = searchParams.get("project");
 
