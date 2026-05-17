@@ -1,8 +1,18 @@
 "use client";
 
-import React, { Suspense, useState, useEffect, useCallback } from "react";
+import React, { Suspense, useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { TrendingUp, Calendar } from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
@@ -16,10 +26,10 @@ const sectionCard: React.CSSProperties = {
 };
 
 const PLATFORM_COLORS = [
-  "var(--color-primary)",
-  "var(--color-success)",
-  "var(--color-warning)",
-  "var(--color-error)",
+  "#6366f1",
+  "#22c55e",
+  "#f59e0b",
+  "#ef4444",
   "#a78bfa",
   "#f472b6",
 ];
@@ -77,32 +87,18 @@ function TrendsContent() {
     ? [...new Set(trends.flatMap((t) => t.platforms.map((p) => p.platform)))]
     : [];
 
-  // Build polyline points for each platform
-  const getPoints = useCallback(
-    (platform: string) => {
-      if (trends.length === 0) return "";
-      return trends
-        .map((t, i) => {
-          const x = trends.length === 1 ? 50 : (i / (trends.length - 1)) * 100;
-          const entry = t.platforms.find((p) => p.platform === platform);
-          const y = entry ? 100 - entry.score : 100;
-          return `${x},${y}`;
-        })
-        .join(" ");
-    },
-    [trends]
-  );
-
-  // Overall score polyline
-  const getOverallPoints = useCallback(() => {
-    if (trends.length === 0) return "";
-    return trends
-      .map((t, i) => {
-        const x = trends.length === 1 ? 50 : (i / (trends.length - 1)) * 100;
-        const y = 100 - t.overall_score;
-        return `${x},${y}`;
-      })
-      .join(" ");
+  // Transform data for recharts: flat array with period + overall + per-platform scores
+  const chartData = useMemo(() => {
+    return trends.map((t) => {
+      const entry: Record<string, string | number> = {
+        period: t.period,
+        总分: t.overall_score,
+      };
+      for (const p of t.platforms) {
+        entry[p.platform] = p.score;
+      }
+      return entry;
+    });
   }, [trends]);
 
   // Annotation lookup by date
@@ -167,86 +163,57 @@ function TrendsContent() {
         </div>
 
         {/* Chart area */}
-        <div className="relative" style={{ height: 280 }}>
-          <svg viewBox="0 0 100 100" className="w-full h-full" preserveAspectRatio="none">
-            {/* Grid lines */}
-            {[0, 25, 50, 75, 100].map((y) => (
-              <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="var(--border)" strokeWidth="0.3" />
-            ))}
-
-            {/* Overall score line */}
-            <polyline
-              points={getOverallPoints()}
-              fill="none"
-              stroke="var(--text-primary)"
-              strokeWidth="1.5"
-              strokeLinejoin="round"
-              opacity={0.6}
-            />
-
-            {/* Platform lines */}
-            {platformNames.map((platform, idx) => (
-              <polyline
-                key={platform}
-                points={getPoints(platform)}
-                fill="none"
-                stroke={PLATFORM_COLORS[idx % PLATFORM_COLORS.length]}
-                strokeWidth="1"
-                strokeLinejoin="round"
+        <div style={{ height: 320 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis
+                dataKey="period"
+                tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+                axisLine={{ stroke: "var(--border)" }}
+                tickLine={{ stroke: "var(--border)" }}
               />
-            ))}
-
-            {/* Data points - overall */}
-            {trends.map((t, i) => {
-              const x = trends.length === 1 ? 50 : (i / (trends.length - 1)) * 100;
-              const y = 100 - t.overall_score;
-              const annotationText = annotationMap.get(t.period);
-              return (
-                <g key={`overall-${i}`}>
-                  <circle cx={x} cy={y} r="1.5" fill="var(--text-primary)" opacity={0.6}>
-                    {annotationText && <title>{annotationText}</title>}
-                  </circle>
-                </g>
-              );
-            })}
-
-            {/* Data points - per platform */}
-            {platformNames.map((platform, pidx) =>
-              trends.map((t, i) => {
-                const entry = t.platforms.find((p) => p.platform === platform);
-                if (!entry) return null;
-                const x = trends.length === 1 ? 50 : (i / (trends.length - 1)) * 100;
-                const y = 100 - entry.score;
-                return (
-                  <circle
-                    key={`${platform}-${i}`}
-                    cx={x}
-                    cy={y}
-                    r="1"
-                    fill={PLATFORM_COLORS[pidx % PLATFORM_COLORS.length]}
-                  />
-                );
-              })
-            )}
-          </svg>
-
-          {/* Y-axis labels */}
-          <div className="absolute left-0 top-0 h-full flex flex-col justify-between pointer-events-none" style={{ width: 28, transform: "translateX(-100%)", paddingRight: 8 }}>
-            {[100, 75, 50, 25, 0].map((v) => (
-              <span key={v} className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", lineHeight: 1 }}>
-                {v}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* X-axis labels */}
-        <div className="flex justify-between mt-2" style={{ marginLeft: 28 }}>
-          {trends.map((t, i) => (
-            <span key={i} className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-              {t.period}
-            </span>
-          ))}
+              <YAxis
+                domain={[0, 100]}
+                tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+                axisLine={{ stroke: "var(--border)" }}
+                tickLine={{ stroke: "var(--border)" }}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "var(--bg-card)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  fontSize: 13,
+                  fontFamily: "var(--font-body)",
+                  color: "var(--text-primary)",
+                }}
+              />
+              <Legend
+                wrapperStyle={{ fontSize: 12, fontFamily: "var(--font-body)" }}
+              />
+              <Line
+                type="monotone"
+                dataKey="总分"
+                stroke="var(--text-primary)"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                activeDot={{ r: 5 }}
+                opacity={0.7}
+              />
+              {platformNames.map((platform, idx) => (
+                <Line
+                  key={platform}
+                  type="monotone"
+                  dataKey={platform}
+                  stroke={PLATFORM_COLORS[idx % PLATFORM_COLORS.length]}
+                  strokeWidth={1.5}
+                  dot={{ r: 2 }}
+                  activeDot={{ r: 4 }}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
         </div>
 
         {/* Annotation markers */}
@@ -270,19 +237,6 @@ function TrendsContent() {
           </div>
         )}
 
-        {/* Legend */}
-        <div className="flex flex-wrap gap-4 mt-4">
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 h-0.5 rounded" style={{ background: "var(--text-primary)", opacity: 0.6 }} />
-            <span className="text-xs" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>总分</span>
-          </div>
-          {platformNames.map((platform, idx) => (
-            <div key={platform} className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 rounded" style={{ background: PLATFORM_COLORS[idx % PLATFORM_COLORS.length] }} />
-              <span className="text-xs" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>{platform}</span>
-            </div>
-          ))}
-        </div>
       </div>
     );
   };

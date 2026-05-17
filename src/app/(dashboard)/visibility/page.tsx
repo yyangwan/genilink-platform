@@ -14,6 +14,16 @@ import {
   Loader2,
   CheckCircle2,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+  CartesianGrid,
+} from "recharts";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import type { VisibilitySummary } from "@/types";
 
@@ -394,26 +404,50 @@ function VisibilityContent() {
             <h3 className="text-base font-semibold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
               AI平台覆盖
             </h3>
-            <div className="space-y-3">
-              {visibility.data.platformCoverage.map((p: { name: string; score: number }) => (
-                <div key={p.name} className="flex items-center gap-3">
-                  <span className="text-sm w-20 shrink-0" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-                    {p.name}
-                  </span>
-                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--bg-hover)" }}>
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${Math.max(p.score, 0)}%`,
-                        background: p.score >= 60 ? "var(--color-success)" : p.score >= 40 ? "var(--color-warning)" : "var(--color-error)",
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs font-medium w-10 text-right" style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-                    {p.score}%
-                  </span>
-                </div>
-              ))}
+            <div style={{ height: 220 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={visibility.data.platformCoverage.map((p: { name: string; score: number }) => ({ name: p.name, score: p.score }))}
+                  layout="vertical"
+                  margin={{ top: 0, right: 40, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    domain={[0, 100]}
+                    tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+                    axisLine={{ stroke: "var(--border)" }}
+                    tickLine={{ stroke: "var(--border)" }}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={80}
+                    tick={{ fontSize: 12, fill: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+                    axisLine={{ stroke: "var(--border)" }}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--bg-card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "8px",
+                      fontSize: 13,
+                      fontFamily: "var(--font-body)",
+                      color: "var(--text-primary)",
+                    }}
+                    formatter={(value) => [`${value}%`, "覆盖度"]}
+                  />
+                  <Bar dataKey="score" radius={[0, 4, 4, 0]} barSize={20}>
+                    {visibility.data.platformCoverage.map((p: { name: string; score: number }, idx: number) => (
+                      <Cell
+                        key={idx}
+                        fill={p.score >= 60 ? "var(--color-success)" : p.score >= 40 ? "var(--color-warning)" : "var(--color-error)"}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         ) : (

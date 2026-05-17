@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-智見 full feature parity implemented (2026-05-17): 8 pages (audits, report, brands, prompts, suggestions, trends, compare, schedules), 18 proxy routes, 8 shared components, restructured sidebar with accordion. Build passes. Next: browser testing, recharts integration, backend testing.
+Recharts integration complete (2026-05-17): LineChart (trends), PieChart + stacked BarChart (report), horizontal BarChart (visibility). Build passes. Next: browser testing, backend CRUD testing, mobile responsive.
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services

@@ -9,6 +9,19 @@ import {
   Users,
   Globe,
 } from "lucide-react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { PageHeader } from "@/components/ui/page-header";
 import { TabBar } from "@/components/ui/tab-bar";
@@ -292,6 +305,12 @@ function ContentTab({
 
   const sentimentTotal = content.sentiment.positive + content.sentiment.neutral + content.sentiment.negative || 1;
 
+  const sentimentData = [
+    { name: "正面", value: content.sentiment.positive, fill: "var(--color-success)" },
+    { name: "中性", value: content.sentiment.neutral, fill: "var(--color-warning)" },
+    { name: "负面", value: content.sentiment.negative, fill: "var(--color-error)" },
+  ].filter((d) => d.value > 0);
+
   return (
     <div className="space-y-6">
       {/* Sentiment breakdown */}
@@ -303,67 +322,59 @@ function ContentTab({
           情感分析
         </h3>
         <div className="flex items-center gap-4">
-          {/* Simple horizontal bar representing sentiment distribution */}
-          <div className="flex-1 h-8 rounded-full overflow-hidden flex">
-            {content.sentiment.positive > 0 && (
-              <div
-                className="h-full flex items-center justify-center text-xs font-medium"
-                style={{
-                  width: `${(content.sentiment.positive / sentimentTotal) * 100}%`,
-                  background: "var(--color-success)",
-                  color: "#0b0d14",
-                  fontFamily: "var(--font-body)",
-                }}
-              >
-                {Math.round((content.sentiment.positive / sentimentTotal) * 100)}%
-              </div>
-            )}
-            {content.sentiment.neutral > 0 && (
-              <div
-                className="h-full flex items-center justify-center text-xs font-medium"
-                style={{
-                  width: `${(content.sentiment.neutral / sentimentTotal) * 100}%`,
-                  background: "var(--color-warning)",
-                  color: "#0b0d14",
-                  fontFamily: "var(--font-body)",
-                }}
-              >
-                {Math.round((content.sentiment.neutral / sentimentTotal) * 100)}%
-              </div>
-            )}
-            {content.sentiment.negative > 0 && (
-              <div
-                className="h-full flex items-center justify-center text-xs font-medium"
-                style={{
-                  width: `${(content.sentiment.negative / sentimentTotal) * 100}%`,
-                  background: "var(--color-error)",
-                  color: "#fff",
-                  fontFamily: "var(--font-body)",
-                }}
-              >
-                {Math.round((content.sentiment.negative / sentimentTotal) * 100)}%
-              </div>
-            )}
+          <div style={{ width: 200, height: 200 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={sentimentData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  innerRadius={40}
+                  paddingAngle={2}
+                  stroke="none"
+                >
+                  {sentimentData.map((entry, idx) => (
+                    <Cell key={idx} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--bg-card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    fontSize: 13,
+                    fontFamily: "var(--font-body)",
+                    color: "var(--text-primary)",
+                  }}
+                />
+                <Legend
+                  wrapperStyle={{ fontSize: 12, fontFamily: "var(--font-body)" }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
-        </div>
-        <div className="flex items-center gap-6 mt-3">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full" style={{ background: "var(--color-success)" }} />
-            <span className="text-xs" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-              正面 {content.sentiment.positive}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full" style={{ background: "var(--color-warning)" }} />
-            <span className="text-xs" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-              中性 {content.sentiment.neutral}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full" style={{ background: "var(--color-error)" }} />
-            <span className="text-xs" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-              负面 {content.sentiment.negative}
-            </span>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full" style={{ background: "var(--color-success)" }} />
+              <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                正面 {content.sentiment.positive} ({Math.round((content.sentiment.positive / sentimentTotal) * 100)}%)
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full" style={{ background: "var(--color-warning)" }} />
+              <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                中性 {content.sentiment.neutral} ({Math.round((content.sentiment.neutral / sentimentTotal) * 100)}%)
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full" style={{ background: "var(--color-error)" }} />
+              <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                负面 {content.sentiment.negative} ({Math.round((content.sentiment.negative / sentimentTotal) * 100)}%)
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -638,63 +649,40 @@ function StrategicTab({
               结构化演变
             </h3>
           </div>
-          <div className="space-y-3">
-            {strategic.structure_evolution.slice(-5).map((entry) => {
-              const total = entry.structured + entry.semi_structured + entry.unstructured || 1;
-              return (
-                <div key={entry.period} className="flex items-center gap-3">
-                  <span
-                    className="text-xs w-20 shrink-0"
-                    style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
-                  >
-                    {entry.period}
-                  </span>
-                  <div className="flex-1 h-6 rounded-full overflow-hidden flex">
-                    <div
-                      className="h-full flex items-center justify-center"
-                      style={{
-                        width: `${(entry.structured / total) * 100}%`,
-                        background: "var(--color-primary)",
-                      }}
-                    />
-                    <div
-                      className="h-full flex items-center justify-center"
-                      style={{
-                        width: `${(entry.semi_structured / total) * 100}%`,
-                        background: "var(--color-primary-dim)",
-                      }}
-                    />
-                    <div
-                      className="h-full"
-                      style={{
-                        width: `${(entry.unstructured / total) * 100}%`,
-                        background: "var(--bg-hover)",
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-            <div className="flex items-center gap-6 mt-2">
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full" style={{ background: "var(--color-primary)" }} />
-                <span className="text-xs" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-                  结构化
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full" style={{ background: "var(--color-primary-dim)" }} />
-                <span className="text-xs" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-                  半结构化
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full" style={{ background: "var(--bg-hover)" }} />
-                <span className="text-xs" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-                  非结构化
-                </span>
-              </div>
-            </div>
+          <div style={{ height: 240 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={strategic.structure_evolution.slice(-5)}
+                margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis
+                  dataKey="period"
+                  tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+                  axisLine={{ stroke: "var(--border)" }}
+                  tickLine={{ stroke: "var(--border)" }}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+                  axisLine={{ stroke: "var(--border)" }}
+                  tickLine={{ stroke: "var(--border)" }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--bg-card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    fontSize: 13,
+                    fontFamily: "var(--font-body)",
+                    color: "var(--text-primary)",
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12, fontFamily: "var(--font-body)" }} />
+                <Bar dataKey="structured" name="结构化" stackId="a" fill="var(--color-primary)" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="semi_structured" name="半结构化" stackId="a" fill="var(--color-primary-dim)" />
+                <Bar dataKey="unstructured" name="非结构化" stackId="a" fill="var(--bg-hover)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       )}
