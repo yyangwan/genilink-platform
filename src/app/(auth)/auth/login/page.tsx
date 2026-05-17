@@ -66,6 +66,24 @@ function LoginContent() {
         return;
       }
 
+      // Auto-select first workspace after login
+      try {
+        const wsRes = await fetch("/api/workspaces");
+        if (wsRes.ok) {
+          const wsData = await wsRes.json();
+          const firstWs = wsData.workspaces?.[0];
+          if (firstWs) {
+            await fetch("/api/workspaces/switch", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ workspaceId: firstWs.id }),
+            });
+          }
+        }
+      } catch {
+        // Non-critical — continue to dashboard
+      }
+
       router.push(callbackUrl);
       router.refresh();
     } catch {
