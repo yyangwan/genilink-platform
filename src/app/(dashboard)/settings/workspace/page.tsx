@@ -154,29 +154,7 @@ export default function WorkspaceSettingsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      {/* Header */}
-      <div>
-        <h1
-          className="text-2xl font-semibold tracking-tight"
-          style={{
-            color: "var(--text-primary)",
-            fontFamily: "var(--font-display)",
-            fontSize: "var(--text-sectionHeading)",
-          }}
-        >
-          工作区设置
-        </h1>
-        <p
-          className="mt-1 text-sm"
-          style={{
-            color: "var(--text-secondary)",
-            fontFamily: "var(--font-body)",
-          }}
-        >
-          管理工作区名称、成员和权限
-        </p>
-      </div>
+    <div className="space-y-6">
 
       {/* Message */}
       {message && (

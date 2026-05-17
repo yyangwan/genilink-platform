@@ -62,7 +62,7 @@ const SERVICE_URLS: Record<string, string> = {
   content: process.env.CONTENT_SERVICE_URL || 'http://localhost:3001',
 };
 
-const TIMEOUT_MS = 5000;
+const TIMEOUT_MS = 120_000;
 
 export async function proxyRequest<T = unknown>(opts: ProxyRequestOptions): Promise<T> {
   const externalId = await getExternalId(opts.projectId, opts.service);

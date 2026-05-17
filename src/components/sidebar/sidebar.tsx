@@ -33,7 +33,7 @@ const navItems: NavItem[] = [
 ];
 
 const bottomItems: NavItem[] = [
-  { label: "设置", href: "/settings/workspace", icon: Settings },
+  { label: "设置", href: "/settings", icon: Settings },
 ];
 
 export default function Sidebar() {

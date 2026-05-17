@@ -2,6 +2,7 @@
 
 import React, { useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   KPIScorecard,
 } from "@/components/dashboard/kpi-scorecard";
@@ -308,6 +309,50 @@ function DashboardContent() {
           <HealthBadge label="智創" status="ok" />
         </div>
       </div>
+
+      {/* ─── Welcome CTA (shown when no data) ──────────────── */}
+      {!project && !visibility.loading && !visibility.data?.overallScore && (
+        <div
+          className="rounded-xl p-6 flex items-center justify-between gap-4"
+          style={{
+            background: "linear-gradient(135deg, var(--color-primary-dim), var(--bg-elevated))",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <div>
+            <h3
+              className="text-base font-semibold mb-1"
+              style={{
+                color: "var(--text-primary)",
+                fontFamily: "var(--font-display)",
+              }}
+            >
+              开始你的第一次 AI 可见性分析
+            </h3>
+            <p
+              className="text-sm"
+              style={{
+                color: "var(--text-secondary)",
+                fontFamily: "var(--font-body)",
+              }}
+            >
+              创建项目，追踪你的品牌在 DeepSeek、Kimi、通义千问等平台上的可见性
+            </p>
+          </div>
+          <Link
+            href="/projects"
+            className="shrink-0 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+            style={{
+              background: "var(--color-primary)",
+              color: "#0b0d14",
+              fontFamily: "var(--font-display)",
+              textDecoration: "none",
+            }}
+          >
+            创建项目
+          </Link>
+        </div>
+      )}
 
       {/* ─── Hero Composition: Gauge + 3 KPI Cards ─────────── */}
       <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6">

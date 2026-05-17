@@ -1,4 +1,6 @@
 import { cookies } from "next/headers";
+import { auth } from "@/lib/auth/config";
+import { prisma } from "@/lib/db";
 import Sidebar from "@/components/sidebar/sidebar";
 
 export default async function DashboardLayout({
@@ -7,7 +9,23 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const cookieStore = await cookies();
-  const workspaceCookie = cookieStore.get("genilink-workspace");
+  let workspaceCookie = cookieStore.get("genilink-workspace");
+
+  // Auto-recover: if no workspace cookie but user is logged in, pick first workspace
+  if (!workspaceCookie?.value) {
+    const session = await auth();
+    if (session?.user?.id) {
+      const membership = await prisma.workspaceMember.findFirst({
+        where: { userId: session.user.id },
+        orderBy: { joinedAt: "asc" },
+        select: { workspaceId: true },
+      });
+      if (membership) {
+        workspaceCookie = { name: "genilink-workspace", value: membership.workspaceId };
+      }
+    }
+  }
+
   const workspaceId = workspaceCookie?.value ?? null;
 
   return (
