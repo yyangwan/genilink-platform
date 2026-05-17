@@ -1,4 +1,4 @@
 @AGENTS.md
 
 ## Current Status
-QA complete (2026-05-16): Health score 84.0/100, 4 issues fixed, 2 false positives. All resolved. Next: test framework setup, full auth flow testing.
+Auth flow QA complete (2026-05-17): Fixed account settings 500 (added SessionProvider), wired logout button, created dashboard API stubs. All auth flows PASS. Next: QA remaining pages (projects/visibility/content).

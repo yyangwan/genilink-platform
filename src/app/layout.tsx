@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Sora, Plus_Jakarta_Sans, JetBrains_Mono, Noto_Sans_SC } from "next/font/google";
+import Providers from "./providers";
 import "./globals.css";
 
 const sora = Sora({
@@ -62,10 +63,12 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-full flex flex-col">
-        <a href="#main-content" className="skip-to-content">
-          跳到主要内容
-        </a>
-        {children}
+        <Providers>
+          <a href="#main-content" className="skip-to-content">
+            跳到主要内容
+          </a>
+          {children}
+        </Providers>
       </body>
     </html>
   );
