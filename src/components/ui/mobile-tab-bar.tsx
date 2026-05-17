@@ -16,7 +16,7 @@ const tabs: TabItem[] = [
   { label: "工作台", href: "/dashboard", icon: LayoutDashboard },
   { label: "智見", href: "/visibility", icon: Eye },
   { label: "智創", href: "/content", icon: PenTool },
-  { label: "更多", href: "/settings/workspace", icon: MoreHorizontal },
+  { label: "设置", href: "/settings", icon: MoreHorizontal },
 ];
 
 /**
@@ -28,7 +28,7 @@ export function MobileTabBar() {
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard" || pathname === "/";
-    if (href === "/settings/workspace") {
+    if (href === "/settings") {
       return pathname.startsWith("/settings");
     }
     return pathname.startsWith(href);

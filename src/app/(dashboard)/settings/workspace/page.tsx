@@ -40,18 +40,25 @@ export default function WorkspaceSettingsPage() {
       const wsRes = await fetch("/api/workspaces");
       if (wsRes.ok) {
         const wsData = await wsRes.json();
-        // Current workspace is determined by cookie, pick first for now
-        const current = wsData.workspaces?.[0];
+        // Read current workspace from cookie
+        const cookies = document.cookie.split("; ");
+        const wsCookie = cookies.find((c) => c.startsWith("genilink-workspace="));
+        const currentId = wsCookie?.split("=")[1];
+        const current = wsData.workspaces?.find(
+          (w: WorkspaceInfo & { id: string }) => w.id === currentId
+        ) || wsData.workspaces?.[0];
         if (current) {
           setWorkspace(current);
           setEditName(current.name);
+
+          // Fetch members for this workspace
+          const membersRes = await fetch(`/api/workspaces/members?workspaceId=${current.id}`);
+          if (membersRes.ok) {
+            const membersData = await membersRes.json();
+            setMembers(membersData.members || []);
+          }
         }
       }
-
-      // Fetch members (using a direct query)
-      // For now, we'll construct this from workspace data
-      // In production this would be a dedicated endpoint
-      setMembers([]);
     } catch {
       // Silently fail
     } finally {

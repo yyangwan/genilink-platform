@@ -44,6 +44,10 @@ export interface ContentSummary {
     createdAt: string;
   }[];
   qualityAvg: number | null;
+  _meta?: {
+    projectCount: number;
+    serviceAvailable: boolean;
+  };
 }
 
 export interface Suggestion {

@@ -305,8 +305,8 @@ function DashboardContent() {
 
         {/* Service health indicators */}
         <div className="flex items-center gap-2">
-          <HealthBadge label="智見" status="ok" />
-          <HealthBadge label="智創" status="ok" />
+          <HealthBadge label="智見" status={visibility.error ? "down" : visibility.loading ? "degraded" : visibility.data?.overallScore != null ? "ok" : "degraded"} />
+          <HealthBadge label="智創" status={content.data?._meta?.serviceAvailable ? "ok" : "degraded"} />
         </div>
       </div>
 

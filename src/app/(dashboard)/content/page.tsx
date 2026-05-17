@@ -1,7 +1,10 @@
 "use client";
 
 import React from "react";
-import { PenTool, FileText, Sparkles, AlertCircle } from "lucide-react";
+import { PenTool, FileText, Sparkles, AlertCircle, ArrowRight, Construction } from "lucide-react";
+import Link from "next/link";
+import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
+import type { ContentSummary } from "@/types";
 
 const sectionCard: React.CSSProperties = {
   background: "var(--bg-card)",
@@ -11,6 +14,8 @@ const sectionCard: React.CSSProperties = {
 };
 
 export default function ContentPage() {
+  const content = useSectionFetch<ContentSummary>("/api/dashboard/content");
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -54,15 +59,19 @@ export default function ContentPage() {
               总内容数
             </span>
           </div>
-          <span
-            className="text-2xl font-bold"
-            style={{
-              color: "var(--text-primary)",
-              fontFamily: "var(--font-mono)",
-            }}
-          >
-            --
-          </span>
+          {content.loading ? (
+            <div className="h-8 w-16 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+          ) : (
+            <span
+              className="text-2xl font-bold"
+              style={{
+                color: "var(--text-primary)",
+                fontFamily: "var(--font-mono)",
+              }}
+            >
+              {content.data?.totalContent ?? "--"}
+            </span>
+          )}
         </div>
         <div style={sectionCard}>
           <div className="flex items-center gap-2 mb-2">
@@ -80,15 +89,19 @@ export default function ContentPage() {
               已发布
             </span>
           </div>
-          <span
-            className="text-2xl font-bold"
-            style={{
-              color: "var(--text-primary)",
-              fontFamily: "var(--font-mono)",
-            }}
-          >
-            --
-          </span>
+          {content.loading ? (
+            <div className="h-8 w-16 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+          ) : (
+            <span
+              className="text-2xl font-bold"
+              style={{
+                color: "var(--text-primary)",
+                fontFamily: "var(--font-mono)",
+              }}
+            >
+              {content.data?.publishedCount ?? "--"}
+            </span>
+          )}
         </div>
         <div style={sectionCard}>
           <div className="flex items-center gap-2 mb-2">
@@ -106,34 +119,55 @@ export default function ContentPage() {
               平均质量分
             </span>
           </div>
-          <span
-            className="text-2xl font-bold"
-            style={{
-              color: "var(--text-primary)",
-              fontFamily: "var(--font-mono)",
-            }}
-          >
-            --
-          </span>
+          {content.loading ? (
+            <div className="h-8 w-16 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+          ) : (
+            <span
+              className="text-2xl font-bold"
+              style={{
+                color: "var(--text-primary)",
+                fontFamily: "var(--font-mono)",
+              }}
+            >
+              {content.data?.qualityAvg ?? "--"}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Empty state */}
+      {/* Coming soon state */}
       <div style={sectionCard}>
         <div className="flex flex-col items-center justify-center py-12">
-          <AlertCircle
+          <Construction
             className="w-10 h-10 mb-3"
-            style={{ color: "var(--text-muted)" }}
+            style={{ color: "var(--color-primary)" }}
           />
+          <h3
+            className="text-base font-semibold mb-1"
+            style={{
+              color: "var(--text-primary)",
+              fontFamily: "var(--font-display)",
+            }}
+          >
+            智創服务即将上线
+          </h3>
           <p
-            className="text-sm"
+            className="text-sm text-center max-w-md"
             style={{
               color: "var(--text-muted)",
               fontFamily: "var(--font-body)",
             }}
           >
-            请先创建项目以开始内容创作
+            AI驱动的内容创作功能正在开发中，敬请期待。你可以先在智見中分析品牌可见性，为内容策略提供数据支持。
           </p>
+          <Link
+            href="/visibility"
+            className="flex items-center gap-1.5 mt-4 text-sm font-medium"
+            style={{ color: "var(--color-primary)", fontFamily: "var(--font-body)", textDecoration: "none" }}
+          >
+            前往智見
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   LayoutDashboard,
@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Menu,
   X,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,11 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+}
+
+interface Workspace {
+  id: string;
+  name: string;
 }
 
 const navItems: NavItem[] = [
@@ -38,8 +44,60 @@ const bottomItems: NavItem[] = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null);
+  const [switching, setSwitching] = useState(false);
+
+  // Fetch workspaces on mount
+  useEffect(() => {
+    fetch("/api/workspaces")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.workspaces) {
+          setWorkspaces(data.workspaces);
+        }
+      })
+      .catch(() => {});
+
+    // Read current workspace from cookie
+    const cookies = document.cookie.split("; ");
+    const wsCookie = cookies.find((c) => c.startsWith("genilink-workspace="));
+    if (wsCookie) {
+      setCurrentWorkspaceId(wsCookie.split("=")[1]);
+    }
+  }, []);
+
+  const handleSwitchWorkspace = async (workspaceId: string) => {
+    if (workspaceId === currentWorkspaceId) {
+      setWorkspaceOpen(false);
+      return;
+    }
+
+    setSwitching(true);
+    try {
+      const res = await fetch("/api/workspaces/switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId }),
+      });
+
+      if (res.ok) {
+        setCurrentWorkspaceId(workspaceId);
+        document.cookie = `genilink-workspace=${workspaceId};path=/;max-age=${365 * 24 * 60 * 60}`;
+        setWorkspaceOpen(false);
+        router.refresh();
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  const currentWorkspace = workspaces.find((w) => w.id === currentWorkspaceId) || workspaces[0];
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -125,27 +183,84 @@ export default function Sidebar() {
           className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm transition-colors"
           style={{
             color: "var(--text-secondary)",
+            background: workspaceOpen ? "var(--bg-elevated)" : "transparent",
           }}
           onMouseEnter={(e) =>
             (e.currentTarget.style.background = "var(--bg-hover)")
           }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = "transparent")
-          }
+          onMouseLeave={(e) => {
+            if (!workspaceOpen)
+              (e.currentTarget.style.background = "transparent");
+          }}
         >
-          <span
-            className="text-xs font-medium uppercase tracking-wider"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            工作区
-          </span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className="text-xs font-medium uppercase tracking-wider shrink-0"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              工作区
+            </span>
+            {currentWorkspace && (
+              <span
+                className="text-xs truncate"
+                style={{
+                  color: "var(--text-primary)",
+                  fontFamily: "var(--font-body)",
+                }}
+              >
+                · {currentWorkspace.name}
+              </span>
+            )}
+          </div>
           <ChevronDown
             className={cn(
-              "w-3.5 h-3.5 transition-transform",
+              "w-3.5 h-3.5 transition-transform shrink-0",
               workspaceOpen && "rotate-180"
             )}
           />
         </button>
+
+        {/* Workspace dropdown */}
+        {workspaceOpen && (
+          <div
+            className="mt-1 rounded-lg overflow-hidden"
+            style={{
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            {workspaces.map((ws) => {
+              const isCurrent = ws.id === currentWorkspaceId || (ws === workspaces[0] && !currentWorkspaceId);
+              return (
+                <button
+                  key={ws.id}
+                  onClick={() => handleSwitchWorkspace(ws.id)}
+                  disabled={switching}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm transition-colors"
+                  style={{
+                    color: isCurrent ? "var(--text-primary)" : "var(--text-secondary)",
+                    background: isCurrent ? "var(--bg-hover)" : "transparent",
+                    border: "none",
+                    cursor: switching ? "not-allowed" : "pointer",
+                    fontFamily: "var(--font-body)",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "var(--bg-hover)")
+                  }
+                  onMouseLeave={(e) => {
+                    if (!isCurrent)
+                      (e.currentTarget.style.background = "transparent");
+                  }}
+                >
+                  <span className="truncate">{ws.name}</span>
+                  {isCurrent && (
+                    <Check className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-primary)" }} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Main navigation */}
