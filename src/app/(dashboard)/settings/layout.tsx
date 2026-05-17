@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 const tabs = [
   { label: "工作区", href: "/settings/workspace" },
   { label: "账户", href: "/settings/account" },
+  { label: "订阅", href: "/settings/billing" },
 ];
 
 export default function SettingsLayout({

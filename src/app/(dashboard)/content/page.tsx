@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import { PenTool, FileText, Sparkles, AlertCircle, ArrowRight, Construction } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import type { ContentSummary } from "@/types";
 
@@ -13,8 +14,77 @@ const sectionCard: React.CSSProperties = {
   padding: "24px",
 };
 
-export default function ContentPage() {
-  const content = useSectionFetch<ContentSummary>("/api/dashboard/content");
+interface Project {
+  id: string;
+  name: string;
+}
+
+function ContentContent() {
+  const searchParams = useSearchParams();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+
+  const projectIdParam = searchParams.get("project");
+  const currentProject = projectIdParam
+    ? projects.find((p) => p.id === projectIdParam)
+    : projects[0];
+  const currentProjectId = currentProject?.id;
+
+  const contentUrl = currentProjectId
+    ? `/api/dashboard/content?project=${currentProjectId}`
+    : "/api/dashboard/content";
+  const content = useSectionFetch<ContentSummary>(contentUrl);
+
+  useEffect(() => {
+    fetch("/api/projects")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.projects) {
+          setProjects(data.projects);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setProjectsLoading(false));
+  }, []);
+
+  // No projects state
+  if (!projectsLoading && projects.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1
+            className="text-2xl font-semibold tracking-tight"
+            style={{
+              color: "var(--text-primary)",
+              fontFamily: "var(--font-display)",
+              fontSize: "var(--text-sectionHeading)",
+            }}
+          >
+            智創
+          </h1>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+            AI驱动的内容创作与管理
+          </p>
+        </div>
+        <div style={sectionCard}>
+          <div className="flex flex-col items-center justify-center py-12">
+            <AlertCircle className="w-10 h-10 mb-3" style={{ color: "var(--text-muted)" }} />
+            <p className="text-sm mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              暂无项目 — 请先创建项目
+            </p>
+            <Link
+              href="/projects"
+              className="flex items-center gap-1.5 text-sm font-medium"
+              style={{ color: "var(--color-primary)", fontFamily: "var(--font-body)", textDecoration: "none" }}
+            >
+              创建项目
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -30,14 +100,11 @@ export default function ContentPage() {
         >
           智創
         </h1>
-        <p
-          className="mt-1 text-sm"
-          style={{
-            color: "var(--text-secondary)",
-            fontFamily: "var(--font-body)",
-          }}
-        >
+        <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
           AI驱动的内容创作与管理
+          {currentProject && (
+            <span style={{ color: "var(--text-muted)" }}> · {currentProject.name}</span>
+          )}
         </p>
       </div>
 
@@ -45,90 +112,45 @@ export default function ContentPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div style={sectionCard}>
           <div className="flex items-center gap-2 mb-2">
-            <FileText
-              className="w-4 h-4"
-              style={{ color: "var(--color-primary)" }}
-            />
-            <span
-              className="text-sm font-medium"
-              style={{
-                color: "var(--text-secondary)",
-                fontFamily: "var(--font-body)",
-              }}
-            >
+            <FileText className="w-4 h-4" style={{ color: "var(--color-primary)" }} />
+            <span className="text-sm font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
               总内容数
             </span>
           </div>
           {content.loading ? (
             <div className="h-8 w-16 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
           ) : (
-            <span
-              className="text-2xl font-bold"
-              style={{
-                color: "var(--text-primary)",
-                fontFamily: "var(--font-mono)",
-              }}
-            >
+            <span className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
               {content.data?.totalContent ?? "--"}
             </span>
           )}
         </div>
         <div style={sectionCard}>
           <div className="flex items-center gap-2 mb-2">
-            <PenTool
-              className="w-4 h-4"
-              style={{ color: "var(--color-primary)" }}
-            />
-            <span
-              className="text-sm font-medium"
-              style={{
-                color: "var(--text-secondary)",
-                fontFamily: "var(--font-body)",
-              }}
-            >
+            <PenTool className="w-4 h-4" style={{ color: "var(--color-primary)" }} />
+            <span className="text-sm font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
               已发布
             </span>
           </div>
           {content.loading ? (
             <div className="h-8 w-16 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
           ) : (
-            <span
-              className="text-2xl font-bold"
-              style={{
-                color: "var(--text-primary)",
-                fontFamily: "var(--font-mono)",
-              }}
-            >
+            <span className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
               {content.data?.publishedCount ?? "--"}
             </span>
           )}
         </div>
         <div style={sectionCard}>
           <div className="flex items-center gap-2 mb-2">
-            <Sparkles
-              className="w-4 h-4"
-              style={{ color: "var(--color-primary)" }}
-            />
-            <span
-              className="text-sm font-medium"
-              style={{
-                color: "var(--text-secondary)",
-                fontFamily: "var(--font-body)",
-              }}
-            >
+            <Sparkles className="w-4 h-4" style={{ color: "var(--color-primary)" }} />
+            <span className="text-sm font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
               平均质量分
             </span>
           </div>
           {content.loading ? (
             <div className="h-8 w-16 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
           ) : (
-            <span
-              className="text-2xl font-bold"
-              style={{
-                color: "var(--text-primary)",
-                fontFamily: "var(--font-mono)",
-              }}
-            >
+            <span className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
               {content.data?.qualityAvg ?? "--"}
             </span>
           )}
@@ -171,5 +193,24 @@ export default function ContentPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ContentPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-6">
+          <div className="h-10 w-48 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-24 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+            ))}
+          </div>
+        </div>
+      }
+    >
+      <ContentContent />
+    </Suspense>
   );
 }
