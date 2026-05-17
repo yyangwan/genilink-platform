@@ -45,7 +45,8 @@ export async function GET(req: NextRequest) {
     const data = await proxyRequest({
       projectId,
       service: 'visibility',
-      path: '/api/v1/projects/:id/geo-summary',
+      path: '/api/trends/:id',
+      accessToken: process.env.SERVICE_TOKEN,
     });
 
     return NextResponse.json({ data });

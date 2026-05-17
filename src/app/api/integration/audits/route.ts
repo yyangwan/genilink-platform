@@ -1,10 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
-import { getExternalId } from '@/lib/proxy/zhijian-client';
+import { getExternalId, evictCache } from '@/lib/proxy/zhijian-client';
+import { prisma } from '@/lib/db';
 import { cookies } from 'next/headers';
 
-const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://localhost:8000';
+const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
+
+/**
+ * Resolve a valid integer project ID on the visibility service.
+ * If the stored externalId is a nanoid (not an integer), creates the project
+ * on the visibility service and updates the mapping.
+ */
+async function resolveVisibilityProjectId(
+  projectId: string,
+  externalId: string,
+): Promise<number> {
+  const parsed = parseInt(externalId, 10);
+  if (!isNaN(parsed) && String(parsed) === externalId) return parsed;
+
+  // externalId is a nanoid — need to create project on visibility service
+  const serviceToken = process.env.SERVICE_TOKEN;
+  if (!serviceToken) {
+    throw new Error('SERVICE_TOKEN not configured — cannot auto-create visibility project');
+  }
+
+  // Look up project name for the visibility service
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  const name = project?.name || `Project-${projectId.slice(-6)}`;
+  const industry = project?.industry || undefined;
+
+  const res = await fetch(`${VISIBILITY_URL}/api/projects`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${serviceToken}`,
+    },
+    body: JSON.stringify({ name, industry }),
+    signal: AbortSignal.timeout(10_000),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to create project on visibility service: ${res.status}`);
+  }
+
+  const data = await res.json();
+  const newId = String(data.id);
+
+  // Update the mapping
+  await prisma.externalResourceMapping.update({
+    where: { projectId_service: { projectId, service: 'visibility' } },
+    data: { externalId: newId },
+  });
+  evictCache(projectId, 'visibility');
+
+  return data.id as number;
+}
 
 // POST /api/integration/audits — create a new audit for a project
 export async function POST(req: NextRequest) {
@@ -41,23 +92,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No external mapping for project' }, { status: 404 });
   }
 
-  // Create audit on visibility service
+  // Resolve to a valid integer project ID (auto-creates if nanoid)
+  let projectPk: number;
+  try {
+    projectPk = await resolveVisibilityProjectId(projectId, externalId);
+  } catch (err) {
+    return NextResponse.json(
+      { error: (err as Error).message },
+      { status: 502 },
+    );
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30_000);
 
   try {
-    const res = await fetch(`${VISIBILITY_URL}/api/v1/projects/${externalId}/audits`, {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const serviceToken = process.env.SERVICE_TOKEN;
+    if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
+
+    const res = await fetch(`${VISIBILITY_URL}/api/audits`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
+      body: JSON.stringify({ project_id: projectPk }),
       signal: controller.signal,
     });
 
     clearTimeout(timer);
 
     if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
       return NextResponse.json(
-        { error: `Upstream error: ${res.status}` },
-        { status: res.status >= 500 ? 502 : res.status }
+        { error: `Upstream error: ${res.status}`, detail: errBody },
+        { status: res.status >= 500 ? 502 : res.status },
       );
     }
 
@@ -68,6 +135,6 @@ export async function POST(req: NextRequest) {
     if ((err as Error).name === 'AbortError') {
       return NextResponse.json({ error: 'Upstream timeout' }, { status: 504 });
     }
-    return NextResponse.json({ error: 'Failed to create audit' }, { status: 502 });
+    return NextResponse.json({ error: `Failed to create audit: ${(err as Error).message}` }, { status: 502 });
   }
 }

@@ -37,9 +37,13 @@ export async function POST(
   const timer = setTimeout(() => controller.abort(), 30_000);
 
   try {
-    const res = await fetch(`${VISIBILITY_URL}/api/v1/audits/${id}/analyze`, {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const serviceToken = process.env.SERVICE_TOKEN;
+    if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
+
+    const res = await fetch(`${VISIBILITY_URL}/api/analysis/audits/${id}/analyze`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       signal: controller.signal,
     });
 

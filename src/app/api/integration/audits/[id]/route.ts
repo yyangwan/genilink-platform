@@ -37,8 +37,12 @@ export async function GET(
   const timer = setTimeout(() => controller.abort(), 15_000);
 
   try {
-    const res = await fetch(`${VISIBILITY_URL}/api/v1/audits/${id}`, {
-      headers: { 'Content-Type': 'application/json' },
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const serviceToken = process.env.SERVICE_TOKEN;
+    if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
+
+    const res = await fetch(`${VISIBILITY_URL}/api/audits/${id}`, {
+      headers,
       signal: controller.signal,
     });
 

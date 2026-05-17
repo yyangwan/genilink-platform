@@ -57,10 +57,12 @@ export async function GET(req: NextRequest) {
 
     const baseUrl =
       process.env.VISIBILITY_SERVICE_URL || 'http://localhost:8000';
-    const upstreamUrl = `${baseUrl}/api/v1/projects/${externalId}/audit/stream`;
+    const serviceToken = process.env.SERVICE_TOKEN || '';
+    // SSE endpoint streams per-platform completion events; requires token query param
+    const upstreamUrl = `${baseUrl}/api/audits/${externalId}/events?token=${encodeURIComponent(serviceToken)}`;
 
     return proxySSE(upstreamUrl, {
-      Authorization: `Bearer ${process.env.SERVICE_TOKEN || ''}`,
+      Authorization: `Bearer ${serviceToken}`,
     });
   } catch (err) {
     const message = (err as Error).message;

@@ -18,6 +18,8 @@ export async function requireBilling(
   workspaceId: string,
   module: ModuleType
 ): Promise<void> {
+  if (process.env.NODE_ENV === 'development' || process.env.BILLING_DISABLED === 'true') return;
+
   const sub = await prisma.subscription.findUnique({
     where: {
       userId_workspaceId_module: {
