@@ -51,3 +51,6 @@ next-env.d.ts
 # keys (RSA key pair for JWT)
 .keys/
 .gstack/
+
+# claude local settings (contains per-machine permissions)
+.claude/settings.local.json
