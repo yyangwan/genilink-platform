@@ -9,19 +9,16 @@ import {
   Users,
   Globe,
 } from "lucide-react";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from "recharts";
+import dynamic from "next/dynamic";
+
+const SentimentPieChart = dynamic(
+  () => import("@/components/charts/SentimentPieChart"),
+  { ssr: false },
+);
+const StructureBarChart = dynamic(
+  () => import("@/components/charts/StructureBarChart"),
+  { ssr: false },
+);
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { PageHeader } from "@/components/ui/page-header";
 import { TabBar } from "@/components/ui/tab-bar";
@@ -323,38 +320,7 @@ function ContentTab({
         </h3>
         <div className="flex items-center gap-4">
           <div style={{ width: 200, height: 200 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={sentimentData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  innerRadius={40}
-                  paddingAngle={2}
-                  stroke="none"
-                >
-                  {sentimentData.map((entry, idx) => (
-                    <Cell key={idx} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--bg-card)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "8px",
-                    fontSize: 13,
-                    fontFamily: "var(--font-body)",
-                    color: "var(--text-primary)",
-                  }}
-                />
-                <Legend
-                  wrapperStyle={{ fontSize: 12, fontFamily: "var(--font-body)" }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            <SentimentPieChart data={sentimentData} />
           </div>
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
@@ -650,39 +616,7 @@ function StrategicTab({
             </h3>
           </div>
           <div style={{ height: 240 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={strategic.structure_evolution.slice(-5)}
-                margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis
-                  dataKey="period"
-                  tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-                  axisLine={{ stroke: "var(--border)" }}
-                  tickLine={{ stroke: "var(--border)" }}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-                  axisLine={{ stroke: "var(--border)" }}
-                  tickLine={{ stroke: "var(--border)" }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--bg-card)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "8px",
-                    fontSize: 13,
-                    fontFamily: "var(--font-body)",
-                    color: "var(--text-primary)",
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: 12, fontFamily: "var(--font-body)" }} />
-                <Bar dataKey="structured" name="结构化" stackId="a" fill="var(--color-primary)" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="semi_structured" name="半结构化" stackId="a" fill="var(--color-primary-dim)" />
-                <Bar dataKey="unstructured" name="非结构化" stackId="a" fill="var(--bg-hover)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <StructureBarChart data={strategic.structure_evolution.slice(-5)} />
           </div>
         </div>
       )}
