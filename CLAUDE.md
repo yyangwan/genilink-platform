@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-Recharts integration complete (2026-05-17): LineChart (trends), PieChart + stacked BarChart (report), horizontal BarChart (visibility). Build passes. Next: browser testing, backend CRUD testing, mobile responsive.
+Auth + project CRUD verified, billing bypass enabled (2026-05-18). Dashboard APIs return correct empty states. Integration APIs (brands/prompts/schedules/audits/trends) need backend at port 8000. Next: backend data testing, mobile responsive, frontend error handling.
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services
