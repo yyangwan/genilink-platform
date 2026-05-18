@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { DataTable } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -473,25 +474,31 @@ function PromptsContent() {
       )}
 
       {/* Data table */}
-      <DataTable
-        columns={columns}
-        data={data}
-        rowKey={(row: Prompt) => row.id}
-        loading={prompts.loading}
-        loadingRows={4}
-        emptyContent={
-          <EmptyState
-            icon={Sparkles}
-            title="暂无提示词"
-            description="添加提示词或使用 AI 生成分析提示词"
-            actionLabel="添加提示词"
-            onAction={() => {
-              setAdding(true);
-              setForm({ text: "", platform: "", category: "" });
-            }}
-          />
-        }
-      />
+      {prompts.error ? (
+        <div style={sectionCard}>
+          <ErrorState onRetry={prompts.refetch} />
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={data}
+          rowKey={(row: Prompt) => row.id}
+          loading={prompts.loading}
+          loadingRows={4}
+          emptyContent={
+            <EmptyState
+              icon={Sparkles}
+              title="暂无提示词"
+              description="添加提示词或使用 AI 生成分析提示词"
+              actionLabel="添加提示词"
+              onAction={() => {
+                setAdding(true);
+                setForm({ text: "", platform: "", category: "" });
+              }}
+            />
+          }
+        />
+      )}
 
       {/* Delete confirm */}
       <ConfirmDialog

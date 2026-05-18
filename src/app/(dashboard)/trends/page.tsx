@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import type { TrendData, TrendAnnotation } from "@/types/visibility";
 
@@ -126,7 +127,15 @@ function TrendsContent() {
       );
     }
 
-    if (error || trends.length === 0) {
+    if (error) {
+      return (
+        <div style={sectionCard}>
+          <ErrorState onRetry={refetch} />
+        </div>
+      );
+    }
+
+    if (trends.length === 0) {
       return (
         <div style={sectionCard}>
           <EmptyState

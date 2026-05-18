@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { DataTable } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -405,25 +406,31 @@ function BrandsContent() {
       )}
 
       {/* Data table */}
-      <DataTable
-        columns={columns}
-        data={data}
-        rowKey={(row: Brand) => row.id}
-        loading={brands.loading}
-        loadingRows={4}
-        emptyContent={
-          <EmptyState
-            icon={Tag}
-            title="还没有品牌"
-            description="添加品牌以追踪自有品牌和竞品"
-            actionLabel="添加第一个品牌"
-            onAction={() => {
-              setAdding(true);
-              setForm({ name: "", alias: "", is_competitor: false });
-            }}
-          />
-        }
-      />
+      {brands.error ? (
+        <div style={sectionCard}>
+          <ErrorState onRetry={brands.refetch} />
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={data}
+          rowKey={(row: Brand) => row.id}
+          loading={brands.loading}
+          loadingRows={4}
+          emptyContent={
+            <EmptyState
+              icon={Tag}
+              title="还没有品牌"
+              description="添加品牌以追踪自有品牌和竞品"
+              actionLabel="添加第一个品牌"
+              onAction={() => {
+                setAdding(true);
+                setForm({ name: "", alias: "", is_competitor: false });
+              }}
+            />
+          }
+        />
+      )}
 
       {/* Delete confirm */}
       <ConfirmDialog

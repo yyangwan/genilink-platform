@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Clock, Plus, Trash2, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { DataTable } from "@/components/ui/data-table";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { Schedule } from "@/types/visibility";
@@ -37,6 +38,7 @@ function SchedulesContent() {
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [schedulesLoading, setSchedulesLoading] = useState(true);
+  const [schedulesError, setSchedulesError] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newCron, setNewCron] = useState("0 9 * * *");
   const [creating, setCreating] = useState(false);
@@ -63,8 +65,12 @@ function SchedulesContent() {
   const fetchSchedules = useCallback(() => {
     if (!currentProjectId) return;
     setSchedulesLoading(true);
+    setSchedulesError(false);
     fetch(`/api/integration/schedules?projectId=${currentProjectId}`)
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed");
+        return res.json();
+      })
       .then((data) => {
         if (data?.schedules) {
           setSchedules(data.schedules);
@@ -72,7 +78,7 @@ function SchedulesContent() {
           setSchedules(data);
         }
       })
-      .catch(() => {})
+      .catch(() => setSchedulesError(true))
       .finally(() => setSchedulesLoading(false));
   }, [currentProjectId]);
 
@@ -353,21 +359,27 @@ function SchedulesContent() {
       )}
 
       {/* Table */}
-      <DataTable
-        columns={columns}
-        data={schedules}
-        rowKey={(row) => row.id}
-        loading={schedulesLoading}
-        emptyContent={
-          <EmptyState
-            icon={Clock}
-            title="暂无定时任务"
-            description="创建定时任务以自动化可见性分析"
-            actionLabel="创建定时任务"
-            onAction={() => setShowCreateForm(true)}
-          />
-        }
-      />
+      {schedulesError ? (
+        <div style={sectionCard}>
+          <ErrorState onRetry={fetchSchedules} />
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={schedules}
+          rowKey={(row) => row.id}
+          loading={schedulesLoading}
+          emptyContent={
+            <EmptyState
+              icon={Clock}
+              title="暂无定时任务"
+              description="创建定时任务以自动化可见性分析"
+              actionLabel="创建定时任务"
+              onAction={() => setShowCreateForm(true)}
+            />
+          }
+        />
+      )}
 
       {/* Delete confirmation */}
       <ConfirmDialog

@@ -199,7 +199,7 @@ function CompareContent() {
     return (
       <div className="space-y-6">
         {/* Score comparison */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div style={sectionCard} className="text-center">
             <p className="text-xs mb-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
               审计 A (#{audit_a.id})
@@ -225,7 +225,7 @@ function CompareContent() {
             <h3 className="text-base font-semibold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
               平台得分对比
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {delta.platforms.map((p) => (
                 <div key={p.platform} className="flex items-center justify-between py-2 px-3 rounded-lg" style={{ background: "var(--bg-elevated)" }}>
                   <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
@@ -244,7 +244,7 @@ function CompareContent() {
             <h3 className="text-base font-semibold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
               洞察变化
             </h3>
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
                 <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
                   审计 A 洞察

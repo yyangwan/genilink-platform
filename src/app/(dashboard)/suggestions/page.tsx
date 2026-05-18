@@ -14,6 +14,7 @@ import {
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 
 const sectionCard: React.CSSProperties = {
   background: "var(--bg-card)",
@@ -198,8 +199,15 @@ function SuggestionsContent() {
         </div>
       )}
 
+      {/* Error state */}
+      {suggestions.error && !suggestions.loading && (
+        <div style={sectionCard}>
+          <ErrorState onRetry={suggestions.refetch} />
+        </div>
+      )}
+
       {/* Suggestion cards */}
-      {!suggestions.loading && filtered.length > 0 && (
+      {!suggestions.loading && !suggestions.error && filtered.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((s) => {
             const prio = PRIORITY_CONFIG[s.priority] || PRIORITY_CONFIG.medium;
@@ -300,7 +308,7 @@ function SuggestionsContent() {
       )}
 
       {/* Empty state */}
-      {!suggestions.loading && filtered.length === 0 && (
+      {!suggestions.loading && !suggestions.error && filtered.length === 0 && (
         <div style={sectionCard}>
           <EmptyState
             icon={Lightbulb}

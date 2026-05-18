@@ -14,6 +14,7 @@ import {
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { DataTable } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import type { AuditListItem } from "@/types/visibility";
 
@@ -214,23 +215,29 @@ function AuditsContent() {
         }
       />
 
-      <DataTable<AuditListItem>
-        columns={columns}
-        data={audits.data ?? []}
-        rowKey={(row) => row.id}
-        onRowClick={handleRowClick}
-        loading={audits.loading || projectsLoading}
-        loadingRows={5}
-        emptyContent={
-          <EmptyState
-            icon={FileText}
-            title="还没有审计记录"
-            description="完成第一次 AI 可见性分析后，审计记录将出现在这里"
-            actionLabel="创建第一次审计"
-            actionHref="/visibility"
-          />
-        }
-      />
+      {audits.error ? (
+        <div style={sectionCard}>
+          <ErrorState onRetry={audits.refetch} />
+        </div>
+      ) : (
+        <DataTable<AuditListItem>
+          columns={columns}
+          data={audits.data ?? []}
+          rowKey={(row) => row.id}
+          onRowClick={handleRowClick}
+          loading={audits.loading || projectsLoading}
+          loadingRows={5}
+          emptyContent={
+            <EmptyState
+              icon={FileText}
+              title="还没有审计记录"
+              description="完成第一次 AI 可见性分析后，审计记录将出现在这里"
+              actionLabel="创建第一次审计"
+              actionHref="/visibility"
+            />
+          }
+        />
+      )}
     </div>
   );
 }
