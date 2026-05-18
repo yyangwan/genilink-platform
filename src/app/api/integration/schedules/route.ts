@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
     const serviceToken = process.env.SERVICE_TOKEN;
     if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
 
-    const res = await fetch(`${VISIBILITY_URL}/api/projects/${projectPk}/schedules`, {
+    const res = await fetch(`${VISIBILITY_URL}/api/schedules`, {
       headers,
       signal: controller.signal,
     });
@@ -168,10 +168,10 @@ export async function POST(req: NextRequest) {
     const serviceToken = process.env.SERVICE_TOKEN;
     if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
 
-    const res = await fetch(`${VISIBILITY_URL}/api/projects/${projectPk}/schedules`, {
+    const res = await fetch(`${VISIBILITY_URL}/api/schedules`, {
       method: 'POST',
       headers,
-      body: JSON.stringify(rest),
+      body: JSON.stringify({ project_id: projectPk, ...rest }),
       signal: controller.signal,
     });
 

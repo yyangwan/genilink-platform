@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
     const serviceToken = process.env.SERVICE_TOKEN;
     if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
 
-    const res = await fetch(`${VISIBILITY_URL}/api/projects/${projectPk}/suggestions`, {
+    const res = await fetch(`${VISIBILITY_URL}/api/suggestions/${projectPk}`, {
       headers,
       signal: controller.signal,
     });
