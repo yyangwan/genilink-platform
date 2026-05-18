@@ -14,6 +14,12 @@ import {
   Loader2,
   CheckCircle2,
 } from "lucide-react";
+import dynamic from "next/dynamic";
+
+const PlatformCoverageChart = dynamic(
+  () => import("@/components/charts/PlatformCoverageChart"),
+  { ssr: false },
+);
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import type { VisibilitySummary } from "@/types";
 
@@ -394,26 +400,8 @@ function VisibilityContent() {
             <h3 className="text-base font-semibold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
               AI平台覆盖
             </h3>
-            <div className="space-y-3">
-              {visibility.data.platformCoverage.map((p: { name: string; score: number }) => (
-                <div key={p.name} className="flex items-center gap-3">
-                  <span className="text-sm w-20 shrink-0" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-                    {p.name}
-                  </span>
-                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--bg-hover)" }}>
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${Math.max(p.score, 0)}%`,
-                        background: p.score >= 60 ? "var(--color-success)" : p.score >= 40 ? "var(--color-warning)" : "var(--color-error)",
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs font-medium w-10 text-right" style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-                    {p.score}%
-                  </span>
-                </div>
-              ))}
+            <div style={{ height: 220 }}>
+              <PlatformCoverageChart data={visibility.data.platformCoverage} />
             </div>
           </div>
         ) : (

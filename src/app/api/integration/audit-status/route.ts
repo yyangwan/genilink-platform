@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
-import { getExternalId } from '@/lib/proxy/zhijian-client';
 import { proxySSE } from '@/lib/proxy/sse-stream';
 import { cookies } from 'next/headers';
 
@@ -41,25 +40,22 @@ export async function GET(req: NextRequest) {
     throw err;
   }
 
-  // Get external ID for the visibility service
+  // Get the audit ID from query params
+  const auditId = req.nextUrl.searchParams.get('auditId');
+  if (!auditId) {
+    return NextResponse.json(
+      { error: 'Missing auditId query parameter' },
+      { status: 400 }
+    );
+  }
+
+  // Proxy SSE from visibility service
   try {
-    // We need to resolve the external ID to construct the SSE URL
-    // Reuse proxyRequest's internal logic by calling the visibility endpoint path
-    // For SSE, we construct the URL directly and use proxySSE
-    const externalId = await getExternalId(projectId, 'visibility');
-
-    if (!externalId) {
-      return NextResponse.json(
-        { error: 'No external mapping for project' },
-        { status: 404 }
-      );
-    }
-
     const baseUrl =
       process.env.VISIBILITY_SERVICE_URL || 'http://localhost:8000';
     const serviceToken = process.env.SERVICE_TOKEN || '';
     // SSE endpoint streams per-platform completion events; requires token query param
-    const upstreamUrl = `${baseUrl}/api/audits/${externalId}/events?token=${encodeURIComponent(serviceToken)}`;
+    const upstreamUrl = `${baseUrl}/api/audits/${auditId}/events?token=${encodeURIComponent(serviceToken)}`;
 
     return proxySSE(upstreamUrl, {
       Authorization: `Bearer ${serviceToken}`,

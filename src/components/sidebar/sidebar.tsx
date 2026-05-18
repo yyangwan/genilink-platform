@@ -15,6 +15,12 @@ import {
   Menu,
   X,
   Check,
+  Play,
+  FileText,
+  Clock,
+  Lightbulb,
+  TrendingUp,
+  GitCompareArrows,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -27,21 +33,62 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
+interface NavSection {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: NavItem[];
+}
+
 interface Workspace {
   id: string;
   name: string;
 }
 
-const navItems: NavItem[] = [
+const topItems: NavItem[] = [
   { label: "工作台", href: "/dashboard", icon: LayoutDashboard },
   { label: "项目管理", href: "/projects", icon: FolderKanban },
-  { label: "智見", href: "/visibility", icon: Eye },
-  { label: "智創", href: "/content", icon: PenTool },
 ];
+
+const zhijianSection: NavSection = {
+  id: "zhijian",
+  label: "智見",
+  icon: Eye,
+  items: [
+    { label: "可见性分析", href: "/visibility", icon: Play },
+    { label: "审计记录", href: "/audits", icon: FileText },
+    { label: "定时任务", href: "/schedules", icon: Clock },
+    { label: "优化建议", href: "/suggestions", icon: Lightbulb },
+    { label: "趋势分析", href: "/trends", icon: TrendingUp },
+    { label: "竞品对比", href: "/compare", icon: GitCompareArrows },
+  ],
+};
+
+const zhichuangItem: NavItem = {
+  label: "智創",
+  href: "/content",
+  icon: PenTool,
+};
 
 const bottomItems: NavItem[] = [
   { label: "设置", href: "/settings", icon: Settings },
 ];
+
+function getAccordionState(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try {
+    const stored = localStorage.getItem("sidebar-accordion");
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveAccordionState(state: Record<string, boolean>) {
+  try {
+    localStorage.setItem("sidebar-accordion", JSON.stringify(state));
+  } catch {}
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -52,6 +99,32 @@ export default function Sidebar() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
+  const [accordion, setAccordion] = useState<Record<string, boolean>>({});
+
+  // Load accordion state from localStorage
+  useEffect(() => {
+    setAccordion(getAccordionState());
+  }, []);
+
+  // Auto-expand 智見 if current route is a 智見 page
+  useEffect(() => {
+    const isZhijianRoute = zhijianSection.items.some((item) => pathname.startsWith(item.href));
+    if (isZhijianRoute && !accordion[zhijianSection.id]) {
+      setAccordion((prev) => {
+        const next = { ...prev, [zhijianSection.id]: true };
+        saveAccordionState(next);
+        return next;
+      });
+    }
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleAccordion = (sectionId: string) => {
+    setAccordion((prev) => {
+      const next = { ...prev, [sectionId]: !prev[sectionId] };
+      saveAccordionState(next);
+      return next;
+    });
+  };
 
   // Fetch workspaces on mount
   useEffect(() => {
@@ -64,7 +137,6 @@ export default function Sidebar() {
       })
       .catch(() => {});
 
-    // Read current workspace from cookie
     const cookies = document.cookie.split("; ");
     const wsCookie = cookies.find((c) => c.startsWith("genilink-workspace="));
     if (wsCookie) {
@@ -93,7 +165,6 @@ export default function Sidebar() {
         router.refresh();
       }
     } catch {
-      // Silently fail
     } finally {
       setSwitching(false);
     }
@@ -101,12 +172,8 @@ export default function Sidebar() {
 
   const currentWorkspace = workspaces.find((w) => w.id === currentWorkspaceId) || workspaces[0];
 
-  // Close mobile sidebar on route change
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
 
-  // Close mobile sidebar on escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") setMobileOpen(false);
@@ -115,16 +182,13 @@ export default function Sidebar() {
     return () => document.removeEventListener("keydown", handleEscape);
   }, []);
 
-  // Prevent body scroll when sidebar overlay is open
   useEffect(() => {
     if (mobileOpen) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
     }
-    return () => {
-      document.body.style.overflow = "";
-    };
+    return () => { document.body.style.overflow = ""; };
   }, [mobileOpen]);
 
   const isActive = useCallback(
@@ -134,6 +198,40 @@ export default function Sidebar() {
     },
     [pathname]
   );
+
+  const isSectionActive = (section: NavSection) =>
+    section.items.some((item) => isActive(item.href));
+
+  const navLink = (item: NavItem) => {
+    const active = isActive(item.href);
+    const Icon = item.icon;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={cn(
+          "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all relative",
+          "duration-[var(--duration-short)]"
+        )}
+        style={{
+          color: active ? "var(--text-primary)" : "var(--text-secondary)",
+          background: active ? "var(--bg-elevated)" : "transparent",
+          borderLeft: active ? "2px solid var(--color-primary)" : "2px solid transparent",
+          fontFamily: "var(--font-body)",
+        }}
+        onMouseEnter={(e) => {
+          if (!active) e.currentTarget.style.background = "var(--bg-hover)";
+        }}
+        onMouseLeave={(e) => {
+          if (!active) e.currentTarget.style.background = "transparent";
+        }}
+        aria-current={active ? "page" : undefined}
+      >
+        <Icon className="w-[18px] h-[18px] shrink-0" />
+        <span>{item.label}</span>
+      </Link>
+    );
+  };
 
   const sidebarContent = (
     <>
@@ -161,17 +259,12 @@ export default function Sidebar() {
           </span>
         </div>
 
-        {/* Close button (tablet overlay only) */}
         <button
           onClick={() => setMobileOpen(false)}
           className="lg:hidden p-1 rounded-md transition-colors"
           style={{ color: "var(--text-muted)" }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.background = "var(--bg-hover)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = "transparent")
-          }
+          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
           aria-label="Close sidebar"
         >
           <X className="w-5 h-5" />
@@ -187,12 +280,9 @@ export default function Sidebar() {
             color: "var(--text-secondary)",
             background: workspaceOpen ? "var(--bg-elevated)" : "transparent",
           }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.background = "var(--bg-hover)")
-          }
+          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
           onMouseLeave={(e) => {
-            if (!workspaceOpen)
-              (e.currentTarget.style.background = "transparent");
+            if (!workspaceOpen) e.currentTarget.style.background = "transparent";
           }}
         >
           <div className="flex items-center gap-2 min-w-0">
@@ -205,31 +295,21 @@ export default function Sidebar() {
             {currentWorkspace && (
               <span
                 className="text-xs truncate"
-                style={{
-                  color: "var(--text-primary)",
-                  fontFamily: "var(--font-body)",
-                }}
+                style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
               >
                 · {currentWorkspace.name}
               </span>
             )}
           </div>
           <ChevronDown
-            className={cn(
-              "w-3.5 h-3.5 transition-transform shrink-0",
-              workspaceOpen && "rotate-180"
-            )}
+            className={cn("w-3.5 h-3.5 transition-transform shrink-0", workspaceOpen && "rotate-180")}
           />
         </button>
 
-        {/* Workspace dropdown */}
         {workspaceOpen && (
           <div
             className="mt-1 rounded-lg overflow-hidden"
-            style={{
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border)",
-            }}
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
           >
             {workspaces.map((ws) => {
               const isCurrent = ws.id === currentWorkspaceId || (ws === workspaces[0] && !currentWorkspaceId);
@@ -246,18 +326,13 @@ export default function Sidebar() {
                     cursor: switching ? "not-allowed" : "pointer",
                     fontFamily: "var(--font-body)",
                   }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = "var(--bg-hover)")
-                  }
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
                   onMouseLeave={(e) => {
-                    if (!isCurrent)
-                      (e.currentTarget.style.background = "transparent");
+                    if (!isCurrent) e.currentTarget.style.background = "transparent";
                   }}
                 >
                   <span className="truncate">{ws.name}</span>
-                  {isCurrent && (
-                    <Check className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-primary)" }} />
-                  )}
+                  {isCurrent && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-primary)" }} />}
                 </button>
               );
             })}
@@ -267,40 +342,58 @@ export default function Sidebar() {
 
       {/* Main navigation */}
       <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto" aria-label="主导航">
-        {navItems.map((item) => {
-          const active = isActive(item.href);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
+        {/* Top items */}
+        {topItems.map(navLink)}
+
+        {/* Divider */}
+        <div className="my-2" style={{ borderTop: "1px solid var(--border)" }} />
+
+        {/* 智見 accordion section */}
+        <div>
+          <button
+            onClick={() => toggleAccordion(zhijianSection.id)}
+            className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm transition-all"
+            style={{
+              color: isSectionActive(zhijianSection) ? "var(--text-primary)" : "var(--text-secondary)",
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              fontFamily: "var(--font-display)",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            aria-expanded={accordion[zhijianSection.id]}
+          >
+            <div className="flex items-center gap-3">
+              <Eye className="w-[18px] h-[18px] shrink-0" />
+              <span className="text-xs font-medium uppercase tracking-wider">{zhijianSection.label}</span>
+            </div>
+            <ChevronDown
               className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all relative",
-                "duration-[var(--duration-short)]"
+                "w-3.5 h-3.5 transition-transform shrink-0 duration-[var(--duration-medium)]",
+                accordion[zhijianSection.id] && "rotate-180"
               )}
-              style={{
-                color: active ? "var(--text-primary)" : "var(--text-secondary)",
-                background: active ? "var(--bg-elevated)" : "transparent",
-                borderLeft: active
-                  ? "2px solid var(--color-primary)"
-                  : "2px solid transparent",
-                fontFamily: "var(--font-body)",
-              }}
-              onMouseEnter={(e) => {
-                if (!active)
-                  e.currentTarget.style.background = "var(--bg-hover)";
-              }}
-              onMouseLeave={(e) => {
-                if (!active)
-                  e.currentTarget.style.background = "transparent";
-              }}
-              aria-current={active ? "page" : undefined}
-            >
-              <Icon className="w-[18px] h-[18px] shrink-0" />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+            />
+          </button>
+
+          {/* Collapsible children */}
+          <div
+            className={cn(
+              "overflow-hidden transition-all duration-[var(--duration-medium)]",
+              accordion[zhijianSection.id] ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+            )}
+          >
+            <div className="pl-4 space-y-0.5">
+              {zhijianSection.items.map((item) => navLink(item))}
+            </div>
+          </div>
+        </div>
+
+        {/* 智創 */}
+        {navLink(zhichuangItem)}
+
+        {/* Divider */}
+        <div className="my-2" style={{ borderTop: "1px solid var(--border)" }} />
       </nav>
 
       {/* Bottom section */}
@@ -308,38 +401,8 @@ export default function Sidebar() {
         className="shrink-0 px-3 pb-4 pt-2 space-y-0.5"
         style={{ borderTop: "1px solid var(--border)" }}
       >
-        {bottomItems.map((item) => {
-          const active = isActive(item.href);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all",
-                "duration-[var(--duration-short)]"
-              )}
-              style={{
-                color: active ? "var(--text-primary)" : "var(--text-secondary)",
-                background: active ? "var(--bg-elevated)" : "transparent",
-              }}
-              onMouseEnter={(e) => {
-                if (!active)
-                  e.currentTarget.style.background = "var(--bg-hover)";
-              }}
-              onMouseLeave={(e) => {
-                if (!active)
-                  e.currentTarget.style.background = "transparent";
-              }}
-              aria-current={active ? "page" : undefined}
-            >
-              <Icon className="w-[18px] h-[18px] shrink-0" />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+        {bottomItems.map(navLink)}
 
-        {/* Logout */}
         <button
           onClick={() => setLogoutConfirm(true)}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors"
@@ -362,7 +425,6 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Hamburger menu button — tablet only (640px–1023px) */}
       <button
         onClick={() => setMobileOpen(true)}
         className="fixed top-4 left-4 z-50 hidden sm:flex lg:hidden p-2 rounded-lg"
@@ -376,7 +438,6 @@ export default function Sidebar() {
         <Menu className="w-5 h-5" />
       </button>
 
-      {/* Overlay backdrop — tablet only */}
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 hidden sm:block lg:hidden"
@@ -386,7 +447,6 @@ export default function Sidebar() {
         />
       )}
 
-      {/* Sidebar — desktop (fixed, always visible at >= 1024px) */}
       <aside
         className={cn(
           "hidden lg:flex flex-col fixed top-0 left-0 h-full z-50",
@@ -403,7 +463,6 @@ export default function Sidebar() {
         {sidebarContent}
       </aside>
 
-      {/* Sidebar — tablet overlay (640px–1023px) */}
       <aside
         className={cn(
           "fixed top-0 left-0 h-full z-50 hidden sm:block lg:hidden",
@@ -422,7 +481,6 @@ export default function Sidebar() {
         {sidebarContent}
       </aside>
 
-      {/* Logout confirmation dialog */}
       <ConfirmDialog
         open={logoutConfirm}
         onConfirm={() => {
