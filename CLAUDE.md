@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-Error handling + mobile responsive fixes committed (2026-05-18). ErrorState component added to 6 pages, API failures show friendly error with retry. Compare page grids made responsive. Next: recharts code splitting, backend data testing (needs port 8000), notification SSE.
+Recharts code splitting done, performance audit passed (2026-05-18). Client JS 2.0 MB total, recharts code-split correctly (~945 KB lazy), lucide tree-shaken (22 KB), next-auth 10 KB. Next: backend data testing (needs port 8000), notification SSE.
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services
