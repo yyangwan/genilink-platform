@@ -130,7 +130,7 @@ export function ProjectSelector() {
             style={{
               position: "fixed",
               inset: 0,
-              background: "rgba(0,0,0,0.5)",
+              background: "rgba(0,0,0,0.6)",
               zIndex: "var(--z-sidebar)",
             }}
             onClick={() => setOpen(false)}
