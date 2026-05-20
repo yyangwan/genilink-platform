@@ -15,7 +15,7 @@ export interface SectionFetchState<T> {
  * - Handles AbortController cleanup on unmount or URL change.
  * - Detects 403 BillingError responses and sets `locked` flag.
  */
-export function useSectionFetch<T>(url: string): SectionFetchState<T> {
+export function useSectionFetch<T>(url: string | null): SectionFetchState<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -23,6 +23,12 @@ export function useSectionFetch<T>(url: string): SectionFetchState<T> {
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchData = useCallback(async () => {
+    // Skip if no URL (e.g. projectId not yet resolved)
+    if (!url) {
+      setLoading(true);
+      return;
+    }
+
     // Abort any in-flight request
     if (abortRef.current) {
       abortRef.current.abort();

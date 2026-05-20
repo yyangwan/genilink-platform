@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-Integration data testing complete (2026-05-18). 12/13 integration routes verified against live visibility backend (port 8000). Visibility aggregation rewrites, URL path fixes for suggestions/schedules/audits/audit-status. Next: content service (port 4002), UI dogfooding.
+Shipped v0.1.0.1 (PR #2) on 2026-05-20 — design review fixes + security fix + 18 tests. Next: merge PR, then implement UX context overhaul (ContextBar, ProjectSelector, ProjectWizard, DiagnosticChecklist, Toast).
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services
