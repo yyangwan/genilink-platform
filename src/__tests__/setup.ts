@@ -27,8 +27,10 @@ vi.mock('@/lib/db', () => ({
     },
     externalResourceMapping: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
       create: vi.fn(),
       createMany: vi.fn(),
+      update: vi.fn(),
     },
     workspace: {
       create: vi.fn(),
@@ -38,6 +40,7 @@ vi.mock('@/lib/db', () => ({
     project: {
       create: vi.fn(),
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
     },
     $transaction: vi.fn((fn) => fn()),
   },
