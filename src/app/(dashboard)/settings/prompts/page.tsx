@@ -1,9 +1,9 @@
 "use client";
 
-import React, { Suspense, useState, useEffect, useCallback } from "react";
+import React, { Suspense, useState, useCallback } from "react";
 import { Plus, Pencil, Trash2, X, Check, Loader2, Sparkles, MessageSquare } from "lucide-react";
-import { useSearchParams } from "next/navigation";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
+import { useProject } from "@/components/project/project-context";
 import { DataTable } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -16,11 +16,6 @@ const sectionCard: React.CSSProperties = {
   borderRadius: "12px",
   padding: "24px",
 };
-
-interface Project {
-  id: string;
-  name: string;
-}
 
 interface Prompt {
   id: string;
@@ -36,21 +31,13 @@ interface PromptFormData {
 }
 
 function PromptsContent() {
-  const searchParams = useSearchParams();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
-
-  const projectIdParam = searchParams.get("project");
-  const currentProject = projectIdParam
-    ? projects.find((p) => p.id === projectIdParam)
-    : projects[0];
-  const currentProjectId = currentProject?.id;
+  const { currentProjectId, projects, loading, openWizard } = useProject();
 
   const promptsUrl = currentProjectId
     ? `/api/integration/prompts?projectId=${currentProjectId}`
-    : "";
+    : null;
 
-  const prompts = useSectionFetch<Prompt[]>(promptsUrl || "/api/integration/prompts");
+  const prompts = useSectionFetch<Prompt[]>(promptsUrl);
 
   // Inline form state
   const [adding, setAdding] = useState(false);
@@ -66,17 +53,6 @@ function PromptsContent() {
 
   // AI generating state
   const [generating, setGenerating] = useState(false);
-
-  // Fetch projects on mount
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.projects) setProjects(data.projects);
-      })
-      .catch(() => {})
-      .finally(() => setProjectsLoading(false));
-  }, []);
 
   const refetch = prompts.refetch;
 
@@ -291,7 +267,7 @@ function PromptsContent() {
     },
   ];
 
-  if (!projectsLoading && projects.length === 0) {
+  if (!loading && projects.length === 0) {
     return (
       <div className="space-y-6">
         <PageHeader title="提示词管理" subtitle="管理 AI 分析使用的提示词" />
@@ -301,7 +277,7 @@ function PromptsContent() {
             title="暂无项目"
             description="请先创建项目，然后管理提示词"
             actionLabel="创建项目"
-            actionHref="/projects"
+            onAction={() => openWizard()}
           />
         </div>
       </div>

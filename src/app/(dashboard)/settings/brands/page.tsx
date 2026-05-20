@@ -1,9 +1,9 @@
 "use client";
 
-import React, { Suspense, useState, useEffect, useCallback } from "react";
+import React, { Suspense, useState, useCallback } from "react";
 import { Plus, Pencil, Trash2, X, Check, Loader2, Tag } from "lucide-react";
-import { useSearchParams } from "next/navigation";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
+import { useProject } from "@/components/project/project-context";
 import { DataTable } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -16,11 +16,6 @@ const sectionCard: React.CSSProperties = {
   borderRadius: "12px",
   padding: "24px",
 };
-
-interface Project {
-  id: string;
-  name: string;
-}
 
 interface Brand {
   id: string;
@@ -36,21 +31,13 @@ interface BrandFormData {
 }
 
 function BrandsContent() {
-  const searchParams = useSearchParams();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
-
-  const projectIdParam = searchParams.get("project");
-  const currentProject = projectIdParam
-    ? projects.find((p) => p.id === projectIdParam)
-    : projects[0];
-  const currentProjectId = currentProject?.id;
+  const { currentProjectId, projects, loading, openWizard } = useProject();
 
   const brandsUrl = currentProjectId
     ? `/api/integration/brands?projectId=${currentProjectId}`
-    : "";
+    : null;
 
-  const brands = useSectionFetch<Brand[]>(brandsUrl || "/api/integration/brands");
+  const brands = useSectionFetch<Brand[]>(brandsUrl);
 
   // Inline form state
   const [adding, setAdding] = useState(false);
@@ -63,17 +50,6 @@ function BrandsContent() {
 
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<Brand | null>(null);
-
-  // Fetch projects on mount
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.projects) setProjects(data.projects);
-      })
-      .catch(() => {})
-      .finally(() => setProjectsLoading(false));
-  }, []);
 
   const refetch = brands.refetch;
 
@@ -264,7 +240,7 @@ function BrandsContent() {
     },
   ];
 
-  if (!projectsLoading && projects.length === 0) {
+  if (!loading && projects.length === 0) {
     return (
       <div className="space-y-6">
         <PageHeader title="品牌管理" subtitle="管理品牌和竞品标签" />
@@ -274,7 +250,7 @@ function BrandsContent() {
             title="暂无项目"
             description="请先创建项目，然后管理品牌"
             actionLabel="创建项目"
-            actionHref="/projects"
+            onAction={() => openWizard()}
           />
         </div>
       </div>
