@@ -237,9 +237,9 @@ function LoginContent() {
         <div
           className="mb-4 px-3 py-2 rounded-lg text-sm"
           style={{
-            background: "var(--color-error)15",
+            background: "color-mix(in srgb, var(--color-error) 15%, transparent)",
             color: "var(--color-error)",
-            border: "1px solid var(--color-error)30",
+            border: "1px solid color-mix(in srgb, var(--color-error) 30%, transparent)",
             fontFamily: "var(--font-body)",
           }}
         >
