@@ -48,7 +48,6 @@ export function ToastRenderer() {
               border: "1px solid var(--border)",
               borderRadius: "var(--radius-lg)",
               boxShadow: "var(--shadow-md)",
-              borderLeft: `3px solid ${config.color}`,
               animation: "toast-slide-in var(--duration-medium) var(--ease)",
               position: "relative",
             }}
