@@ -101,9 +101,13 @@ model WorkspaceInvite {
 model Project {
   id          String    @id @default(cuid()) @db.Text
   name        String    @db.Text
-  url         String?   @db.Text
-  industry    String?   @db.Text
-  workspaceId String    @db.Text
+  url               String?   @db.Text
+  industry          String?   @db.Text
+  productName       String?   @db.Text
+  productKeywords   String[]  @default([])
+  productDescription String?  @db.Text
+  productUrl        String?   @db.Text
+  workspaceId       String    @db.Text
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

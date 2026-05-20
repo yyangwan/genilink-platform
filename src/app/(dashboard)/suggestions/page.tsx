@@ -1,8 +1,7 @@
 "use client";
 
-import React, { Suspense, useState, useEffect, useCallback } from "react";
+import React, { Suspense, useState, useCallback } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import {
   Lightbulb,
   ArrowRight,
@@ -12,7 +11,9 @@ import {
   Filter,
 } from "lucide-react";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
+import { useProject } from "@/components/project/project-context";
 import { PageHeader } from "@/components/ui/page-header";
+import { DiagnosticChecklist, type DiagnosticItem } from "@/components/ui/diagnostic-checklist";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 
@@ -22,11 +23,6 @@ const sectionCard: React.CSSProperties = {
   borderRadius: "12px",
   padding: "24px",
 };
-
-interface Project {
-  id: string;
-  name: string;
-}
 
 interface Suggestion {
   id: string;
@@ -53,35 +49,16 @@ type StatusFilter = "all" | "pending" | "resolved" | "ignored";
 type PriorityFilter = "all" | "high" | "medium" | "low";
 
 function SuggestionsContent() {
-  const searchParams = useSearchParams();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
+  const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [resolvingIds, setResolvingIds] = useState<Set<string>>(new Set());
 
-  const projectIdParam = searchParams.get("project");
-  const currentProject = projectIdParam
-    ? projects.find((p) => p.id === projectIdParam)
-    : projects[0];
-  const currentProjectId = currentProject?.id;
-
   const suggestionsUrl = currentProjectId
     ? `/api/integration/suggestions?projectId=${currentProjectId}`
-    : "";
+    : null;
 
-  const suggestions = useSectionFetch<Suggestion[]>(suggestionsUrl || "/api/integration/suggestions");
-
-  // Fetch projects on mount
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.projects) setProjects(data.projects);
-      })
-      .catch(() => {})
-      .finally(() => setProjectsLoading(false));
-  }, []);
+  const suggestions = useSectionFetch<Suggestion[]>(suggestionsUrl);
 
   const refetch = suggestions.refetch;
 
@@ -131,19 +108,16 @@ function SuggestionsContent() {
     transition: "all 0.15s",
   });
 
-  if (!projectsLoading && projects.length === 0) {
+  // No project selected — show diagnostic checklist
+  if (!loading && !currentProjectId) {
+    const checklistItems: DiagnosticItem[] = [
+      { id: "project", label: "创建项目", status: projects.length === 0 ? "incomplete" : "complete", actionLabel: "创建", onAction: () => openWizard() },
+      { id: "product", label: "完善产品信息", status: currentProject?.productName ? "complete" : "incomplete" },
+    ];
     return (
       <div className="space-y-6">
         <PageHeader title="优化建议" subtitle="AI 生成的可见性优化建议" />
-        <div style={sectionCard}>
-          <EmptyState
-            icon={Lightbulb}
-            title="暂无项目"
-            description="请先创建项目以获取 AI 优化建议"
-            actionLabel="创建项目"
-            actionHref="/projects"
-          />
-        </div>
+        <DiagnosticChecklist items={checklistItems} title="准备工作" />
       </div>
     );
   }

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   KPIScorecard,
@@ -13,6 +12,7 @@ import {
   LoadingSkeleton,
 } from "@/components/dashboard/widgets";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
+import { useProject } from "@/components/project/project-context";
 import type {
   VisibilitySummary,
   GeoSummary,
@@ -261,18 +261,17 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
-  const searchParams = useSearchParams();
-  const project = searchParams.get("project");
+  const { currentProjectId, currentProject } = useProject();
 
   // Section-based data fetching
   const visibility = useSectionFetch<VisibilitySummary>(
-    `/api/dashboard/visibility${project ? `?project=${project}` : ""}`
+    currentProjectId ? `/api/dashboard/visibility?project=${currentProjectId}` : "/api/dashboard/visibility"
   );
   const geo = useSectionFetch<GeoSummary>(
-    `/api/dashboard/geo${project ? `?project=${project}` : ""}`
+    currentProjectId ? `/api/dashboard/geo?project=${currentProjectId}` : "/api/dashboard/geo"
   );
   const content = useSectionFetch<ContentSummary>(
-    `/api/dashboard/content${project ? `?project=${project}` : ""}`
+    currentProjectId ? `/api/dashboard/content?project=${currentProjectId}` : "/api/dashboard/content"
   );
 
   return (
@@ -297,7 +296,7 @@ function DashboardContent() {
               fontFamily: "var(--font-body)",
             }}
           >
-            {project
+            {currentProjectId
               ? `项目概览 — 实时数据监控`
               : "全局概览 — 实时数据监控"}
           </p>
@@ -311,7 +310,7 @@ function DashboardContent() {
       </div>
 
       {/* ─── Welcome CTA (shown when no data) ──────────────── */}
-      {!project && !visibility.loading && !visibility.data?.overallScore && (
+      {!currentProjectId && !visibility.loading && !visibility.data?.overallScore && (
         <div
           className="rounded-xl p-6 flex items-center justify-between gap-4"
           style={{

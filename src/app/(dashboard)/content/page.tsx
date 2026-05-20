@@ -1,10 +1,14 @@
 "use client";
 
-import React, { Suspense, useState, useEffect } from "react";
-import { PenTool, FileText, Sparkles, AlertCircle, ArrowRight, Construction } from "lucide-react";
+import React, { Suspense } from "react";
+import { PenTool, FileText, Sparkles, ArrowRight, Construction } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
+import { useProject } from "@/components/project/project-context";
+import {
+  DiagnosticChecklist,
+  type DiagnosticItem,
+} from "@/components/ui/diagnostic-checklist";
 import type { ContentSummary } from "@/types";
 
 const sectionCard: React.CSSProperties = {
@@ -14,41 +18,31 @@ const sectionCard: React.CSSProperties = {
   padding: "24px",
 };
 
-interface Project {
-  id: string;
-  name: string;
-}
-
 function ContentContent() {
-  const searchParams = useSearchParams();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
-
-  const projectIdParam = searchParams.get("project");
-  const currentProject = projectIdParam
-    ? projects.find((p) => p.id === projectIdParam)
-    : projects[0];
-  const currentProjectId = currentProject?.id;
+  const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
 
   const contentUrl = currentProjectId
     ? `/api/dashboard/content?project=${currentProjectId}`
-    : "/api/dashboard/content";
+    : null;
   const content = useSectionFetch<ContentSummary>(contentUrl);
 
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.projects) {
-          setProjects(data.projects);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setProjectsLoading(false));
-  }, []);
+  // No project selected state — show DiagnosticChecklist
+  if (!loading && !currentProjectId) {
+    const diagnosticItems: DiagnosticItem[] = [
+      {
+        id: "project",
+        label: "创建项目",
+        status: projects.length === 0 ? "incomplete" : "complete",
+        actionLabel: "创建",
+        onAction: () => openWizard(),
+      },
+      {
+        id: "product",
+        label: "完善产品信息",
+        status: currentProject?.productName ? "complete" : "incomplete",
+      },
+    ];
 
-  // No projects state
-  if (!projectsLoading && projects.length === 0) {
     return (
       <div className="space-y-6">
         <div>
@@ -66,22 +60,7 @@ function ContentContent() {
             AI驱动的内容创作与管理
           </p>
         </div>
-        <div style={sectionCard}>
-          <div className="flex flex-col items-center justify-center py-12">
-            <AlertCircle className="w-10 h-10 mb-3" style={{ color: "var(--text-muted)" }} />
-            <p className="text-sm mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-              暂无项目 — 请先创建项目
-            </p>
-            <Link
-              href="/projects"
-              className="flex items-center gap-1.5 text-sm font-medium"
-              style={{ color: "var(--color-primary)", fontFamily: "var(--font-body)", textDecoration: "none" }}
-            >
-              创建项目
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-        </div>
+        <DiagnosticChecklist items={diagnosticItems} title="准备工作" />
       </div>
     );
   }

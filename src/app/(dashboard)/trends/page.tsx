@@ -1,7 +1,6 @@
 "use client";
 
-import React, { Suspense, useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import React, { Suspense, useState, useMemo } from "react";
 import { TrendingUp, Calendar } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -9,7 +8,9 @@ const TrendLineChart = dynamic(
   () => import("@/components/charts/TrendLineChart"),
   { ssr: false },
 );
+import { useProject } from "@/components/project/project-context";
 import { PageHeader } from "@/components/ui/page-header";
+import { DiagnosticChecklist, type DiagnosticItem } from "@/components/ui/diagnostic-checklist";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
@@ -24,42 +25,19 @@ const sectionCard: React.CSSProperties = {
 
 type Period = "daily" | "weekly" | "monthly";
 
-interface Project {
-  id: string;
-  name: string;
-}
-
 interface TrendsResponse {
   trends: TrendData[];
   annotations?: TrendAnnotation[];
 }
 
 function TrendsContent() {
-  const searchParams = useSearchParams();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
+  const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
   const [period, setPeriod] = useState<Period>("weekly");
-
-  const projectIdParam = searchParams.get("project");
-  const currentProject = projectIdParam
-    ? projects.find((p) => p.id === projectIdParam)
-    : projects[0];
-  const currentProjectId = currentProject?.id;
 
   const trendsUrl = currentProjectId
     ? `/api/integration/trends?projectId=${currentProjectId}`
-    : "/api/integration/trends";
-  const { data, loading, error, refetch } = useSectionFetch<TrendsResponse>(trendsUrl);
-
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.projects) setProjects(data.projects);
-      })
-      .catch(() => {})
-      .finally(() => setProjectsLoading(false));
-  }, []);
+    : null;
+  const { data, loading: trendsLoading, error, refetch } = useSectionFetch<TrendsResponse>(trendsUrl);
 
   const trends = data?.trends ?? [];
   const annotations = data?.annotations ?? [];
@@ -93,7 +71,7 @@ function TrendsContent() {
   const annotationMap = new Map(annotations.map((a) => [a.date, a.text]));
 
   const renderChart = () => {
-    if (loading) {
+    if (trendsLoading) {
       return (
         <div style={sectionCard}>
           <div className="space-y-4">
@@ -188,19 +166,16 @@ function TrendsContent() {
     );
   };
 
-  if (!projectsLoading && projects.length === 0) {
+  // No project selected — show diagnostic checklist
+  if (!loading && !currentProjectId) {
+    const checklistItems: DiagnosticItem[] = [
+      { id: "project", label: "创建项目", status: projects.length === 0 ? "incomplete" : "complete", actionLabel: "创建", onAction: () => openWizard() },
+      { id: "product", label: "完善产品信息", status: currentProject?.productName ? "complete" : "incomplete" },
+    ];
     return (
       <div className="space-y-6">
         <PageHeader title="趋势分析" subtitle="追踪 AI 可见性得分变化趋势" />
-        <div style={sectionCard}>
-          <EmptyState
-            icon={TrendingUp}
-            title="暂无项目"
-            description="请先创建项目以查看趋势数据"
-            actionLabel="创建项目"
-            actionHref="/projects"
-          />
-        </div>
+        <DiagnosticChecklist items={checklistItems} title="准备工作" />
       </div>
     );
   }

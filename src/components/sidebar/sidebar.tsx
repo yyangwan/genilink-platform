@@ -161,6 +161,8 @@ export default function Sidebar() {
       if (res.ok) {
         setCurrentWorkspaceId(workspaceId);
         document.cookie = `genilink-workspace=${workspaceId};path=/;max-age=${365 * 24 * 60 * 60}`;
+        // Clear project cookie since projects are workspace-scoped
+        document.cookie = `genilink-project=;path=/;max-age=0`;
         setWorkspaceOpen(false);
         router.refresh();
       }

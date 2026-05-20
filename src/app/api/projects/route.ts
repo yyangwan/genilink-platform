@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { name, url, industry } = body;
+  const { name, url, industry, productName, productKeywords, productDescription, productUrl } = body;
 
   if (!name) {
     return NextResponse.json(
@@ -84,13 +84,18 @@ export async function POST(req: NextRequest) {
 
   // Create project + external mappings in transaction
   const project = await prisma.$transaction(async (tx) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const proj = await tx.project.create({
       data: {
         name,
         url: url || null,
         industry: industry || null,
+        productName: productName || null,
+        productKeywords: productKeywords || [],
+        productDescription: productDescription || null,
+        productUrl: productUrl || null,
         workspaceId,
-      },
+      } as any,
     });
 
     await tx.externalResourceMapping.createMany({

@@ -41,5 +41,14 @@ export async function POST(req: NextRequest) {
     path: '/',
   });
 
+  // Clear project cookie since projects are workspace-scoped
+  response.cookies.set('genilink-project', '', {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 0,
+    path: '/',
+  });
+
   return response;
 }

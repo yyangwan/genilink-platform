@@ -1,8 +1,7 @@
 "use client";
 
-import React, { Suspense, useState, useEffect } from "react";
+import React, { Suspense } from "react";
 import { useRouter } from "next/navigation";
-import { useSearchParams } from "next/navigation";
 import {
   FileText,
   Loader2,
@@ -12,7 +11,9 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
+import { useProject } from "@/components/project/project-context";
 import { DataTable } from "@/components/ui/data-table";
+import { DiagnosticChecklist, type DiagnosticItem } from "@/components/ui/diagnostic-checklist";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -24,12 +25,6 @@ const sectionCard: React.CSSProperties = {
   borderRadius: "12px",
   padding: "24px",
 };
-
-interface Project {
-  id: string;
-  name: string;
-  url: string | null;
-}
 
 const statusConfig: Record<string, { color: string; bg: string; label: string; Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }> = {
   completed: { color: "var(--color-success)", bg: "var(--color-success)20", label: "已完成", Icon: CheckCircle2 },
@@ -62,30 +57,9 @@ function scoreColor(score: number): string {
 
 function AuditsContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
+  const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
 
-  const projectIdParam = searchParams.get("project");
-  const currentProject = projectIdParam
-    ? projects.find((p) => p.id === projectIdParam)
-    : projects[0];
-  const currentProjectId = currentProject?.id;
-
-  // Fetch projects on mount
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.projects) {
-          setProjects(data.projects);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setProjectsLoading(false));
-  }, []);
-
-  // Fetch audits for current project (skip until projectId is resolved)
+  // Fetch audits for current project (null URL → skip fetch)
   const auditsUrl = currentProjectId
     ? `/api/integration/audits?projectId=${currentProjectId}`
     : null;
@@ -181,19 +155,16 @@ function AuditsContent() {
     },
   ];
 
-  // No projects state
-  if (!projectsLoading && projects.length === 0) {
+  // No project selected — show diagnostic checklist
+  if (!loading && !currentProjectId) {
+    const checklistItems: DiagnosticItem[] = [
+      { id: "project", label: "创建项目", status: projects.length === 0 ? "incomplete" : "complete", actionLabel: "创建", onAction: () => openWizard() },
+      { id: "product", label: "完善产品信息", status: currentProject?.productName ? "complete" : "incomplete" },
+    ];
     return (
       <div className="space-y-6">
         <PageHeader title="审计记录" subtitle="查看历史可见性分析记录" />
-        <div style={sectionCard}>
-          <div className="flex flex-col items-center justify-center py-12">
-            <FileText className="w-10 h-10 mb-3" style={{ color: "var(--text-muted)" }} />
-            <p className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-              暂无项目 — 请先创建项目
-            </p>
-          </div>
-        </div>
+        <DiagnosticChecklist items={checklistItems} title="准备工作" />
       </div>
     );
   }
@@ -225,7 +196,7 @@ function AuditsContent() {
           data={audits.data ?? []}
           rowKey={(row) => row.id}
           onRowClick={handleRowClick}
-          loading={audits.loading || projectsLoading}
+          loading={audits.loading || loading}
           loadingRows={5}
           emptyContent={
             <EmptyState

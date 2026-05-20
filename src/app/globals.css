@@ -93,6 +93,18 @@ body {
   animation: gauge-fill 1s ease-out forwards;
 }
 
+/* Toast slide-in from right */
+@keyframes toast-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Bottom sheet slide up (mobile) */
+@keyframes sheet-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
 /* ========================================
    Reduced motion (a11y)
    ======================================== */

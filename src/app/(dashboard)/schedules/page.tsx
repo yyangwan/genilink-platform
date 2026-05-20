@@ -1,13 +1,17 @@
 "use client";
 
 import React, { Suspense, useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
 import { Clock, Plus, Trash2, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { DataTable } from "@/components/ui/data-table";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useProject } from "@/components/project/project-context";
+import {
+  DiagnosticChecklist,
+  type DiagnosticItem,
+} from "@/components/ui/diagnostic-checklist";
 import type { Schedule } from "@/types/visibility";
 
 const sectionCard: React.CSSProperties = {
@@ -16,11 +20,6 @@ const sectionCard: React.CSSProperties = {
   borderRadius: "12px",
   padding: "24px",
 };
-
-interface Project {
-  id: string;
-  name: string;
-}
 
 interface SchedulesResponse {
   schedules: Schedule[];
@@ -33,9 +32,7 @@ const PRESET_CRONS = [
 ];
 
 function SchedulesContent() {
-  const searchParams = useSearchParams();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
+  const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [schedulesLoading, setSchedulesLoading] = useState(true);
   const [schedulesError, setSchedulesError] = useState(false);
@@ -45,22 +42,6 @@ function SchedulesContent() {
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Schedule | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  const projectIdParam = searchParams.get("project");
-  const currentProject = projectIdParam
-    ? projects.find((p) => p.id === projectIdParam)
-    : projects[0];
-  const currentProjectId = currentProject?.id;
-
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.projects) setProjects(data.projects);
-      })
-      .catch(() => {})
-      .finally(() => setProjectsLoading(false));
-  }, []);
 
   const fetchSchedules = useCallback(() => {
     if (!currentProjectId) return;
@@ -250,19 +231,27 @@ function SchedulesContent() {
     boxSizing: "border-box",
   };
 
-  if (!projectsLoading && projects.length === 0) {
+  // No project selected state — show DiagnosticChecklist
+  if (!loading && !currentProjectId) {
+    const diagnosticItems: DiagnosticItem[] = [
+      {
+        id: "project",
+        label: "创建项目",
+        status: projects.length === 0 ? "incomplete" : "complete",
+        actionLabel: "创建",
+        onAction: () => openWizard(),
+      },
+      {
+        id: "product",
+        label: "完善产品信息",
+        status: currentProject?.productName ? "complete" : "incomplete",
+      },
+    ];
+
     return (
       <div className="space-y-6">
         <PageHeader title="定时任务" subtitle="管理自动化可见性分析计划" />
-        <div style={sectionCard}>
-          <EmptyState
-            icon={Clock}
-            title="暂无项目"
-            description="请先创建项目以管理定时任务"
-            actionLabel="创建项目"
-            actionHref="/projects"
-          />
-        </div>
+        <DiagnosticChecklist items={diagnosticItems} title="准备工作" />
       </div>
     );
   }

@@ -2,6 +2,9 @@ import { cookies } from "next/headers";
 import { auth } from "@/lib/auth/config";
 import { prisma } from "@/lib/db";
 import Sidebar from "@/components/sidebar/sidebar";
+import { ProjectProviderWrapper } from "@/components/project/project-provider";
+import { ContextBar } from "@/components/project/context-bar";
+import { ProjectWizard } from "@/components/project/project-wizard";
 
 export default async function DashboardLayout({
   children,
@@ -39,9 +42,13 @@ export default async function DashboardLayout({
           fontFamily: "var(--font-body)",
         }}
       >
-        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
-          {children}
-        </div>
+        <ProjectProviderWrapper workspaceId={workspaceId}>
+          <ContextBar />
+          <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
+            {children}
+          </div>
+          <ProjectWizard />
+        </ProjectProviderWrapper>
       </main>
     </div>
   );

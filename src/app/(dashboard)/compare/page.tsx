@@ -1,9 +1,10 @@
 "use client";
 
 import React, { Suspense, useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
 import { GitCompare, Loader2 } from "lucide-react";
+import { useProject } from "@/components/project/project-context";
 import { PageHeader } from "@/components/ui/page-header";
+import { DiagnosticChecklist, type DiagnosticItem } from "@/components/ui/diagnostic-checklist";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { AuditListItem, AuditComparison, ReportInsight } from "@/types/visibility";
 
@@ -14,15 +15,8 @@ const sectionCard: React.CSSProperties = {
   padding: "24px",
 };
 
-interface Project {
-  id: string;
-  name: string;
-}
-
 function CompareContent() {
-  const searchParams = useSearchParams();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
+  const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
   const [audits, setAudits] = useState<AuditListItem[]>([]);
   const [auditA, setAuditA] = useState<string>("");
   const [auditB, setAuditB] = useState<string>("");
@@ -30,22 +24,7 @@ function CompareContent() {
   const [compareError, setCompareError] = useState(false);
   const [result, setResult] = useState<AuditComparison | null>(null);
 
-  const projectIdParam = searchParams.get("project");
-  const currentProject = projectIdParam
-    ? projects.find((p) => p.id === projectIdParam)
-    : projects[0];
-  const currentProjectId = currentProject?.id;
-
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.projects) setProjects(data.projects);
-      })
-      .catch(() => {})
-      .finally(() => setProjectsLoading(false));
-  }, []);
-
+  // Fetch audits for the compare dropdown
   useEffect(() => {
     if (!currentProjectId) return;
     fetch(`/api/integration/audits?projectId=${currentProjectId}`)
@@ -270,24 +249,21 @@ function CompareContent() {
     );
   };
 
-  if (!projectsLoading && projects.length === 0) {
+  // No project selected — show diagnostic checklist
+  if (!loading && !currentProjectId) {
+    const checklistItems: DiagnosticItem[] = [
+      { id: "project", label: "创建项目", status: projects.length === 0 ? "incomplete" : "complete", actionLabel: "创建", onAction: () => openWizard() },
+      { id: "product", label: "完善产品信息", status: currentProject?.productName ? "complete" : "incomplete" },
+    ];
     return (
       <div className="space-y-6">
         <PageHeader title="竞品对比" subtitle="对比不同审计的分析结果" />
-        <div style={sectionCard}>
-          <EmptyState
-            icon={GitCompare}
-            title="暂无项目"
-            description="请先创建项目以使用对比功能"
-            actionLabel="创建项目"
-            actionHref="/projects"
-          />
-        </div>
+        <DiagnosticChecklist items={checklistItems} title="准备工作" />
       </div>
     );
   }
 
-  if (!projectsLoading && completedAudits.length < 2) {
+  if (!loading && completedAudits.length < 2) {
     return (
       <div className="space-y-6">
         <PageHeader title="竞品对比" subtitle="对比不同审计的分析结果" />
