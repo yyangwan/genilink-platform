@@ -249,7 +249,7 @@ export function ProjectSelector() {
               left: 0,
               right: 0,
               background: "var(--bg-card)",
-              borderRadius: "16px 16px 0 0",
+              borderRadius: "var(--radius-xl) var(--radius-xl) 0 0",
               maxHeight: "70vh",
               overflowY: "auto",
               zIndex: "calc(var(--z-sidebar) + 1)",
