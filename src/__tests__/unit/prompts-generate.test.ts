@@ -68,6 +68,10 @@ describe('POST /api/integration/prompts/generate', () => {
     });
   });
 
+  afterEach(() => {
+    delete process.env.SERVICE_TOKEN;
+  });
+
   // --- Auth guards ---
 
   it('should return 401 when not authenticated', async () => {
@@ -229,6 +233,7 @@ describe('POST /api/integration/prompts/generate', () => {
 
     // SERVICE_TOKEN is required for auto-create path
     process.env.SERVICE_TOKEN = 'test-service-token';
+    const _prevToken = process.env.SERVICE_TOKEN;
 
     // First fetch = create project on visibility service
     // Second fetch = actual generate call
