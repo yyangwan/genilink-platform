@@ -74,7 +74,7 @@ export function ContextBar() {
       style={{
         position: "sticky",
         top: 0,
-        zIndex: 50,
+        zIndex: "var(--z-sidebar)",
         height: 40,
         background: "var(--bg-card)",
         borderBottom: "1px solid var(--border)",

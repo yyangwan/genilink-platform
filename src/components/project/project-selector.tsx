@@ -131,7 +131,7 @@ export function ProjectSelector() {
               position: "fixed",
               inset: 0,
               background: "rgba(0,0,0,0.5)",
-              zIndex: 100,
+              zIndex: "var(--z-sidebar)",
             }}
             onClick={() => setOpen(false)}
           />
@@ -152,7 +152,7 @@ export function ProjectSelector() {
               minWidth: 260,
               maxHeight: 320,
               overflowY: "auto",
-              zIndex: 100,
+              zIndex: "var(--z-sidebar)",
             }}
             role="listbox"
           >
@@ -252,7 +252,7 @@ export function ProjectSelector() {
               borderRadius: "16px 16px 0 0",
               maxHeight: "70vh",
               overflowY: "auto",
-              zIndex: 101,
+              zIndex: "calc(var(--z-sidebar) + 1)",
               animation: "sheet-slide-up var(--duration-medium) var(--ease)",
             }}
           >

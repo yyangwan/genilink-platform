@@ -22,7 +22,7 @@ export function ToastRenderer() {
         position: "fixed",
         top: 16,
         right: 16,
-        zIndex: 300,
+        zIndex: "var(--z-toast)",
         display: "flex",
         flexDirection: "column",
         gap: 8,

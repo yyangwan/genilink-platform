@@ -212,7 +212,7 @@ export function ProjectWizard() {
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 200,
+        zIndex: "var(--z-modal)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -586,7 +586,7 @@ export function ProjectWizard() {
         style={{
           position: "fixed",
           inset: 0,
-          zIndex: 201,
+          zIndex: "calc(var(--z-modal) + 1)",
           background: "var(--bg-card)",
           display: "flex",
           flexDirection: "column",
