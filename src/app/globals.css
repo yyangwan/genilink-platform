@@ -185,3 +185,13 @@ body {
   background: var(--color-primary-dim);
   color: var(--text-primary);
 }
+
+/* ========================================
+   Interactive element hover/focus helpers
+   ======================================== */
+button:not(:disabled):hover,
+a:hover {
+  transition: background var(--duration-short) var(--ease),
+              color var(--duration-short) var(--ease),
+              opacity var(--duration-short) var(--ease);
+}

@@ -197,6 +197,7 @@ export function ProjectWizard() {
     fontSize: 14,
     fontFamily: "var(--font-body)",
     outline: "none",
+    transition: "border-color var(--duration-short) var(--ease)",
   };
 
   const labelStyle: React.CSSProperties = {
