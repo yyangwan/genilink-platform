@@ -25,7 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
-const SIDEBAR_WIDTH = "240px";
+const SIDEBAR_WIDTH = "220px";
 
 interface NavItem {
   label: string;
