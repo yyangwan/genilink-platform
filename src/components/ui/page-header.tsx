@@ -28,7 +28,7 @@ export function PageHeader({ title, subtitle, breadcrumbs, actions, notification
           </div>
         )}
         <h1
-          className="text-2xl font-semibold tracking-tight"
+          className="font-semibold tracking-tight"
           style={{
             color: "var(--text-primary)",
             fontFamily: "var(--font-display)",
