@@ -46,7 +46,7 @@ export function DiagnosticChecklist({ items, title }: DiagnosticChecklistProps) 
       style={{
         background: "var(--bg-card)",
         border: "1px solid var(--border)",
-        borderRadius: 12,
+        borderRadius: "var(--radius-lg)",
         padding: 24,
       }}
     >
