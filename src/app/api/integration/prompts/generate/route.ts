@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     const res = await fetch(`${VISIBILITY_URL}/api/projects/${projectPk}/prompts/generate`, {
       method: 'POST',
       headers,
-      body: JSON.stringify(rest),
+      body: JSON.stringify({ project_id: projectPk, ...rest }),
       signal: controller.signal,
     });
 

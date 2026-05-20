@@ -85,10 +85,10 @@ function AuditsContent() {
       .finally(() => setProjectsLoading(false));
   }, []);
 
-  // Fetch audits for current project
+  // Fetch audits for current project (skip until projectId is resolved)
   const auditsUrl = currentProjectId
     ? `/api/integration/audits?projectId=${currentProjectId}`
-    : "/api/integration/audits";
+    : null;
   const audits = useSectionFetch<AuditListItem[]>(auditsUrl);
 
   const columns = [
