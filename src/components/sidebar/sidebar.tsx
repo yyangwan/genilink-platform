@@ -429,7 +429,7 @@ export default function Sidebar() {
     <>
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed top-4 left-4 z-50 hidden sm:flex lg:hidden p-2 rounded-lg"
+        className="fixed top-4 left-4 z-50 flex lg:hidden p-2 rounded-lg"
         style={{
           background: "var(--bg-card)",
           border: "1px solid var(--border)",
@@ -442,7 +442,7 @@ export default function Sidebar() {
 
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 hidden sm:block lg:hidden"
+          className="fixed inset-0 z-40 block lg:hidden"
           style={{ background: "rgba(0, 0, 0, 0.6)" }}
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
@@ -467,7 +467,7 @@ export default function Sidebar() {
 
       <aside
         className={cn(
-          "fixed top-0 left-0 h-full z-50 hidden sm:block lg:hidden",
+          "fixed top-0 left-0 h-full z-50 block lg:hidden",
           "transition-transform duration-[var(--duration-medium)]",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
