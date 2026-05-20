@@ -37,6 +37,7 @@ export default async function DashboardLayout({
 
       {/* Main content area — offset by sidebar width on desktop */}
       <main
+        id="main-content"
         className="flex-1 min-h-screen lg:pl-[220px]"
         style={{
           fontFamily: "var(--font-body)",
