@@ -57,6 +57,9 @@ export function ConfirmDialog({
     >
       <div
         ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
         className="w-full max-w-sm mx-4 rounded-xl p-6"
         style={{
           background: "var(--bg-card)",
@@ -65,6 +68,7 @@ export function ConfirmDialog({
         }}
       >
         <h3
+          id="confirm-dialog-title"
           className="text-base font-semibold mb-2"
           style={{
             color: "var(--text-primary)",
