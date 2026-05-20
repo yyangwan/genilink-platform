@@ -38,7 +38,8 @@ export function ProjectWizard() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stepDir, setStepDir] = useState<"forward" | "backward">("forward");
-  const modalRef = useRef<HTMLDivElement>(null);
+  const desktopRef = useRef<HTMLDivElement>(null);
+  const mobileRef = useRef<HTMLDivElement>(null);
 
   const isEdit = !!wizardEditProject;
 
@@ -80,8 +81,9 @@ export function ProjectWizard() {
       if (e.key === "Escape") {
         closeWizard();
       }
-      if (e.key === "Tab" && modalRef.current) {
-        const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+      const activeDialog = window.innerWidth >= 768 ? desktopRef.current : mobileRef.current;
+      if (e.key === "Tab" && activeDialog) {
+        const focusable = activeDialog.querySelectorAll<HTMLElement>(
           'button, input, textarea, select, [tabindex]:not([tabindex="-1"])'
         );
         if (focusable.length === 0) return;
@@ -222,7 +224,7 @@ export function ProjectWizard() {
       onClick={(e) => { if (e.target === e.currentTarget) closeWizard(); }}
     >
       <div
-        ref={modalRef}
+        ref={desktopRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="wizard-title"
@@ -580,7 +582,7 @@ export function ProjectWizard() {
 
       {/* Mobile: full-screen variant */}
       <div
-        ref={modalRef}
+        ref={mobileRef}
         className="show-mobile-only"
         role="dialog"
         aria-modal="true"
