@@ -19,3 +19,12 @@
 - [ ] **Set up test infrastructure** — Zero test coverage currently. Add Vitest + Playwright + MSW.
   - Why: Manual testing only. Regressions are caught in production.
   - Depends on: None.
+- [ ] **Priority: P0** Fix pre-existing test failure: `zhijian-client.test.ts` — 'should replace :id placeholder with externalId in URL' (port mismatch after 3000→3001 change)
+  - Why: Tests assert URLs with stale port configuration.
+  - Noticed by: gstack /ship on 2026-05-20
+- [ ] **Priority: P0** Fix pre-existing test failure: `zhijian-client.test.ts` — 'should send POST with body when provided' (port mismatch)
+  - Why: Tests assert fetch calls with stale port configuration.
+  - Noticed by: gstack /ship on 2026-05-20
+- [ ] **Priority: P0** Fix pre-existing test failure: `onboarding-api.test.ts` — 'should skip workspace creation if user already has one (idempotent)' (ensureMappings error at route.ts:49)
+  - Why: Onboarding route throws when mappings already exist.
+  - Noticed by: gstack /ship on 2026-05-20
