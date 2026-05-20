@@ -85,7 +85,7 @@ export function ContextBar() {
       }}
     >
       <ProjectSelector />
-      <div style={{ marginLeft: 8 }}>
+      <div style={{ marginLeft: "var(--space-xs)" }}>
         <Breadcrumb items={breadcrumbItems} />
       </div>
     </div>
