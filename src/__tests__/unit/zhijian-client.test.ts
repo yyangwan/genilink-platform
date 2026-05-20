@@ -251,7 +251,7 @@ describe('proxyRequest', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/projects/ext-replace/data',
+      'http://127.0.0.1:8000/api/projects/ext-replace/data',
       expect.objectContaining({ method: 'GET' })
     );
   });
@@ -277,7 +277,7 @@ describe('proxyRequest', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:3001/api/projects/ext-post/items',
+      'http://127.0.0.1:3001/api/projects/ext-post/items',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify(body),

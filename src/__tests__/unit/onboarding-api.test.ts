@@ -130,6 +130,10 @@ describe('POST /api/onboarding', () => {
       name: 'New Project',
     });
 
+    // No existing external mappings (ensureMappings needs findMany)
+    (prisma.externalResourceMapping.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (prisma.externalResourceMapping.createMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 2 });
+
     (prisma.user.update as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'user-existing' });
     (prisma.workspace.update as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'ws-existing' });
 
