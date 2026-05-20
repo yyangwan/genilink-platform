@@ -2,6 +2,7 @@
 
 import React, { Suspense, useState } from "react";
 import { useParams } from "next/navigation";
+import { useProjectId } from "@/components/project/use-project-id";
 import {
   BarChart3,
   AlertCircle,
@@ -628,6 +629,7 @@ function StrategicTab({
 function ReportContent() {
   const params = useParams();
   const auditId = params.id as string;
+  const { projectId } = useProjectId();
 
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -639,7 +641,7 @@ function ReportContent() {
 
   // Fetch main report
   const report = useSectionFetch<ReportData>(
-    `/api/integration/reports/${auditId}`
+    projectId ? `/api/integration/reports/${auditId}?projectId=${projectId}` : null
   );
 
   // Fetch content intelligence (only when tab active or already loaded)

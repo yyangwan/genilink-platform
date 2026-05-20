@@ -14,3 +14,18 @@ export async function validateWorkspaceAccess(userId: string, workspaceId: strin
   });
   return !!membership;
 }
+
+/**
+ * Verify that a project belongs to the given workspace.
+ * Returns the project if found, or null if not.
+ * Used by integration API routes to prevent cross-workspace data access.
+ */
+export async function verifyProjectInWorkspace(
+  projectId: string,
+  workspaceId: string,
+) {
+  return prisma.project.findFirst({
+    where: { id: projectId, workspaceId },
+    select: { id: true },
+  });
+}

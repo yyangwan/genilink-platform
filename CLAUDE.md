@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-Shipped UX context overhaul on 2026-05-20 — ProjectContext, ContextBar with breadcrumbs, ProjectSelector, ProjectWizard, DiagnosticChecklist, Toast. All 10 dashboard pages migrated. Next: fix 3 pre-existing test failures, visual QA with /design-review, DESIGN.md.
+Shipped workspace-scoping security fix on 2026-05-20. Fixed brace-placement bug in 15 routes (verifyProjectInWorkspace was dead code), added verification to suggestions POST/PATCH and reports routes. Next: visual QA with browser auth, DESIGN.md token updates.
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services

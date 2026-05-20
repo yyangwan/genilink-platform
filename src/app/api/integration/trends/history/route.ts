@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth/config';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
 import { getExternalId } from '@/lib/proxy/zhijian-client';
 import { cookies } from 'next/headers';
+import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
 
 const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
 
@@ -21,6 +22,12 @@ export async function GET(req: NextRequest) {
   const projectId = req.nextUrl.searchParams.get('projectId');
   if (!projectId) {
     return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
+  }
+
+  // Verify project belongs to this workspace
+  const _project = await verifyProjectInWorkspace(projectId, workspaceId);
+  if (!_project) {
+    return NextResponse.json({ error: 'Project not found in workspace' }, { status: 403 });
   }
 
   try {

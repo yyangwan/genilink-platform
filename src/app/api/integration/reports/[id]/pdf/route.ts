@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
 import { cookies } from 'next/headers';
+import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
 
 const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -18,6 +19,17 @@ export async function GET(
   const workspaceId = cookieStore.get('genilink-workspace')?.value;
   if (!workspaceId) {
     return NextResponse.json({ error: 'No workspace selected' }, { status: 400 });
+  }
+
+  const projectId = req.nextUrl.searchParams.get('projectId');
+  if (!projectId) {
+    return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
+  }
+
+  // Verify project belongs to this workspace
+  const _project = await verifyProjectInWorkspace(projectId, workspaceId);
+  if (!_project) {
+    return NextResponse.json({ error: 'Project not found in workspace' }, { status: 403 });
   }
 
   try {
