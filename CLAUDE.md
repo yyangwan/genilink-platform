@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-All reviews passed (CEO + ENG + DESIGN) on 2026-05-20. CEO plan for UX context overhaul approved with 9 design decisions resolved (score 5→9/10). Next: implement ContextBar, ProjectSelector, ProjectWizard, DiagnosticChecklist, Toast components.
+Shipped v0.1.0.1 (PR #2) on 2026-05-20 — design review fixes + security fix + 18 tests. Next: merge PR, then implement UX context overhaul (ContextBar, ProjectSelector, ProjectWizard, DiagnosticChecklist, Toast).
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services
