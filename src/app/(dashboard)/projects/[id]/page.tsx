@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useProject } from "@/components/project/project-context";
 import {
   ArrowLeft,
   Globe,
@@ -34,7 +35,14 @@ interface ProjectData {
 
 export default function ProjectDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const { selectProject } = useProject();
   const projectId = params.id as string;
+
+  const navigateWithProject = (path: string) => {
+    selectProject(projectId);
+    router.push(path);
+  };
 
   const [project, setProject] = useState<ProjectData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -193,37 +201,35 @@ export default function ProjectDetailPage() {
 
       {/* Action links */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <Link
-          href={`/visibility?project=${project.id}`}
+        <button
+          onClick={() => navigateWithProject("/visibility")}
           className="flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-medium transition-colors"
           style={{
             background: "var(--color-primary)",
             color: "#0b0d14",
             fontFamily: "var(--font-body)",
-            textDecoration: "none",
           }}
           onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-primary-hover)")}
           onMouseLeave={(e) => (e.currentTarget.style.background = "var(--color-primary)")}
         >
           <Eye className="w-4 h-4" />
           查看分析
-        </Link>
-        <Link
-          href={`/dashboard?project=${project.id}`}
+        </button>
+        <button
+          onClick={() => navigateWithProject("/dashboard")}
           className="flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-medium transition-colors"
           style={{
             background: "var(--bg-elevated)",
             color: "var(--text-secondary)",
             fontFamily: "var(--font-body)",
             border: "1px solid var(--border)",
-            textDecoration: "none",
           }}
           onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
           onMouseLeave={(e) => (e.currentTarget.style.background = "var(--bg-elevated)")}
         >
           <LayoutDashboard className="w-4 h-4" />
           工作台
-        </Link>
+        </button>
       </div>
     </div>
   );
