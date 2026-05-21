@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withContentAuth, ContentAuthContext } from '@/lib/auth/content-auth';
-import { proxyRequest } from '@/lib/proxy/zhijian-client';
 import { handleProxyError } from '@/lib/proxy/proxy-errors';
+import { getContent, updateContent, deleteContent } from '@/lib/content/service';
 
 export async function GET(
   req: NextRequest,
@@ -10,13 +10,7 @@ export async function GET(
   return withContentAuth(async (ctx: ContentAuthContext) => {
     const { id } = await params;
     try {
-      const data = await proxyRequest({
-        projectId: ctx.projectId,
-        service: 'content',
-        path: `/api/contents/${id}`,
-        accessToken: process.env.SERVICE_TOKEN,
-      });
-      return NextResponse.json({ data });
+      return NextResponse.json({ data: await getContent(ctx.projectId, id) });
     } catch (err) {
       return handleProxyError(err);
     }
@@ -29,19 +23,9 @@ export async function PUT(
 ) {
   return withContentAuth(async (ctx: ContentAuthContext) => {
     const { id } = await params;
-    const body = await req.json();
-    const { projectId, ...payload } = body;
-
+    const { projectId, ...payload } = await req.json();
     try {
-      const data = await proxyRequest({
-        projectId: ctx.projectId,
-        service: 'content',
-        path: `/api/contents/${id}`,
-        method: 'PUT',
-        body: payload,
-        accessToken: process.env.SERVICE_TOKEN,
-      });
-      return NextResponse.json({ data });
+      return NextResponse.json({ data: await updateContent(ctx.projectId, id, payload) });
     } catch (err) {
       return handleProxyError(err);
     }
@@ -55,13 +39,7 @@ export async function DELETE(
   return withContentAuth(async (ctx: ContentAuthContext) => {
     const { id } = await params;
     try {
-      await proxyRequest({
-        projectId: ctx.projectId,
-        service: 'content',
-        path: `/api/contents/${id}`,
-        method: 'DELETE',
-        accessToken: process.env.SERVICE_TOKEN,
-      });
+      await deleteContent(ctx.projectId, id);
       return NextResponse.json({ success: true });
     } catch (err) {
       return handleProxyError(err);
