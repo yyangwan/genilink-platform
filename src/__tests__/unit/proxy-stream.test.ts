@@ -1,0 +1,111 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { proxyStreamRequest } from '@/lib/proxy/zhijian-client';
+import { prisma } from '@/lib/db';
+
+vi.mock('@/lib/db', () => ({
+  prisma: {
+    externalResourceMapping: {
+      findUnique: vi.fn(),
+    },
+  },
+}));
+
+const mockFetch = vi.fn();
+vi.stubGlobal('fetch', mockFetch);
+
+describe('proxyStreamRequest', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should return 404 Response when no mapping exists', async () => {
+    (prisma.externalResourceMapping.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+    const res = await proxyStreamRequest({
+      projectId: 'proj-none',
+      service: 'content',
+      path: '/api/contents/123/generate',
+      body: { prompt: 'test' },
+    });
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error).toContain('No mapping found');
+  });
+
+  it('should return SSE stream on success', async () => {
+    (prisma.externalResourceMapping.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+      externalId: 'ext-123',
+    });
+
+    const mockBody = new ReadableStream();
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: mockBody,
+    });
+
+    const res = await proxyStreamRequest({
+      projectId: 'proj-ok',
+      service: 'content',
+      path: '/api/contents/123/generate',
+      method: 'POST',
+      body: { prompt: 'write about AI' },
+      accessToken: 'test-token',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('text/event-stream');
+    expect(res.headers.get('Cache-Control')).toBe('no-cache');
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:4002/api/contents/123/generate',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-token',
+          Accept: 'text/event-stream',
+        }),
+      }),
+    );
+  });
+
+  it('should return 401 Response on AUTH_EXPIRED', async () => {
+    (prisma.externalResourceMapping.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+      externalId: 'ext-401',
+    });
+
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+    });
+
+    const res = await proxyStreamRequest({
+      projectId: 'proj-401',
+      service: 'content',
+      path: '/api/contents/123/generate',
+    });
+
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error).toBe('AUTH_EXPIRED');
+  });
+
+  it('should return 504 Response on timeout', async () => {
+    (prisma.externalResourceMapping.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+      externalId: 'ext-timeout',
+    });
+
+    const abortError = new DOMException('Aborted', 'AbortError');
+    mockFetch.mockRejectedValue(abortError);
+
+    const res = await proxyStreamRequest({
+      projectId: 'proj-timeout',
+      service: 'content',
+      path: '/api/contents/123/generate',
+    });
+
+    expect(res.status).toBe(504);
+    const body = await res.json();
+    expect(body.error).toBe('TIMEOUT');
+  });
+});

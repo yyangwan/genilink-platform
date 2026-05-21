@@ -277,7 +277,7 @@ describe('proxyRequest', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:3001/api/projects/ext-post/items',
+      'http://127.0.0.1:4002/api/projects/ext-post/items',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify(body),

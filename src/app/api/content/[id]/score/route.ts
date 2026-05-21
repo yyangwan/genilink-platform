@@ -1,0 +1,26 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { withContentAuth, ContentAuthContext } from '@/lib/auth/content-auth';
+import { proxyRequest } from '@/lib/proxy/zhijian-client';
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  return withContentAuth(async (ctx: ContentAuthContext) => {
+    const { id } = await params;
+    try {
+      const data = await proxyRequest({
+        projectId: ctx.projectId,
+        service: 'content',
+        path: `/api/contents/${id}/score`,
+        method: 'POST',
+        accessToken: process.env.SERVICE_TOKEN,
+      });
+      return NextResponse.json({ data });
+    } catch (err) {
+      const message = (err as Error).message;
+      if (message === 'TIMEOUT') return NextResponse.json({ error: 'Upstream timeout' }, { status: 504 });
+      return NextResponse.json({ error: 'Failed to score content' }, { status: 502 });
+    }
+  })(req);
+}

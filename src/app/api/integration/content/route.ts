@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
+import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
 import { proxyRequest } from '@/lib/proxy/zhijian-client';
 import { cookies } from 'next/headers';
 
@@ -25,6 +26,12 @@ export async function GET(req: NextRequest) {
       { error: 'Missing projectId query parameter' },
       { status: 400 }
     );
+  }
+
+  // Verify project belongs to workspace
+  const _project = await verifyProjectInWorkspace(projectId, workspaceId);
+  if (!_project) {
+    return NextResponse.json({ error: 'Project not found in workspace' }, { status: 403 });
   }
 
   // Check billing

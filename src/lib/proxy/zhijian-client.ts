@@ -59,7 +59,7 @@ export interface ProxyRequestOptions {
 
 const SERVICE_URLS: Record<string, string> = {
   visibility: process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000',
-  content: process.env.CONTENT_SERVICE_URL || 'http://127.0.0.1:3001',
+  content: process.env.CONTENT_SERVICE_URL || 'http://127.0.0.1:4002',
 };
 
 const TIMEOUT_MS = 120_000;
@@ -114,5 +114,75 @@ export async function proxyRequest<T = unknown>(opts: ProxyRequestOptions): Prom
       throw new Error('TIMEOUT');
     }
     throw err;
+  }
+}
+
+/**
+ * Stream proxy — resolves external ID, then pipes the upstream SSE response
+ * through without buffering. Used for AI content generation endpoints.
+ */
+export async function proxyStreamRequest(opts: ProxyRequestOptions): Promise<Response> {
+  const externalId = await getExternalId(opts.projectId, opts.service);
+  if (!externalId) {
+    return new Response(
+      JSON.stringify({ error: `No mapping found for project ${opts.projectId} → ${opts.service}` }),
+      { status: 404, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  const baseUrl = SERVICE_URLS[opts.service];
+  const url = `${baseUrl}${opts.path}`.replace(':id', externalId);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'text/event-stream',
+  };
+  if (opts.accessToken) {
+    headers['Authorization'] = `Bearer ${opts.accessToken}`;
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: opts.method || 'POST',
+      headers,
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timer);
+
+    if (res.status === 401) {
+      return new Response(JSON.stringify({ error: 'AUTH_EXPIRED' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (res.status === 403) {
+      return new Response(JSON.stringify({ error: 'ACCESS_DENIED' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (res.status === 404) {
+      evictCache(opts.projectId, opts.service);
+      return new Response(JSON.stringify({ error: 'NOT_FOUND' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (!res.ok) {
+      return new Response(JSON.stringify({ error: `UPSTREAM_ERROR_${res.status}` }), { status: 502, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    return new Response(res.body, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    if ((err as Error).name === 'AbortError') {
+      return new Response(JSON.stringify({ error: 'TIMEOUT' }), { status: 504, headers: { 'Content-Type': 'application/json' } });
+    }
+    return new Response(
+      JSON.stringify({ error: (err as Error).message }),
+      { status: 502, headers: { 'Content-Type': 'application/json' } },
+    );
   }
 }
