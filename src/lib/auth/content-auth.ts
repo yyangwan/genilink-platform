@@ -37,7 +37,10 @@ export function withContentAuth(handler: ContentHandler) {
 
     if (!projectId && req.method !== 'GET') {
       try {
-        const body = await req.json();
+        // Clone the request so the body remains readable by downstream handlers.
+        // Web API body is single-read — req.json() here would consume it.
+        const cloned = req.clone();
+        const body = await cloned.json();
         projectId = body.projectId ?? null;
       } catch {
         // Body parsing failed — will be caught by projectId check below

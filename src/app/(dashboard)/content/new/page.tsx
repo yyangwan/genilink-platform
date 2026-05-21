@@ -19,11 +19,14 @@ function NewContentInner() {
   const topic = searchParams.get("topic") ?? undefined;
   const [content, setContent] = useState("");
   const [showAI, setShowAI] = useState(false);
-  const [editorRef, setEditorRef] = useState<any>(null);
+  const editorRef = React.useRef<ReturnType<typeof import("@tiptap/react").useEditor> | null>(null);
 
   const handleInsert = useCallback((text: string) => {
-    // Append to editor content
-    setContent((prev) => prev + text);
+    if (editorRef.current) {
+      editorRef.current.commands.insertContent(text);
+    } else {
+      setContent((prev) => prev + text);
+    }
   }, []);
 
   return (
@@ -80,6 +83,7 @@ function NewContentInner() {
         initialContent={content}
         onUpdate={setContent}
         placeholder={topic ? `围绕「${topic}」撰写内容...` : "开始输入内容，或使用 AI 生成..."}
+        editorRef={editorRef}
       />
 
       {/* Actions */}

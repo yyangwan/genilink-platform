@@ -19,6 +19,7 @@ interface ContentEditorProps {
   initialContent?: string;
   onUpdate?: (html: string) => void;
   placeholder?: string;
+  editorRef?: React.MutableRefObject<ReturnType<typeof useEditor> | null>;
 }
 
 const btnBase: React.CSSProperties = {
@@ -74,6 +75,7 @@ export function ContentEditor({
   initialContent = "",
   onUpdate,
   placeholder = "开始输入内容，或使用 AI 生成...",
+  editorRef,
 }: ContentEditorProps) {
   const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved">("saved");
 
@@ -94,6 +96,11 @@ export function ContentEditor({
       onUpdate?.(editor.getHTML());
     },
   });
+
+  // Expose editor instance to parent via ref
+  React.useEffect(() => {
+    if (editorRef) editorRef.current = editor;
+  }, [editor, editorRef]);
 
   // Auto-save indicator reset
   useEffect(() => {

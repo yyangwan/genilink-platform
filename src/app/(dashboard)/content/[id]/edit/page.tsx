@@ -1,8 +1,8 @@
 "use client";
 
-import React, { Suspense, useCallback, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useProject } from "@/components/project/project-context";
 import { ContentEditor } from "@/components/content/content-editor";
@@ -12,14 +12,99 @@ const AIPanel = dynamic(
   { ssr: false },
 );
 
+interface ContentData {
+  id: string;
+  title: string;
+  status: string;
+  platformContents?: { id: string; platform: string; content: string; status: string }[];
+  [key: string]: unknown;
+}
+
 function EditContentInner({ id }: { id: string }) {
   const { currentProjectId } = useProject();
   const [content, setContent] = useState("");
+  const [title, setTitle] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showAI, setShowAI] = useState(false);
+  const editorRef = React.useRef<ReturnType<typeof import("@tiptap/react").useEditor> | null>(null);
+
+  // Fetch existing content on mount
+  useEffect(() => {
+    if (!id || !currentProjectId) return;
+
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch(`/api/content/${id}?projectId=${currentProjectId}`);
+        if (!res.ok) {
+          setError(res.status === 404 ? "内容不存在" : "加载失败");
+          return;
+        }
+        const json = await res.json();
+        if (cancelled) return;
+
+        const data: ContentData = json.data ?? json;
+        setTitle(data.title ?? "");
+
+        // Use first platformContent if available, otherwise fall back to empty
+        const firstPlatform = data.platformContents?.[0];
+        setContent(firstPlatform?.content ?? "");
+      } catch {
+        if (!cancelled) setError("网络错误");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [id, currentProjectId]);
 
   const handleInsert = useCallback((text: string) => {
-    setContent((prev) => prev + text);
+    if (editorRef.current) {
+      editorRef.current.commands.insertContent(text);
+    } else {
+      setContent((prev) => prev + text);
+    }
   }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-4 max-w-4xl">
+        <div className="h-10 w-48 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+        <div className="h-64 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4 max-w-4xl">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/content"
+            className="inline-flex items-center justify-center"
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border)",
+              color: "var(--text-secondary)",
+              textDecoration: "none",
+            }}
+          >
+            <ArrowLeft size={16} />
+          </Link>
+          <h1
+            className="text-xl font-semibold"
+            style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
+          >
+            {error}
+          </h1>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 max-w-4xl">
@@ -40,12 +125,14 @@ function EditContentInner({ id }: { id: string }) {
           >
             <ArrowLeft size={16} />
           </Link>
-          <h1
-            className="text-xl font-semibold"
-            style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
-          >
-            编辑内容
-          </h1>
+          <div>
+            <h1
+              className="text-xl font-semibold"
+              style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
+            >
+              {title || "编辑内容"}
+            </h1>
+          </div>
         </div>
         <button
           onClick={() => setShowAI(true)}
@@ -63,10 +150,29 @@ function EditContentInner({ id }: { id: string }) {
         </button>
       </div>
 
+      {/* Title input */}
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="标题"
+        className="w-full"
+        style={{
+          background: "transparent",
+          border: "none",
+          outline: "none",
+          fontSize: 24,
+          fontWeight: 600,
+          fontFamily: "var(--font-display)",
+          color: "var(--text-primary)",
+          padding: 0,
+        }}
+      />
+
       {/* Editor */}
       <ContentEditor
         initialContent={content}
         onUpdate={setContent}
+        editorRef={editorRef}
       />
 
       {/* Actions */}
@@ -109,7 +215,7 @@ function EditContentInner({ id }: { id: string }) {
   );
 }
 
-export default function EditContentPage({ params }: { params: Promise<{ id: string }> }) {
+export default function EditContentPage() {
   return (
     <Suspense
       fallback={
@@ -125,13 +231,8 @@ export default function EditContentPage({ params }: { params: Promise<{ id: stri
 }
 
 function EditContentInnerWithParams() {
-  // Need to unwrap params promise for Next.js 16
-  const [id, setId] = React.useState<string>("");
-  const [paramsResolved, setParamsResolved] = React.useState(false);
-
-  // Use React.use() to unwrap the params promise
+  // Extract id from URL pathname (Next.js 16 params are async)
   const paramsPromise = React.use(React.useMemo(() => {
-    // Get params from the URL directly since we can't access route params easily
     const path = window.location.pathname;
     const match = path.match(/\/content\/([^/]+)\/edit/);
     return Promise.resolve({ id: match?.[1] ?? "" });
