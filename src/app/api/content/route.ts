@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withContentAuth, ContentAuthContext } from '@/lib/auth/content-auth';
 import { proxyRequest } from '@/lib/proxy/zhijian-client';
+import { handleProxyError } from '@/lib/proxy/proxy-errors';
 
 export const GET = withContentAuth(async (ctx: ContentAuthContext) => {
   try {
@@ -12,7 +13,7 @@ export const GET = withContentAuth(async (ctx: ContentAuthContext) => {
     });
     return NextResponse.json({ data });
   } catch (err) {
-    return handleError(err);
+    return handleProxyError(err);
   }
 });
 
@@ -31,14 +32,6 @@ export const POST = withContentAuth(async (ctx: ContentAuthContext, req: NextReq
     });
     return NextResponse.json({ data }, { status: 201 });
   } catch (err) {
-    return handleError(err);
+    return handleProxyError(err);
   }
 });
-
-function handleError(err: unknown): NextResponse {
-  const message = (err as Error).message;
-  if (message === 'TIMEOUT') return NextResponse.json({ error: 'Upstream timeout' }, { status: 504 });
-  if (message === 'NOT_FOUND') return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (message === 'AUTH_EXPIRED') return NextResponse.json({ error: 'Service auth expired' }, { status: 502 });
-  return NextResponse.json({ error: 'Failed to connect to content service' }, { status: 502 });
-}

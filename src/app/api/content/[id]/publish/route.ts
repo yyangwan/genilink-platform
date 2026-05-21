@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withContentAuth, ContentAuthContext } from '@/lib/auth/content-auth';
 import { proxyRequest } from '@/lib/proxy/zhijian-client';
+import { handleProxyError } from '@/lib/proxy/proxy-errors';
 
 export async function POST(
   req: NextRequest,
@@ -22,9 +23,7 @@ export async function POST(
       });
       return NextResponse.json({ data });
     } catch (err) {
-      const message = (err as Error).message;
-      if (message === 'TIMEOUT') return NextResponse.json({ error: 'Upstream timeout' }, { status: 504 });
-      return NextResponse.json({ error: 'Failed to publish content' }, { status: 502 });
+      return handleProxyError(err, 'Failed to publish content');
     }
   })(req);
 }

@@ -48,10 +48,10 @@ function ContentListInner() {
   const listUrl = currentProjectId
     ? `/api/content?projectId=${currentProjectId}`
     : null;
-  const { data, loading, error } = useSectionFetch<ContentListData>(listUrl);
+  const { data, loading, error } = useSectionFetch<{ data: ContentListData }>(listUrl);
 
-  const items = (data as any)?.data?.items ?? [];
-  const total = (data as any)?.data?.total ?? 0;
+  const items = data?.data?.items ?? [];
+  const total = data?.data?.total ?? 0;
 
   return (
     <div className="space-y-5">
@@ -156,7 +156,7 @@ function ContentListInner() {
               </tr>
             </thead>
             <tbody>
-              {items.map((item: ContentItem) => (
+              {items.map((item) => (
                 <tr
                   key={item.id}
                   style={{ borderBottom: "1px solid var(--border)" }}

@@ -4,6 +4,7 @@ import React, { Suspense, useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useProject } from "@/components/project/project-context";
 import { ContentEditor } from "@/components/content/content-editor";
 
@@ -25,6 +26,7 @@ function EditContentInner({ id }: { id: string }) {
   const [content, setContent] = useState("");
   const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAI, setShowAI] = useState(false);
   const editorRef = React.useRef<ReturnType<typeof import("@tiptap/react").useEditor> | null>(null);
@@ -67,6 +69,57 @@ function EditContentInner({ id }: { id: string }) {
       setContent((prev) => prev + text);
     }
   }, []);
+
+  const handleSave = useCallback(async () => {
+    if (!currentProjectId || saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/content/${id}?projectId=${currentProjectId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: currentProjectId, title, content }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "保存失败");
+      }
+    } catch {
+      setError("网络错误");
+    } finally {
+      setSaving(false);
+    }
+  }, [id, currentProjectId, title, content, saving]);
+
+  const handlePublish = useCallback(async () => {
+    if (!currentProjectId || saving) return;
+    setSaving(true);
+    try {
+      // Save first, then publish
+      const saveRes = await fetch(`/api/content/${id}?projectId=${currentProjectId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: currentProjectId, title, content }),
+      });
+      if (!saveRes.ok) {
+        const data = await saveRes.json();
+        setError(data.error || "保存失败");
+        return;
+      }
+      const pubRes = await fetch(`/api/content/${id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: currentProjectId }),
+      });
+      if (!pubRes.ok) {
+        const data = await pubRes.json();
+        setError(data.error || "发布失败");
+      }
+    } catch {
+      setError("网络错误");
+    } finally {
+      setSaving(false);
+    }
+  }, [id, currentProjectId, title, content, saving]);
 
   if (loading) {
     return (
@@ -178,27 +231,35 @@ function EditContentInner({ id }: { id: string }) {
       {/* Actions */}
       <div className="flex items-center gap-3">
         <button
-          className="text-sm font-medium px-4 py-2 rounded-lg"
+          onClick={handleSave}
+          disabled={saving}
+          className="text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"
           style={{
             background: "var(--color-primary)",
             color: "white",
             border: "none",
             fontFamily: "var(--font-body)",
-            cursor: "pointer",
+            cursor: saving ? "wait" : "pointer",
+            opacity: saving ? 0.7 : 1,
           }}
         >
+          {saving && <Loader2 size={13} className="animate-spin" />}
           保存
         </button>
         <button
-          className="text-sm font-medium px-4 py-2 rounded-lg"
+          onClick={handlePublish}
+          disabled={saving}
+          className="text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"
           style={{
             background: "transparent",
             color: "var(--text-secondary)",
             border: "1px solid var(--border)",
             fontFamily: "var(--font-body)",
-            cursor: "pointer",
+            cursor: saving ? "wait" : "pointer",
+            opacity: saving ? 0.7 : 1,
           }}
         >
+          {saving && <Loader2 size={13} className="animate-spin" />}
           发布
         </button>
       </div>
@@ -207,6 +268,7 @@ function EditContentInner({ id }: { id: string }) {
       {showAI && currentProjectId && (
         <AIPanel
           projectId={currentProjectId}
+          contentId={id}
           onInsert={handleInsert}
           onClose={() => setShowAI(false)}
         />
@@ -231,12 +293,6 @@ export default function EditContentPage() {
 }
 
 function EditContentInnerWithParams() {
-  // Extract id from URL pathname (Next.js 16 params are async)
-  const paramsPromise = React.use(React.useMemo(() => {
-    const path = window.location.pathname;
-    const match = path.match(/\/content\/([^/]+)\/edit/);
-    return Promise.resolve({ id: match?.[1] ?? "" });
-  }, []));
-
-  return <EditContentInner id={paramsPromise.id} />;
+  const params = useParams();
+  return <EditContentInner id={params.id as string} />;
 }

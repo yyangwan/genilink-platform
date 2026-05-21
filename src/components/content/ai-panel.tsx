@@ -6,11 +6,12 @@ import { X, Sparkles, Loader2 } from "lucide-react";
 interface AIPanelProps {
   projectId: string;
   topic?: string;
+  contentId?: string;
   onInsert: (text: string) => void;
   onClose: () => void;
 }
 
-export function AIPanel({ projectId, topic, onInsert, onClose }: AIPanelProps) {
+export function AIPanel({ projectId, topic, contentId, onInsert, onClose }: AIPanelProps) {
   const [prompt, setPrompt] = useState(topic ?? "");
   const [streaming, setStreaming] = useState(false);
   const [generated, setGenerated] = useState("");
@@ -27,10 +28,33 @@ export function AIPanel({ projectId, topic, onInsert, onClose }: AIPanelProps) {
     abortRef.current = controller;
 
     try {
-      const res = await fetch("/api/content?projectId=" + projectId, {
+      // Step 1: Ensure content entry exists
+      let id = contentId;
+      if (!id) {
+        const createRes = await fetch("/api/content?projectId=" + projectId, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId, title: topic || prompt.slice(0, 50), topic }),
+          signal: controller.signal,
+        });
+        if (!createRes.ok) {
+          const data = await createRes.json();
+          setError(data.error || "创建内容失败");
+          return;
+        }
+        const json = await createRes.json();
+        id = json.data?.id;
+        if (!id) {
+          setError("创建内容失败");
+          return;
+        }
+      }
+
+      // Step 2: Generate content for the entry
+      const res = await fetch(`/api/content/${id}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: prompt.trim() }),
+        body: JSON.stringify({ projectId, prompt: prompt.trim() }),
         signal: controller.signal,
       });
 
@@ -45,7 +69,6 @@ export function AIPanel({ projectId, topic, onInsert, onClose }: AIPanelProps) {
             const { done, value } = await reader.read();
             if (done) break;
             const chunk = decoder.decode(value, { stream: true });
-            // Parse SSE data lines
             for (const line of chunk.split("\n")) {
               if (line.startsWith("data: ")) {
                 try {
@@ -63,7 +86,6 @@ export function AIPanel({ projectId, topic, onInsert, onClose }: AIPanelProps) {
         }
         setGenerated(text);
       } else {
-        // JSON response
         const data = await res.json();
         if (!res.ok) {
           setError(data.error || "生成失败");
