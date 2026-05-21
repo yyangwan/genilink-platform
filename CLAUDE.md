@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-Eng review vs ContentOS architecture docs completed (2026-05-21). 3 P0 hard blockers found (Codex outside voice): T0a req.json() double-read bug, T0b edit page never loads content, T0c AI insert broken with TipTap. 9 P1-P3 tasks queued. All previous tasks (T1-T7) shipped. Next: fix T0a/T0b/T0c → full proxy (22 modules) → tests.
+Design review #2 + Eng review #5 completed (2026-05-21). Plan realigned to ContentOS API (22 modules, 47 endpoints). 10 new design decisions (D21-D30), 6 eng decisions (E8-E13). 3 P0 code bugs + 1 backend blocker (E9: ContentOS must add API key auth). Test coverage 5% (38 gaps). Next: fix P0s → wait for backend API key → build proxy routes (Lane B) + UI components with MSW mocks (Lane C) in parallel.
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services
