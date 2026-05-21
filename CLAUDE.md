@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-CEO + Eng + Design reviews CLEARED for 智創 Content Studio (2026-05-21). 27 decisions locked (D1-D20, E1-E7). Bridge-first dashboard, TipTap editor with slide-in AI panel, CRUD route group under /api/content/, withContentAuth helper, Vitest + Playwright test infra. Next: implement T3 (security fix) → T2 (streaming proxy) → T1 (CRUD routes) → T4 (tests) → T6 (dashboard) → T5 (editor) → T7 (list).
+Eng review vs ContentOS architecture docs completed (2026-05-21). 3 P0 hard blockers found (Codex outside voice): T0a req.json() double-read bug, T0b edit page never loads content, T0c AI insert broken with TipTap. 9 P1-P3 tasks queued. All previous tasks (T1-T7) shipped. Next: fix T0a/T0b/T0c → full proxy (22 modules) → tests.
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services
