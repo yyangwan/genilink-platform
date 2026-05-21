@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-Shipped workspace-scoping security fix on 2026-05-20. Fixed brace-placement bug in 15 routes (verifyProjectInWorkspace was dead code), added verification to suggestions POST/PATCH and reports routes. Next: visual QA with browser auth, DESIGN.md token updates.
+Settings pages QA completed on 2026-05-21. All 5 settings tabs (workspace/account/brands/prompts/billing) verified rendering correctly. Next: responsive tests, remove `?project=` params, DESIGN.md updates.
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services
