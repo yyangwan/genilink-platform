@@ -20,7 +20,7 @@ export async function GET(
     } catch (err) {
       return handleProxyError(err);
     }
-  })(req);
+  }, { action: 'read' })(req);
 }
 
 export async function PUT(
@@ -45,7 +45,7 @@ export async function PUT(
     } catch (err) {
       return handleProxyError(err);
     }
-  })(req);
+  }, { action: 'write' })(req);
 }
 
 export async function DELETE(
@@ -66,5 +66,5 @@ export async function DELETE(
     } catch (err) {
       return handleProxyError(err);
     }
-  })(req);
+  }, { action: 'delete' })(req);
 }

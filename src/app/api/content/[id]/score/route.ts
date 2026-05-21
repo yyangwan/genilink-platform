@@ -21,5 +21,5 @@ export async function POST(
     } catch (err) {
       return handleProxyError(err, 'Failed to score content');
     }
-  })(req);
+  }, { action: 'read' })(req);
 }

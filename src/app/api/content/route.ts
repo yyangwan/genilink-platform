@@ -15,7 +15,7 @@ export const GET = withContentAuth(async (ctx: ContentAuthContext) => {
   } catch (err) {
     return handleProxyError(err);
   }
-});
+}, { action: 'read' });
 
 export const POST = withContentAuth(async (ctx: ContentAuthContext, req: NextRequest) => {
   const body = await req.json();
@@ -34,4 +34,4 @@ export const POST = withContentAuth(async (ctx: ContentAuthContext, req: NextReq
   } catch (err) {
     return handleProxyError(err);
   }
-});
+}, { action: 'write' });

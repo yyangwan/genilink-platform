@@ -19,5 +19,5 @@ export async function POST(
       body: payload,
       accessToken: process.env.SERVICE_TOKEN,
     });
-  })(req);
+  }, { action: 'write' })(req);
 }

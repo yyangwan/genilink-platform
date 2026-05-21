@@ -8,7 +8,9 @@ vi.mock('@/lib/auth/config', () => ({
 vi.mock('@/lib/billing/guard', () => ({
   requireBilling: vi.fn(),
   BillingError: class BillingError extends Error {
-    constructor() { super('Billing required'); this.name = 'BillingError'; }
+    module: string;
+    statusCode: number;
+    constructor(module: string) { super(`No active subscription for module: ${module}`); this.name = 'BillingError'; this.module = module; this.statusCode = 403; }
   },
 }));
 
@@ -17,7 +19,11 @@ vi.mock('@/lib/auth/workspace', () => ({
 }));
 
 vi.mock('@/lib/db', () => ({
-  prisma: {},
+  prisma: {
+    workspaceMember: {
+      findFirst: vi.fn(),
+    },
+  },
 }));
 
 vi.mock('next/headers', () => ({
@@ -30,6 +36,7 @@ import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
 import { withContentAuth } from '@/lib/auth/content-auth';
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
+import { prisma } from '@/lib/db';
 
 function mockRequest(url: string, method = 'GET', body?: unknown) {
   const req = new NextRequest(new URL(url, 'http://localhost'), {
@@ -43,6 +50,18 @@ function mockRequest(url: string, method = 'GET', body?: unknown) {
   return req;
 }
 
+function setupSuccessMocks() {
+  (auth as ReturnType<typeof vi.fn>).mockResolvedValue({ user: { id: 'u1' } });
+  (cookies as ReturnType<typeof vi.fn>).mockResolvedValue({
+    get: (name: string) => name === 'genilink-workspace' ? { value: 'ws1' } : undefined,
+  });
+  (verifyProjectInWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'p1' });
+  (requireBilling as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+  (prisma.workspaceMember.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+    role: 'owner',
+  });
+}
+
 describe('withContentAuth', () => {
   const handler = vi.fn().mockResolvedValue(new Response('ok'));
 
@@ -52,7 +71,7 @@ describe('withContentAuth', () => {
 
   it('should return 401 when no session', async () => {
     (auth as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-    const wrapped = withContentAuth(handler);
+    const wrapped = withContentAuth(handler, { action: 'read' });
     const res = await wrapped(mockRequest('http://localhost/api/content'));
     expect(res.status).toBe(401);
     expect(handler).not.toHaveBeenCalled();
@@ -63,7 +82,7 @@ describe('withContentAuth', () => {
     (cookies as ReturnType<typeof vi.fn>).mockResolvedValue({
       get: () => undefined,
     });
-    const wrapped = withContentAuth(handler);
+    const wrapped = withContentAuth(handler, { action: 'read' });
     const res = await wrapped(mockRequest('http://localhost/api/content'));
     expect(res.status).toBe(400);
   });
@@ -73,7 +92,7 @@ describe('withContentAuth', () => {
     (cookies as ReturnType<typeof vi.fn>).mockResolvedValue({
       get: (name: string) => name === 'genilink-workspace' ? { value: 'ws1' } : undefined,
     });
-    const wrapped = withContentAuth(handler);
+    const wrapped = withContentAuth(handler, { action: 'read' });
     const res = await wrapped(mockRequest('http://localhost/api/content'));
     expect(res.status).toBe(400);
   });
@@ -85,7 +104,7 @@ describe('withContentAuth', () => {
     });
     (verifyProjectInWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-    const wrapped = withContentAuth(handler);
+    const wrapped = withContentAuth(handler, { action: 'read' });
     const res = await wrapped(mockRequest('http://localhost/api/content?projectId=p1'));
     expect(res.status).toBe(403);
   });
@@ -97,47 +116,56 @@ describe('withContentAuth', () => {
       get: (name: string) => name === 'genilink-workspace' ? { value: 'ws1' } : undefined,
     });
     (verifyProjectInWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'p1' });
-    (requireBilling as ReturnType<typeof vi.fn>).mockRejectedValue(new BillingError());
+    (requireBilling as ReturnType<typeof vi.fn>).mockRejectedValue(new BillingError('content'));
 
-    const wrapped = withContentAuth(handler);
+    const wrapped = withContentAuth(handler, { action: 'read' });
     const res = await wrapped(mockRequest('http://localhost/api/content?projectId=p1'));
     expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.error).toBe('NO_SUBSCRIPTION');
   });
 
-  it('should pass context to handler on success', async () => {
+  it('should return 403 when role lacks permission', async () => {
     (auth as ReturnType<typeof vi.fn>).mockResolvedValue({ user: { id: 'u1' } });
     (cookies as ReturnType<typeof vi.fn>).mockResolvedValue({
       get: (name: string) => name === 'genilink-workspace' ? { value: 'ws1' } : undefined,
     });
     (verifyProjectInWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'p1' });
     (requireBilling as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (prisma.workspaceMember.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+      role: 'member',
+    });
 
-    const wrapped = withContentAuth(handler);
+    const wrapped = withContentAuth(handler, { action: 'delete' });
+    const res = await wrapped(mockRequest('http://localhost/api/content?projectId=p1'));
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe('Insufficient permissions');
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('should pass context with role to handler on success', async () => {
+    setupSuccessMocks();
+
+    const wrapped = withContentAuth(handler, { action: 'read' });
     const req = mockRequest('http://localhost/api/content?projectId=p1');
     await wrapped(req);
 
     expect(handler).toHaveBeenCalledWith(
-      { userId: 'u1', workspaceId: 'ws1', projectId: 'p1' },
+      { userId: 'u1', workspaceId: 'ws1', projectId: 'p1', role: 'owner' },
       req,
     );
   });
 
   it('should extract projectId from POST body', async () => {
-    (auth as ReturnType<typeof vi.fn>).mockResolvedValue({ user: { id: 'u1' } });
-    (cookies as ReturnType<typeof vi.fn>).mockResolvedValue({
-      get: (name: string) => name === 'genilink-workspace' ? { value: 'ws1' } : undefined,
-    });
-    (verifyProjectInWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'p1' });
-    (requireBilling as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    setupSuccessMocks();
 
-    const wrapped = withContentAuth(handler);
+    const wrapped = withContentAuth(handler, { action: 'write' });
     const req = mockRequest('http://localhost/api/content', 'POST', { projectId: 'p1', title: 'test' });
     await wrapped(req);
 
     expect(handler).toHaveBeenCalledWith(
-      { userId: 'u1', workspaceId: 'ws1', projectId: 'p1' },
+      { userId: 'u1', workspaceId: 'ws1', projectId: 'p1', role: 'owner' },
       req,
     );
   });

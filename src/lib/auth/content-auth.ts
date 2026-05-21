@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
 import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
+import { requirePermission, PermissionDeniedError, ContentAction } from '@/lib/auth/content-permissions';
 import { cookies } from 'next/headers';
 
 export interface ContentAuthContext {
   userId: string;
   workspaceId: string;
   projectId: string;
+  role: string;
 }
 
 type ContentHandler = (
@@ -15,11 +17,18 @@ type ContentHandler = (
   req: NextRequest,
 ) => Promise<Response>;
 
+type ContentAuthOptions = {
+  action: ContentAction;
+};
+
 /**
  * Shared auth wrapper for content API routes.
- * Validates session, workspace, project ownership, and billing in one pass.
+ * Validates session, workspace, project ownership, billing, and role permissions.
  */
-export function withContentAuth(handler: ContentHandler) {
+export function withContentAuth(
+  handler: ContentHandler,
+  options: ContentAuthOptions,
+) {
   return async (req: NextRequest): Promise<Response> => {
     const session = await auth();
     if (!session?.user?.id) {
@@ -65,6 +74,19 @@ export function withContentAuth(handler: ContentHandler) {
       throw err;
     }
 
-    return handler({ userId: session.user.id, workspaceId, projectId }, req);
+    let role: string;
+    try {
+      role = await requirePermission(session.user.id, workspaceId, options.action);
+    } catch (err) {
+      if (err instanceof PermissionDeniedError) {
+        return NextResponse.json(
+          { error: 'Insufficient permissions', action: options.action, role: err.role },
+          { status: 403 },
+        );
+      }
+      throw err;
+    }
+
+    return handler({ userId: session.user.id, workspaceId, projectId, role }, req);
   };
 }

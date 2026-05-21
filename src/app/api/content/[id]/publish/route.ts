@@ -25,5 +25,5 @@ export async function POST(
     } catch (err) {
       return handleProxyError(err, 'Failed to publish content');
     }
-  })(req);
+  }, { action: 'write' })(req);
 }
