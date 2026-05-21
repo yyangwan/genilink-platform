@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-Settings pages QA completed on 2026-05-21. All 5 settings tabs (workspace/account/brands/prompts/billing) verified rendering correctly. Next: responsive tests, remove `?project=` params, DESIGN.md updates.
+CEO + Eng review completed for 智創 Content Studio (2026-05-21). Full Content Studio with 6 expansions accepted. Architecture locked: TipTap editor, SSE streaming, env var feature flags. 7 implementation tasks identified. Next: implement prerequisites (T1-T4: proxy fix, billing onboarding, feature flags, security fix), then Phase 1 pages.
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services
