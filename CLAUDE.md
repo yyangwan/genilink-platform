@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-CEO + Eng review completed for 智創 Content Studio (2026-05-21). Full Content Studio with 6 expansions accepted. Architecture locked: TipTap editor, SSE streaming, env var feature flags. 7 implementation tasks identified. Next: implement prerequisites (T1-T4: proxy fix, billing onboarding, feature flags, security fix), then Phase 1 pages.
+CEO + Eng + Design reviews CLEARED for 智創 Content Studio (2026-05-21). 27 decisions locked (D1-D20, E1-E7). Bridge-first dashboard, TipTap editor with slide-in AI panel, CRUD route group under /api/content/, withContentAuth helper, Vitest + Playwright test infra. Next: implement T3 (security fix) → T2 (streaming proxy) → T1 (CRUD routes) → T4 (tests) → T6 (dashboard) → T5 (editor) → T7 (list).
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services
