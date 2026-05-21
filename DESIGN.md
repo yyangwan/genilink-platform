@@ -31,13 +31,14 @@
 ## Color
 - **Approach:** Balanced — teal primary for actions, violet AI accent for intelligence features
 - **Primary:** `#00d4aa` — established GeniLink teal. CTAs, key actions, active states. Hover: `#00e8bb`
-- **AI Accent:** `#7c6aef` — marks AI-powered features, "thinking" states, AI insights. Hover: `#9b8af5`. Never used as background wash — only in targeted UI elements.
+- **AI Accent:** `#7c6aef` — marks AI-powered features, "thinking" states, AI insights. Hover: `#9b8af5`. Dim: `rgba(124,106,239,0.12)`. Glow: `rgba(124,106,239,0.25)`. Never used as background wash — only in targeted UI elements.
 - **Dark neutrals:**
   - Base: `#0b0d14` (main canvas)
   - Card: `#12151f` (cards, panels)
   - Elevated: `#1a1e2e` (hovered cards, dropdowns)
   - Hover: `#222840` (interactive hover states)
   - Input: `#0e1019` (form inputs)
+  - Sidebar: `#080a10` (sidebar background)
 - **Light neutrals:**
   - Base: `#f5f6fa` (main canvas)
   - Card: `#ffffff` (cards, panels)
@@ -52,8 +53,13 @@
   - Secondary: `#4b5563`
   - Muted: `#9ca3af`
 - **Semantic:** success `#34d399`, warning `#fbbf24`, error `#ef4444`, info `#60a5fa`
-- **Borders:** Dark mode `rgba(255,255,255,0.06)` default / `rgba(255,255,255,0.10)` strong. Light mode `rgba(0,0,0,0.06)` / `rgba(0,0,0,0.10)`
-- **Dark mode strategy:** Default theme. Light mode is a full invert with adjusted contrast — primary shifts to `#00a88a`, AI accent to `#6c4fe0`, surfaces to warm whites.
+- **Borders:** Dark mode `rgba(255,255,255,0.06)` default / `rgba(255,255,255,0.10)` strong / `rgba(255,255,255,0.04)` sidebar. Light mode `rgba(0,0,0,0.06)` / `rgba(0,0,0,0.10)`
+- **Shadows:**
+  - sm: `0 1px 2px` (subtle lift on cards, buttons)
+  - md: `0 4px 12px` (dropdowns, popovers)
+  - lg: `0 8px 24px` (modals, overlays)
+  - Dark mode uses higher opacity (0.3/0.4/0.5), light mode lower (0.05/0.08/0.12)
+- **Dark mode strategy:** Default theme. Light mode is a full invert with adjusted contrast — primary shifts to `#00a88a` (hover `#00c4a2`, dim `rgba(0,168,138,0.08)`), AI accent to `#6c4fe0` (hover `#8a70e8`, dim `rgba(108,79,224,0.08)`, glow `rgba(108,79,224,0.15)`), surfaces to warm whites. Semantic colors also darken: success `#059669`, warning `#d97706`, error `#dc2626`, info `#2563eb`.
 
 ## Spacing
 - **Base unit:** 4px
@@ -75,9 +81,15 @@
 ## Layout
 - **Approach:** Hybrid — grid-disciplined for data views, generous whitespace for top-level views
 - **Grid:** 12-column grid for desktop, 8-column for tablet, 4-column for mobile
-- **Sidebar:** 220px fixed width, collapsible on mobile. Brand logo + project switcher + nav items.
+- **Sidebar:** 220px fixed width, 56px collapsed. Brand logo + project switcher + nav items.
 - **Max content width:** 1200px
 - **Border radius:** sm: 4px, md: 8px, lg: 12px, xl: 16px, full: 9999px
+
+## Z-Index
+- sidebar: 100
+- modal: 200
+- toast: 300
+- tooltip: 400
 
 ## Motion
 - **Approach:** Intentional — every animation serves comprehension or feedback
@@ -103,3 +115,4 @@
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-05-14 | Initial design system created | Created by /design-consultation. Evolved from 智见's dark theme. Sora chosen over Inter for visual distinction. Violet AI accent adds intelligence signaling. Breathing dashboard top-level serves "intelligence at work" promise. |
+| 2026-05-21 | Synced DESIGN.md with tokens.css | Added missing tokens: sidebar bg/border, AI accent dim/glow, shadows, z-index scale, sidebar collapsed width, light mode semantic colors. Source of truth: `packages/design-tokens/dist/tokens.css`. |
