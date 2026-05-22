@@ -57,6 +57,8 @@ export interface ProxyRequestOptions {
   method?: string;
   /** Pre-resolved external ID — skips getExternalId() lookup when provided */
   externalId?: string;
+  /** Override default timeout in ms */
+  timeoutMs?: number;
 }
 
 const SERVICE_URLS: Record<string, string> = {
@@ -76,7 +78,7 @@ export async function proxyRequest<T = unknown>(opts: ProxyRequestOptions): Prom
   const url = `${baseUrl}${opts.path}`.replace(':id', externalId);
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? TIMEOUT_MS);
 
   try {
     const headers: Record<string, string> = {
@@ -136,7 +138,7 @@ export async function proxyStreamRequest(opts: ProxyRequestOptions): Promise<Res
   const url = `${baseUrl}${opts.path}`.replace(':id', externalId);
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? TIMEOUT_MS);
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

@@ -35,6 +35,12 @@ describe('content service', () => {
     service: 'content' as const,
     accessToken: 'test-service-token',
     externalId: 'ext-123',
+    timeoutMs: 30_000,
+  };
+
+  const streamArgs = {
+    ...baseArgs,
+    timeoutMs: 180_000,
   };
 
   it('listContents calls proxyRequest with GET and project contents path', async () => {
@@ -105,7 +111,7 @@ describe('content service', () => {
     await generateContent('proj-1', 'ext-123', 'c1', body);
 
     expect(mockProxyStreamRequest).toHaveBeenCalledWith({
-      ...baseArgs,
+      ...streamArgs,
       projectId: 'proj-1',
       path: '/api/contents/c1/generate',
       method: 'POST',
