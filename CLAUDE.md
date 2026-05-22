@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-P1 + T7 + T9 + T10 done — params fix, proxy errors, save/publish, AI two-step, type safety, role permissions, content service layer, unit tests (2026-05-22). Backend blocker E9 (ContentOS API key auth) still pending. T1 (full 22-module proxy, blocked by E9) and P3 tasks remain.
+All content studio tasks done (T4-T12) — role permissions, service layer, unit tests, externalId cache, differentiated timeouts (2026-05-22). Only T1 (full 22-module proxy) remains, blocked by E9 (ContentOS API key auth).
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services
