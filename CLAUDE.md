@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-P0 bugs fixed (T0a/T0b/T0c) — double-read, edit page load, TipTap AI insert (2026-05-22). Backend blocker E9 (ContentOS API key auth) still pending. 3 parallel lanes: Lane A done, Lane B blocked by E9, Lane C (UI with MSW mocks) ready to start. Next: start Lane C UI work or wait for backend.
+P1 + T7 + T9 + T10 done — params fix, proxy errors, save/publish, AI two-step, type safety, role permissions, content service layer, unit tests (2026-05-22). Backend blocker E9 (ContentOS API key auth) still pending. T1 (full 22-module proxy, blocked by E9) and P3 tasks remain.
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services
