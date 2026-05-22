@@ -1,21 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withContentAuth, ContentAuthContext } from '@/lib/auth/content-auth';
 import { handleProxyError } from '@/lib/proxy/proxy-errors';
-import { listNotifications, createNotification } from '@/lib/content/service';
+import { getContentQuality, evaluateContentQuality } from '@/lib/content/service';
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withContentAuth(async (ctx: ContentAuthContext) => {
+    const { id } = await params;
     try {
-      return NextResponse.json({ data: await listNotifications(ctx) });
+      return NextResponse.json({ data: await getContentQuality(ctx, id) });
     } catch (err) { return handleProxyError(err); }
   }, { action: 'read' })(req);
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withContentAuth(async (ctx: ContentAuthContext) => {
+    const { id } = await params;
     const { projectId, ...payload } = await req.json();
     try {
-      return NextResponse.json({ data: await createNotification(ctx, payload) }, { status: 201 });
+      return NextResponse.json({ data: await evaluateContentQuality(ctx, id, payload) });
     } catch (err) { return handleProxyError(err); }
   }, { action: 'write' })(req);
 }
