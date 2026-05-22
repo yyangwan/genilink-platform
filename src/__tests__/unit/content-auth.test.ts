@@ -26,6 +26,10 @@ vi.mock('@/lib/db', () => ({
   },
 }));
 
+vi.mock('@/lib/proxy/zhijian-client', () => ({
+  getExternalId: vi.fn(),
+}));
+
 vi.mock('next/headers', () => ({
   cookies: vi.fn(),
 }));
@@ -37,13 +41,13 @@ import { withContentAuth } from '@/lib/auth/content-auth';
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
+import { getExternalId } from '@/lib/proxy/zhijian-client';
 
 function mockRequest(url: string, method = 'GET', body?: unknown) {
   const req = new NextRequest(new URL(url, 'http://localhost'), {
     method,
     body: body ? JSON.stringify(body) : undefined,
   });
-  // Stub json() for non-GET
   if (body) {
     req.json = async () => body;
   }
@@ -60,6 +64,7 @@ function setupSuccessMocks() {
   (prisma.workspaceMember.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
     role: 'owner',
   });
+  (getExternalId as ReturnType<typeof vi.fn>).mockResolvedValue('ext-123');
 }
 
 describe('withContentAuth', () => {
@@ -116,6 +121,7 @@ describe('withContentAuth', () => {
       get: (name: string) => name === 'genilink-workspace' ? { value: 'ws1' } : undefined,
     });
     (verifyProjectInWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'p1' });
+    (getExternalId as ReturnType<typeof vi.fn>).mockResolvedValue('ext-123');
     (requireBilling as ReturnType<typeof vi.fn>).mockRejectedValue(new BillingError('content'));
 
     const wrapped = withContentAuth(handler, { action: 'read' });
@@ -131,6 +137,7 @@ describe('withContentAuth', () => {
       get: (name: string) => name === 'genilink-workspace' ? { value: 'ws1' } : undefined,
     });
     (verifyProjectInWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'p1' });
+    (getExternalId as ReturnType<typeof vi.fn>).mockResolvedValue('ext-123');
     (requireBilling as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
     (prisma.workspaceMember.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
       role: 'member',
@@ -144,7 +151,23 @@ describe('withContentAuth', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it('should pass context with role to handler on success', async () => {
+  it('should return 404 when no external mapping exists', async () => {
+    (auth as ReturnType<typeof vi.fn>).mockResolvedValue({ user: { id: 'u1' } });
+    (cookies as ReturnType<typeof vi.fn>).mockResolvedValue({
+      get: (name: string) => name === 'genilink-workspace' ? { value: 'ws1' } : undefined,
+    });
+    (verifyProjectInWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'p1' });
+    (getExternalId as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+    const wrapped = withContentAuth(handler, { action: 'read' });
+    const res = await wrapped(mockRequest('http://localhost/api/content?projectId=p1'));
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error).toBe('No external mapping for project');
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('should pass context with externalId to handler on success', async () => {
     setupSuccessMocks();
 
     const wrapped = withContentAuth(handler, { action: 'read' });
@@ -152,7 +175,7 @@ describe('withContentAuth', () => {
     await wrapped(req);
 
     expect(handler).toHaveBeenCalledWith(
-      { userId: 'u1', workspaceId: 'ws1', projectId: 'p1', role: 'owner' },
+      { userId: 'u1', workspaceId: 'ws1', projectId: 'p1', role: 'owner', externalId: 'ext-123' },
       req,
     );
   });
@@ -165,7 +188,7 @@ describe('withContentAuth', () => {
     await wrapped(req);
 
     expect(handler).toHaveBeenCalledWith(
-      { userId: 'u1', workspaceId: 'ws1', projectId: 'p1', role: 'owner' },
+      { userId: 'u1', workspaceId: 'ws1', projectId: 'p1', role: 'owner', externalId: 'ext-123' },
       req,
     );
   });

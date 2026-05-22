@@ -55,6 +55,8 @@ export interface ProxyRequestOptions {
   accessToken?: string;
   body?: unknown;
   method?: string;
+  /** Pre-resolved external ID — skips getExternalId() lookup when provided */
+  externalId?: string;
 }
 
 const SERVICE_URLS: Record<string, string> = {
@@ -65,7 +67,7 @@ const SERVICE_URLS: Record<string, string> = {
 const TIMEOUT_MS = 120_000;
 
 export async function proxyRequest<T = unknown>(opts: ProxyRequestOptions): Promise<T> {
-  const externalId = await getExternalId(opts.projectId, opts.service);
+  const externalId = opts.externalId ?? await getExternalId(opts.projectId, opts.service);
   if (!externalId) {
     throw new Error(`No mapping found for project ${opts.projectId} → ${opts.service}`);
   }
@@ -122,7 +124,7 @@ export async function proxyRequest<T = unknown>(opts: ProxyRequestOptions): Prom
  * through without buffering. Used for AI content generation endpoints.
  */
 export async function proxyStreamRequest(opts: ProxyRequestOptions): Promise<Response> {
-  const externalId = await getExternalId(opts.projectId, opts.service);
+  const externalId = opts.externalId ?? await getExternalId(opts.projectId, opts.service);
   if (!externalId) {
     return new Response(
       JSON.stringify({ error: `No mapping found for project ${opts.projectId} → ${opts.service}` }),

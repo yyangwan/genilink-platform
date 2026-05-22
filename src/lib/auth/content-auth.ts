@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth/config';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
 import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
 import { requirePermission, PermissionDeniedError, ContentAction } from '@/lib/auth/content-permissions';
+import { getExternalId } from '@/lib/proxy/zhijian-client';
 import { cookies } from 'next/headers';
 
 export interface ContentAuthContext {
@@ -10,6 +11,7 @@ export interface ContentAuthContext {
   workspaceId: string;
   projectId: string;
   role: string;
+  externalId: string;
 }
 
 type ContentHandler = (
@@ -65,6 +67,11 @@ export function withContentAuth(
       return NextResponse.json({ error: 'Project not found in workspace' }, { status: 403 });
     }
 
+    const externalId = await getExternalId(projectId, 'content');
+    if (!externalId) {
+      return NextResponse.json({ error: 'No external mapping for project' }, { status: 404 });
+    }
+
     try {
       await requireBilling(session.user.id, workspaceId, 'content');
     } catch (err) {
@@ -87,6 +94,6 @@ export function withContentAuth(
       throw err;
     }
 
-    return handler({ userId: session.user.id, workspaceId, projectId, role }, req);
+    return handler({ userId: session.user.id, workspaceId, projectId, role, externalId }, req);
   };
 }
