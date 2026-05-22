@@ -30,6 +30,10 @@ vi.mock('@/lib/proxy/zhijian-client', () => ({
   getExternalId: vi.fn(),
 }));
 
+vi.mock('@/lib/auth/service-jwt', () => ({
+  issueServiceJWT: vi.fn(),
+}));
+
 vi.mock('next/headers', () => ({
   cookies: vi.fn(),
 }));
@@ -42,6 +46,7 @@ import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getExternalId } from '@/lib/proxy/zhijian-client';
+import { issueServiceJWT } from '@/lib/auth/service-jwt';
 
 function mockRequest(url: string, method = 'GET', body?: unknown) {
   const req = new NextRequest(new URL(url, 'http://localhost'), {
@@ -65,6 +70,7 @@ function setupSuccessMocks() {
     role: 'owner',
   });
   (getExternalId as ReturnType<typeof vi.fn>).mockResolvedValue('ext-123');
+  (issueServiceJWT as ReturnType<typeof vi.fn>).mockResolvedValue('dynamic-jwt');
 }
 
 describe('withContentAuth', () => {
@@ -175,7 +181,7 @@ describe('withContentAuth', () => {
     await wrapped(req);
 
     expect(handler).toHaveBeenCalledWith(
-      { userId: 'u1', workspaceId: 'ws1', projectId: 'p1', role: 'owner', externalId: 'ext-123' },
+      { userId: 'u1', workspaceId: 'ws1', projectId: 'p1', role: 'owner', externalId: 'ext-123', serviceToken: 'dynamic-jwt' },
       req,
     );
   });
@@ -188,7 +194,7 @@ describe('withContentAuth', () => {
     await wrapped(req);
 
     expect(handler).toHaveBeenCalledWith(
-      { userId: 'u1', workspaceId: 'ws1', projectId: 'p1', role: 'owner', externalId: 'ext-123' },
+      { userId: 'u1', workspaceId: 'ws1', projectId: 'p1', role: 'owner', externalId: 'ext-123', serviceToken: 'dynamic-jwt' },
       req,
     );
   });

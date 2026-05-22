@@ -10,7 +10,7 @@ export async function POST(
   return withContentAuth(async (ctx: ContentAuthContext) => {
     const { id } = await params;
     try {
-      return NextResponse.json({ data: await scoreContent(ctx.projectId, ctx.externalId, id) });
+      return NextResponse.json({ data: await scoreContent(ctx.projectId, ctx.externalId, ctx.serviceToken, id) });
     } catch (err) {
       return handleProxyError(err, 'Failed to score content');
     }

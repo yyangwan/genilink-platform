@@ -33,7 +33,7 @@ describe('content service', () => {
 
   const baseArgs = {
     service: 'content' as const,
-    accessToken: 'test-service-token',
+    accessToken: 'dynamic-jwt',
     externalId: 'ext-123',
     timeoutMs: 30_000,
   };
@@ -45,7 +45,7 @@ describe('content service', () => {
 
   it('listContents calls proxyRequest with GET and project contents path', async () => {
     mockProxyRequest.mockResolvedValue({ items: [] });
-    await listContents('proj-1', 'ext-123');
+    await listContents('proj-1', 'ext-123', 'dynamic-jwt');
 
     expect(mockProxyRequest).toHaveBeenCalledWith({
       ...baseArgs,
@@ -57,7 +57,7 @@ describe('content service', () => {
   it('createContent calls proxyRequest with POST and body', async () => {
     mockProxyRequest.mockResolvedValue({ id: 'c1' });
     const body = { title: 'Hello' };
-    await createContent('proj-1', 'ext-123', body);
+    await createContent('proj-1', 'ext-123', 'dynamic-jwt', body);
 
     expect(mockProxyRequest).toHaveBeenCalledWith({
       ...baseArgs,
@@ -70,7 +70,7 @@ describe('content service', () => {
 
   it('getContent calls proxyRequest with content ID path', async () => {
     mockProxyRequest.mockResolvedValue({ id: 'c1', title: 'Test' });
-    await getContent('proj-1', 'ext-123', 'c1');
+    await getContent('proj-1', 'ext-123', 'dynamic-jwt', 'c1');
 
     expect(mockProxyRequest).toHaveBeenCalledWith({
       ...baseArgs,
@@ -82,7 +82,7 @@ describe('content service', () => {
   it('updateContent calls proxyRequest with PUT and body', async () => {
     mockProxyRequest.mockResolvedValue({ id: 'c1', updated: true });
     const body = { title: 'Updated' };
-    await updateContent('proj-1', 'ext-123', 'c1', body);
+    await updateContent('proj-1', 'ext-123', 'dynamic-jwt', 'c1', body);
 
     expect(mockProxyRequest).toHaveBeenCalledWith({
       ...baseArgs,
@@ -95,7 +95,7 @@ describe('content service', () => {
 
   it('deleteContent calls proxyRequest with DELETE', async () => {
     mockProxyRequest.mockResolvedValue(undefined);
-    await deleteContent('proj-1', 'ext-123', 'c1');
+    await deleteContent('proj-1', 'ext-123', 'dynamic-jwt', 'c1');
 
     expect(mockProxyRequest).toHaveBeenCalledWith({
       ...baseArgs,
@@ -108,7 +108,7 @@ describe('content service', () => {
   it('generateContent calls proxyStreamRequest with POST and body', async () => {
     mockProxyStreamRequest.mockResolvedValue(new Response('stream'));
     const body = { prompt: 'Write about AI' };
-    await generateContent('proj-1', 'ext-123', 'c1', body);
+    await generateContent('proj-1', 'ext-123', 'dynamic-jwt', 'c1', body);
 
     expect(mockProxyStreamRequest).toHaveBeenCalledWith({
       ...streamArgs,
@@ -122,7 +122,7 @@ describe('content service', () => {
   it('publishContent calls proxyRequest with POST and body', async () => {
     mockProxyRequest.mockResolvedValue({ published: true });
     const body = { channel: 'wechat' };
-    await publishContent('proj-1', 'ext-123', 'c1', body);
+    await publishContent('proj-1', 'ext-123', 'dynamic-jwt', 'c1', body);
 
     expect(mockProxyRequest).toHaveBeenCalledWith({
       ...baseArgs,
@@ -135,7 +135,7 @@ describe('content service', () => {
 
   it('scoreContent calls proxyRequest with POST and no body', async () => {
     mockProxyRequest.mockResolvedValue({ score: 85 });
-    await scoreContent('proj-1', 'ext-123', 'c1');
+    await scoreContent('proj-1', 'ext-123', 'dynamic-jwt', 'c1');
 
     expect(mockProxyRequest).toHaveBeenCalledWith({
       ...baseArgs,

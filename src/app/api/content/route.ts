@@ -5,7 +5,7 @@ import { listContents, createContent } from '@/lib/content/service';
 
 export const GET = withContentAuth(async (ctx: ContentAuthContext) => {
   try {
-    return NextResponse.json({ data: await listContents(ctx.projectId, ctx.externalId) });
+    return NextResponse.json({ data: await listContents(ctx.projectId, ctx.externalId, ctx.serviceToken) });
   } catch (err) {
     return handleProxyError(err);
   }
@@ -14,7 +14,7 @@ export const GET = withContentAuth(async (ctx: ContentAuthContext) => {
 export const POST = withContentAuth(async (ctx: ContentAuthContext, req: NextRequest) => {
   const { projectId, ...payload } = await req.json();
   try {
-    return NextResponse.json({ data: await createContent(ctx.projectId, ctx.externalId, payload) }, { status: 201 });
+    return NextResponse.json({ data: await createContent(ctx.projectId, ctx.externalId, ctx.serviceToken, payload) }, { status: 201 });
   } catch (err) {
     return handleProxyError(err);
   }

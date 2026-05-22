@@ -4,6 +4,7 @@ import { requireBilling, BillingError } from '@/lib/billing/guard';
 import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
 import { requirePermission, PermissionDeniedError, ContentAction } from '@/lib/auth/content-permissions';
 import { getExternalId } from '@/lib/proxy/zhijian-client';
+import { issueServiceJWT } from '@/lib/auth/service-jwt';
 import { cookies } from 'next/headers';
 
 export interface ContentAuthContext {
@@ -12,6 +13,7 @@ export interface ContentAuthContext {
   projectId: string;
   role: string;
   externalId: string;
+  serviceToken: string;
 }
 
 type ContentHandler = (
@@ -94,6 +96,14 @@ export function withContentAuth(
       throw err;
     }
 
-    return handler({ userId: session.user.id, workspaceId, projectId, role, externalId }, req);
+    const serviceToken = await issueServiceJWT({
+      userId: session.user.id,
+      email: session.user.email,
+      name: session.user.name,
+      workspaceId,
+      audience: 'content.genilink.cn',
+    });
+
+    return handler({ userId: session.user.id, workspaceId, projectId, role, externalId, serviceToken }, req);
   };
 }

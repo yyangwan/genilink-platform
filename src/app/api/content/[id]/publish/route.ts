@@ -11,7 +11,7 @@ export async function POST(
     const { id } = await params;
     const { projectId, ...payload } = await req.json();
     try {
-      return NextResponse.json({ data: await publishContent(ctx.projectId, ctx.externalId, id, payload) });
+      return NextResponse.json({ data: await publishContent(ctx.projectId, ctx.externalId, ctx.serviceToken, id, payload) });
     } catch (err) {
       return handleProxyError(err, 'Failed to publish content');
     }

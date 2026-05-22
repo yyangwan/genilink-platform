@@ -10,7 +10,7 @@ export async function GET(
   return withContentAuth(async (ctx: ContentAuthContext) => {
     const { id } = await params;
     try {
-      return NextResponse.json({ data: await getContent(ctx.projectId, ctx.externalId, id) });
+      return NextResponse.json({ data: await getContent(ctx.projectId, ctx.externalId, ctx.serviceToken, id) });
     } catch (err) {
       return handleProxyError(err);
     }
@@ -25,7 +25,7 @@ export async function PUT(
     const { id } = await params;
     const { projectId, ...payload } = await req.json();
     try {
-      return NextResponse.json({ data: await updateContent(ctx.projectId, ctx.externalId, id, payload) });
+      return NextResponse.json({ data: await updateContent(ctx.projectId, ctx.externalId, ctx.serviceToken, id, payload) });
     } catch (err) {
       return handleProxyError(err);
     }
@@ -39,7 +39,7 @@ export async function DELETE(
   return withContentAuth(async (ctx: ContentAuthContext) => {
     const { id } = await params;
     try {
-      await deleteContent(ctx.projectId, ctx.externalId, id);
+      await deleteContent(ctx.projectId, ctx.externalId, ctx.serviceToken, id);
       return NextResponse.json({ success: true });
     } catch (err) {
       return handleProxyError(err);

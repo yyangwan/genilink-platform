@@ -9,6 +9,6 @@ export async function POST(
   return withContentAuth(async (ctx: ContentAuthContext) => {
     const { id } = await params;
     const { projectId, ...payload } = await req.json();
-    return generateContent(ctx.projectId, ctx.externalId, id, payload);
+    return generateContent(ctx.projectId, ctx.externalId, ctx.serviceToken, id, payload);
   }, { action: 'write' })(req);
 }
