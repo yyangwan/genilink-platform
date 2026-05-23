@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-All content studio tasks done (T4-T12) + E9 resolved — role permissions, service layer, unit tests, externalId cache, differentiated timeouts, ContentOS JWT Bearer auth (2026-05-22). T1 (full 22-module proxy) now unblocked.
+Sidebar updated to match CEO plan route map (2026-05-23). 9 智創 items with sub-divider grouping, z-index/touch-target/accordion fixes. 6 placeholder pages deferred until backend ready.
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services

@@ -21,6 +21,15 @@ import {
   Lightbulb,
   TrendingUp,
   GitCompareArrows,
+  PlusCircle,
+  List,
+  LayoutList,
+  Calendar,
+  BarChart3,
+  Sparkles,
+  Mic,
+  LayoutTemplate,
+  Plug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -64,10 +73,21 @@ const zhijianSection: NavSection = {
   ],
 };
 
-const zhichuangItem: NavItem = {
+const zhichuangSection: NavSection = {
+  id: "zhichuang",
   label: "智創",
-  href: "/content",
   icon: PenTool,
+  items: [
+    { label: "内容概览", href: "/content", icon: LayoutList },
+    { label: "内容列表", href: "/content/list", icon: List },
+    { label: "创建内容", href: "/content/new", icon: PlusCircle },
+    { label: "内容日历", href: "/content/calendar", icon: Calendar },
+    { label: "内容洞察", href: "/content/insights", icon: BarChart3 },
+    { label: "智灵", href: "/content/genie", icon: Sparkles },
+    { label: "品牌声音", href: "/content/brand-voices", icon: Mic },
+    { label: "内容模板", href: "/content/templates", icon: LayoutTemplate },
+    { label: "平台配置", href: "/content/settings", icon: Plug },
+  ],
 };
 
 const bottomItems: NavItem[] = [
@@ -112,6 +132,18 @@ export default function Sidebar() {
     if (isZhijianRoute && !accordion[zhijianSection.id]) {
       setAccordion((prev) => {
         const next = { ...prev, [zhijianSection.id]: true };
+        saveAccordionState(next);
+        return next;
+      });
+    }
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-expand 智創 if current route is a 智創 page
+  useEffect(() => {
+    const isZhichuangRoute = pathname.startsWith("/content");
+    if (isZhichuangRoute && !accordion[zhichuangSection.id]) {
+      setAccordion((prev) => {
+        const next = { ...prev, [zhichuangSection.id]: true };
         saveAccordionState(next);
         return next;
       });
@@ -196,6 +228,7 @@ export default function Sidebar() {
   const isActive = useCallback(
     (href: string) => {
       if (href === "/dashboard") return pathname === "/dashboard";
+      if (href === "/content") return pathname === "/content";
       return pathname.startsWith(href);
     },
     [pathname]
@@ -212,7 +245,7 @@ export default function Sidebar() {
         key={item.href}
         href={item.href}
         className={cn(
-          "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all relative",
+          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all relative",
           "duration-[var(--duration-short)]"
         )}
         style={{
@@ -391,8 +424,73 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* 智創 */}
-        {navLink(zhichuangItem)}
+        {/* 智創 accordion section */}
+        <div>
+          <button
+            onClick={() => toggleAccordion(zhichuangSection.id)}
+            className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm transition-all"
+            style={{
+              color: isSectionActive(zhichuangSection) ? "var(--text-primary)" : "var(--text-secondary)",
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              fontFamily: "var(--font-display)",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            aria-expanded={accordion[zhichuangSection.id]}
+          >
+            <div className="flex items-center gap-3">
+              <PenTool className="w-[18px] h-[18px] shrink-0" />
+              <span className="text-xs font-medium uppercase tracking-wider">{zhichuangSection.label}</span>
+            </div>
+            <ChevronDown
+              className={cn(
+                "w-3.5 h-3.5 transition-transform shrink-0 duration-[var(--duration-medium)]",
+                accordion[zhichuangSection.id] && "rotate-180"
+              )}
+            />
+          </button>
+
+          {/* Collapsible children — grouped with sub-dividers */}
+          <div
+            className={cn(
+              "overflow-hidden transition-all duration-[var(--duration-medium)]",
+              accordion[zhichuangSection.id] ? "max-h-[480px] opacity-100" : "max-h-0 opacity-0"
+            )}
+          >
+            <div className="pl-4 space-y-0.5">
+              {/* Core workflow */}
+              {zhichuangSection.items.slice(0, 3).map((item) => navLink(item))}
+
+              {/* Sub-divider: Analytics & Planning */}
+              <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
+                <div className="flex-1" style={{ borderTop: "1px solid var(--border)" }} />
+                <span
+                  className="text-[10px] font-medium uppercase tracking-wider shrink-0"
+                  style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}
+                >
+                  分析规划
+                </span>
+                <div className="flex-1" style={{ borderTop: "1px solid var(--border)" }} />
+              </div>
+              {zhichuangSection.items.slice(3, 6).map((item) => navLink(item))}
+
+              {/* Sub-divider: Configuration */}
+              <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
+                <div className="flex-1" style={{ borderTop: "1px solid var(--border)" }} />
+                <span
+                  className="text-[10px] font-medium uppercase tracking-wider shrink-0"
+                  style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}
+                >
+                  配置管理
+                </span>
+                <div className="flex-1" style={{ borderTop: "1px solid var(--border)" }} />
+              </div>
+              {zhichuangSection.items.slice(6, 9).map((item) => navLink(item))}
+            </div>
+          </div>
+        </div>
 
         {/* Divider */}
         <div className="my-2" style={{ borderTop: "1px solid var(--border)" }} />
@@ -407,7 +505,7 @@ export default function Sidebar() {
 
         <button
           onClick={() => setLogoutConfirm(true)}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors"
           style={{ color: "var(--text-muted)" }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = "var(--bg-hover)";
@@ -451,7 +549,7 @@ export default function Sidebar() {
 
       <aside
         className={cn(
-          "hidden lg:flex flex-col fixed top-0 left-0 h-full z-50",
+          "hidden lg:flex flex-col fixed top-0 left-0 h-full z-[100]",
           "transition-transform duration-[var(--duration-medium)]"
         )}
         style={{
@@ -467,7 +565,7 @@ export default function Sidebar() {
 
       <aside
         className={cn(
-          "fixed top-0 left-0 h-full z-50 block lg:hidden",
+          "fixed top-0 left-0 h-full z-[100] block lg:hidden",
           "transition-transform duration-[var(--duration-medium)]",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
