@@ -1,7 +1,7 @@
 "use client";
 
-import React, { Suspense, useCallback, useState } from "react";
-import { ArrowLeft, Plus, X, Loader2, Send } from "lucide-react";
+import React, { Suspense, useCallback, useEffect, useState } from "react";
+import { ArrowLeft, Plus, X, Loader2, Send, Sparkles, LayoutTemplate, Mic } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useProject } from "@/components/project/project-context";
@@ -14,6 +14,19 @@ const PLATFORMS = [
   { id: "toutiao", label: "今日头条" },
   { id: "zhihu", label: "知乎" },
 ] as const;
+
+interface TemplateOption {
+  id: string;
+  name: string;
+  category?: string;
+  content?: string;
+}
+
+interface BrandVoiceOption {
+  id: string;
+  name: string;
+  toneKeywords?: string[];
+}
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -35,9 +48,28 @@ function NewContentInner() {
   const [topic, setTopic] = useState(searchParams.get("topic") ?? "");
   const [keyPoints, setKeyPoints] = useState<string[]>([""]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
-  const [references, setReferences] = useState("");
+  const [references, setReferences] = useState(searchParams.get("references") ?? "");
   const [notes, setNotes] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+  const [selectedVoice, setSelectedVoice] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Template & voice options
+  const [templates, setTemplates] = useState<TemplateOption[]>([]);
+  const [voices, setVoices] = useState<BrandVoiceOption[]>([]);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Load templates and brand voices
+  useEffect(() => {
+    if (!currentProjectId) return;
+    Promise.all([
+      fetch(`/api/templates?projectId=${currentProjectId}`).then((r) => r.ok ? r.json() : { data: [] }).catch(() => ({ data: [] })),
+      fetch(`/api/brand-voices?projectId=${currentProjectId}`).then((r) => r.ok ? r.json() : { data: [] }).catch(() => ({ data: [] })),
+    ]).then(([tmpl, voices]) => {
+      setTemplates(tmpl.data ?? []);
+      setVoices(voices.data ?? []);
+    });
+  }, [currentProjectId]);
 
   const addKeyPoint = useCallback(() => {
     setKeyPoints((prev) => [...prev, ""]);
@@ -72,6 +104,8 @@ function NewContentInner() {
         platforms: selectedPlatforms.length > 0 ? selectedPlatforms : undefined,
         references: references.trim() || undefined,
         notes: notes.trim() || undefined,
+        templateId: selectedTemplate || undefined,
+        brandVoiceId: selectedVoice || undefined,
       };
 
       const res = await fetch(`/api/content?projectId=${currentProjectId}`, {
@@ -88,13 +122,34 @@ function NewContentInner() {
 
       const json = await res.json();
       const newId = json.data?.id;
-      router.push(newId ? `/content/${newId}/edit` : "/content");
+      if (newId) {
+        // Trigger AI generation for the new content
+        try {
+          await fetch(`/api/content/${newId}/generate?projectId=${currentProjectId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              projectId: currentProjectId,
+              topic: topic.trim(),
+              keyPoints: keyPoints.filter((p) => p.trim()),
+              platforms: selectedPlatforms.length > 0 ? selectedPlatforms : undefined,
+              templateId: selectedTemplate || undefined,
+              brandVoiceId: selectedVoice || undefined,
+            }),
+          });
+        } catch {
+          // Generation failed, still redirect to edit page
+        }
+        router.push(`/content/${newId}/edit`);
+      } else {
+        router.push("/content");
+      }
     } catch {
       alert("网络错误");
     } finally {
       setSubmitting(false);
     }
-  }, [currentProjectId, topic, keyPoints, selectedPlatforms, references, notes, submitting, router]);
+  }, [currentProjectId, topic, keyPoints, selectedPlatforms, references, notes, selectedTemplate, selectedVoice, submitting, router]);
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -231,42 +286,110 @@ function NewContentInner() {
           </div>
         </div>
 
-        {/* References */}
-        <div>
-          <label
-            className="block text-sm font-medium mb-1.5"
-            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-          >
-            参考资料
-          </label>
-          <textarea
-            value={references}
-            onChange={(e) => setReferences(e.target.value)}
-            placeholder="粘贴参考文章链接或内容..."
-            rows={3}
-            style={{ ...inputStyle, resize: "vertical" }}
-            onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
-            onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
-          />
-        </div>
+        {/* Template selector */}
+        {templates.length > 0 && (
+          <div>
+            <label
+              className="block text-sm font-medium mb-1.5"
+              style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+            >
+              <LayoutTemplate size={13} className="inline mr-1" />
+              内容模板
+            </label>
+            <select
+              value={selectedTemplate}
+              onChange={(e) => setSelectedTemplate(e.target.value)}
+              style={{ ...inputStyle, appearance: "auto" }}
+            >
+              <option value="">不使用模板</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}{t.category ? ` (${t.category})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
-        {/* Notes */}
-        <div>
-          <label
-            className="block text-sm font-medium mb-1.5"
-            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-          >
-            备注
-          </label>
-          <input
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="对 AI 生成内容的额外要求..."
-            style={inputStyle}
-            onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
-            onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
-          />
-        </div>
+        {/* Brand voice selector */}
+        {voices.length > 0 && (
+          <div>
+            <label
+              className="block text-sm font-medium mb-1.5"
+              style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+            >
+              <Mic size={13} className="inline mr-1" />
+              品牌声音
+            </label>
+            <select
+              value={selectedVoice}
+              onChange={(e) => setSelectedVoice(e.target.value)}
+              style={{ ...inputStyle, appearance: "auto" }}
+            >
+              <option value="">默认声音</option>
+              {voices.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}{v.toneKeywords?.length ? ` — ${v.toneKeywords.join(", ")}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Advanced options toggle */}
+        <button
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="text-xs font-medium"
+          style={{
+            color: "var(--text-muted)",
+            background: "none",
+            border: "none",
+            fontFamily: "var(--font-body)",
+            cursor: "pointer",
+            padding: 0,
+          }}
+        >
+          {showAdvanced ? "收起高级选项" : "展开高级选项"}
+        </button>
+
+        {/* Advanced: References & Notes */}
+        {showAdvanced && (
+          <div className="space-y-4 p-4 rounded-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <div>
+              <label
+                className="block text-sm font-medium mb-1.5"
+                style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+              >
+                参考资料
+              </label>
+              <textarea
+                value={references}
+                onChange={(e) => setReferences(e.target.value)}
+                placeholder="粘贴参考文章链接或内容..."
+                rows={3}
+                style={{ ...inputStyle, resize: "vertical" }}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+              />
+            </div>
+            <div>
+              <label
+                className="block text-sm font-medium mb-1.5"
+                style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+              >
+                备注
+              </label>
+              <input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="对 AI 生成内容的额外要求..."
+                style={inputStyle}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Actions */}
@@ -284,8 +407,8 @@ function NewContentInner() {
             opacity: submitting || !topic.trim() ? 0.6 : 1,
           }}
         >
-          {submitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-          生成内容
+          {submitting ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+          {submitting ? "AI 生成中..." : "AI 生成内容"}
         </button>
         <Link
           href="/content"

@@ -21,14 +21,12 @@
   - Depends on: None.
 
 ## 智創 Content Studio — Frontend Gaps (2026-05-23)
-- [ ] **Phase 1: Complete 4 partial pages** — When ContentOS backend (port 4002) is running:
-  - `/content` — Add 智見 data bridge (topic suggestions from visibility gaps)
-  - `/content/list` — Add 10-status badge system, platform filters, bulk actions
-  - `/content/new` — Connect brief form to AI generation to editor flow
-  - `/content/[id]/edit` — Add multi-platform editor tabs, publish workflow
-  - Why: Phase 1 pages exist but lack core features for the content creation loop.
+- [x] **Phase 1: Enhanced 4 existing pages** (2026-05-23):
+  - `/content` — 智見 data bridge already functional (KPI strip, topic suggestions, cold start)
+  - `/content/list` — 10-status badge system, search, status/platform filters, bulk select+delete+publish, quality score coloring
+  - `/content/new` — Template selector, brand voice selector, AI generation trigger on submit, advanced options (references, notes)
+  - `/content/[id]/edit` — Multi-platform editor tabs, status badge, quality score display, schedule picker, publish workflow
   - Depends on: ContentOS backend running on port 4002.
-  - Context: API proxy 100% complete (53 functions, 13 route files). Frontend is the gap.
 
 - [x] **Phase 2/3: Create 6 missing pages** — Full implementations connected to API proxy:
   - `/content/calendar` — Calendar grid with month nav, event badges, status colors
