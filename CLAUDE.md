@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-Sidebar updated to match CEO plan route map (2026-05-23). 9 智創 items with sub-divider grouping, z-index/touch-target/accordion fixes. 6 placeholder pages deferred until backend ready.
+智創 6 missing pages created (2026-05-23). All 10 智創 routes now have frontend pages connected to ContentOS API proxy (port 4002). Phase 1 page enhancements (list filters, AI generation flow, multi-platform editor) remain.
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services

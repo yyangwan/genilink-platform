@@ -19,6 +19,25 @@
 - [ ] **Set up test infrastructure** — Zero test coverage currently. Add Vitest + Playwright + MSW.
   - Why: Manual testing only. Regressions are caught in production.
   - Depends on: None.
+
+## 智創 Content Studio — Frontend Gaps (2026-05-23)
+- [ ] **Phase 1: Complete 4 partial pages** — When ContentOS backend (port 4002) is running:
+  - `/content` — Add 智見 data bridge (topic suggestions from visibility gaps)
+  - `/content/list` — Add 10-status badge system, platform filters, bulk actions
+  - `/content/new` — Connect brief form to AI generation to editor flow
+  - `/content/[id]/edit` — Add multi-platform editor tabs, publish workflow
+  - Why: Phase 1 pages exist but lack core features for the content creation loop.
+  - Depends on: ContentOS backend running on port 4002.
+  - Context: API proxy 100% complete (53 functions, 13 route files). Frontend is the gap.
+
+- [x] **Phase 2/3: Create 6 missing pages** — Full implementations connected to API proxy:
+  - `/content/calendar` — Calendar grid with month nav, event badges, status colors
+  - `/content/insights` — KPI cards, status/platform breakdown bars, top performing list
+  - `/content/genie` — URL source management + AI generate panel with history
+  - `/content/brand-voices` — Full CRUD with tone keywords, sample content
+  - `/content/templates` — Full CRUD with category filter, variable placeholders
+  - `/content/settings` — Platform connection cards (6 platforms) with status/refresh
+  - Done: 2026-05-23. Backend ContentOS running on port 4002.
 - [ ] **Priority: P0** Fix pre-existing test failure: `zhijian-client.test.ts` — 'should replace :id placeholder with externalId in URL' (port mismatch after 3000→3001 change)
   - Why: Tests assert URLs with stale port configuration.
   - Noticed by: gstack /ship on 2026-05-20
