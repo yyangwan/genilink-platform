@@ -87,6 +87,9 @@ export async function proxyRequest<T = unknown>(opts: ProxyRequestOptions): Prom
     if (opts.accessToken) {
       headers['Authorization'] = `Bearer ${opts.accessToken}`;
     }
+    if (externalId && opts.service === 'content') {
+      headers['X-ContentOS-Project-Id'] = externalId;
+    }
 
     const res = await fetch(url, {
       method: opts.method || 'GET',
@@ -146,6 +149,9 @@ export async function proxyStreamRequest(opts: ProxyRequestOptions): Promise<Res
   };
   if (opts.accessToken) {
     headers['Authorization'] = `Bearer ${opts.accessToken}`;
+  }
+  if (externalId && opts.service === 'content') {
+    headers['X-ContentOS-Project-Id'] = externalId;
   }
 
   try {

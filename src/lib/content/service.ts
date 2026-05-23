@@ -12,88 +12,90 @@ function ctxOpts(ctx: Ctx) {
   return { projectId: ctx.projectId, externalId: ctx.externalId, accessToken: ctx.serviceToken, service: SERVICE };
 }
 
-// ─── Content CRUD (existing) ───────────────────────────────────────
+// ─── Content CRUD ──────────────────────────────────────────────────
 
 export function listContents(ctx: Ctx) {
-  return proxyRequest({ ...ctxOpts(ctx), path: '/api/projects/:id/contents', timeoutMs: CRUD_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: '/api/content', timeoutMs: CRUD_TIMEOUT });
 }
 
 export function createContent(ctx: Ctx, body: unknown) {
-  return proxyRequest({ ...ctxOpts(ctx), path: '/api/projects/:id/contents', method: 'POST', body, timeoutMs: CRUD_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: '/api/content', method: 'POST', body, timeoutMs: CRUD_TIMEOUT });
 }
 
 export function getContent(ctx: Ctx, contentId: string) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}`, timeoutMs: CRUD_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}`, timeoutMs: CRUD_TIMEOUT });
 }
 
 export function updateContent(ctx: Ctx, contentId: string, body: unknown) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}`, method: 'PUT', body, timeoutMs: CRUD_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}`, method: 'PUT', body, timeoutMs: CRUD_TIMEOUT });
 }
 
 export function deleteContent(ctx: Ctx, contentId: string) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}`, method: 'DELETE', timeoutMs: CRUD_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}`, method: 'DELETE', timeoutMs: CRUD_TIMEOUT });
 }
 
-export function generateContent(ctx: Ctx, contentId: string, body: unknown) {
-  return proxyStreamRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}/generate`, method: 'POST', body, timeoutMs: STREAM_TIMEOUT });
+export function generateContent(ctx: Ctx, contentId: string, body: Record<string, unknown>) {
+  return proxyStreamRequest({
+    ...ctxOpts(ctx),
+    path: '/api/generate',
+    method: 'POST',
+    body: { contentPieceId: contentId, ...body },
+    timeoutMs: STREAM_TIMEOUT,
+  });
 }
 
 export function publishContent(ctx: Ctx, contentId: string, body: unknown) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}/publish`, method: 'POST', body, timeoutMs: CRUD_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/publish/${contentId}`, method: 'POST', body, timeoutMs: CRUD_TIMEOUT });
 }
 
-export function scoreContent(ctx: Ctx, contentId: string) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}/score`, method: 'POST', timeoutMs: CRUD_TIMEOUT });
-}
-
-// ─── Content — missing endpoints ────────────────────────────────────
+// ─── Content — status, schedule, analyze, optimize, quality, review ──
 
 export function updateContentStatus(ctx: Ctx, contentId: string, body: unknown) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}/status`, method: 'PATCH', body, timeoutMs: CRUD_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}/status`, method: 'PATCH', body, timeoutMs: CRUD_TIMEOUT });
 }
 
 export function getContentSchedule(ctx: Ctx, contentId: string) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}/schedule`, timeoutMs: CRUD_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}/schedule`, timeoutMs: CRUD_TIMEOUT });
 }
 
 export function setContentSchedule(ctx: Ctx, contentId: string, body: unknown) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}/schedule`, method: 'POST', body, timeoutMs: CRUD_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}/schedule`, method: 'POST', body, timeoutMs: CRUD_TIMEOUT });
 }
 
 export function deleteContentSchedule(ctx: Ctx, contentId: string) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}/schedule`, method: 'DELETE', timeoutMs: CRUD_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}/schedule`, method: 'DELETE', timeoutMs: CRUD_TIMEOUT });
 }
 
 export function analyzeContent(ctx: Ctx, contentId: string) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}/analyze`, timeoutMs: CRUD_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}/analyze`, timeoutMs: CRUD_TIMEOUT });
 }
 
 export function optimizeContent(ctx: Ctx, contentId: string, body: unknown) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}/optimize`, method: 'POST', body, timeoutMs: STREAM_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}/optimize`, method: 'POST', body, timeoutMs: STREAM_TIMEOUT });
 }
 
 export function optimizeContentSeo(ctx: Ctx, contentId: string, body: unknown) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}/optimize-seo`, method: 'POST', body, timeoutMs: STREAM_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}/optimize-seo`, method: 'POST', body, timeoutMs: STREAM_TIMEOUT });
 }
 
 export function getContentQuality(ctx: Ctx, contentId: string) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}/quality`, timeoutMs: CRUD_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}/quality`, timeoutMs: CRUD_TIMEOUT });
 }
 
 export function evaluateContentQuality(ctx: Ctx, contentId: string, body: unknown) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}/quality`, method: 'POST', body, timeoutMs: STREAM_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}/quality`, method: 'POST', body, timeoutMs: STREAM_TIMEOUT });
 }
 
 export function getContentQualityLocal(ctx: Ctx, contentId: string) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}/quality/local`, timeoutMs: CRUD_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}/quality/local`, timeoutMs: CRUD_TIMEOUT });
 }
 
 export function createReviewLink(ctx: Ctx, contentId: string, body: unknown) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}/review-link`, method: 'POST', body, timeoutMs: CRUD_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}/review-link`, method: 'POST', body, timeoutMs: CRUD_TIMEOUT });
 }
 
 export function getReviewLink(ctx: Ctx, contentId: string) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/contents/${contentId}/review-link`, timeoutMs: CRUD_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}/review-link`, timeoutMs: CRUD_TIMEOUT });
 }
 
 // ─── Brand Voices ────────────────────────────────────────────────────
@@ -187,7 +189,7 @@ export function deleteGenieSource(ctx: Ctx, id: string) {
 }
 
 export function analyzeGenieSource(ctx: Ctx, id: string, body: unknown) {
-  return proxyRequest({ ...ctxOpts(ctx), path: `/api/genie/sources/${id}`, method: 'POST', body, timeoutMs: STREAM_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/genie/sources/${id}/analyze`, method: 'POST', body, timeoutMs: STREAM_TIMEOUT });
 }
 
 // ─── Platform Config ─────────────────────────────────────────────────
