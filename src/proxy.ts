@@ -1,37 +1,89 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 
-export function proxy(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+// Routes that require authentication but no specific module
+const BASE_ROUTES = ['/dashboard', '/projects', '/settings', '/onboarding', '/upgrade'];
 
-  const isPublic =
-    pathname.startsWith('/auth') ||
-    pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/.well-known') ||
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/api/health') ||
-    pathname === '/favicon.ico';
+// Routes that require 'visibility' module subscription
+const VISIBILITY_ROUTES = ['/visibility', '/audits', '/schedules', '/suggestions', '/trends', '/compare'];
 
-  if (isPublic) return NextResponse.next();
+// Routes that require 'content' module subscription
+const CONTENT_ROUTES = ['/content'];
 
-  const sessionToken =
-    req.cookies.get('authjs.session-token')?.value ||
-    req.cookies.get('__Secure-authjs.session-token')?.value;
+function requiresModule(pathname: string): string | null {
+  if (BASE_ROUTES.some((r) => pathname === r || pathname.startsWith(r + '/'))) return null;
+  if (VISIBILITY_ROUTES.some((r) => pathname.startsWith(r))) return 'visibility';
+  if (CONTENT_ROUTES.some((r) => pathname.startsWith(r))) return 'content';
+  return null; // unknown route — treat as base (allowed)
+}
 
-  if (!sessionToken) {
-    // API routes return JSON 401
-    if (pathname.startsWith('/api/')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    // Page routes redirect to login
-    const loginUrl = new URL('/auth/login', req.nextUrl.origin);
+export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Skip non-dashboard routes
+  if (
+    pathname.startsWith('/api/') ||
+    pathname.startsWith('/auth/') ||
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/favicon') ||
+    pathname.includes('.')
+  ) {
+    return NextResponse.next();
+  }
+
+  // Check authentication via JWT
+  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
+  if (!token) {
+    const loginUrl = new URL('/auth/login', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Check module access
+  const requiredModule = requiresModule(pathname);
+
+  // null = base route or unknown — always allowed
+  if (requiredModule === null) {
+    return NextResponse.next();
+  }
+
+  // Check genilink-modules cookie for module subscription
+  const modulesCookie = request.cookies.get('genilink-modules')?.value ?? '';
+
+  // If cookie not set yet (first visit after login), allow through.
+  // Cookie gets set when user switches workspace via /api/workspaces/switch.
+  // Page-level and API-level billing checks still enforce access.
+  if (!modulesCookie) {
+    return NextResponse.next();
+  }
+
+  const activeModules = modulesCookie.split(',').filter(Boolean);
+
+  // In development or when billing is disabled, allow all
+  if (process.env.BILLING_DISABLED === 'true') {
+    return NextResponse.next();
+  }
+
+  if (!activeModules.includes(requiredModule)) {
+    const upgradeUrl = new URL('/upgrade', request.url);
+    upgradeUrl.searchParams.set('module', requiredModule);
+    return NextResponse.redirect(upgradeUrl);
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    /*
+     * Match all request paths except:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization)
+     * - auth (auth pages)
+     * - favicon.ico
+     */
+    '/((?!api|_next/static|_next/image|auth|favicon\\.ico).*)',
+  ],
 };

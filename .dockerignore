@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+*.md
+.env*.local
+__tests__
+.claude
+.gstack
+keys

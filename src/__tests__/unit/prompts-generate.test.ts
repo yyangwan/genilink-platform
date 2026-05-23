@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
 import { getExternalId } from '@/lib/proxy/zhijian-client';
+import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
 
 // Mock cookies from next/headers
 vi.mock('next/headers', () => ({
@@ -33,6 +34,11 @@ vi.mock('@/lib/proxy/zhijian-client', () => ({
   evictCache: vi.fn(),
 }));
 
+// Mock workspace verification
+vi.mock('@/lib/auth/workspace', () => ({
+  verifyProjectInWorkspace: vi.fn(),
+}));
+
 // Mock global fetch for upstream calls
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -59,6 +65,9 @@ describe('POST /api/integration/prompts/generate', () => {
 
     // Default: external mapping exists
     (getExternalId as ReturnType<typeof vi.fn>).mockResolvedValue('9');
+
+    // Default: project belongs to workspace
+    (verifyProjectInWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'p1' });
 
     // Default: upstream returns success
     mockFetch.mockResolvedValue({
