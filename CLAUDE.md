@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-智創 6 missing pages created (2026-05-23). All 10 智創 routes now have frontend pages connected to ContentOS API proxy (port 4002). Phase 1 page enhancements (list filters, AI generation flow, multi-platform editor) remain.
+智創 frontend complete (2026-05-23). All 10 pages implemented + enhanced. Build clean, 9/9 pages verified. ContentOS backend (port 4002) JWT auth needs config — proxy returns 502 "Service auth expired".
 
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services
