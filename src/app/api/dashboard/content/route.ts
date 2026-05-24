@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
-import { cookies } from 'next/headers';
+import { getWorkspaceId } from '@/lib/auth/get-workspace';
 import { proxyRequest } from '@/lib/proxy/zhijian-client';
 
 const emptyData = { totalContent: 0, publishedCount: 0, recentContent: [], qualityAvg: null };
@@ -13,8 +13,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const cookieStore = await cookies();
-  const workspaceId = cookieStore.get('genilink-workspace')?.value;
+  const workspaceId = await getWorkspaceId(session.user.id);
 
   if (!workspaceId) {
     return NextResponse.json(emptyData);

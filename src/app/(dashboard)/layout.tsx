@@ -24,6 +24,13 @@ export default async function DashboardLayout({
         select: { workspaceId: true },
       });
       if (membership) {
+        cookieStore.set("genilink-workspace", membership.workspaceId, {
+          httpOnly: false,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          maxAge: 365 * 24 * 60 * 60,
+          path: "/",
+        });
         workspaceCookie = { name: "genilink-workspace", value: membership.workspaceId };
       }
     }

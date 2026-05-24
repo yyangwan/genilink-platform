@@ -72,8 +72,8 @@ export async function syncProjectToVisibility(
         body: JSON.stringify({ name, industry, product_category }),
         signal: AbortSignal.timeout(10_000),
       });
-    } catch {
-      // Non-critical — continue even if sync fails
+    } catch (err) {
+      console.warn(`[sync-project] PATCH failed for project ${projectId} (visibility ${parsed}):`, (err as Error).message);
     }
     return parsed;
   }

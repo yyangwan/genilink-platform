@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
-import { cookies } from 'next/headers';
 import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
+import { getWorkspaceId } from '@/lib/auth/get-workspace';
 
 const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
 
@@ -15,8 +15,7 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const cookieStore = await cookies();
-  const workspaceId = cookieStore.get('genilink-workspace')?.value;
+  const workspaceId = await getWorkspaceId(session.user.id);
   if (!workspaceId) {
     return NextResponse.json({ error: 'No workspace selected' }, { status: 400 });
   }
@@ -85,8 +84,7 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const cookieStore = await cookies();
-  const workspaceId = cookieStore.get('genilink-workspace')?.value;
+  const workspaceId = await getWorkspaceId(session.user.id);
   if (!workspaceId) {
     return NextResponse.json({ error: 'No workspace selected' }, { status: 400 });
   }

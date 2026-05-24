@@ -12,6 +12,7 @@ import {
   Play,
   Loader2,
   CheckCircle2,
+  Settings,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -64,7 +65,43 @@ function VisibilityContent() {
     setAnalysisError(null);
 
     try {
+      // ── Pre-flight: check prompts and brands ──
+      const [promptsRes, brandsRes] = await Promise.all([
+        fetch(`/api/integration/prompts?projectId=${currentProjectId}`),
+        fetch(`/api/integration/brands?projectId=${currentProjectId}`),
+      ]);
+
+      const promptsData = promptsRes.ok ? await promptsRes.json() : [];
+      const brandsData = brandsRes.ok ? await brandsRes.json() : [];
+
+      const hasPrompts = Array.isArray(promptsData) && promptsData.length > 0;
+      const hasBrands = Array.isArray(brandsData) && brandsData.length > 0;
+
+      // No brands → hard stop
+      if (!hasBrands) {
+        setAnalysisPhase("error");
+        setAnalysisError("NO_BRANDS");
+        return;
+      }
+
+      // No prompts → auto-generate
+      if (!hasPrompts) {
+        setAnalysisPhase("creating");
+        const genRes = await fetch("/api/integration/prompts/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId: currentProjectId }),
+        });
+        if (!genRes.ok) {
+          const err = await genRes.json().catch(() => ({}));
+          setAnalysisPhase("error");
+          setAnalysisError(err.error || "NO_PROMPTS");
+          return;
+        }
+      }
+
       // Step 1: Create audit
+      setAnalysisPhase("creating");
       const createRes = await fetch("/api/integration/audits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -83,19 +120,8 @@ function VisibilityContent() {
         throw new Error("未获取到审计 ID");
       }
 
-      // Step 2: Trigger analysis
+      // Audit created — start polling (run_audit runs automatically in background)
       setAnalysisPhase("collecting");
-      const analyzeRes = await fetch(`/api/integration/audits/${auditId}/analyze`, {
-        method: "POST",
-      });
-
-      if (!analyzeRes.ok) {
-        const err = await analyzeRes.json();
-        throw new Error(err.error || "触发分析失败");
-      }
-
-      // Step 3: Poll for completion
-      setAnalysisPhase("analyzing");
       pollRef.current = setInterval(async () => {
         try {
           const statusRes = await fetch(`/api/integration/audits/${auditId}`);
@@ -108,7 +134,7 @@ function VisibilityContent() {
             setAnalysisPhase("collecting");
           } else if (phase === "analyzing" || phase === "running") {
             setAnalysisPhase("analyzing");
-          } else if (phase === "completed" || phase === "done") {
+          } else if (phase === "completed" || phase === "done" || phase === "partial") {
             if (pollRef.current) clearInterval(pollRef.current);
             setAnalysisPhase("done");
             visibility.refetch();
@@ -134,7 +160,11 @@ function VisibilityContent() {
     collecting: "数据采集中...",
     analyzing: "AI 分析中...",
     done: "分析完成",
-    error: analysisError || "分析失败",
+    error: analysisError === "NO_BRANDS"
+      ? "请先在设置中添加品牌"
+      : analysisError === "NO_PROMPTS"
+      ? "提示词生成失败，请在设置中手动添加"
+      : analysisError || "分析失败",
   };
 
   const isAnalyzing = analysisPhase === "creating" || analysisPhase === "collecting" || analysisPhase === "analyzing";
@@ -257,19 +287,37 @@ function VisibilityContent() {
 
           {/* Analysis error */}
           {analysisPhase === "error" && (
-            <button
-              onClick={handleStartAnalysis}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-              style={{
-                background: "var(--color-error)20",
-                color: "var(--color-error)",
-                border: "none",
-                cursor: "pointer",
-                fontFamily: "var(--font-body)",
-              }}
-            >
-              重试分析
-            </button>
+            analysisError === "NO_BRANDS" ? (
+              <Link
+                href="/settings/brands"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  background: "var(--color-error)20",
+                  color: "var(--color-error)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-body)",
+                  textDecoration: "none",
+                }}
+              >
+                <Settings className="w-3.5 h-3.5" />
+                请先添加品牌
+              </Link>
+            ) : (
+              <button
+                onClick={handleStartAnalysis}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  background: "var(--color-error)20",
+                  color: "var(--color-error)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-body)",
+                }}
+              >
+                重试分析
+              </button>
+            )
           )}
 
           {/* Refresh button */}

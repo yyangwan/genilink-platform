@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
-import { cookies } from 'next/headers';
+import { getWorkspaceId } from '@/lib/auth/get-workspace';
 
 // POST /api/projects/select — set genilink-project cookie
 export async function POST(req: NextRequest) {
@@ -17,8 +17,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
   }
 
-  const cookieStore = await cookies();
-  const workspaceId = cookieStore.get('genilink-workspace')?.value;
+  const workspaceId = await getWorkspaceId(session.user.id);
 
   if (!workspaceId) {
     return NextResponse.json({ error: 'No workspace selected' }, { status: 400 });
