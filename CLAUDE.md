@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-Phase 1 实施中 (2026-05-24). T1-T5,T4 done, build passes. Brand model + CRUD API + sync + page + sidebar committed (3c1ea37). Next: T9 tests, T7 integration proxy, T10/T11 cleanup.
+Brand Phase done (2026-05-24). T1-T11 complete (commit 14c294d). T8 (智創 Brand Voices link) deferred. All build + tests green.
 
 ## ContentOS JWT Integration (done)
 智链发送 RS256 JWT 到 ContentOS (port 4002)。ContentOS 中间件验证 JWT，注入 x-genilink-* headers。
