@@ -30,6 +30,7 @@ import {
   Mic,
   LayoutTemplate,
   Plug,
+  Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -57,6 +58,7 @@ interface Workspace {
 const topItems: NavItem[] = [
   { label: "工作台", href: "/dashboard", icon: LayoutDashboard },
   { label: "项目管理", href: "/projects", icon: FolderKanban },
+  { label: "品牌管理", href: "/brands", icon: Tag },
 ];
 
 const zhijianSection: NavSection = {

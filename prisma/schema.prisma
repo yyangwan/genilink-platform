@@ -67,6 +67,7 @@ model Workspace {
 
   members       WorkspaceMember[]
   projects      Project[]
+  brands        Brand[]
   invites       WorkspaceInvite[]
   subscriptions Subscription[]
 }
@@ -127,6 +128,27 @@ model ExternalResourceMapping {
   createdAt  DateTime @default(now())
 
   @@unique([projectId, service])
+}
+
+// ─── Brands ────────────────────────────────────────────────────────
+
+model Brand {
+  id           String    @id @default(cuid()) @db.Text
+  name         String    @db.Text
+  aliases      String[]  @default([])
+  isCompetitor Boolean   @default(false)
+  logo         String?   @db.Text
+  website      String?   @db.Text
+  description  String?   @db.Text
+  remoteIds    Json?     // { visibility: { projectId: remoteBrandId } }
+  workspaceId  String    @db.Text
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deletedAt    DateTime? // soft delete — NULL = active
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Note: partial unique index (active names only) is created via raw SQL migration:
+  // CREATE UNIQUE INDEX brand_active_name_uniq ON "Brand" ("workspaceId", name) WHERE "deletedAt" IS NULL
 }
 
 // ─── Billing ────────────────────────────────────────────────────────

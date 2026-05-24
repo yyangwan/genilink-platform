@@ -38,6 +38,74 @@ export async function getExternalId(projectId: string, service: string): Promise
   return mapping.externalId;
 }
 
+/**
+ * Ensure the visibility service project exists and is synced with the latest
+ * product info. Creates the project if needed, otherwise PATCHes to update
+ * product_category.
+ */
+export async function syncProjectToVisibility(
+  projectId: string,
+  externalId: string,
+): Promise<number> {
+  const serviceToken = process.env.SERVICE_TOKEN;
+  const baseUrl = SERVICE_URLS['visibility'];
+  const parsed = parseInt(externalId, 10);
+  const alreadyInteger = !isNaN(parsed) && String(parsed) === externalId;
+
+  // Look up local project for product info
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  const name = project?.name || `Project-${projectId.slice(-6)}`;
+  const industry = project?.industry || undefined;
+  const product_category = [project?.productName, ...(project?.productKeywords || [])].filter(Boolean).join('、') || undefined;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
+
+  if (alreadyInteger) {
+    // Project exists — PATCH to update product info
+    try {
+      await fetch(`${baseUrl}/api/projects/${parsed}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ name, industry, product_category }),
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch {
+      // Non-critical — continue even if sync fails
+    }
+    return parsed;
+  }
+
+  // externalId is a nanoid — need to create project
+  if (!serviceToken) {
+    throw new Error('SERVICE_TOKEN not configured — cannot auto-create visibility project');
+  }
+
+  const res = await fetch(`${baseUrl}/api/projects`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ name, industry, product_category }),
+    signal: AbortSignal.timeout(10_000),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to create project on visibility service: ${res.status}`);
+  }
+
+  const data = await res.json();
+  const newId = String(data.id);
+
+  await prisma.externalResourceMapping.update({
+    where: { projectId_service: { projectId, service: 'visibility' } },
+    data: { externalId: newId },
+  });
+  evictCache(projectId, 'visibility');
+
+  return data.id as number;
+}
+
 export function evictCache(projectId: string, service?: string): void {
   if (service) {
     cache.delete(getCacheKey(projectId, service));
@@ -46,6 +114,135 @@ export function evictCache(projectId: string, service?: string): void {
       if (key.startsWith(`${projectId}:`)) cache.delete(key);
     }
   }
+}
+
+// ─── Brand Sync ─────────────────────────────────────────────────────
+
+interface BrandSyncPayload {
+  name: string;
+  aliases: string[];
+  isCompetitor: boolean;
+  logo?: string | null;
+  website?: string | null;
+  description?: string | null;
+}
+
+interface BrandSyncResult {
+  synced: 'full' | 'partial' | 'failed';
+  remoteIds: Record<string, string>;
+  errors: string[];
+}
+
+/**
+ * Sync brand to 智見 (visibility service). Awaited by the route handler.
+ * For each project in the workspace, creates/updates the brand in 智見.
+ * Returns remote IDs for storage in Brand.remoteIds.
+ */
+export async function syncBrandToVisibility(
+  brand: { id: string; name: string; aliases: string[]; isCompetitor: boolean; logo?: string | null; website?: string | null; description?: string | null; workspaceId: string },
+  existingRemoteIds: Record<string, string> | null,
+): Promise<BrandSyncResult> {
+  const errors: string[] = [];
+  const remoteIds: Record<string, string> = { ...(existingRemoteIds ?? {}) };
+  const serviceToken = process.env.SERVICE_TOKEN;
+  const baseUrl = SERVICE_URLS['visibility'];
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
+
+  // Get all projects in the workspace to project brands into each
+  const projects = await prisma.project.findMany({
+    where: { workspaceId: brand.workspaceId },
+    include: { externalMappings: { where: { service: 'visibility' } } },
+  });
+
+  for (const project of projects) {
+    const mapping = project.externalMappings[0];
+    if (!mapping) continue; // project not linked to visibility yet
+
+    const visibilityProjectId = mapping.externalId;
+    const payload: Record<string, unknown> = {
+      name: brand.name,
+      aliases: brand.aliases,
+      is_competitor: brand.isCompetitor, // 智見 uses snake_case
+    };
+
+    try {
+      const remoteBrandId = remoteIds[visibilityProjectId];
+      if (remoteBrandId) {
+        // Update existing remote brand
+        const res = await fetchWithRetry(
+          `${baseUrl}/api/projects/${visibilityProjectId}/brands/${remoteBrandId}`,
+          { method: 'PATCH', headers, body: JSON.stringify(payload) },
+        );
+        if (!res.ok) {
+          errors.push(`visibility project ${visibilityProjectId}: PATCH ${res.status}`);
+        }
+      } else {
+        // Create remote brand
+        const res = await fetchWithRetry(
+          `${baseUrl}/api/projects/${visibilityProjectId}/brands`,
+          { method: 'POST', headers, body: JSON.stringify(payload) },
+        );
+        if (res.ok) {
+          const data = await res.json();
+          remoteIds[visibilityProjectId] = String(data.id);
+        } else {
+          errors.push(`visibility project ${visibilityProjectId}: POST ${res.status}`);
+        }
+      }
+    } catch (err) {
+      errors.push(`visibility project ${visibilityProjectId}: ${(err as Error).message}`);
+    }
+  }
+
+  return {
+    synced: errors.length === 0 ? 'full' : Object.keys(remoteIds).length > 0 ? 'partial' : 'failed',
+    remoteIds,
+    errors,
+  };
+}
+
+/**
+ * Sync brand delete to 智見. Fire-and-forget with retries.
+ */
+export async function syncBrandDeleteToVisibility(
+  brand: { id: string; workspaceId: string },
+  remoteIds: Record<string, string> | null,
+): Promise<void> {
+  if (!remoteIds) return;
+
+  const serviceToken = process.env.SERVICE_TOKEN;
+  const baseUrl = SERVICE_URLS['visibility'];
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
+
+  for (const [projectId, brandId] of Object.entries(remoteIds)) {
+    try {
+      await fetchWithRetry(
+        `${baseUrl}/api/projects/${projectId}/brands/${brandId}`,
+        { method: 'DELETE', headers },
+      );
+    } catch (err) {
+      console.error(`[brand-sync] DELETE failed for brand ${brand.id} in visibility project ${projectId}:`, (err as Error).message);
+    }
+  }
+}
+
+/** Fetch with up to 2 retries and 1s backoff */
+async function fetchWithRetry(url: string, init: RequestInit, retries = 2): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fetch(url, { ...init, signal: AbortSignal.timeout(10_000) });
+    } catch (err) {
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw new Error('unreachable');
 }
 
 export interface ProxyRequestOptions {
