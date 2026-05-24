@@ -51,12 +51,83 @@ function VisibilityContent() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Extract polling logic so it can be reused for resume
+  const startPolling = useCallback((auditId: string) => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      try {
+        const statusRes = await fetch(`/api/integration/audits/${auditId}`);
+        if (!statusRes.ok) return;
+        const status = await statusRes.json();
+        const phase = status.phase || status.status;
+
+        if (phase === "collecting" || phase === "pending") {
+          setAnalysisPhase("collecting");
+        } else if (phase === "analyzing" || phase === "running") {
+          setAnalysisPhase("analyzing");
+        } else if (phase === "completed" || phase === "done" || phase === "partial") {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setAnalysisPhase("done");
+          visibility.refetch();
+          // Chain: generate report → generate suggestions
+          if (currentProjectId) {
+            fetch(`/api/integration/audits/${auditId}/report`, { method: "POST" })
+              .then((r) => r.ok ? fetch("/api/integration/suggestions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ projectId: currentProjectId }),
+              }) : Promise.reject())
+              .catch(() => { /* non-critical */ });
+          }
+        } else if (phase === "failed" || phase === "error") {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setAnalysisPhase("error");
+          setAnalysisError(status.error_message || "分析失败");
+        }
+      } catch {
+        // Poll errors are transient, keep trying
+      }
+    }, 3000);
+  }, [visibility]);
+
   // Cleanup polling on unmount
   React.useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
+
+  // On mount, check for an active audit and resume polling
+  React.useEffect(() => {
+    if (!currentProjectId) return;
+
+    const checkActiveAudit = async () => {
+      try {
+        const res = await fetch(`/api/integration/audits?projectId=${currentProjectId}`);
+        if (!res.ok) return;
+        const audits = await res.json();
+
+        // Find latest audit that's still running
+        const active = Array.isArray(audits) && audits.find((a: Record<string, unknown>) => {
+          const p = (a.phase as string) || (a.status as string);
+          return p === "collecting" || p === "pending" || p === "analyzing" || p === "running";
+        });
+
+        if (!active) return;
+
+        const auditId = (active.id as string) || (active.audit_id as string);
+        if (!auditId) return;
+
+        const phase = (active.phase as string) || (active.status as string);
+        setAnalysisPhase(phase === "analyzing" || phase === "running" ? "analyzing" : "collecting");
+        startPolling(auditId);
+      } catch {
+        // non-critical
+      }
+    };
+
+    checkActiveAudit();
+  }, [currentProjectId, startPolling]);
 
   const handleStartAnalysis = useCallback(async () => {
     if (!currentProjectId) return;
@@ -122,36 +193,12 @@ function VisibilityContent() {
 
       // Audit created — start polling (run_audit runs automatically in background)
       setAnalysisPhase("collecting");
-      pollRef.current = setInterval(async () => {
-        try {
-          const statusRes = await fetch(`/api/integration/audits/${auditId}`);
-          if (!statusRes.ok) return;
-
-          const status = await statusRes.json();
-          const phase = status.phase || status.status;
-
-          if (phase === "collecting" || phase === "pending") {
-            setAnalysisPhase("collecting");
-          } else if (phase === "analyzing" || phase === "running") {
-            setAnalysisPhase("analyzing");
-          } else if (phase === "completed" || phase === "done" || phase === "partial") {
-            if (pollRef.current) clearInterval(pollRef.current);
-            setAnalysisPhase("done");
-            visibility.refetch();
-          } else if (phase === "failed" || phase === "error") {
-            if (pollRef.current) clearInterval(pollRef.current);
-            setAnalysisPhase("error");
-            setAnalysisError(status.error_message || "分析失败");
-          }
-        } catch {
-          // Poll errors are transient, keep trying
-        }
-      }, 3000);
+      startPolling(auditId);
     } catch (err) {
       setAnalysisPhase("error");
       setAnalysisError((err as Error).message);
     }
-  }, [currentProjectId, visibility]);
+  }, [currentProjectId, startPolling]);
 
   // Status text for each phase
   const phaseText: Record<AnalysisPhase, string> = {

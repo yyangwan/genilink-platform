@@ -97,10 +97,9 @@ export async function PATCH(
     const serviceToken = process.env.SERVICE_TOKEN;
     if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
 
-    const res = await fetch(`${VISIBILITY_URL}/api/suggestions/${id}`, {
+    const res = await fetch(`${VISIBILITY_URL}/api/suggestions/${id}/resolve`, {
       method: 'PATCH',
       headers,
-      body: JSON.stringify(body),
       signal: controller.signal,
     });
 

@@ -9,6 +9,7 @@ import {
   Sparkles,
   Loader2,
   Filter,
+  RefreshCw,
 } from "lucide-react";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { useProject } from "@/components/project/project-context";
@@ -53,6 +54,7 @@ function SuggestionsContent() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [resolvingIds, setResolvingIds] = useState<Set<string>>(new Set());
+  const [generating, setGenerating] = useState(false);
 
   const suggestionsUrl = currentProjectId
     ? `/api/integration/suggestions?projectId=${currentProjectId}`
@@ -61,6 +63,20 @@ function SuggestionsContent() {
   const suggestions = useSectionFetch<Suggestion[]>(suggestionsUrl);
 
   const refetch = suggestions.refetch;
+
+  const handleGenerate = useCallback(async () => {
+    if (!currentProjectId || generating) return;
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/integration/suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: currentProjectId }),
+      });
+      if (res.ok) refetch();
+    } catch { /* silent */ }
+    finally { setGenerating(false); }
+  }, [currentProjectId, generating, refetch]);
 
   const handleResolve = useCallback(
     async (id: string) => {
@@ -124,7 +140,31 @@ function SuggestionsContent() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="优化建议" subtitle="AI 生成的可见性优化建议" />
+      <div className="flex items-center justify-between">
+        <PageHeader title="优化建议" subtitle="AI 生成的可见性优化建议" />
+        {currentProjectId && (
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors shrink-0"
+            style={{
+              background: "var(--color-primary)",
+              color: "#0b0d14",
+              border: "none",
+              cursor: generating ? "wait" : "pointer",
+              fontFamily: "var(--font-body)",
+              opacity: generating ? 0.6 : 1,
+            }}
+          >
+            {generating ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+            {generating ? "生成中..." : "生成建议"}
+          </button>
+        )}
+      </div>
 
       {/* Filter row */}
       <div className="flex flex-wrap items-center gap-3">

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useProject } from "@/components/project/project-context";
@@ -43,7 +43,7 @@ interface ProjectData {
 export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { selectProject, openWizard, projects } = useProject();
+  const { selectProject, openWizard, projects, wizardOpen } = useProject();
   const projectId = params.id as string;
 
   const navigateWithProject = (path: string) => {
@@ -55,7 +55,9 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
+  const fetchProject = useCallback(() => {
+    setLoading(true);
+    setError(false);
     fetch(`/api/projects/${projectId}`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed");
@@ -69,6 +71,15 @@ export default function ProjectDetailPage() {
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [projectId]);
+
+  useEffect(() => { fetchProject(); }, [fetchProject]);
+
+  // Re-fetch when wizard closes after editing
+  const prevWizardOpen = useRef(false);
+  useEffect(() => {
+    if (prevWizardOpen.current && !wizardOpen) fetchProject();
+    prevWizardOpen.current = wizardOpen;
+  }, [wizardOpen, fetchProject]);
 
   if (loading) {
     return (
