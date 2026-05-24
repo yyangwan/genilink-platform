@@ -7,11 +7,17 @@ import { useProject } from "@/components/project/project-context";
 interface BrandVoice {
   id: string;
   name: string;
+  brandId?: string;
   description?: string;
   toneKeywords?: string[];
   sampleContent?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+interface BrandOption {
+  id: string;
+  name: string;
 }
 
 const card: React.CSSProperties = {
@@ -46,7 +52,9 @@ function BrandVoicesInner() {
   const [formDesc, setFormDesc] = useState("");
   const [formTone, setFormTone] = useState("");
   const [formSample, setFormSample] = useState("");
+  const [formBrandId, setFormBrandId] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  const [brands, setBrands] = useState<BrandOption[]>([]);
 
   const fetchVoices = useCallback(async () => {
     if (!currentProjectId) return;
@@ -66,6 +74,15 @@ function BrandVoicesInner() {
 
   React.useEffect(() => { fetchVoices(); }, [fetchVoices]);
 
+  const fetchBrands = useCallback(async () => {
+    try {
+      const res = await fetch("/api/brands");
+      if (res.ok) setBrands((await res.json()).map((b: BrandOption) => ({ id: b.id, name: b.name })));
+    } catch { /* non-critical */ }
+  }, []);
+
+  React.useEffect(() => { fetchBrands(); }, [fetchBrands]);
+
   const resetForm = () => {
     setShowForm(false);
     setEditingId(null);
@@ -73,6 +90,7 @@ function BrandVoicesInner() {
     setFormDesc("");
     setFormTone("");
     setFormSample("");
+    setFormBrandId("");
   };
 
   const openEdit = (v: BrandVoice) => {
@@ -81,6 +99,7 @@ function BrandVoicesInner() {
     setFormDesc(v.description ?? "");
     setFormTone(v.toneKeywords?.join(", ") ?? "");
     setFormSample(v.sampleContent ?? "");
+    setFormBrandId(v.brandId ?? "");
     setShowForm(true);
   };
 
@@ -94,6 +113,7 @@ function BrandVoicesInner() {
         description: formDesc.trim() || undefined,
         toneKeywords: formTone.trim() ? formTone.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
         sampleContent: formSample.trim() || undefined,
+        brandId: formBrandId || undefined,
       };
 
       const url = editingId
@@ -191,6 +211,19 @@ function BrandVoicesInner() {
           </div>
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+              关联品牌
+            </label>
+            <select value={formBrandId} onChange={(e) => setFormBrandId(e.target.value)}
+              style={{ ...inputStyle, appearance: "auto" }}
+            >
+              <option value="">不关联</option>
+              {brands.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
               语调关键词 <span className="text-xs" style={{ color: "var(--text-muted)" }}>(逗号分隔)</span>
             </label>
             <input value={formTone} onChange={(e) => setFormTone(e.target.value)} placeholder="专业, 亲切, 有说服力" style={inputStyle}
@@ -264,6 +297,14 @@ function BrandVoicesInner() {
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
                     {v.name}
+                    {v.brandId && (() => {
+                      const b = brands.find((br) => br.id === v.brandId);
+                      return b ? (
+                        <span className="ml-2 text-xs font-normal" style={{ color: "var(--text-muted)" }}>
+                          {b.name}
+                        </span>
+                      ) : null;
+                    })()}
                   </h3>
                   {v.description && (
                     <p className="text-xs mt-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
