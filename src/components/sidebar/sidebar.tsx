@@ -14,7 +14,6 @@ import {
   ChevronDown,
   Menu,
   X,
-  Check,
   Play,
   FileText,
   Clock,
@@ -120,7 +119,6 @@ export default function Sidebar() {
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null);
-  const [switching, setSwitching] = useState(false);
   const [accordion, setAccordion] = useState<Record<string, boolean>>({});
 
   // Load accordion state from localStorage
@@ -160,7 +158,7 @@ export default function Sidebar() {
     });
   };
 
-  // Fetch workspaces on mount
+  // Fetch workspace name on mount
   useEffect(() => {
     fetch("/api/workspaces")
       .then((res) => (res.ok ? res.json() : null))
@@ -177,34 +175,6 @@ export default function Sidebar() {
       setCurrentWorkspaceId(wsCookie.split("=")[1]);
     }
   }, []);
-
-  const handleSwitchWorkspace = async (workspaceId: string) => {
-    if (workspaceId === currentWorkspaceId) {
-      setWorkspaceOpen(false);
-      return;
-    }
-
-    setSwitching(true);
-    try {
-      const res = await fetch("/api/workspaces/switch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workspaceId }),
-      });
-
-      if (res.ok) {
-        setCurrentWorkspaceId(workspaceId);
-        document.cookie = `genilink-workspace=${workspaceId};path=/;max-age=${365 * 24 * 60 * 60}`;
-        // Clear project cookie since projects are workspace-scoped
-        document.cookie = `genilink-project=;path=/;max-age=0`;
-        setWorkspaceOpen(false);
-        router.refresh();
-      }
-    } catch {
-    } finally {
-      setSwitching(false);
-    }
-  };
 
   const currentWorkspace = workspaces.find((w) => w.id === currentWorkspaceId) || workspaces[0];
 
@@ -308,73 +278,14 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* Workspace selector */}
+      {/* Workspace label */}
       <div className="px-3 mb-2">
-        <button
-          onClick={() => setWorkspaceOpen(!workspaceOpen)}
-          className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm transition-colors"
-          style={{
-            color: "var(--text-secondary)",
-            background: workspaceOpen ? "var(--bg-elevated)" : "transparent",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
-          onMouseLeave={(e) => {
-            if (!workspaceOpen) e.currentTarget.style.background = "transparent";
-          }}
+        <div
+          className="px-3 py-2 text-xs font-medium tracking-wider"
+          style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}
         >
-          <div className="flex items-center gap-2 min-w-0">
-            <span
-              className="text-xs font-medium uppercase tracking-wider shrink-0"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              工作区
-            </span>
-            {currentWorkspace && (
-              <span
-                className="text-xs truncate"
-                style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
-              >
-                · {currentWorkspace.name}
-              </span>
-            )}
-          </div>
-          <ChevronDown
-            className={cn("w-3.5 h-3.5 transition-transform shrink-0", workspaceOpen && "rotate-180")}
-          />
-        </button>
-
-        {workspaceOpen && (
-          <div
-            className="mt-1 rounded-lg overflow-hidden"
-            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
-          >
-            {workspaces.map((ws) => {
-              const isCurrent = ws.id === currentWorkspaceId || (ws === workspaces[0] && !currentWorkspaceId);
-              return (
-                <button
-                  key={ws.id}
-                  onClick={() => handleSwitchWorkspace(ws.id)}
-                  disabled={switching}
-                  className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm transition-colors"
-                  style={{
-                    color: isCurrent ? "var(--text-primary)" : "var(--text-secondary)",
-                    background: isCurrent ? "var(--bg-hover)" : "transparent",
-                    border: "none",
-                    cursor: switching ? "not-allowed" : "pointer",
-                    fontFamily: "var(--font-body)",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
-                  onMouseLeave={(e) => {
-                    if (!isCurrent) e.currentTarget.style.background = "transparent";
-                  }}
-                >
-                  <span className="truncate">{ws.name}</span>
-                  {isCurrent && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-primary)" }} />}
-                </button>
-              );
-            })}
-          </div>
-        )}
+          {currentWorkspace?.name || "工作区"}
+        </div>
       </div>
 
       {/* Main navigation */}

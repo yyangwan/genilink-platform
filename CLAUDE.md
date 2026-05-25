@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-智见前端数据对齐 P0-P3 全部完成 (2026-05-25). 4 commits: c26418d, 0ed97f5, c62d517, 11191c2. All build green.
+设计审查完成 (2026-05-25). 智見模块 8 项设计决策已确认（两栏布局/ECharts迁移/新页面规划），等待 Eng Review 后开始实施. 计划: ~/.gstack/projects/genilink-platform/plan-design-review-zhijian.md
 
 ## ContentOS JWT Integration (done)
 智链发送 RS256 JWT 到 ContentOS (port 4002)。ContentOS 中间件验证 JWT，注入 x-genilink-* headers。
