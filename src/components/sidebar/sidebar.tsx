@@ -30,6 +30,7 @@ import {
   LayoutTemplate,
   Plug,
   Tag,
+  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -71,6 +72,8 @@ const zhijianSection: NavSection = {
     { label: "优化建议", href: "/suggestions", icon: Lightbulb },
     { label: "趋势分析", href: "/trends", icon: TrendingUp },
     { label: "竞品对比", href: "/compare", icon: GitCompareArrows },
+    { label: "内容洞察", href: "/insights", icon: BarChart3 },
+    { label: "战略智能", href: "/strategic", icon: Target },
   ],
 };
 
@@ -328,7 +331,7 @@ export default function Sidebar() {
           <div
             className={cn(
               "overflow-hidden transition-all duration-[var(--duration-medium)]",
-              accordion[zhijianSection.id] ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+              accordion[zhijianSection.id] ? "max-h-[480px] opacity-100" : "max-h-0 opacity-0"
             )}
           >
             <div className="pl-4 space-y-0.5">
