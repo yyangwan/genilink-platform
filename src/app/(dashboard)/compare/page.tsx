@@ -2,6 +2,16 @@
 
 import React, { Suspense, useState, useEffect, useCallback } from "react";
 import { GitCompare, Loader2 } from "lucide-react";
+import dynamic from "next/dynamic";
+
+const CompareRadarChart = dynamic(
+  () => import("@/components/charts/CompareRadarChart"),
+  { ssr: false },
+);
+const ComparePivotTable = dynamic(
+  () => import("@/components/charts/ComparePivotTable"),
+  { ssr: false },
+);
 import { useProject } from "@/components/project/project-context";
 import { PageHeader } from "@/components/ui/page-header";
 import { DiagnosticChecklist, type DiagnosticItem } from "@/components/ui/diagnostic-checklist";
@@ -152,8 +162,6 @@ function CompareContent() {
               <div className="space-y-4">
                 <div className="h-8 w-24 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
                 <div className="h-16 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-                <div className="h-6 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-                <div className="h-6 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
               </div>
             </div>
           ))}
@@ -174,48 +182,64 @@ function CompareContent() {
     if (!result) return null;
 
     const { audit_a, audit_b, delta } = result;
+    const labelA = `审计 A (#${audit_a.id})`;
+    const labelB = `审计 B (#${audit_b.id})`;
 
     return (
       <div className="space-y-6">
-        {/* Score comparison */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <div style={sectionCard} className="text-center">
-            <p className="text-xs mb-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
-              审计 A (#{audit_a.id})
-            </p>
-            <p className="text-4xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
+        {/* Score summary */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div style={{ ...sectionCard, textAlign: "center" }}>
+            <p className="text-xs mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{labelA}</p>
+            <p className="text-3xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
               {audit_a.overall_score}
             </p>
           </div>
-          <div style={sectionCard} className="text-center">
-            <p className="text-xs mb-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
-              审计 B (#{audit_b.id})
+          <div style={{ ...sectionCard, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <p className="text-xs mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>总分变化</p>
+            <p className="text-3xl font-bold" style={{ fontFamily: "var(--font-mono)", color: delta.overall_score > 0 ? "var(--color-success)" : delta.overall_score < 0 ? "var(--color-error)" : "var(--text-primary)" }}>
+              {delta.overall_score > 0 ? "+" : ""}{delta.overall_score}
             </p>
-            <p className="text-4xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
+          </div>
+          <div style={{ ...sectionCard, textAlign: "center" }}>
+            <p className="text-xs mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{labelB}</p>
+            <p className="text-3xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
               {audit_b.overall_score}
             </p>
-            <div className="mt-2">{renderDelta(delta.overall_score)}</div>
           </div>
         </div>
 
-        {/* Platform comparison */}
-        {delta.platforms.length > 0 && (
+        {/* Radar chart + Pivot table side by side */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Radar chart */}
           <div style={sectionCard}>
-            <h3 className="text-base font-semibold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-              平台得分对比
+            <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+              平台维度雷达图
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {delta.platforms.map((p) => (
-                <div key={p.platform} className="flex items-center justify-between py-2 px-3 rounded-lg" style={{ background: "var(--bg-elevated)" }}>
-                  <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-                    {p.platform}
-                  </span>
-                  {renderDelta(p.delta)}
-                </div>
-              ))}
+            <div style={{ height: 320 }}>
+              <CompareRadarChart
+                labelA={labelA}
+                dataA={audit_a.platforms}
+                labelB={labelB}
+                dataB={audit_b.platforms}
+              />
             </div>
           </div>
-        )}
+
+          {/* Pivot table */}
+          <div style={sectionCard}>
+            <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+              平台得分透视表
+            </h3>
+            <ComparePivotTable
+              labelA={labelA}
+              dataA={audit_a.platforms}
+              labelB={labelB}
+              dataB={audit_b.platforms}
+              delta={delta.platforms}
+            />
+          </div>
+        </div>
 
         {/* Insights comparison */}
         {(delta.new_insights.length > 0 || delta.removed_insights.length > 0) && (
@@ -249,7 +273,7 @@ function CompareContent() {
     );
   };
 
-  // No project selected — show diagnostic checklist
+  // No project selected
   if (!loading && !currentProjectId) {
     const checklistItems: DiagnosticItem[] = [
       { id: "project", label: "创建项目", status: projects.length === 0 ? "incomplete" : "complete", actionLabel: "创建", onAction: () => openWizard() },
