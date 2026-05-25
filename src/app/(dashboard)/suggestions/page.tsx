@@ -4,12 +4,19 @@ import React, { Suspense, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   Lightbulb,
-  ArrowRight,
+  ChevronDown,
+  ChevronRight,
   CheckCircle2,
   Sparkles,
   Loader2,
   Filter,
   RefreshCw,
+  Target,
+  Calendar,
+  Users,
+  FileText,
+  TrendingUp,
+  Tag,
 } from "lucide-react";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { useProject } from "@/components/project/project-context";
@@ -32,6 +39,14 @@ interface Suggestion {
   platform: string;
   priority: "high" | "medium" | "low";
   status: "pending" | "resolved" | "ignored";
+  // Action plan detail fields
+  action_channels?: string[];
+  type_tags?: string[];
+  keywords?: string[];
+  content_outline?: string;
+  weekly_tasks?: { week: string; tasks: string[] }[];
+  competitor_reference?: string;
+  expected_result?: string;
 }
 
 const PRIORITY_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
@@ -49,12 +64,252 @@ const STATUS_LABELS: Record<string, string> = {
 type StatusFilter = "all" | "pending" | "resolved" | "ignored";
 type PriorityFilter = "all" | "high" | "medium" | "low";
 
+/** Check if a suggestion has any action plan detail data */
+function hasActionPlan(s: Suggestion): boolean {
+  return !!(
+    (s.action_channels && s.action_channels.length > 0) ||
+    (s.type_tags && s.type_tags.length > 0) ||
+    (s.keywords && s.keywords.length > 0) ||
+    s.content_outline ||
+    (s.weekly_tasks && s.weekly_tasks.length > 0) ||
+    s.competitor_reference ||
+    s.expected_result
+  );
+}
+
+/** Expandable action plan section */
+function ActionPlanDetail({ suggestion }: { suggestion: Suggestion }) {
+  const hasDetail = hasActionPlan(suggestion);
+
+  if (!hasDetail) {
+    return (
+      <div style={{ padding: "12px 0 0", color: "var(--text-muted)", fontSize: 13, fontFamily: "var(--font-body)" }}>
+        暂无详细行动计划
+      </div>
+    );
+  }
+
+  const sectionGap: React.CSSProperties = { marginBottom: 16 };
+  const sectionTitle: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text-secondary)",
+    fontFamily: "var(--font-body)",
+    marginBottom: 8,
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+  };
+
+  return (
+    <div style={{ padding: "12px 0 0" }}>
+      {/* Action channels */}
+      {suggestion.action_channels && suggestion.action_channels.length > 0 && (
+        <div style={sectionGap}>
+          <div style={sectionTitle}>
+            <Target style={{ width: 14, height: 14 }} />
+            行动渠道
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {suggestion.action_channels.map((ch, i) => (
+              <span
+                key={i}
+                style={{
+                  padding: "3px 10px",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontFamily: "var(--font-body)",
+                  background: "var(--color-primary)15",
+                  color: "var(--color-primary)",
+                  border: "1px solid var(--color-primary)30",
+                }}
+              >
+                {ch}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Type tags + Keywords on same row */}
+      <div style={{ display: "flex", gap: 24, flexWrap: "wrap", ...sectionGap }}>
+        {suggestion.type_tags && suggestion.type_tags.length > 0 && (
+          <div>
+            <div style={sectionTitle}>
+              <Tag style={{ width: 14, height: 14 }} />
+              类型标签
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {suggestion.type_tags.map((tag, i) => (
+                <span
+                  key={i}
+                  style={{
+                    padding: "3px 10px",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontFamily: "var(--font-body)",
+                    background: "var(--bg-hover)",
+                    color: "var(--text-secondary)",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {suggestion.keywords && suggestion.keywords.length > 0 && (
+          <div>
+            <div style={sectionTitle}>
+              <Tag style={{ width: 14, height: 14 }} />
+              关键词
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {suggestion.keywords.map((kw, i) => (
+                <span
+                  key={i}
+                  style={{
+                    padding: "3px 10px",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontFamily: "var(--font-body)",
+                    background: "var(--color-warning)15",
+                    color: "var(--color-warning)",
+                    border: "1px solid var(--color-warning)30",
+                  }}
+                >
+                  {kw}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Content outline */}
+      {suggestion.content_outline && (
+        <div style={sectionGap}>
+          <div style={sectionTitle}>
+            <FileText style={{ width: 14, height: 14 }} />
+            内容大纲
+          </div>
+          <div
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              background: "var(--bg-hover)",
+              fontSize: 13,
+              lineHeight: 1.7,
+              fontFamily: "var(--font-body)",
+              color: "var(--text-primary)",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {suggestion.content_outline}
+          </div>
+        </div>
+      )}
+
+      {/* Weekly tasks */}
+      {suggestion.weekly_tasks && suggestion.weekly_tasks.length > 0 && (
+        <div style={sectionGap}>
+          <div style={sectionTitle}>
+            <Calendar style={{ width: 14, height: 14 }} />
+            周任务时间表
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {suggestion.weekly_tasks.map((wt, i) => (
+              <div
+                key={i}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  background: "var(--bg-hover)",
+                  borderLeft: "3px solid var(--color-primary)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "var(--color-primary)",
+                    fontFamily: "var(--font-body)",
+                    marginBottom: 4,
+                  }}
+                >
+                  {wt.week}
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 16, fontSize: 13, lineHeight: 1.6, fontFamily: "var(--font-body)", color: "var(--text-primary)" }}>
+                  {wt.tasks.map((t, j) => (
+                    <li key={j}>{t}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Competitor reference */}
+      {suggestion.competitor_reference && (
+        <div style={sectionGap}>
+          <div style={sectionTitle}>
+            <Users style={{ width: 14, height: 14 }} />
+            竞品参考
+          </div>
+          <div
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              background: "var(--bg-hover)",
+              fontSize: 13,
+              lineHeight: 1.7,
+              fontFamily: "var(--font-body)",
+              color: "var(--text-primary)",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {suggestion.competitor_reference}
+          </div>
+        </div>
+      )}
+
+      {/* Expected result */}
+      {suggestion.expected_result && (
+        <div>
+          <div style={sectionTitle}>
+            <TrendingUp style={{ width: 14, height: 14 }} />
+            预期结果
+          </div>
+          <div
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              background: "var(--color-success)10",
+              border: "1px solid var(--color-success)25",
+              fontSize: 13,
+              lineHeight: 1.7,
+              fontFamily: "var(--font-body)",
+              color: "var(--text-primary)",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {suggestion.expected_result}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SuggestionsContent() {
   const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [resolvingIds, setResolvingIds] = useState<Set<string>>(new Set());
   const [generating, setGenerating] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const suggestionsUrl = currentProjectId
     ? `/api/integration/suggestions?projectId=${currentProjectId}`
@@ -101,6 +356,15 @@ function SuggestionsContent() {
     },
     [currentProjectId, refetch],
   );
+
+  const toggleExpand = useCallback((id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   const allData = suggestions.data ?? [];
 
@@ -222,99 +486,155 @@ function SuggestionsContent() {
 
       {/* Suggestion cards */}
       {!suggestions.loading && !suggestions.error && filtered.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filtered.map((s) => {
             const prio = PRIORITY_CONFIG[s.priority] || PRIORITY_CONFIG.medium;
+            const expanded = expandedIds.has(s.id);
+            const showExpand = hasActionPlan(s);
             return (
-              <div key={s.id} style={sectionCard} className="flex flex-col">
-                {/* Top: priority + status */}
-                <div className="flex items-center justify-between mb-3">
-                  <span
-                    className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                    style={{ background: prio.bg, color: prio.color }}
-                  >
-                    {prio.label}
-                  </span>
-                  <span
-                    className="text-xs"
-                    style={{
-                      color: s.status === "resolved" ? "var(--color-success)" : s.status === "ignored" ? "var(--text-muted)" : "var(--text-secondary)",
-                      fontFamily: "var(--font-body)",
-                    }}
-                  >
-                    {STATUS_LABELS[s.status] || s.status}
-                  </span>
-                </div>
-
-                {/* Text */}
-                <p
-                  className="text-sm flex-1 mb-4"
-                  style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}
+              <div
+                key={s.id}
+                style={{
+                  ...sectionCard,
+                  padding: 0,
+                  overflow: "hidden",
+                }}
+              >
+                {/* Card header — always visible, clickable to expand */}
+                <button
+                  onClick={() => toggleExpand(s.id)}
+                  style={{
+                    width: "100%",
+                    background: "none",
+                    border: "none",
+                    cursor: showExpand ? "pointer" : "default",
+                    textAlign: "left",
+                    padding: "20px 24px",
+                    fontFamily: "var(--font-body)",
+                    color: "inherit",
+                  }}
                 >
-                  {s.text}
-                </p>
-
-                {/* Meta */}
-                <div className="flex items-center gap-3 mb-4">
-                  {s.category && (
+                  {/* Top: priority + status */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                        style={{ background: prio.bg, color: prio.color }}
+                      >
+                        {prio.label}
+                      </span>
+                      {showExpand && (
+                        <span style={{ color: "var(--text-muted)", display: "flex", alignItems: "center" }}>
+                          {expanded ? (
+                            <ChevronDown style={{ width: 16, height: 16 }} />
+                          ) : (
+                            <ChevronRight style={{ width: 16, height: 16 }} />
+                          )}
+                        </span>
+                      )}
+                    </div>
                     <span
                       className="text-xs"
-                      style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
-                    >
-                      {s.category}
-                    </span>
-                  )}
-                  {s.platform && (
-                    <span
-                      className="text-xs"
-                      style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
-                    >
-                      {s.platform}
-                    </span>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-2 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
-                  {s.status === "pending" && (
-                    <button
-                      onClick={() => handleResolve(s.id)}
-                      disabled={resolvingIds.has(s.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                       style={{
-                        background: "var(--color-success)20",
-                        color: "var(--color-success)",
-                        border: "none",
-                        cursor: resolvingIds.has(s.id) ? "not-allowed" : "pointer",
+                        color: s.status === "resolved" ? "var(--color-success)" : s.status === "ignored" ? "var(--text-muted)" : "var(--text-secondary)",
                         fontFamily: "var(--font-body)",
-                        opacity: resolvingIds.has(s.id) ? 0.6 : 1,
                       }}
                     >
-                      {resolvingIds.has(s.id) ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <CheckCircle2 className="w-3 h-3" />
-                      )}
-                      标记已处理
-                    </button>
-                  )}
-                  <button
-                    disabled
-                    title="智創服务即将上线"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                      {STATUS_LABELS[s.status] || s.status}
+                    </span>
+                  </div>
+
+                  {/* Text */}
+                  <p
+                    className="text-sm mb-3"
+                    style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}
+                  >
+                    {s.text}
+                  </p>
+
+                  {/* Meta */}
+                  <div className="flex items-center gap-3">
+                    {s.category && (
+                      <span
+                        className="text-xs"
+                        style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+                      >
+                        {s.category}
+                      </span>
+                    )}
+                    {s.platform && (
+                      <span
+                        className="text-xs"
+                        style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+                      >
+                        {s.platform}
+                      </span>
+                    )}
+                    {showExpand && !expanded && (
+                      <span
+                        className="text-xs"
+                        style={{ color: "var(--color-primary)", fontFamily: "var(--font-body)" }}
+                      >
+                        点击查看行动计划
+                      </span>
+                    )}
+                  </div>
+                </button>
+
+                {/* Expandable action plan */}
+                {expanded && (
+                  <div
                     style={{
-                      background: "var(--bg-hover)",
-                      color: "var(--text-muted)",
-                      border: "none",
-                      cursor: "not-allowed",
-                      fontFamily: "var(--font-body)",
-                      opacity: 0.5,
+                      padding: "0 24px 20px",
+                      borderTop: "1px solid var(--border)",
+                      marginTop: 0,
                     }}
                   >
-                    <Sparkles className="w-3 h-3" />
-                    生成内容
-                  </button>
-                </div>
+                    <ActionPlanDetail suggestion={s} />
+
+                    {/* Actions inside expanded view */}
+                    <div className="flex items-center gap-2 pt-4" style={{ borderTop: "1px solid var(--border)", marginTop: 16 }}>
+                      {s.status === "pending" && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleResolve(s.id); }}
+                          disabled={resolvingIds.has(s.id)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                          style={{
+                            background: "var(--color-success)20",
+                            color: "var(--color-success)",
+                            border: "none",
+                            cursor: resolvingIds.has(s.id) ? "not-allowed" : "pointer",
+                            fontFamily: "var(--font-body)",
+                            opacity: resolvingIds.has(s.id) ? 0.6 : 1,
+                          }}
+                        >
+                          {resolvingIds.has(s.id) ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="w-3 h-3" />
+                          )}
+                          标记已处理
+                        </button>
+                      )}
+                      <button
+                        disabled
+                        title="智創服务即将上线"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                        style={{
+                          background: "var(--bg-hover)",
+                          color: "var(--text-muted)",
+                          border: "none",
+                          cursor: "not-allowed",
+                          fontFamily: "var(--font-body)",
+                          opacity: 0.5,
+                        }}
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        生成内容
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -347,7 +667,7 @@ export default function SuggestionsPage() {
       fallback={
         <div className="space-y-6">
           <div className="h-10 w-48 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}

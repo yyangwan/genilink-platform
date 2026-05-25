@@ -169,12 +169,21 @@ export async function POST(req: NextRequest) {
 
 /** Map upstream SuggestionOut → frontend Suggestion */
 function mapSuggestion(s: Record<string, unknown>) {
+  const detail = (s.detail as Record<string, unknown>) ?? {};
   return {
     id: String(s.id),
     text: (s.title as string) || (s.description as string) || '',
     category: (s.category as string) || '',
-    platform: ((s.detail as Record<string, unknown>)?.platform as string) || '',
+    platform: (detail.platform as string) || '',
     priority: (s.priority as string) || 'medium',
     status: s.is_resolved ? 'resolved' : 'pending',
+    // Action plan detail fields (pass-through from upstream)
+    action_channels: (detail.action_channels as string[]) || [],
+    type_tags: (detail.type_tags as string[]) || [],
+    keywords: (detail.keywords as string[]) || [],
+    content_outline: (detail.content_outline as string) || '',
+    weekly_tasks: (detail.weekly_tasks as { week: string; tasks: string[] }[]) || [],
+    competitor_reference: (detail.competitor_reference as string) || '',
+    expected_result: (detail.expected_result as string) || '',
   };
 }
