@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockProxyRequest = vi.fn();
 const mockProxyStreamRequest = vi.fn();
@@ -16,7 +16,6 @@ import {
   deleteContent,
   generateContent,
   publishContent,
-  scoreContent,
 } from '@/lib/content/service';
 
 describe('content service', () => {
@@ -26,26 +25,21 @@ describe('content service', () => {
     service: 'content' as const,
     accessToken: 'dynamic-jwt',
     externalId: 'ext-123',
-    timeoutMs: 30_000,
-  };
-
-  const streamArgs = {
-    ...baseArgs,
-    timeoutMs: 180_000,
+    projectId: 'proj-1',
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('listContents calls proxyRequest with GET and project contents path', async () => {
+  it('listContents calls proxyRequest with GET', async () => {
     mockProxyRequest.mockResolvedValue({ items: [] });
     await listContents(ctx);
 
     expect(mockProxyRequest).toHaveBeenCalledWith({
       ...baseArgs,
-      projectId: 'proj-1',
-      path: '/api/projects/:id/contents',
+      path: '/api/content',
+      timeoutMs: 30_000,
     });
   });
 
@@ -56,10 +50,10 @@ describe('content service', () => {
 
     expect(mockProxyRequest).toHaveBeenCalledWith({
       ...baseArgs,
-      projectId: 'proj-1',
-      path: '/api/projects/:id/contents',
+      path: '/api/content',
       method: 'POST',
       body,
+      timeoutMs: 30_000,
     });
   });
 
@@ -69,8 +63,8 @@ describe('content service', () => {
 
     expect(mockProxyRequest).toHaveBeenCalledWith({
       ...baseArgs,
-      projectId: 'proj-1',
-      path: '/api/contents/c1',
+      path: '/api/content/c1',
+      timeoutMs: 30_000,
     });
   });
 
@@ -81,10 +75,10 @@ describe('content service', () => {
 
     expect(mockProxyRequest).toHaveBeenCalledWith({
       ...baseArgs,
-      projectId: 'proj-1',
-      path: '/api/contents/c1',
+      path: '/api/content/c1',
       method: 'PUT',
       body,
+      timeoutMs: 30_000,
     });
   });
 
@@ -94,9 +88,9 @@ describe('content service', () => {
 
     expect(mockProxyRequest).toHaveBeenCalledWith({
       ...baseArgs,
-      projectId: 'proj-1',
-      path: '/api/contents/c1',
+      path: '/api/content/c1',
       method: 'DELETE',
+      timeoutMs: 30_000,
     });
   });
 
@@ -106,11 +100,11 @@ describe('content service', () => {
     await generateContent(ctx, 'c1', body);
 
     expect(mockProxyStreamRequest).toHaveBeenCalledWith({
-      ...streamArgs,
-      projectId: 'proj-1',
-      path: '/api/contents/c1/generate',
+      ...baseArgs,
+      path: '/api/generate',
       method: 'POST',
-      body,
+      body: { contentPieceId: 'c1', prompt: 'Write about AI' },
+      timeoutMs: 180_000,
     });
   });
 
@@ -121,22 +115,10 @@ describe('content service', () => {
 
     expect(mockProxyRequest).toHaveBeenCalledWith({
       ...baseArgs,
-      projectId: 'proj-1',
-      path: '/api/contents/c1/publish',
+      path: '/api/publish/c1',
       method: 'POST',
       body,
-    });
-  });
-
-  it('scoreContent calls proxyRequest with POST and no body', async () => {
-    mockProxyRequest.mockResolvedValue({ score: 85 });
-    await scoreContent(ctx, 'c1');
-
-    expect(mockProxyRequest).toHaveBeenCalledWith({
-      ...baseArgs,
-      projectId: 'proj-1',
-      path: '/api/contents/c1/score',
-      method: 'POST',
+      timeoutMs: 30_000,
     });
   });
 });

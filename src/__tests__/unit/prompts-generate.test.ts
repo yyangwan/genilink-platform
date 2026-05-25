@@ -1,17 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from '@/app/api/integration/prompts/generate/route';
 import { auth } from '@/lib/auth/config';
-import { prisma } from '@/lib/db';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
-import { getExternalId } from '@/lib/proxy/zhijian-client';
+import { getExternalId, syncProjectToVisibility } from '@/lib/proxy/zhijian-client';
 import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
-
-// Mock cookies from next/headers
-vi.mock('next/headers', () => ({
-  cookies: vi.fn().mockResolvedValue({
-    get: vi.fn().mockReturnValue({ value: 'ws-test' }),
-  }),
-}));
+import { getWorkspaceId } from '@/lib/auth/get-workspace';
 
 // Mock billing guard
 vi.mock('@/lib/billing/guard', () => ({
@@ -32,6 +25,7 @@ vi.mock('@/lib/billing/guard', () => ({
 vi.mock('@/lib/proxy/zhijian-client', () => ({
   getExternalId: vi.fn(),
   evictCache: vi.fn(),
+  syncProjectToVisibility: vi.fn(),
 }));
 
 // Mock workspace verification
@@ -39,16 +33,24 @@ vi.mock('@/lib/auth/workspace', () => ({
   verifyProjectInWorkspace: vi.fn(),
 }));
 
+// Mock getWorkspaceId
+vi.mock('@/lib/auth/get-workspace', () => ({
+  getWorkspaceId: vi.fn(),
+}));
+
 // Mock global fetch for upstream calls
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
-function mockRequest(body: Record<string, unknown>): Request {
-  return new Request('http://localhost/api/integration/prompts/generate', {
+function mockRequest(body: Record<string, unknown>): any {
+  const req = new Request('http://localhost/api/integration/prompts/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  // Next.js adds nextUrl to the request object
+  (req as any).nextUrl = new URL('http://localhost/api/integration/prompts/generate');
+  return req;
 }
 
 describe('POST /api/integration/prompts/generate', () => {
@@ -60,11 +62,17 @@ describe('POST /api/integration/prompts/generate', () => {
       user: { id: 'user-1', email: 'test@example.com' },
     });
 
+    // Default: workspace found
+    (getWorkspaceId as ReturnType<typeof vi.fn>).mockResolvedValue('ws-test');
+
     // Default: billing passes
     (requireBilling as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
 
     // Default: external mapping exists
     (getExternalId as ReturnType<typeof vi.fn>).mockResolvedValue('9');
+
+    // Default: syncProjectToVisibility returns numeric id
+    (syncProjectToVisibility as ReturnType<typeof vi.fn>).mockResolvedValue(9);
 
     // Default: project belongs to workspace
     (verifyProjectInWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'p1' });
@@ -101,11 +109,8 @@ describe('POST /api/integration/prompts/generate', () => {
 
   // --- Workspace guard ---
 
-  it('should return 400 when no workspace cookie', async () => {
-    const { cookies } = await import('next/headers');
-    (cookies as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      get: vi.fn().mockReturnValue(undefined),
-    });
+  it('should return 400 when no workspace found', async () => {
+    (getWorkspaceId as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
     const res = await POST(mockRequest({ projectId: 'p1' }) as any);
     expect(res.status).toBe(400);
@@ -146,10 +151,11 @@ describe('POST /api/integration/prompts/generate', () => {
     expect(data.error).toBe('No external mapping for project');
   });
 
-  // --- resolveVisibilityProjectId: numeric externalId (happy path) ---
+  // --- syncProjectToVisibility: numeric externalId (happy path) ---
 
   it('should use numeric externalId directly as projectPk', async () => {
     (getExternalId as ReturnType<typeof vi.fn>).mockResolvedValue('42');
+    (syncProjectToVisibility as ReturnType<typeof vi.fn>).mockResolvedValue(42);
 
     const res = await POST(mockRequest({ projectId: 'p1', keyword: 'AI' }) as any);
     expect(res.status).toBe(200);
@@ -228,55 +234,17 @@ describe('POST /api/integration/prompts/generate', () => {
     expect(data.error).toContain('Failed to generate prompt');
   });
 
-  // --- resolveVisibilityProjectId: non-numeric externalId triggers auto-create ---
+  // --- syncProjectToVisibility error handling ---
 
-  it('should auto-create visibility project when externalId is not numeric', async () => {
+  it('should return 502 when syncProjectToVisibility throws', async () => {
     (getExternalId as ReturnType<typeof vi.fn>).mockResolvedValue('ext-uuid-123');
-    // Mock prisma for auto-create path
-    (prisma.project.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: 'p1',
-      name: 'Test Project',
-      industry: 'tech',
-    });
-    (prisma.externalResourceMapping.update as ReturnType<typeof vi.fn>).mockResolvedValue({});
-
-    // SERVICE_TOKEN is required for auto-create path
-    process.env.SERVICE_TOKEN = 'test-service-token';
-    const _prevToken = process.env.SERVICE_TOKEN;
-
-    // First fetch = create project on visibility service
-    // Second fetch = actual generate call
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ id: 99 }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ id: 1, text: 'prompt' }),
-      });
-
-    const res = await POST(mockRequest({ projectId: 'p1' }) as any);
-    expect(res.status).toBe(200);
-
-    // First call should be creating the project
-    const createCall = mockFetch.mock.calls[0];
-    expect(createCall[0]).toContain('/api/projects');
-    expect(createCall[1].method).toBe('POST');
-  });
-
-  it('should return 502 when auto-create visibility project fails', async () => {
-    (getExternalId as ReturnType<typeof vi.fn>).mockResolvedValue('ext-uuid-456');
-    process.env.SERVICE_TOKEN = 'test-service-token';
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      json: async () => ({}),
-    });
+    (syncProjectToVisibility as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('Failed to create project'),
+    );
 
     const res = await POST(mockRequest({ projectId: 'p1' }) as any);
     expect(res.status).toBe(502);
+    const data = await res.json();
+    expect(data.error).toContain('Failed to create project');
   });
 });
