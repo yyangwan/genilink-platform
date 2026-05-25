@@ -501,11 +501,7 @@ function ContentTab({
                         className="h-full rounded-full transition-all duration-500"
                         style={{
                           width: `${(topic.count / maxCount) * 100}%`,
-                          background: topic.sentiment >= 0.5
-                            ? "var(--color-success)"
-                            : topic.sentiment >= 0
-                            ? "var(--color-warning)"
-                            : "var(--color-error)",
+                          background: "var(--color-primary)",
                         }}
                       />
                     </div>

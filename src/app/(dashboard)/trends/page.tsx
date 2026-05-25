@@ -35,7 +35,7 @@ function TrendsContent() {
   const [period, setPeriod] = useState<Period>("weekly");
 
   const trendsUrl = currentProjectId
-    ? `/api/integration/trends?projectId=${currentProjectId}`
+    ? `/api/integration/trends?projectId=${currentProjectId}&period=${period}`
     : null;
   const { data, loading: trendsLoading, error, refetch } = useSectionFetch<TrendsResponse>(trendsUrl);
 
