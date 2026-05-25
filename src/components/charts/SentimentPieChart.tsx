@@ -8,6 +8,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { tooltipStyles, legendStyles } from "./shared";
 
 interface SentimentPieChartProps {
   data: { name: string; value: number; fill: string }[];
@@ -32,17 +33,8 @@ export default function SentimentPieChart({ data }: SentimentPieChartProps) {
             <Cell key={idx} fill={entry.fill} />
           ))}
         </Pie>
-        <Tooltip
-          contentStyle={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: "8px",
-            fontSize: 13,
-            fontFamily: "var(--font-body)",
-            color: "var(--text-primary)",
-          }}
-        />
-        <Legend wrapperStyle={{ fontSize: 12, fontFamily: "var(--font-body)" }} />
+        <Tooltip contentStyle={tooltipStyles} />
+        <Legend wrapperStyle={legendStyles} />
       </PieChart>
     </ResponsiveContainer>
   );

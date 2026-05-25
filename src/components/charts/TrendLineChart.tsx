@@ -10,15 +10,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
-
-const PLATFORM_COLORS = [
-  "#6366f1",
-  "#22c55e",
-  "#f59e0b",
-  "#ef4444",
-  "#a78bfa",
-  "#f472b6",
-];
+import { tooltipStyles, axisTickStyles, axisLineStyles, tickLineStyles, gridStyles, legendStyles, chartMargin, PLATFORM_COLORS } from "./shared";
 
 interface TrendLineChartProps {
   chartData: Record<string, any>[];
@@ -28,33 +20,22 @@ interface TrendLineChartProps {
 export default function TrendLineChart({ chartData, platformNames }: TrendLineChartProps) {
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+      <LineChart data={chartData} margin={chartMargin}>
+        <CartesianGrid {...gridStyles} />
         <XAxis
           dataKey="period"
-          tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-          axisLine={{ stroke: "var(--border)" }}
-          tickLine={{ stroke: "var(--border)" }}
+          tick={axisTickStyles}
+          axisLine={axisLineStyles}
+          tickLine={tickLineStyles}
         />
         <YAxis
           domain={[0, 100]}
-          tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-          axisLine={{ stroke: "var(--border)" }}
-          tickLine={{ stroke: "var(--border)" }}
+          tick={axisTickStyles}
+          axisLine={axisLineStyles}
+          tickLine={tickLineStyles}
         />
-        <Tooltip
-          contentStyle={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: "8px",
-            fontSize: 13,
-            fontFamily: "var(--font-body)",
-            color: "var(--text-primary)",
-          }}
-        />
-        <Legend
-          wrapperStyle={{ fontSize: 12, fontFamily: "var(--font-body)" }}
-        />
+        <Tooltip contentStyle={tooltipStyles} />
+        <Legend wrapperStyle={legendStyles} />
         <Line
           type="monotone"
           dataKey="总分"

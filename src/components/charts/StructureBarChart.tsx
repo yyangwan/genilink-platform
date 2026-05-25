@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+import { tooltipStyles, axisTickStyles, axisLineStyles, tickLineStyles, gridStyles, legendStyles, chartMargin } from "./shared";
 
 interface StructureBarChartProps {
   data: Record<string, any>[];
@@ -20,31 +21,22 @@ export default function StructureBarChart({ data }: StructureBarChartProps) {
     <ResponsiveContainer width="100%" height="100%">
       <BarChart
         data={data}
-        margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+        margin={chartMargin}
       >
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        <CartesianGrid {...gridStyles} />
         <XAxis
           dataKey="period"
-          tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-          axisLine={{ stroke: "var(--border)" }}
-          tickLine={{ stroke: "var(--border)" }}
+          tick={axisTickStyles}
+          axisLine={axisLineStyles}
+          tickLine={tickLineStyles}
         />
         <YAxis
-          tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-          axisLine={{ stroke: "var(--border)" }}
-          tickLine={{ stroke: "var(--border)" }}
+          tick={axisTickStyles}
+          axisLine={axisLineStyles}
+          tickLine={tickLineStyles}
         />
-        <Tooltip
-          contentStyle={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: "8px",
-            fontSize: 13,
-            fontFamily: "var(--font-body)",
-            color: "var(--text-primary)",
-          }}
-        />
-        <Legend wrapperStyle={{ fontSize: 12, fontFamily: "var(--font-body)" }} />
+        <Tooltip contentStyle={tooltipStyles} />
+        <Legend wrapperStyle={legendStyles} />
         <Bar dataKey="structured" name="结构化" stackId="a" fill="var(--color-primary)" radius={[0, 0, 0, 0]} />
         <Bar dataKey="semi_structured" name="半结构化" stackId="a" fill="var(--color-primary-dim)" />
         <Bar dataKey="unstructured" name="非结构化" stackId="a" fill="var(--bg-hover)" radius={[4, 4, 0, 0]} />
