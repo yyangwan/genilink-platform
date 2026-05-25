@@ -9,6 +9,9 @@ import {
   TrendingUp,
   Users,
   Globe,
+  CheckCircle2,
+  XCircle,
+  MessageSquare,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -53,6 +56,47 @@ function priorityConfig(priority: string): { color: string; bg: string; label: s
     default:
       return { color: "var(--color-success)", bg: "var(--color-success)20", label: "低" };
   }
+}
+
+/** Transform structure_distribution (keyed by type) into per-audit stacked bar data */
+function buildStructureChartData(evolution: {
+  audits?: Array<{ audit_id: number; date: string }>;
+  structure_distribution: Record<string, Array<{ audit_id: number; count: number; pct: number }>>;
+}): Record<string, string | number>[] {
+  // Collect all unique audit IDs across all structure types
+  const auditIds = new Set<number>();
+  for (const points of Object.values(evolution.structure_distribution)) {
+    for (const p of points) auditIds.add(p.audit_id);
+  }
+
+  // Map audit_id → label using audits array if available
+  const auditLabels = new Map<number, string>();
+  if (evolution.audits) {
+    for (const a of evolution.audits) auditLabels.set(a.audit_id, a.date);
+  }
+
+  const sortedIds = [...auditIds].sort((a, b) => a - b);
+
+  // Build lookup: (type, audit_id) → pct
+  const lookup = new Map<string, Map<number, number>>();
+  for (const [type, points] of Object.entries(evolution.structure_distribution)) {
+    const m = new Map<number, number>();
+    for (const p of points) m.set(p.audit_id, p.pct);
+    lookup.set(type, m);
+  }
+
+  return sortedIds.map((id) => {
+    const date = auditLabels.get(id);
+    const period = date
+      ? new Date(date).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" })
+      : `#${id}`;
+    return {
+      period,
+      structured: Math.round((lookup.get("list")?.get(id) || 0) * 100),
+      semi_structured: Math.round((lookup.get("comparison")?.get(id) || 0) * 100),
+      unstructured: Math.round((lookup.get("narrative")?.get(id) || 0) * 100),
+    };
+  });
 }
 
 function insightTypeIcon(type: string) {
@@ -262,6 +306,86 @@ function OverviewTab({ report }: { report: ReportData }) {
                   </div>
                 );
               })}
+          </div>
+        </div>
+      )}
+
+      {/* Query detail: which prompts triggered brand mentions */}
+      {report.prompts && report.prompts.length > 0 && (
+        <div style={sectionCard}>
+          <h3
+            className="text-base font-semibold mb-4"
+            style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
+          >
+            查询详情
+          </h3>
+          <div className="space-y-2">
+            {report.prompts.map((q, i) => (
+              <div
+                key={i}
+                className="flex items-start gap-3 py-2 px-3 rounded-lg"
+                style={{ background: "var(--bg-elevated)" }}
+              >
+                <span className="shrink-0 mt-0.5">
+                  {q.mentioned ? (
+                    <CheckCircle2 className="w-4 h-4" style={{ color: "var(--color-success)" }} />
+                  ) : (
+                    <XCircle className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                  )}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span
+                      className="text-xs font-medium px-1.5 py-0.5 rounded"
+                      style={{ background: "var(--color-primary-dim)", color: "var(--color-primary)", fontFamily: "var(--font-display)" }}
+                    >
+                      {q.platform}
+                    </span>
+                    {q.brand && (
+                      <span
+                        className="text-xs"
+                        style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+                      >
+                        {q.brand}
+                      </span>
+                    )}
+                    {q.recommended && (
+                      <span
+                        className="text-xs font-medium px-1.5 py-0.5 rounded"
+                        style={{ background: "var(--color-success)20", color: "var(--color-success)", fontFamily: "var(--font-display)" }}
+                      >
+                        推荐
+                      </span>
+                    )}
+                    {q.rank != null && (
+                      <span
+                        className="text-xs"
+                        style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+                      >
+                        #{q.rank}
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className="text-sm truncate"
+                    style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                  >
+                    {q.prompt}
+                  </p>
+                </div>
+                {q.confidence != null && (
+                  <span
+                    className="text-xs font-medium shrink-0"
+                    style={{
+                      color: (q.confidence >= 0.7 ? "var(--color-success)" : q.confidence >= 0.4 ? "var(--color-warning)" : "var(--text-muted)"),
+                      fontFamily: "var(--font-mono)",
+                    }}
+                  >
+                    {Math.round(q.confidence * 100)}%
+                  </span>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -621,12 +745,7 @@ function StrategicTab({
             </h3>
           </div>
           <div style={{ height: 240 }}>
-            <StructureBarChart data={Object.entries(structureEvolution.structure_distribution).map(([type, points]) => ({
-              period: `审计 #${points[points.length - 1]?.audit_id || '?'}`,
-              structured: type === 'list' ? Math.round((points[points.length - 1]?.pct || 0) * 100) : 0,
-              semi_structured: type === 'comparison' ? Math.round((points[points.length - 1]?.pct || 0) * 100) : 0,
-              unstructured: type === 'narrative' ? Math.round((points[points.length - 1]?.pct || 0) * 100) : 0,
-            }))} />
+            <StructureBarChart data={buildStructureChartData(structureEvolution)} />
           </div>
         </div>
       )}
