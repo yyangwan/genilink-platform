@@ -13,6 +13,9 @@ import {
   Loader2,
   CheckCircle2,
   Settings,
+  Calendar,
+  Trophy,
+  Lightbulb,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -36,6 +39,13 @@ const sectionCard: React.CSSProperties = {
 };
 
 type AnalysisPhase = "idle" | "creating" | "collecting" | "analyzing" | "done" | "error";
+
+function scoreColor(score: number | null | undefined): string {
+  if (score == null) return "var(--text-primary)";
+  if (score >= 70) return "var(--color-success)";
+  if (score >= 40) return "var(--color-warning)";
+  return "var(--color-error)";
+}
 
 function VisibilityContent() {
   const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
@@ -107,7 +117,6 @@ function VisibilityContent() {
         if (!res.ok) return;
         const audits = await res.json();
 
-        // Find latest audit that's still running
         const active = Array.isArray(audits) && audits.find((a: Record<string, unknown>) => {
           const p = (a.phase as string) || (a.status as string);
           return p === "collecting" || p === "pending" || p === "analyzing" || p === "running";
@@ -136,7 +145,6 @@ function VisibilityContent() {
     setAnalysisError(null);
 
     try {
-      // ── Pre-flight: check prompts and brands ──
       const [promptsRes, brandsRes] = await Promise.all([
         fetch(`/api/integration/prompts?projectId=${currentProjectId}`),
         fetch(`/api/integration/brands?projectId=${currentProjectId}`),
@@ -148,14 +156,12 @@ function VisibilityContent() {
       const hasPrompts = Array.isArray(promptsData) && promptsData.length > 0;
       const hasBrands = Array.isArray(brandsData) && brandsData.length > 0;
 
-      // No brands → hard stop
       if (!hasBrands) {
         setAnalysisPhase("error");
         setAnalysisError("NO_BRANDS");
         return;
       }
 
-      // No prompts → auto-generate
       if (!hasPrompts) {
         setAnalysisPhase("creating");
         const genRes = await fetch("/api/integration/prompts/generate", {
@@ -171,7 +177,6 @@ function VisibilityContent() {
         }
       }
 
-      // Step 1: Create audit
       setAnalysisPhase("creating");
       const createRes = await fetch("/api/integration/audits", {
         method: "POST",
@@ -191,7 +196,6 @@ function VisibilityContent() {
         throw new Error("未获取到审计 ID");
       }
 
-      // Audit created — start polling (run_audit runs automatically in background)
       setAnalysisPhase("collecting");
       startPolling(auditId);
     } catch (err) {
@@ -200,7 +204,6 @@ function VisibilityContent() {
     }
   }, [currentProjectId, startPolling]);
 
-  // Status text for each phase
   const phaseText: Record<AnalysisPhase, string> = {
     idle: "",
     creating: "正在创建审计...",
@@ -216,7 +219,7 @@ function VisibilityContent() {
 
   const isAnalyzing = analysisPhase === "creating" || analysisPhase === "collecting" || analysisPhase === "analyzing";
 
-  // No project selected state — show DiagnosticChecklist
+  // No project selected state
   if (!loading && !currentProjectId) {
     const diagnosticItems: DiagnosticItem[] = [
       {
@@ -255,6 +258,8 @@ function VisibilityContent() {
     );
   }
 
+  const hasData = visibility.data && (visibility.data.overallScore != null || visibility.data.mentionCount > 0);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -278,7 +283,6 @@ function VisibilityContent() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Start AI Analysis button */}
           {currentProjectId && analysisPhase === "idle" && (
             <button
               onClick={handleStartAnalysis}
@@ -302,7 +306,6 @@ function VisibilityContent() {
             </button>
           )}
 
-          {/* Analysis in progress indicator */}
           {isAnalyzing && (
             <div
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm"
@@ -317,7 +320,6 @@ function VisibilityContent() {
             </div>
           )}
 
-          {/* Analysis complete */}
           {analysisPhase === "done" && (
             <div
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm"
@@ -332,7 +334,6 @@ function VisibilityContent() {
             </div>
           )}
 
-          {/* Analysis error */}
           {analysisPhase === "error" && (
             analysisError === "NO_BRANDS" ? (
               <Link
@@ -367,7 +368,6 @@ function VisibilityContent() {
             )
           )}
 
-          {/* Refresh button */}
           <button
             onClick={visibility.refetch}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors"
@@ -401,81 +401,10 @@ function VisibilityContent() {
         </div>
       )}
 
-      {/* Overview cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Two-column hero layout */}
+      {!hasData && !isAnalyzing ? (
+        /* Empty state — no data yet */
         <div style={sectionCard}>
-          <div className="flex items-center gap-2 mb-2">
-            <Eye className="w-4 h-4" style={{ color: "var(--color-primary)" }} />
-            <span className="text-sm font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-              品牌提及
-            </span>
-          </div>
-          {visibility.loading ? (
-            <div className="h-8 w-16 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-          ) : (
-            <span className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
-              {visibility.data?.mentionCount ?? "--"}
-            </span>
-          )}
-        </div>
-        <div style={sectionCard}>
-          <div className="flex items-center gap-2 mb-2">
-            <BarChart3 className="w-4 h-4" style={{ color: "var(--color-primary)" }} />
-            <span className="text-sm font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-              AI可见性得分
-            </span>
-          </div>
-          {visibility.loading ? (
-            <div className="h-8 w-16 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-          ) : (
-            <span
-              className="text-2xl font-bold"
-              style={{
-                color: visibility.data?.overallScore != null && visibility.data.overallScore >= 60
-                  ? "var(--color-success)"
-                  : "var(--text-primary)",
-                fontFamily: "var(--font-mono)",
-              }}
-            >
-              {visibility.data?.overallScore ?? "--"}
-            </span>
-          )}
-        </div>
-        <div style={sectionCard}>
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingUp className="w-4 h-4" style={{ color: "var(--color-primary)" }} />
-            <span className="text-sm font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-              竞品排名
-            </span>
-          </div>
-          {visibility.loading ? (
-            <div className="h-8 w-16 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-          ) : (
-            <span className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
-              {visibility.data?.competitorRank ? `#${visibility.data.competitorRank}` : "--"}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Platform coverage or empty state */}
-      <div style={sectionCard}>
-        {visibility.loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-6 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-            ))}
-          </div>
-        ) : visibility.data?.platformCoverage && visibility.data.platformCoverage.length > 0 ? (
-          <div>
-            <h3 className="text-base font-semibold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-              AI平台覆盖
-            </h3>
-            <div style={{ height: 220 }}>
-              <PlatformCoverageChart data={visibility.data.platformCoverage} />
-            </div>
-          </div>
-        ) : (
           <div className="flex flex-col items-center justify-center py-12">
             <AlertCircle className="w-10 h-10 mb-3" style={{ color: "var(--text-muted)" }} />
             <p className="text-sm mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
@@ -492,38 +421,205 @@ function VisibilityContent() {
               </button>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          {/* Left column — Hero score + Platform strip */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Hero score card */}
+            <div
+              style={{
+                ...sectionCard,
+                borderLeft: `4px solid ${scoreColor(visibility.data?.overallScore)}`,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: 180,
+                textAlign: "center",
+              }}
+            >
+              {visibility.loading ? (
+                <div className="h-16 w-24 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+              ) : (
+                <>
+                  <span
+                    className="font-bold"
+                    style={{
+                      fontSize: 56,
+                      lineHeight: 1.1,
+                      color: scoreColor(visibility.data?.overallScore),
+                      fontFamily: "var(--font-mono)",
+                    }}
+                  >
+                    {visibility.data?.overallScore ?? "--"}
+                  </span>
+                  <span
+                    className="text-sm mt-1"
+                    style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+                  >
+                    AI可见性综合得分
+                  </span>
+                </>
+              )}
+            </div>
 
-      {/* Suggestions */}
-      {visibility.data?.suggestions && visibility.data.suggestions.length > 0 && (
-        <div style={sectionCard}>
-          <h3 className="text-base font-semibold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-            AI优化建议
-          </h3>
-          <ul className="space-y-2">
-            {visibility.data.suggestions.map((s: { priority: string; text: string }, i: number) => (
-              <li
-                key={i}
-                className="flex items-start gap-3 py-2 px-3 rounded-lg"
-                style={{ background: "var(--bg-elevated)" }}
+            {/* Platform strip */}
+            <div style={sectionCard}>
+              <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                AI平台覆盖
+              </h3>
+              {visibility.loading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-5 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+                  ))}
+                </div>
+              ) : visibility.data?.platformCoverage && visibility.data.platformCoverage.length > 0 ? (
+                <div style={{ height: 200 }}>
+                  <PlatformCoverageChart data={visibility.data.platformCoverage} />
+                </div>
+              ) : (
+                <p className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  暂无平台数据
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Right column — KPI grid + Findings + Quick links */}
+          <div className="lg:col-span-3 space-y-4">
+            {/* 2×2 KPI grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <div style={sectionCard}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Eye className="w-3.5 h-3.5" style={{ color: "var(--color-primary)" }} />
+                  <span className="text-xs font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                    品牌提及
+                  </span>
+                </div>
+                {visibility.loading ? (
+                  <div className="h-7 w-14 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+                ) : (
+                  <span className="text-xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
+                    {visibility.data?.mentionCount ?? "--"}
+                  </span>
+                )}
+              </div>
+              <div style={sectionCard}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Trophy className="w-3.5 h-3.5" style={{ color: "var(--color-primary)" }} />
+                  <span className="text-xs font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                    竞品排名
+                  </span>
+                </div>
+                {visibility.loading ? (
+                  <div className="h-7 w-14 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+                ) : (
+                  <span className="text-xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
+                    {visibility.data?.competitorRank ? `#${visibility.data.competitorRank}` : "--"}
+                  </span>
+                )}
+              </div>
+              <div style={sectionCard}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Calendar className="w-3.5 h-3.5" style={{ color: "var(--color-primary)" }} />
+                  <span className="text-xs font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                    最近审计
+                  </span>
+                </div>
+                {visibility.loading ? (
+                  <div className="h-7 w-14 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+                ) : (
+                  <span className="text-base font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+                    {visibility.data?.latestAuditDate
+                      ? new Date(visibility.data.latestAuditDate).toLocaleDateString("zh-CN", { month: "short", day: "numeric" })
+                      : "--"}
+                  </span>
+                )}
+              </div>
+              <div style={sectionCard}>
+                <div className="flex items-center gap-2 mb-1">
+                  <TrendingUp className="w-3.5 h-3.5" style={{ color: "var(--color-primary)" }} />
+                  <span className="text-xs font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                    可见性得分
+                  </span>
+                </div>
+                {visibility.loading ? (
+                  <div className="h-7 w-14 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+                ) : (
+                  <span className="text-xl font-bold" style={{ color: scoreColor(visibility.data?.overallScore), fontFamily: "var(--font-mono)" }}>
+                    {visibility.data?.overallScore != null ? `${visibility.data.overallScore}/100` : "--"}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Key findings / Suggestions */}
+            {visibility.data?.suggestions && visibility.data.suggestions.length > 0 && (
+              <div style={sectionCard}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Lightbulb className="w-4 h-4" style={{ color: "var(--color-primary)" }} />
+                  <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                    关键发现
+                  </h3>
+                </div>
+                <ul className="space-y-2">
+                  {visibility.data.suggestions.slice(0, 4).map((s: { priority: string; text: string }, i: number) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-2.5 py-1.5"
+                    >
+                      <span
+                        className="inline-flex items-center justify-center shrink-0 w-5 h-5 rounded text-[10px] font-bold"
+                        style={{
+                          background: s.priority === "high" ? "var(--color-error)20" : s.priority === "medium" ? "var(--color-warning)20" : "var(--color-success)20",
+                          color: s.priority === "high" ? "var(--color-error)" : s.priority === "medium" ? "var(--color-warning)" : "var(--color-success)",
+                          fontFamily: "var(--font-mono)",
+                        }}
+                      >
+                        {i + 1}
+                      </span>
+                      <span className="text-sm leading-relaxed" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+                        {s.text}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Quick links CTA */}
+            <div
+              className="flex items-center gap-4 px-4 py-3 rounded-xl"
+              style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+            >
+              <span className="text-xs font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                快速查看:
+              </span>
+              <Link
+                href="/trends"
+                className="flex items-center gap-1 text-xs font-medium transition-colors"
+                style={{ color: "var(--color-primary)", fontFamily: "var(--font-body)", textDecoration: "none" }}
               >
-                <span
-                  className="inline-flex items-center justify-center shrink-0 w-6 h-5 rounded text-xs font-medium"
-                  style={{
-                    background: s.priority === "high" ? "var(--color-error)20" : s.priority === "medium" ? "var(--color-warning)20" : "var(--color-success)20",
-                    color: s.priority === "high" ? "var(--color-error)" : s.priority === "medium" ? "var(--color-warning)" : "var(--color-success)",
-                    fontFamily: "var(--font-display)",
-                  }}
-                >
-                  {s.priority === "high" ? "高" : s.priority === "medium" ? "中" : "低"}
-                </span>
-                <span className="text-sm pt-0.5" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
-                  {s.text}
-                </span>
-              </li>
-            ))}
-          </ul>
+                <TrendingUp className="w-3 h-3" /> 趋势分析
+              </Link>
+              <Link
+                href="/compare"
+                className="flex items-center gap-1 text-xs font-medium transition-colors"
+                style={{ color: "var(--color-primary)", fontFamily: "var(--font-body)", textDecoration: "none" }}
+              >
+                <BarChart3 className="w-3 h-3" /> 竞品对比
+              </Link>
+              <Link
+                href="/suggestions"
+                className="flex items-center gap-1 text-xs font-medium transition-colors"
+                style={{ color: "var(--color-primary)", fontFamily: "var(--font-body)", textDecoration: "none" }}
+              >
+                <Lightbulb className="w-3 h-3" /> 全部建议
+              </Link>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -536,10 +632,13 @@ export default function VisibilityPage() {
       fallback={
         <div className="space-y-6">
           <div className="h-10 w-48 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-24 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-            ))}
+          <div className="grid grid-cols-5 gap-4">
+            <div className="col-span-2 h-48 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+            <div className="col-span-3 grid grid-cols-2 gap-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-20 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+              ))}
+            </div>
           </div>
         </div>
       }
