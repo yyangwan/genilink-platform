@@ -43,6 +43,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No external mapping for project' }, { status: 404 });
   }
 
+  const auditId = req.nextUrl.searchParams.get('auditId');
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
 
@@ -51,8 +53,9 @@ export async function GET(req: NextRequest) {
     const serviceToken = process.env.SERVICE_TOKEN;
     if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
 
+    const qs = auditId ? `?audit_id=${auditId}` : '';
     const res = await fetch(
-      `${VISIBILITY_URL}/api/strategic/source-authority-trends?projectId=${externalId}`,
+      `${VISIBILITY_URL}/api/strategic/projects/${externalId}/source-authority-trends${qs}`,
       { headers, signal: controller.signal }
     );
 

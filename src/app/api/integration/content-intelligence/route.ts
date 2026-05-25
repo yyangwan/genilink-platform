@@ -43,6 +43,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No external mapping for project' }, { status: 404 });
   }
 
+  const auditId = req.nextUrl.searchParams.get('auditId');
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
 
@@ -52,7 +54,7 @@ export async function GET(req: NextRequest) {
     if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
 
     const res = await fetch(
-      `${VISIBILITY_URL}/api/analysis/projects/${externalId}/content-intelligence`,
+      `${VISIBILITY_URL}/api/analysis/projects/${externalId}/content-intelligence${auditId ? `?audit_id=${auditId}` : ''}`,
       { headers, signal: controller.signal }
     );
 
@@ -66,7 +68,26 @@ export async function GET(req: NextRequest) {
     }
 
     const data = await res.json();
-    return NextResponse.json(data);
+    // Map upstream ContentIntelligenceOut → frontend ContentIntelligence
+    const mapped = {
+      sentiment: {
+        positive: data.sentiment_breakdown?.positive || 0,
+        neutral: data.sentiment_breakdown?.neutral || 0,
+        negative: data.sentiment_breakdown?.negative || 0,
+      },
+      topics: Object.entries(data.topic_distribution || {}).map(([topic, count]) => ({
+        topic,
+        count: count as number,
+        sentiment: 0.5, // upstream doesn't provide per-topic sentiment
+      })),
+      sources: (data.top_cited_sources || []).map((s: Record<string, unknown>) => ({
+        source: s.domain as string,
+        domain: s.domain as string,
+        mention_count: s.total_count as number,
+        authority_score: Math.round((s.authority_avg as number) * 20), // normalize 0-5 → 0-100
+      })),
+    };
+    return NextResponse.json(mapped);
   } catch (err) {
     clearTimeout(timer);
     if ((err as Error).name === 'AbortError') {

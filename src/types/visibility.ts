@@ -88,9 +88,11 @@ export interface BrandMention {
 export interface PromptResult {
   prompt: string;
   platform: string;
+  brand: string;
   mentioned: boolean;
-  position?: number;
-  response_snippet?: string;
+  confidence: number | null;
+  recommended: boolean;
+  rank: number | null;
 }
 
 // ── Content Intelligence ──

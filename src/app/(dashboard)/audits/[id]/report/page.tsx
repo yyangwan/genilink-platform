@@ -455,11 +455,15 @@ function ContentTab({
 
 // ── Strategic Tab ──
 function StrategicTab({
-  strategic,
+  competitor,
+  sourceAuthority,
+  structureEvolution,
   loading,
   error,
 }: {
-  strategic: StrategicData | null;
+  competitor: { brands: Array<{ name: string; is_competitor: boolean; mention_frequency: number; sentiment_positive_rate: number; avg_authority: number; mention_count: number }> } | null;
+  sourceAuthority: { audits: Array<{ audit_id: number; date: string }>; domain_trends: Array<{ domain: string; data: Array<{ audit_id: number; count: number; authority_avg: number }> }> } | null;
+  structureEvolution: { audits: Array<{ audit_id: number; date: string }>; structure_distribution: Record<string, Array<{ audit_id: number; count: number; pct: number }>> } | null;
   loading: boolean;
   error: boolean;
 }) {
@@ -473,7 +477,7 @@ function StrategicTab({
     );
   }
 
-  if (error || !strategic) {
+  if (error || (!competitor && !sourceAuthority && !structureEvolution)) {
     return (
       <div style={sectionCard}>
         <EmptyState
@@ -488,7 +492,7 @@ function StrategicTab({
   return (
     <div className="space-y-6">
       {/* Competitor positioning */}
-      {strategic.competitor_positioning && strategic.competitor_positioning.length > 0 && (
+      {competitor?.brands && competitor.brands.length > 0 && (
         <div style={sectionCard}>
           <div className="flex items-center gap-2 mb-4">
             <Users className="w-4 h-4" style={{ color: "var(--color-primary)" }} />
@@ -500,52 +504,55 @@ function StrategicTab({
             </h3>
           </div>
           <div className="space-y-3">
-            {strategic.competitor_positioning
-              .sort((a, b) => b.score - a.score)
-              .map((comp) => (
-                <div key={comp.brand} className="flex items-center gap-3">
-                  <span
-                    className="text-sm w-24 shrink-0 truncate"
-                    style={{
-                      color: comp.is_own ? "var(--color-primary)" : "var(--text-secondary)",
-                      fontFamily: "var(--font-body)",
-                      fontWeight: comp.is_own ? 600 : 400,
-                    }}
-                  >
-                    {comp.brand}
-                  </span>
-                  <div
-                    className="flex-1 h-2 rounded-full overflow-hidden"
-                    style={{ background: "var(--bg-hover)" }}
-                  >
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
+            {competitor.brands
+              .sort((a, b) => b.mention_frequency - a.mention_frequency)
+              .map((comp) => {
+                const score = Math.round(comp.mention_frequency * 100);
+                return (
+                  <div key={comp.name} className="flex items-center gap-3">
+                    <span
+                      className="text-sm w-24 shrink-0 truncate"
                       style={{
-                        width: `${Math.max(comp.score, 0)}%`,
-                        background: comp.is_own ? "var(--color-primary)" : scoreColor(comp.score),
+                        color: !comp.is_competitor ? "var(--color-primary)" : "var(--text-secondary)",
+                        fontFamily: "var(--font-body)",
+                        fontWeight: !comp.is_competitor ? 600 : 400,
                       }}
-                    />
+                    >
+                      {comp.name}
+                    </span>
+                    <div
+                      className="flex-1 h-2 rounded-full overflow-hidden"
+                      style={{ background: "var(--bg-hover)" }}
+                    >
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.max(score, 0)}%`,
+                          background: !comp.is_competitor ? "var(--color-primary)" : scoreColor(score),
+                        }}
+                      />
+                    </div>
+                    <span
+                      className="text-xs font-medium w-10 text-right"
+                      style={{ color: scoreColor(score), fontFamily: "var(--font-mono)" }}
+                    >
+                      {score}%
+                    </span>
+                    <span
+                      className="text-xs w-16 text-right"
+                      style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+                    >
+                      {comp.mention_count} 次
+                    </span>
                   </div>
-                  <span
-                    className="text-xs font-medium w-10 text-right"
-                    style={{ color: scoreColor(comp.score), fontFamily: "var(--font-mono)" }}
-                  >
-                    {comp.score}
-                  </span>
-                  <span
-                    className="text-xs w-12 text-right"
-                    style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-                  >
-                    可见性 {comp.visibility}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
           </div>
         </div>
       )}
 
       {/* Source authority over time */}
-      {strategic.source_authority && strategic.source_authority.length > 0 && (
+      {sourceAuthority?.domain_trends && sourceAuthority.domain_trends.length > 0 && (
         <div style={sectionCard}>
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-4 h-4" style={{ color: "var(--color-primary)" }} />
@@ -556,56 +563,53 @@ function StrategicTab({
               来源权威趋势
             </h3>
           </div>
-          <div className="space-y-4">
-            {strategic.source_authority.slice(-5).map((entry) => (
-              <div key={entry.date}>
-                <div
-                  className="text-xs mb-2"
-                  style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
-                >
-                  {entry.date}
-                </div>
-                <div className="space-y-2">
-                  {entry.sources
-                    .sort((a, b) => b.authority - a.authority)
-                    .slice(0, 5)
-                    .map((src) => (
-                      <div key={src.source} className="flex items-center gap-3">
-                        <span
-                          className="text-xs w-32 shrink-0 truncate"
-                          style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-                        >
-                          {src.source}
-                        </span>
-                        <div
-                          className="flex-1 h-1.5 rounded-full overflow-hidden"
-                          style={{ background: "var(--bg-hover)" }}
-                        >
-                          <div
-                            className="h-full rounded-full"
-                            style={{
-                              width: `${Math.max(src.authority, 0)}%`,
-                              background: scoreColor(src.authority),
-                            }}
-                          />
-                        </div>
-                        <span
-                          className="text-xs w-8 text-right"
-                          style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-                        >
-                          {src.authority}
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            ))}
+          <div className="space-y-3">
+            {sourceAuthority.domain_trends
+              .sort((a, b) => {
+                const aTotal = a.data.reduce((s, d) => s + d.count, 0);
+                const bTotal = b.data.reduce((s, d) => s + d.count, 0);
+                return bTotal - aTotal;
+              })
+              .slice(0, 10)
+              .map((domain) => {
+                const totalCount = domain.data.reduce((s, d) => s + d.count, 0);
+                const maxCount = Math.max(...sourceAuthority.domain_trends.map((d) => d.data.reduce((s, x) => s + x.count, 0)), 1);
+                return (
+                  <div key={domain.domain} className="flex items-center gap-3">
+                    <Globe className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--text-muted)" }} />
+                    <span
+                      className="text-sm w-40 shrink-0 truncate"
+                      style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                    >
+                      {domain.domain}
+                    </span>
+                    <div
+                      className="flex-1 h-2 rounded-full overflow-hidden"
+                      style={{ background: "var(--bg-hover)" }}
+                    >
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${(totalCount / maxCount) * 100}%`,
+                          background: "var(--color-primary)",
+                        }}
+                      />
+                    </div>
+                    <span
+                      className="text-xs w-8 text-right"
+                      style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+                    >
+                      {totalCount}
+                    </span>
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}
 
       {/* Structure evolution */}
-      {strategic.structure_evolution && strategic.structure_evolution.length > 0 && (
+      {structureEvolution?.structure_distribution && (
         <div style={sectionCard}>
           <div className="flex items-center gap-2 mb-4">
             <BarChart3 className="w-4 h-4" style={{ color: "var(--color-primary)" }} />
@@ -617,7 +621,12 @@ function StrategicTab({
             </h3>
           </div>
           <div style={{ height: 240 }}>
-            <StructureBarChart data={strategic.structure_evolution.slice(-5)} />
+            <StructureBarChart data={Object.entries(structureEvolution.structure_distribution).map(([type, points]) => ({
+              period: `审计 #${points[points.length - 1]?.audit_id || '?'}`,
+              structured: type === 'list' ? Math.round((points[points.length - 1]?.pct || 0) * 100) : 0,
+              semi_structured: type === 'comparison' ? Math.round((points[points.length - 1]?.pct || 0) * 100) : 0,
+              unstructured: type === 'narrative' ? Math.round((points[points.length - 1]?.pct || 0) * 100) : 0,
+            }))} />
           </div>
         </div>
       )}
@@ -646,15 +655,27 @@ function ReportContent() {
 
   // Fetch content intelligence (only when tab active or already loaded)
   const content = useSectionFetch<ContentIntelligence>(
-    activeTab === "content"
-      ? `/api/integration/content-intelligence?auditId=${auditId}`
+    activeTab === "content" && projectId
+      ? `/api/integration/content-intelligence?projectId=${projectId}&auditId=${auditId}`
       : ""
   );
 
-  // Fetch strategic data (only when tab active or already loaded)
-  const strategic = useSectionFetch<StrategicData>(
-    activeTab === "strategic"
-      ? `/api/integration/strategic?auditId=${auditId}`
+  // Fetch strategic data — 3 separate calls
+  const competitor = useSectionFetch<{ brands: Array<{ name: string; is_competitor: boolean; mention_frequency: number; sentiment_positive_rate: number; avg_authority: number; mention_count: number }> }>(
+    activeTab === "strategic" && projectId
+      ? `/api/integration/strategic/competitor-positioning?projectId=${projectId}&auditId=${auditId}`
+      : ""
+  );
+
+  const sourceAuthority = useSectionFetch<{ audits: Array<{ audit_id: number; date: string }>; domain_trends: Array<{ domain: string; data: Array<{ audit_id: number; count: number; authority_avg: number }> }> }>(
+    activeTab === "strategic" && projectId
+      ? `/api/integration/strategic/source-authority?projectId=${projectId}&auditId=${auditId}`
+      : ""
+  );
+
+  const structureEvolution = useSectionFetch<{ audits: Array<{ audit_id: number; date: string }>; structure_distribution: Record<string, Array<{ audit_id: number; count: number; pct: number }>> }>(
+    activeTab === "strategic" && projectId
+      ? `/api/integration/strategic/structure-evolution?projectId=${projectId}&auditId=${auditId}`
       : ""
   );
 
@@ -719,7 +740,13 @@ function ReportContent() {
         <ContentTab content={content.data} loading={content.loading} error={content.error} />
       )}
       {activeTab === "strategic" && (
-        <StrategicTab strategic={strategic.data} loading={strategic.loading} error={strategic.error} />
+        <StrategicTab
+          competitor={competitor.data}
+          sourceAuthority={sourceAuthority.data}
+          structureEvolution={structureEvolution.data}
+          loading={competitor.loading || sourceAuthority.loading || structureEvolution.loading}
+          error={competitor.error || sourceAuthority.error || structureEvolution.error}
+        />
       )}
     </div>
   );
