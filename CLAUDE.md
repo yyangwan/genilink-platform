@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-智见前端数据对齐 P0+P1 done (2026-05-25, commits c26418d, 0ed97f5). P2 待处理: prompts 展示 + 结构化演变图表. All build green.
+智见前端数据对齐 P0-P3 全部完成 (2026-05-25). 4 commits: c26418d, 0ed97f5, c62d517, 11191c2. All build green.
 
 ## ContentOS JWT Integration (done)
 智链发送 RS256 JWT 到 ContentOS (port 4002)。ContentOS 中间件验证 JWT，注入 x-genilink-* headers。
