@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
 
   const userId = session.user.id;
   const body = await req.json();
-  const { workspaceName, industry, projectName, projectUrl } = body;
+  const { workspaceName, industry, projectName, projectUrl, productName, productKeywords, productDescription, productUrl } = body;
 
   if (!workspaceName || !projectName) {
     return NextResponse.json(
@@ -116,6 +116,10 @@ export async function POST(req: NextRequest) {
           name: projectName,
           url: projectUrl || null,
           industry: industry || null,
+          productName: productName || null,
+          productKeywords: productKeywords || [],
+          productDescription: productDescription || null,
+          productUrl: productUrl || null,
           workspaceId: workspace.id,
         },
       });
@@ -183,6 +187,10 @@ export async function POST(req: NextRequest) {
         name: projectName,
         url: projectUrl || null,
         industry: industry || null,
+        productName: productName || null,
+        productKeywords: productKeywords || [],
+        productDescription: productDescription || null,
+        productUrl: productUrl || null,
         workspaceId: workspace.id,
       },
     });

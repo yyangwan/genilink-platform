@@ -47,3 +47,14 @@ export const PLATFORM_COLORS = [
   "#a78bfa",
   "#f472b6",
 ] as const;
+
+export const BRAND_COLORS = [
+  "#00d4aa",
+  "#4cc9f0",
+  "#f59e0b",
+  "#ef4444",
+  "#a78bfa",
+  "#f472b6",
+  "#6366f1",
+  "#22c55e",
+] as const;

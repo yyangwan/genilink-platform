@@ -81,6 +81,10 @@ describe('POST /api/onboarding', () => {
         name: 'My Project',
         url: 'https://example.com',
         industry: 'technology',
+        productName: null,
+        productKeywords: [],
+        productDescription: null,
+        productUrl: null,
         workspaceId: 'ws-new',
       },
     });

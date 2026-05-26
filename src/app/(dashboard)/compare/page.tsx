@@ -1,22 +1,29 @@
 "use client";
 
-import React, { Suspense, useState, useEffect, useCallback } from "react";
-import { GitCompare, Loader2 } from "lucide-react";
+import React, { Suspense, useState, useEffect, useMemo } from "react";
+import { GitCompare, RefreshCw, Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
-
-const CompareRadarChart = dynamic(
-  () => import("@/components/charts/CompareRadarChart"),
-  { ssr: false },
-);
-const ComparePivotTable = dynamic(
-  () => import("@/components/charts/ComparePivotTable"),
-  { ssr: false },
-);
+import {
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
+import { tooltipStyles, legendStyles, BRAND_COLORS } from "@/components/charts/shared";
 import { useProject } from "@/components/project/project-context";
 import { PageHeader } from "@/components/ui/page-header";
 import { DiagnosticChecklist, type DiagnosticItem } from "@/components/ui/diagnostic-checklist";
 import { EmptyState } from "@/components/ui/empty-state";
-import type { AuditListItem, AuditComparison, ReportInsight } from "@/types/visibility";
 
 const sectionCard: React.CSSProperties = {
   background: "var(--bg-card)",
@@ -25,277 +32,289 @@ const sectionCard: React.CSSProperties = {
   padding: "24px",
 };
 
+interface Brand {
+  id: number;
+  name: string;
+  is_competitor: boolean;
+}
+
+interface QueryResult {
+  id: number;
+  platform: string;
+  prompt_text: string | null;
+  brand_name: string | null;
+  mention_found: boolean;
+  is_recommended: boolean;
+  recommendation_rank: number | null;
+  mention_confidence: number | null;
+}
+
+interface GroupedRow {
+  platform: string;
+  promptText: string;
+  brandResults: Record<string, QueryResult | undefined>;
+  mentionGap: number;
+}
+
+const PLATFORM_LABELS: Record<string, string> = {
+  deepseek: "DeepSeek",
+  qwen: "通义千问",
+  doubao: "豆包",
+  kimi: "Kimi",
+  hunyuan: "腾讯元宝",
+};
+
 function CompareContent() {
   const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
-  const [audits, setAudits] = useState<AuditListItem[]>([]);
-  const [auditA, setAuditA] = useState<string>("");
-  const [auditB, setAuditB] = useState<string>("");
-  const [comparing, setComparing] = useState(false);
-  const [compareError, setCompareError] = useState(false);
-  const [result, setResult] = useState<AuditComparison | null>(null);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [results, setResults] = useState<QueryResult[]>([]);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [filterPlatform, setFilterPlatform] = useState("all");
+  const [filterMentionOnly, setFilterMentionOnly] = useState(false);
 
-  // Fetch audits for the compare dropdown
-  useEffect(() => {
+  const platformNames = PLATFORM_LABELS;
+  const platformKeys = useMemo(
+    () => [...new Set(results.map((r) => r.platform))].filter((p) => platformNames[p]),
+    [results]
+  );
+
+  const loadData = async () => {
     if (!currentProjectId) return;
-    fetch(`/api/integration/audits?projectId=${currentProjectId}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.audits) {
-          setAudits(data.audits);
-        } else if (Array.isArray(data)) {
-          setAudits(data);
-        }
-      })
-      .catch(() => {});
-  }, [currentProjectId]);
-
-  const handleCompare = useCallback(async () => {
-    if (!auditA || !auditB || !currentProjectId) return;
-
-    setComparing(true);
-    setCompareError(false);
-    setResult(null);
+    setDataLoading(true);
+    setError("");
 
     try {
-      const res = await fetch("/api/integration/compare", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          audit_a_id: Number(auditA),
-          audit_b_id: Number(auditB),
-          project_id: currentProjectId,
-        }),
-      });
+      // 1. Get audits to find the latest one
+      const auditsRes = await fetch(`/api/integration/audits?projectId=${currentProjectId}`);
+      if (!auditsRes.ok) throw new Error("获取审计数据失败");
+      const auditsData = await auditsRes.json();
+      const audits = auditsData.audits || auditsData;
+      const completedAudits = (Array.isArray(audits) ? audits : []).filter(
+        (a: { status: string }) => a.status === "completed"
+      );
 
-      if (!res.ok) {
-        setCompareError(true);
+      if (completedAudits.length === 0) {
+        setResults([]);
+        setBrands([]);
         return;
       }
 
-      const data = await res.json();
-      setResult(data);
-    } catch {
-      setCompareError(true);
+      const latestAudit = completedAudits[0];
+
+      // 2. Fetch brands and audit results in parallel
+      const [brandsRes, resultsRes] = await Promise.all([
+        fetch(`/api/integration/brands?projectId=${currentProjectId}`),
+        fetch(`/api/integration/audits/${latestAudit.id}/results?projectId=${currentProjectId}`),
+      ]);
+
+      if (brandsRes.ok) {
+        const brandsData = await brandsRes.json();
+        setBrands(Array.isArray(brandsData) ? brandsData : brandsData.brands || []);
+      }
+
+      if (resultsRes.ok) {
+        const resultsData = await resultsRes.json();
+        setResults(Array.isArray(resultsData) ? resultsData : []);
+      } else {
+        throw new Error("获取审计结果失败");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "加载数据失败");
     } finally {
-      setComparing(false);
+      setDataLoading(false);
     }
-  }, [auditA, auditB, currentProjectId]);
-
-  const selectStyle: React.CSSProperties = {
-    background: "var(--bg-elevated)",
-    border: "1px solid var(--border)",
-    borderRadius: "8px",
-    padding: "8px 12px",
-    color: "var(--text-primary)",
-    fontFamily: "var(--font-body)",
-    fontSize: 13,
-    outline: "none",
-    cursor: "pointer",
-    minWidth: 200,
   };
 
-  const completedAudits = audits.filter(
-    (a) => a.status === "completed" && a.overall_score != null
+  useEffect(() => {
+    loadData();
+  }, [currentProjectId]);
+
+  // Brand column order: primary brands first, then competitors
+  const brandColumns = useMemo(() => {
+    const primary = brands.filter((b) => !b.is_competitor).map((b) => b.name);
+    const competitors = brands.filter((b) => b.is_competitor).map((b) => b.name);
+    return [...primary, ...competitors];
+  }, [brands]);
+
+  const primaryBrand = useMemo(
+    () => brands.find((b) => !b.is_competitor)?.name,
+    [brands]
   );
 
-  const renderSelect = (
-    value: string,
-    onChange: (v: string) => void,
-    placeholder: string
-  ) => (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      style={selectStyle}
-    >
-      <option value="">{placeholder}</option>
-      {completedAudits.map((a) => (
-        <option key={a.id} value={String(a.id)}>
-          #{a.id} — {a.overall_score}分 ({new Date(a.started_at).toLocaleDateString()})
-        </option>
-      ))}
-    </select>
-  );
+  // Filtered results
+  const filteredResults = useMemo(() => {
+    let list = results;
+    if (filterPlatform !== "all") {
+      list = list.filter((r) => r.platform === filterPlatform);
+    }
+    if (filterMentionOnly) {
+      list = list.filter((r) => r.mention_found);
+    }
+    return list;
+  }, [results, filterPlatform, filterMentionOnly]);
 
-  const renderDelta = (delta: number) => {
-    const color = delta > 0 ? "var(--color-success)" : delta < 0 ? "var(--color-error)" : "var(--text-muted)";
-    const prefix = delta > 0 ? "+" : "";
-    return (
-      <span className="text-sm font-medium" style={{ color, fontFamily: "var(--font-mono)" }}>
-        {prefix}{delta}
-      </span>
-    );
-  };
+  const mentionCount = useMemo(() => {
+    const base = filterPlatform === "all" ? results : results.filter((r) => r.platform === filterPlatform);
+    return base.filter((r) => r.mention_found).length;
+  }, [results, filterPlatform]);
 
-  const renderInsight = (insight: ReportInsight, type: "new" | "removed" | "neutral") => {
-    const color =
-      type === "new" ? "var(--color-success)" : type === "removed" ? "var(--color-error)" : "var(--text-primary)";
-    return (
-      <li
-        key={insight.id}
-        className="flex items-start gap-2 py-2 px-3 rounded-lg"
-        style={{ background: "var(--bg-elevated)" }}
-      >
-        <span
-          className="inline-flex items-center justify-center shrink-0 w-5 h-5 rounded text-xs font-medium"
-          style={{
-            background: type === "new" ? "var(--color-success)20" : type === "removed" ? "var(--color-error)20" : "var(--bg-hover)",
-            color,
-            fontFamily: "var(--font-display)",
-          }}
-        >
-          {type === "new" ? "+" : type === "removed" ? "-" : "·"}
-        </span>
-        <span className="text-sm" style={{ color, fontFamily: "var(--font-body)" }}>
-          {insight.text}
-        </span>
-      </li>
-    );
-  };
-
-  const renderResults = () => {
-    if (comparing) {
-      return (
-        <div className="grid grid-cols-2 gap-6">
-          {[1, 2].map((col) => (
-            <div key={col} style={sectionCard}>
-              <div className="space-y-4">
-                <div className="h-8 w-24 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-                <div className="h-16 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      );
+  // Grouped pivot table
+  const groupedResults = useMemo(() => {
+    const groupMap = new Map<string, Map<string, QueryResult[]>>();
+    for (const r of filteredResults) {
+      if (!r.brand_name) continue;
+      const pKey = r.platform;
+      const qKey = r.prompt_text || "";
+      if (!groupMap.has(pKey)) groupMap.set(pKey, new Map());
+      const promptMap = groupMap.get(pKey)!;
+      if (!promptMap.has(qKey)) promptMap.set(qKey, []);
+      promptMap.get(qKey)!.push(r);
     }
 
-    if (compareError) {
-      return (
-        <div style={sectionCard}>
-          <p className="text-sm text-center py-8" style={{ color: "var(--color-error)", fontFamily: "var(--font-body)" }}>
-            对比失败，请重试
-          </p>
-        </div>
-      );
+    const rows: GroupedRow[] = [];
+    for (const [platform, promptMap] of groupMap) {
+      for (const [promptText, resultList] of promptMap) {
+        const brandResults: Record<string, QueryResult | undefined> = {};
+        for (const r of resultList) {
+          brandResults[r.brand_name!] = r;
+        }
+        let gap = 0;
+        const primaryResult = primaryBrand ? brandResults[primaryBrand] : undefined;
+        if (!primaryResult || !primaryResult.mention_found) {
+          gap = 100;
+        } else {
+          for (const [brand, r] of Object.entries(brandResults)) {
+            if (brand === primaryBrand || !r) continue;
+            if (
+              r.mention_found &&
+              r.recommendation_rank != null &&
+              primaryResult.recommendation_rank != null
+            ) {
+              if (r.recommendation_rank < primaryResult.recommendation_rank) gap++;
+            }
+          }
+        }
+        rows.push({ platform, promptText, brandResults, mentionGap: gap });
+      }
     }
 
-    if (!result) return null;
+    rows.sort((a, b) => {
+      const pComp = a.platform.localeCompare(b.platform);
+      if (pComp !== 0) return pComp;
+      return b.mentionGap - a.mentionGap;
+    });
 
-    const { audit_a, audit_b, delta } = result;
-    const labelA = `审计 A (#${audit_a.id})`;
-    const labelB = `审计 B (#${audit_b.id})`;
+    return rows;
+  }, [filteredResults, primaryBrand]);
 
-    return (
-      <div className="space-y-6">
-        {/* Score summary */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div style={{ ...sectionCard, textAlign: "center" }}>
-            <p className="text-xs mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{labelA}</p>
-            <p className="text-3xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
-              {audit_a.overall_score}
-            </p>
-          </div>
-          <div style={{ ...sectionCard, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-            <p className="text-xs mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>总分变化</p>
-            <p className="text-3xl font-bold" style={{ fontFamily: "var(--font-mono)", color: delta.overall_score > 0 ? "var(--color-success)" : delta.overall_score < 0 ? "var(--color-error)" : "var(--text-primary)" }}>
-              {delta.overall_score > 0 ? "+" : ""}{delta.overall_score}
-            </p>
-          </div>
-          <div style={{ ...sectionCard, textAlign: "center" }}>
-            <p className="text-xs mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{labelB}</p>
-            <p className="text-3xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
-              {audit_b.overall_score}
-            </p>
-          </div>
-        </div>
+  // Radar chart data
+  const radarData = useMemo(() => {
+    const platforms = platformKeys;
+    const brandData: Record<string, Record<string, number>> = {};
+    const platformTotals: Record<string, number> = {};
 
-        {/* Radar chart + Pivot table side by side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Radar chart */}
-          <div style={sectionCard}>
-            <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-              平台维度雷达图
-            </h3>
-            <div style={{ height: 320 }}>
-              <CompareRadarChart
-                labelA={labelA}
-                dataA={audit_a.platforms}
-                labelB={labelB}
-                dataB={audit_b.platforms}
-              />
-            </div>
-          </div>
+    for (const r of results) {
+      platformTotals[r.platform] = (platformTotals[r.platform] || 0) + 1;
+      if (!r.brand_name || !r.mention_found) continue;
+      if (!brandData[r.brand_name]) brandData[r.brand_name] = {};
+      brandData[r.brand_name][r.platform] = (brandData[r.brand_name][r.platform] || 0) + 1;
+    }
 
-          {/* Pivot table */}
-          <div style={sectionCard}>
-            <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-              平台得分透视表
-            </h3>
-            <ComparePivotTable
-              labelA={labelA}
-              dataA={audit_a.platforms}
-              labelB={labelB}
-              dataB={audit_b.platforms}
-              delta={delta.platforms}
-            />
-          </div>
-        </div>
+    return platforms.map((p) => {
+      const entry: Record<string, string | number> = { platform: platformNames[p] || p };
+      for (const brand of brandColumns) {
+        const mentions = brandData[brand]?.[p] || 0;
+        const total = platformTotals[p] || 1;
+        entry[brand] = Math.round((mentions / total) * 100);
+      }
+      return entry;
+    });
+  }, [results, brandColumns]);
 
-        {/* Insights comparison */}
-        {(delta.new_insights.length > 0 || delta.removed_insights.length > 0) && (
-          <div style={sectionCard}>
-            <h3 className="text-base font-semibold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-              洞察变化
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div>
-                <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
-                  审计 A 洞察
-                </p>
-                <ul className="space-y-2">
-                  {audit_a.insights.map((ins) => renderInsight(ins, "neutral"))}
-                  {delta.removed_insights.map((ins) => renderInsight(ins, "removed"))}
-                </ul>
-              </div>
-              <div>
-                <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
-                  审计 B 洞察
-                </p>
-                <ul className="space-y-2">
-                  {audit_b.insights.map((ins) => renderInsight(ins, "neutral"))}
-                  {delta.new_insights.map((ins) => renderInsight(ins, "new"))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+  // Bar chart data
+  const barData = useMemo(() => {
+    const brandMentions: Record<string, number> = {};
+    const brandTotals: Record<string, number> = {};
+    for (const r of results) {
+      if (!r.brand_name) continue;
+      brandTotals[r.brand_name] = (brandTotals[r.brand_name] || 0) + 1;
+      if (r.mention_found) {
+        brandMentions[r.brand_name] = (brandMentions[r.brand_name] || 0) + 1;
+      }
+    }
+    return brandColumns
+      .map((brand) => ({
+        brand,
+        rate: brandTotals[brand] ? Math.round(((brandMentions[brand] || 0) / brandTotals[brand]) * 100) : 0,
+        isPrimary: brands.find((b) => b.name === brand && !b.is_competitor) != null,
+      }))
+      .sort((a, b) => b.rate - a.rate);
+  }, [results, brandColumns, brands]);
 
   // No project selected
   if (!loading && !currentProjectId) {
     const checklistItems: DiagnosticItem[] = [
-      { id: "project", label: "创建项目", status: projects.length === 0 ? "incomplete" : "complete", actionLabel: "创建", onAction: () => openWizard() },
-      { id: "product", label: "完善产品信息", status: currentProject?.productName ? "complete" : "incomplete" },
+      {
+        id: "project",
+        label: "创建项目",
+        status: projects.length === 0 ? "incomplete" : "complete",
+        actionLabel: "创建",
+        onAction: () => openWizard(),
+      },
+      {
+        id: "product",
+        label: "完善产品信息",
+        status: currentProject?.productName ? "complete" : "incomplete",
+      },
     ];
     return (
       <div className="space-y-6">
-        <PageHeader title="竞品对比" subtitle="对比不同审计的分析结果" />
+        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
         <DiagnosticChecklist items={checklistItems} title="准备工作" />
       </div>
     );
   }
 
-  if (!loading && completedAudits.length < 2) {
+  if (dataLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="竞品对比" subtitle="对比不同审计的分析结果" />
+        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+          <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+        </div>
+        <div className="h-48 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
         <div style={sectionCard}>
           <EmptyState
             icon={GitCompare}
-            title="至少需要 2 次审计才能对比"
-            description="完成更多审计后即可使用对比功能"
+            title="加载失败"
+            description={error}
+            actionLabel="重试"
+            onAction={loadData}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (results.length === 0) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
+        <div style={sectionCard}>
+          <EmptyState
+            icon={GitCompare}
+            title="暂无竞品对比数据"
+            description="完成首次审计后，此处将展示多维度竞品分析"
             actionLabel="前往审计列表"
             actionHref="/visibility"
           />
@@ -306,42 +325,256 @@ function CompareContent() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="竞品对比" subtitle="对比不同审计的分析结果" />
-
-      {/* Selectors */}
-      <div style={sectionCard}>
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
-              审计 A
-            </label>
-            {renderSelect(auditA, setAuditA, "选择审计...")}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
-              审计 B
-            </label>
-            {renderSelect(auditB, setAuditB, "选择审计...")}
-          </div>
+      <PageHeader
+        title="竞品对比"
+        subtitle="对比你与竞品在AI平台的可见性表现"
+        actions={
           <button
-            onClick={handleCompare}
-            disabled={!auditA || !auditB || comparing}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            onClick={loadData}
+            disabled={dataLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
             style={{
-              background: auditA && auditB && !comparing ? "var(--color-primary)" : "var(--bg-hover)",
-              color: auditA && auditB && !comparing ? "#0b0d14" : "var(--text-muted)",
-              border: "none",
-              cursor: auditA && auditB && !comparing ? "pointer" : "not-allowed",
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+              color: "var(--text-secondary)",
+              cursor: dataLoading ? "not-allowed" : "pointer",
               fontFamily: "var(--font-body)",
             }}
           >
-            {comparing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <GitCompare className="w-3.5 h-3.5" />}
-            对比
+            <RefreshCw size={14} className={dataLoading ? "animate-spin" : ""} />
+            刷新
           </button>
+        }
+      />
+
+      {/* Charts row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Radar chart */}
+        <div style={sectionCard}>
+          <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+            平台维度雷达图
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <RadarChart data={radarData}>
+              <PolarGrid stroke="var(--border)" />
+              <PolarAngleAxis dataKey="platform" tick={{ fill: "var(--text-secondary)", fontSize: 11 }} />
+              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+              <Tooltip contentStyle={tooltipStyles} />
+              <Legend wrapperStyle={legendStyles} />
+              {brandColumns.map((brand, i) => (
+                <Radar
+                  key={brand}
+                  name={brand}
+                  dataKey={brand}
+                  stroke={BRAND_COLORS[i % BRAND_COLORS.length]}
+                  fill={BRAND_COLORS[i % BRAND_COLORS.length]}
+                  fillOpacity={i === 0 ? 0.15 : 0.05}
+                  strokeWidth={2}
+                />
+              ))}
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Bar chart */}
+        <div style={sectionCard}>
+          <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+            品牌提及率排行
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={barData} layout="vertical" margin={{ left: 60, right: 16, top: 8, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+              <XAxis type="number" domain={[0, 100]} tick={{ fill: "var(--text-secondary)", fontSize: 11 }} />
+              <YAxis type="category" dataKey="brand" tick={{ fill: "var(--text-primary)", fontSize: 12 }} width={56} />
+              <Tooltip contentStyle={tooltipStyles} formatter={(value: unknown) => [`${value}%`, "提及率"]} />
+              <Bar dataKey="rate" radius={[0, 4, 4, 0]} barSize={18}>
+                {barData.map((entry, i) => (
+                  <Cell
+                    key={i}
+                    fill={entry.isPrimary ? "#00d4aa" : "#4cc9f0"}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
-      {renderResults()}
+      {/* Detail pivot table */}
+      <div style={sectionCard}>
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+            详细对比 <span className="font-normal text-xs" style={{ color: "var(--text-muted)" }}>{groupedResults.length} 组查询</span>
+          </h3>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex gap-1 flex-wrap">
+              <button
+                className="px-3 py-1 rounded-full text-xs font-medium transition-colors"
+                onClick={() => setFilterPlatform("all")}
+                style={{
+                  background: filterPlatform === "all" ? "var(--color-primary-dim)" : "transparent",
+                  border: filterPlatform === "all" ? "1px solid var(--color-primary)" : "1px solid var(--border)",
+                  color: filterPlatform === "all" ? "var(--color-primary)" : "var(--text-secondary)",
+                  cursor: "pointer",
+                }}
+              >
+                全部
+              </button>
+              {platformKeys.map((p) => (
+                <button
+                  key={p}
+                  className="px-3 py-1 rounded-full text-xs font-medium transition-colors"
+                  onClick={() => setFilterPlatform(p)}
+                  style={{
+                    background: filterPlatform === p ? "var(--color-primary-dim)" : "transparent",
+                    border: filterPlatform === p ? "1px solid var(--color-primary)" : "1px solid var(--border)",
+                    color: filterPlatform === p ? "var(--color-primary)" : "var(--text-secondary)",
+                    cursor: "pointer",
+                  }}
+                >
+                  {platformNames[p]}
+                </button>
+              ))}
+            </div>
+            <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none" style={{ color: "var(--text-secondary)" }}>
+              <input
+                type="checkbox"
+                checked={filterMentionOnly}
+                onChange={(e) => setFilterMentionOnly(e.target.checked)}
+                className="accent-[var(--color-primary)]"
+              />
+              <span>仅看提及</span>
+              <span
+                className="px-1.5 rounded-full text-[10px] font-semibold"
+                style={{ background: "var(--color-primary-dim)", color: "var(--color-primary)" }}
+              >
+                {mentionCount}
+              </span>
+            </label>
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div
+          className="flex gap-4 flex-wrap mb-3 px-3 py-2 rounded-md text-xs"
+          style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}
+        >
+          <span><span style={{ color: "var(--color-success)" }}>✓</span> 被提及</span>
+          <span>#N 推荐排名</span>
+          <span>N% 情感置信度</span>
+          <span style={{ color: "var(--text-muted)" }}>— 未提及</span>
+        </div>
+
+        {/* Table */}
+        <div
+          className="overflow-auto rounded-md"
+          style={{ maxHeight: 520, border: "1px solid var(--border)" }}
+        >
+          <table className="w-full border-collapse" style={{ fontSize: 12 }}>
+            <thead>
+              <tr style={{ position: "sticky", top: 0, zIndex: 1, background: "var(--bg-card)" }}>
+                <th
+                  className="text-left px-3 py-2.5 font-medium text-[10px] uppercase tracking-wider"
+                  style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)", width: 100 }}
+                >
+                  平台
+                </th>
+                <th
+                  className="text-left px-3 py-2.5 font-medium text-[10px] uppercase tracking-wider"
+                  style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)", minWidth: 180 }}
+                >
+                  Prompt
+                </th>
+                {brandColumns.map((brand) => {
+                  const isPrimary = brands.find((b) => b.name === brand && !b.is_competitor);
+                  return (
+                    <th
+                      key={brand}
+                      className="text-center px-3 py-2.5 font-medium text-[10px] uppercase tracking-wider"
+                      style={{
+                        color: isPrimary ? "var(--color-primary)" : "var(--text-muted)",
+                        borderBottom: "1px solid var(--border)",
+                        minWidth: 90,
+                        background: isPrimary ? "var(--color-primary-dim)" : undefined,
+                      }}
+                    >
+                      {brand}
+                      {isPrimary && (
+                        <span className="font-normal text-[9px]" style={{ color: "var(--color-primary)" }}>（你）</span>
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {groupedResults.map((row, idx) => (
+                <tr key={idx} className="hover:bg-[var(--bg-hover)] transition-colors">
+                  <td className="px-3 py-2" style={{ borderBottom: "1px solid var(--border)" }}>
+                    {platformNames[row.platform] || row.platform}
+                  </td>
+                  <td
+                    className="px-3 py-2 max-w-[260px] truncate"
+                    style={{ borderBottom: "1px solid var(--border)", color: "var(--text-secondary)" }}
+                    title={row.promptText}
+                  >
+                    {row.promptText || "—"}
+                  </td>
+                  {brandColumns.map((brand) => {
+                    const result = row.brandResults[brand];
+                    const isPrimary = brands.find((b) => b.name === brand && !b.is_competitor);
+                    const cellBg = result?.mention_found
+                      ? "rgba(0, 212, 170, 0.04)"
+                      : result && !result.mention_found && Object.values(row.brandResults).some((r) => r?.mention_found)
+                        ? "rgba(239, 68, 68, 0.03)"
+                        : undefined;
+
+                    return (
+                      <td
+                        key={brand}
+                        className="text-center px-3 py-2 whitespace-nowrap"
+                        style={{
+                          borderBottom: "1px solid var(--border)",
+                          background: isPrimary ? "var(--color-primary-dim)" : cellBg,
+                        }}
+                      >
+                        {result?.mention_found ? (
+                          <>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: "rgba(0,212,170,0.12)", color: "var(--color-success)" }}>✓</span>
+                            {result.recommendation_rank && (
+                              <span className="text-[10px] font-semibold ml-1" style={{ color: "#4cc9f0" }}>
+                                #{result.recommendation_rank}
+                              </span>
+                            )}
+                            {result.mention_confidence != null && (
+                              <span className="text-[10px] ml-1" style={{ color: "var(--text-secondary)" }}>
+                                {(result.mention_confidence * 100).toFixed(0)}%
+                              </span>
+                            )}
+                          </>
+                        ) : result ? (
+                          <span style={{ color: "var(--text-muted)" }}>—</span>
+                        ) : null}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              {groupedResults.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={2 + brandColumns.length}
+                    className="text-center py-8"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    无匹配结果，试试调整筛选条件
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
