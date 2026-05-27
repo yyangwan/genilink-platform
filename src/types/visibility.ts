@@ -184,6 +184,41 @@ export interface TrendAnnotation {
   created_at: string;
 }
 
+// ── Multi-Audit Comparison ──
+export interface AuditHistoryItem {
+  id: number;
+  status: 'completed' | 'partial' | 'failed';
+  platforms: string[];
+  created_at: string;
+  completed_at: string | null;
+  error_message?: string;
+}
+
+export interface AuditComparisonSnapshot {
+  audit_id: number;
+  date: string;
+  overall_score: number;
+  mention_rate: number;
+  sentiment_breakdown: Record<string, number>;
+  top_sources: { domain: string; count: number }[];
+  competitor_mention_rates: { brand: string; mention_rate: number }[];
+  structure_distribution: Record<string, number>;
+  topic_distribution: Record<string, number>;
+}
+
+export interface MultiAuditComparison {
+  audits: AuditComparisonSnapshot[];
+  diffs: {
+    mention_rate_delta: number;
+    score_delta: number;
+    source_changes: {
+      added: string[];
+      removed: string[];
+    };
+    competitor_changes: { brand: string; delta: number }[];
+  };
+}
+
 // ── Comparison ──
 export interface AuditComparison {
   audit_a: {

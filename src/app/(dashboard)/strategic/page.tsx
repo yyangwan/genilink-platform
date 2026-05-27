@@ -5,10 +5,13 @@ import {
   Target,
   Globe,
   BarChart3,
+  GitCompare,
   ArrowUpRight,
   ArrowDownRight,
   Minus,
   Loader2,
+  Check,
+  X,
 } from "lucide-react";
 import { useProject } from "@/components/project/project-context";
 import { PageHeader } from "@/components/ui/page-header";
@@ -19,7 +22,7 @@ import SourceAuthorityTrends from "@/components/charts/SourceAuthorityTrends";
 import CompetitorPositioningMap from "@/components/charts/CompetitorPositioningMap";
 import StructureEvolution from "@/components/charts/StructureEvolution";
 
-import type { StrategicData } from "@/types/visibility";
+import type { StrategicData, AuditHistoryItem, MultiAuditComparison } from "@/types/visibility";
 
 const cardStyle: React.CSSProperties = {
   background: "var(--bg-card)",
@@ -43,6 +46,7 @@ const TABS = [
   { key: "source-authority", label: "来源权威趋势", icon: Globe },
   { key: "competitor-positioning", label: "竞品定位地图", icon: Target },
   { key: "structure-evolution", label: "回答结构演变", icon: BarChart3 },
+  { key: "multi-audit-compare", label: "多审计对比", icon: GitCompare },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -334,6 +338,325 @@ function StructureEvolutionTab({ projectId }: { projectId: string }) {
   );
 }
 
+/** Tab 4: Multi-Audit Compare */
+function MultiAuditCompareTab({ projectId }: { projectId: string }) {
+  const [audits, setAudits] = useState<AuditHistoryItem[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [historyError, setHistoryError] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [comparing, setComparing] = useState(false);
+  const [compareError, setCompareError] = useState(false);
+  const [result, setResult] = useState<MultiAuditComparison | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Fetch audits history on mount
+  useEffect(() => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setLoadingHistory(true);
+    setHistoryError(false);
+    setLocked(false);
+
+    fetch(`/api/integration/trends/audits-history?projectId=${projectId}`, { signal: controller.signal })
+      .then((res) => {
+        if (res.status === 403) { setLocked(true); setLoadingHistory(false); return null; }
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
+      .then((d) => { if (d) setAudits(Array.isArray(d) ? d : []); })
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        setHistoryError(true);
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoadingHistory(false); });
+
+    return () => { controller.abort(); };
+  }, [projectId]);
+
+  // Reset comparison when selection changes
+  useEffect(() => { setResult(null); setCompareError(false); }, [selectedIds]);
+
+  const toggleAudit = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else if (next.size < 5) next.add(id);
+      return next;
+    });
+  };
+
+  const runCompare = async () => {
+    if (selectedIds.size < 2) return;
+    setComparing(true);
+    setCompareError(false);
+    setResult(null);
+
+    try {
+      const res = await fetch(`/api/integration/strategic/compare-audits?projectId=${projectId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audit_ids: [...selectedIds] }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setResult(data);
+    } catch {
+      setCompareError(true);
+    } finally {
+      setComparing(false);
+    }
+  };
+
+  if (loadingHistory) return <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />;
+  if (locked) return <div style={cardStyle}><EmptyState icon={GitCompare} title="需要升级" description="战略智能功能需要订阅智见专业版" /></div>;
+  if (historyError) return <div style={cardStyle}><ErrorState onRetry={() => window.location.reload()} /></div>;
+
+  const completedAudits = audits.filter((a) => a.status === "completed" || a.status === "partial");
+
+  if (completedAudits.length < 2) {
+    return <div style={cardStyle}><EmptyState icon={GitCompare} title="审计数量不足" description="需要至少 2 次已完成的审计才能进行对比" /></div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Audit selection */}
+      <div style={cardStyle}>
+        <div style={sectionTitle}>
+          <GitCompare style={{ width: 16, height: 16, color: "var(--color-primary)" }} />
+          选择审计 (2-5)
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {completedAudits.map((audit) => {
+            const selected = selectedIds.has(audit.id);
+            const disabled = !selected && selectedIds.size >= 5;
+            return (
+              <label
+                key={audit.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  background: selected ? "var(--color-primary)10" : "var(--bg-hover)",
+                  cursor: disabled ? "not-allowed" : "pointer",
+                  opacity: disabled ? 0.5 : 1,
+                  fontFamily: "var(--font-body)",
+                  fontSize: 13,
+                  transition: "all 0.15s",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  disabled={disabled}
+                  onChange={() => toggleAudit(audit.id)}
+                  style={{ accentColor: "var(--color-primary)" }}
+                />
+                <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>#{audit.id}</span>
+                <span style={{ color: "var(--text-muted)" }}>{new Date(audit.created_at).toLocaleDateString("zh-CN")}</span>
+                {audit.platforms?.length > 0 && (
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>({audit.platforms.join(", ")})</span>
+                )}
+              </label>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={runCompare}
+            disabled={selectedIds.size < 2 || comparing}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 20px",
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 600,
+              fontFamily: "var(--font-body)",
+              border: "none",
+              cursor: selectedIds.size < 2 || comparing ? "not-allowed" : "pointer",
+              background: selectedIds.size < 2 || comparing ? "var(--bg-hover)" : "var(--color-primary)",
+              color: selectedIds.size < 2 || comparing ? "var(--text-muted)" : "#fff",
+              opacity: comparing ? 0.7 : 1,
+              transition: "all 0.15s",
+            }}
+          >
+            {comparing && <Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} />}
+            {comparing ? "对比中..." : "开始对比"}
+          </button>
+          <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+            已选 {selectedIds.size}/5
+          </span>
+        </div>
+      </div>
+
+      {/* Compare error */}
+      {compareError && <div style={cardStyle}><ErrorState onRetry={runCompare} /></div>}
+
+      {/* Comparison results */}
+      {result && (
+        <>
+          {/* Diff summary cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+            {[
+              {
+                label: "评分变化",
+                value: result.diffs.score_delta,
+                fmt: (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(1)}`,
+              },
+              {
+                label: "提及率变化",
+                value: result.diffs.mention_rate_delta,
+                fmt: (v: number) => `${v > 0 ? "+" : ""}${(v * 100).toFixed(1)}%`,
+              },
+              {
+                label: "新增来源",
+                value: result.diffs.source_changes.added.length,
+                fmt: (v: number) => `+${v}`,
+              },
+              {
+                label: "减少来源",
+                value: result.diffs.source_changes.removed.length,
+                fmt: (v: number) => `-${v}`,
+              },
+            ].map((card, i) => (
+              <div key={i} style={{ ...cardStyle, padding: "16px 20px" }}>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-body)", marginBottom: 4 }}>{card.label}</div>
+                <div style={{
+                  fontSize: 24,
+                  fontWeight: 700,
+                  fontFamily: "var(--font-mono)",
+                  color: i === 3 ? "var(--color-error)" : card.value > 0 ? "var(--color-success)" : card.value < 0 ? "var(--color-error)" : "var(--text-primary)",
+                }}>
+                  {card.fmt(card.value)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Audit snapshots */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 12 }}>
+            {result.audits.map((snap) => (
+              <div key={snap.audit_id} style={cardStyle}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+                    审计 #{snap.audit_id}
+                  </span>
+                  <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{snap.date}</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>评分</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}>{snap.overall_score}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>提及率</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}>{(snap.mention_rate * 100).toFixed(1)}%</div>
+                  </div>
+                </div>
+                {/* Sentiment breakdown */}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+                  {Object.entries(snap.sentiment_breakdown).map(([key, val]) => (
+                    <span key={key} style={{
+                      fontSize: 11,
+                      padding: "2px 8px",
+                      borderRadius: 4,
+                      fontFamily: "var(--font-body)",
+                      background: key === "positive" ? "var(--color-success)15" : key === "negative" ? "var(--color-error)15" : "var(--bg-hover)",
+                      color: key === "positive" ? "var(--color-success)" : key === "negative" ? "var(--color-error)" : "var(--text-muted)",
+                    }}>
+                      {key === "positive" ? "正面" : key === "negative" ? "负面" : "中性"} {val}
+                    </span>
+                  ))}
+                </div>
+                {/* Top sources */}
+                {snap.top_sources.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-body)", marginBottom: 4 }}>Top 来源</div>
+                    {snap.top_sources.slice(0, 5).map((s, j) => (
+                      <div key={j} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "2px 0", fontFamily: "var(--font-body)", color: "var(--text-secondary)" }}>
+                        <span>{s.domain}</span>
+                        <span style={{ fontFamily: "var(--font-mono)" }}>{s.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Source changes */}
+          {(result.diffs.source_changes.added.length > 0 || result.diffs.source_changes.removed.length > 0) && (
+            <div style={cardStyle}>
+              <div style={sectionTitle}>
+                <BarChart3 style={{ width: 16, height: 16, color: "var(--color-primary)" }} />
+                来源变化
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: "var(--color-success)", fontWeight: 600, fontFamily: "var(--font-body)", marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                    <Check style={{ width: 14, height: 14 }} /> 新增
+                  </div>
+                  {result.diffs.source_changes.added.map((d, i) => (
+                    <span key={i} style={{ display: "inline-block", fontSize: 12, padding: "3px 10px", borderRadius: 4, margin: "0 4px 4px 0", background: "var(--color-success)10", color: "var(--color-success)", fontFamily: "var(--font-body)" }}>{d}</span>
+                  ))}
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: "var(--color-error)", fontWeight: 600, fontFamily: "var(--font-body)", marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                    <X style={{ width: 14, height: 14 }} /> 减少
+                  </div>
+                  {result.diffs.source_changes.removed.map((d, i) => (
+                    <span key={i} style={{ display: "inline-block", fontSize: 12, padding: "3px 10px", borderRadius: 4, margin: "0 4px 4px 0", background: "var(--color-error)10", color: "var(--color-error)", fontFamily: "var(--font-body)" }}>{d}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Competitor changes */}
+          {result.diffs.competitor_changes.length > 0 && (
+            <div style={cardStyle}>
+              <div style={sectionTitle}>
+                <Target style={{ width: 16, height: 16, color: "var(--color-primary)" }} />
+                竞品提及率变化
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid var(--border)" }}>
+                      <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>品牌</th>
+                      <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>变化</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...result.diffs.competitor_changes]
+                      .sort((a, b) => b.delta - a.delta)
+                      .map((ch, i) => (
+                        <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                          <td style={{ padding: "8px 12px", fontSize: 13, color: "var(--text-primary)" }}>{ch.brand}</td>
+                          <td style={{ padding: "8px 12px", fontSize: 13, textAlign: "right" }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: ch.delta > 0 ? "var(--color-success)" : ch.delta < 0 ? "var(--color-error)" : "var(--text-muted)" }}>
+                              {ch.delta > 0 ? <ArrowUpRight style={{ width: 14, height: 14 }} /> : ch.delta < 0 ? <ArrowDownRight style={{ width: 14, height: 14 }} /> : <Minus style={{ width: 14, height: 14 }} />}
+                              {ch.delta > 0 ? "+" : ""}{(ch.delta * 100).toFixed(1)}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function StrategicContent() {
   const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
   const [activeTab, setActiveTab] = useState<TabKey>("source-authority");
@@ -395,6 +718,9 @@ function StrategicContent() {
       )}
       {currentProjectId && activeTab === "structure-evolution" && (
         <StructureEvolutionTab projectId={currentProjectId} />
+      )}
+      {currentProjectId && activeTab === "multi-audit-compare" && (
+        <MultiAuditCompareTab projectId={currentProjectId} />
       )}
     </div>
   );
