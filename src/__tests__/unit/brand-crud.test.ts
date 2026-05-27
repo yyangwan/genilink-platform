@@ -9,6 +9,9 @@ vi.mock('@/lib/db', () => ({
       create: vi.fn(),
       update: vi.fn(),
     },
+    projectBrand: {
+      count: vi.fn().mockResolvedValue(0),
+    },
     project: {
       findMany: vi.fn().mockResolvedValue([]),
     },
@@ -111,6 +114,8 @@ describe('Brand CRUD API', () => {
         ...mockBrand,
         remoteIds: { 'ext-proj-1': 'remote-brand-1' },
       });
+      // Simulate brand has project associations so sync is triggered
+      (prisma.projectBrand.count as any).mockResolvedValueOnce(1);
 
       const res = await POST(
         makeRequest({ name: 'Acme', aliases: ['ACME Corp'], isCompetitor: false }, 'POST')
@@ -131,6 +136,8 @@ describe('Brand CRUD API', () => {
 
     it('returns 207 when sync partially fails', async () => {
       (prisma.brand.create as any).mockResolvedValue(mockBrand);
+      // Brand has associations so sync path is taken
+      (prisma.projectBrand.count as any).mockResolvedValueOnce(1);
 
       const { syncBrandToVisibility } = await import('@/lib/proxy/zhijian-client');
       (syncBrandToVisibility as any).mockResolvedValueOnce({

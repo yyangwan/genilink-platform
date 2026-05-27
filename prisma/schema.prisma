@@ -114,6 +114,7 @@ model Project {
   updatedAt   DateTime  @updatedAt
 
   externalMappings ExternalResourceMapping[]
+  projectBrands    ProjectBrand[]
 
   @@unique([workspaceId, name])
 }
@@ -149,6 +150,20 @@ model Brand {
 
   // Note: partial unique index (active names only) is created via raw SQL migration:
   // CREATE UNIQUE INDEX brand_active_name_uniq ON "Brand" ("workspaceId", name) WHERE "deletedAt" IS NULL
+
+  projectBrands ProjectBrand[]
+}
+
+model ProjectBrand {
+  id        String   @id @default(cuid()) @db.Text
+  projectId String   @db.Text
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  brandId   String   @db.Text
+  brand     Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, brandId])
+  @@index([brandId])
 }
 
 // ─── Billing ────────────────────────────────────────────────────────

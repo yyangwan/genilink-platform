@@ -3,6 +3,12 @@ import { withBrandRoute } from '@/lib/auth/brand-route';
 import { prisma } from '@/lib/db';
 import { syncBrandToVisibility } from '@/lib/proxy/zhijian-client';
 
+type BrandSyncResult = {
+  synced: 'full' | 'partial' | 'failed' | 'skipped';
+  remoteIds: Record<string, string>;
+  errors: string[];
+};
+
 export const GET = withBrandRoute(async (_req, { workspaceId }) => {
   const brands = await prisma.brand.findMany({
     where: { workspaceId, deletedAt: null },
@@ -42,8 +48,19 @@ export const POST = withBrandRoute(async (req, { workspaceId }) => {
     throw err;
   }
 
-  // Await sync to 智見 (prevents race with visibility preflight)
-  const syncResult = await syncBrandToVisibility(brand, null);
+  // Sync to 智見 only if brand has project associations
+  // (brands created without association are "orphans" — synced when associated later)
+  const associationCount = await prisma.projectBrand.count({
+    where: { brandId: brand.id },
+  });
+
+  let syncResult: BrandSyncResult;
+  if (associationCount === 0) {
+    syncResult = { synced: 'skipped', remoteIds: {}, errors: [] };
+  } else {
+    const result = await syncBrandToVisibility(brand, null);
+    syncResult = result;
+  }
 
   // Store remote IDs from sync
   if (Object.keys(syncResult.remoteIds).length > 0) {

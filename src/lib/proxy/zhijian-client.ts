@@ -135,7 +135,7 @@ interface BrandSyncResult {
 
 /**
  * Sync brand to 智見 (visibility service). Awaited by the route handler.
- * For each project in the workspace, creates/updates the brand in 智見.
+ * Only syncs to projects that have an active ProjectBrand association.
  * Returns remote IDs for storage in Brand.remoteIds.
  */
 export async function syncBrandToVisibility(
@@ -150,13 +150,16 @@ export async function syncBrandToVisibility(
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
 
-  // Get all projects in the workspace to project brands into each
-  const projects = await prisma.project.findMany({
-    where: { workspaceId: brand.workspaceId },
-    include: { externalMappings: { where: { service: 'visibility' } } },
+  // Get only associated projects via ProjectBrand (not all workspace projects)
+  const associations = await prisma.projectBrand.findMany({
+    where: { brandId: brand.id },
+    include: {
+      project: { include: { externalMappings: { where: { service: 'visibility' } } } },
+    },
   });
 
-  for (const project of projects) {
+  for (const assoc of associations) {
+    const project = assoc.project;
     const mapping = project.externalMappings[0];
     if (!mapping) continue; // project not linked to visibility yet
 
@@ -170,7 +173,6 @@ export async function syncBrandToVisibility(
     try {
       const remoteBrandId = remoteIds[visibilityProjectId];
       if (remoteBrandId) {
-        // Update existing remote brand
         const res = await fetchWithRetry(
           `${baseUrl}/api/projects/${visibilityProjectId}/brands/${remoteBrandId}`,
           { method: 'PATCH', headers, body: JSON.stringify(payload) },
@@ -179,7 +181,6 @@ export async function syncBrandToVisibility(
           errors.push(`visibility project ${visibilityProjectId}: PATCH ${res.status}`);
         }
       } else {
-        // Create remote brand
         const res = await fetchWithRetry(
           `${baseUrl}/api/projects/${visibilityProjectId}/brands`,
           { method: 'POST', headers, body: JSON.stringify(payload) },
@@ -201,6 +202,100 @@ export async function syncBrandToVisibility(
     remoteIds,
     errors,
   };
+}
+
+/**
+ * Sync a single brand to a single 智見 project (on association create).
+ * Returns the remote brand ID for storage in Brand.remoteIds.
+ */
+export async function syncBrandToProject(
+  brand: { id: string; name: string; aliases: string[]; isCompetitor: boolean },
+  projectId: string,
+  existingRemoteIds: Record<string, string> | null,
+): Promise<{ remoteId: string; remoteIds: Record<string, string> } | { error: string }> {
+  const serviceToken = process.env.SERVICE_TOKEN;
+  const baseUrl = SERVICE_URLS['visibility'];
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
+
+  // Get the project's visibility external ID
+  const mapping = await prisma.externalResourceMapping.findUnique({
+    where: { projectId_service: { projectId, service: 'visibility' } },
+  });
+  if (!mapping) {
+    return { error: `Project ${projectId} not linked to visibility service` };
+  }
+
+  const visibilityProjectId = mapping.externalId;
+  const remoteIds: Record<string, string> = { ...(existingRemoteIds ?? {}) };
+  const payload = {
+    name: brand.name,
+    aliases: brand.aliases,
+    is_competitor: brand.isCompetitor,
+  };
+
+  try {
+    const res = await fetchWithRetry(
+      `${baseUrl}/api/projects/${visibilityProjectId}/brands`,
+      { method: 'POST', headers, body: JSON.stringify(payload) },
+    );
+    if (!res.ok) {
+      return { error: `visibility project ${visibilityProjectId}: POST ${res.status}` };
+    }
+    const data = await res.json();
+    const remoteId = String(data.id);
+    remoteIds[visibilityProjectId] = remoteId;
+    return { remoteId, remoteIds };
+  } catch (err) {
+    return { error: `visibility project ${visibilityProjectId}: ${(err as Error).message}` };
+  }
+}
+
+/**
+ * Remove a brand from a single 智見 project (on disassociation).
+ * Looks up the remote brand ID via Brand.remoteIds keyed by external ID.
+ */
+export async function syncBrandDisassociate(
+  brand: { id: string },
+  projectId: string,
+  existingRemoteIds: Record<string, string> | null,
+): Promise<{ remoteIds: Record<string, string> } | { error: string }> {
+  if (!existingRemoteIds) {
+    return { remoteIds: {} };
+  }
+
+  const serviceToken = process.env.SERVICE_TOKEN;
+  const baseUrl = SERVICE_URLS['visibility'];
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
+
+  // Get the project's visibility external ID
+  const mapping = await prisma.externalResourceMapping.findUnique({
+    where: { projectId_service: { projectId, service: 'visibility' } },
+  });
+  if (!mapping) {
+    return { remoteIds: existingRemoteIds };
+  }
+
+  const visibilityProjectId = mapping.externalId;
+  const remoteBrandId = existingRemoteIds[visibilityProjectId];
+  if (!remoteBrandId) {
+    return { remoteIds: existingRemoteIds };
+  }
+
+  try {
+    await fetchWithRetry(
+      `${baseUrl}/api/projects/${visibilityProjectId}/brands/${remoteBrandId}`,
+      { method: 'DELETE', headers },
+    );
+  } catch (err) {
+    console.warn(`[brand-sync] Disassociate DELETE failed for brand ${brand.id} in visibility project ${visibilityProjectId}:`, (err as Error).message);
+  }
+
+  // Remove the remote ID for this project
+  const remoteIds = { ...existingRemoteIds };
+  delete remoteIds[visibilityProjectId];
+  return { remoteIds };
 }
 
 /**

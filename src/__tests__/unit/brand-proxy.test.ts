@@ -9,7 +9,7 @@ import { prisma } from '@/lib/db';
  */
 vi.mock('@/lib/db', () => ({
   prisma: {
-    project: {
+    projectBrand: {
       findMany: vi.fn(),
     },
   },
@@ -27,7 +27,9 @@ const projectWithMapping = {
 describe('Brand Proxy Field Transform', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (prisma.project.findMany as any).mockResolvedValue([projectWithMapping]);
+    (prisma.projectBrand.findMany as any).mockResolvedValue([
+      { project: projectWithMapping },
+    ]);
     mockFetch.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ id: 42 }),

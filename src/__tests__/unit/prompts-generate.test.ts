@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { POST } from '@/app/api/integration/prompts/generate/route';
 import { auth } from '@/lib/auth/config';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
@@ -130,7 +130,7 @@ describe('POST /api/integration/prompts/generate', () => {
   // --- Billing guard ---
 
   it('should return 403 with NO_SUBSCRIPTION on BillingError', async () => {
-    const billingErr = new BillingError('No active subscription for module: visibility', 'visibility');
+    const billingErr = new BillingError('visibility');
     (requireBilling as ReturnType<typeof vi.fn>).mockRejectedValue(billingErr);
 
     const res = await POST(mockRequest({ projectId: 'p1' }) as any);

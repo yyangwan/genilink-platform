@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db';
 
 vi.mock('@/lib/db', () => ({
   prisma: {
-    project: {
+    projectBrand: {
       findMany: vi.fn(),
     },
     brand: {
@@ -37,7 +37,9 @@ describe('Brand Sync', () => {
 
   describe('syncBrandToVisibility', () => {
     it('creates remote brand in each project and returns remote IDs', async () => {
-      (prisma.project.findMany as any).mockResolvedValue([projectWithMapping]);
+      (prisma.projectBrand.findMany as any).mockResolvedValue([
+        { project: projectWithMapping },
+      ]);
       mockFetch.mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({ id: 42 }),
@@ -57,7 +59,9 @@ describe('Brand Sync', () => {
     });
 
     it('updates existing remote brand when remoteId exists', async () => {
-      (prisma.project.findMany as any).mockResolvedValue([projectWithMapping]);
+      (prisma.projectBrand.findMany as any).mockResolvedValue([
+        { project: projectWithMapping },
+      ]);
       mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
 
       const existingRemoteIds = { 'ext-10': '42' };
@@ -71,8 +75,8 @@ describe('Brand Sync', () => {
     });
 
     it('skips projects without visibility mapping', async () => {
-      (prisma.project.findMany as any).mockResolvedValue([
-        { id: 'proj-2', workspaceId: 'ws-1', externalMappings: [] },
+      (prisma.projectBrand.findMany as any).mockResolvedValue([
+        { project: { id: 'proj-2', workspaceId: 'ws-1', externalMappings: [] } },
       ]);
 
       const result = await syncBrandToVisibility(brand, null);
@@ -87,7 +91,10 @@ describe('Brand Sync', () => {
         workspaceId: 'ws-1',
         externalMappings: [{ service: 'visibility', externalId: 'ext-20' }],
       };
-      (prisma.project.findMany as any).mockResolvedValue([projectWithMapping, project2]);
+      (prisma.projectBrand.findMany as any).mockResolvedValue([
+        { project: projectWithMapping },
+        { project: project2 },
+      ]);
 
       let callCount = 0;
       mockFetch.mockImplementation(() => {
@@ -104,7 +111,9 @@ describe('Brand Sync', () => {
     });
 
     it('retries on network failure then gives up', async () => {
-      (prisma.project.findMany as any).mockResolvedValue([projectWithMapping]);
+      (prisma.projectBrand.findMany as any).mockResolvedValue([
+        { project: projectWithMapping },
+      ]);
 
       mockFetch.mockRejectedValueOnce(new Error('Network error'));
       mockFetch.mockRejectedValueOnce(new Error('Network error'));

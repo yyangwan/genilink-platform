@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
 import { nanoid } from 'nanoid';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
+import { syncBrandToProject } from '@/lib/proxy/zhijian-client';
 
 // GET /api/projects — list projects for current workspace
 export async function GET() {
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { name, url, industry, productName, productKeywords, productDescription, productUrl } = body;
+  const { name, url, industry, productName, productKeywords, productDescription, productUrl, brandName } = body;
 
   if (!name) {
     return NextResponse.json(
@@ -113,6 +114,41 @@ export async function POST(req: NextRequest) {
 
     return proj;
   });
+
+  // Auto-create own brand if brandName provided (outside transaction — HTTP sync is non-deterministic)
+  if (brandName?.trim()) {
+    try {
+      const brand = await prisma.brand.create({
+        data: {
+          name: brandName.trim(),
+          isCompetitor: false,
+          workspaceId,
+        },
+      });
+
+      await prisma.projectBrand.create({
+        data: { projectId: project.id, brandId: brand.id },
+      });
+
+      // Sync to 智見 (fire-and-forget failure is acceptable)
+      const syncResult = await syncBrandToProject(brand, project.id, null);
+      if ('remoteIds' in syncResult && Object.keys(syncResult.remoteIds).length > 0) {
+        await prisma.brand.update({
+          where: { id: brand.id },
+          data: { remoteIds: syncResult.remoteIds },
+        });
+      } else if ('error' in syncResult) {
+        console.warn(`[project-create] Brand sync failed: ${syncResult.error}`);
+      }
+    } catch (err: unknown) {
+      // Brand creation failure is non-blocking — project is already created
+      if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'P2002') {
+        console.warn(`[project-create] Brand name "${brandName.trim()}" already exists in workspace`);
+      } else {
+        console.warn('[project-create] Brand auto-create failed:', (err as Error).message);
+      }
+    }
+  }
 
   return NextResponse.json({ project }, { status: 201 });
 }

@@ -23,6 +23,9 @@ vi.mock('@/lib/db', () => ({
       findMany: vi.fn(),
       update: vi.fn(),
     },
+    projectBrand: {
+      count: vi.fn().mockResolvedValue(0),
+    },
     project: {
       findMany: vi.fn().mockResolvedValue([]),
     },
@@ -101,7 +104,8 @@ describe('Brand Soft Delete Edge Cases', () => {
 
     const res = await POST(makeRequest({ name: 'Acme' }));
 
-    expect(res.status).toBe(201);
+    // 207 = sync skipped (no project associations)
+    expect(res.status).toBe(207);
     const data = await res.json();
     expect(data.name).toBe('Acme');
   });
@@ -117,7 +121,7 @@ describe('Brand Soft Delete Edge Cases', () => {
     };
     (prisma.brand.findMany as any).mockResolvedValue([activeBrand]);
 
-    const res = await GET(makeRequest());
+    const res = await GET(makeRequest({}));
     const data = await res.json();
 
     expect(res.status).toBe(200);
@@ -150,7 +154,7 @@ describe('Brand Soft Delete Edge Cases', () => {
     // GET should not return deleted brands
     (prisma.brand.findMany as any).mockResolvedValue([]);
 
-    const res = await GET(makeRequest());
+    const res = await GET(makeRequest({}));
     const data = await res.json();
 
     expect(data).toHaveLength(0);
@@ -173,6 +177,7 @@ describe('Brand Soft Delete Edge Cases', () => {
 
     const res = await POST(makeRequest({ name: 'Acme' }));
 
-    expect(res.status).toBe(201);
+    // 207 = sync skipped (no project associations)
+    expect(res.status).toBe(207);
   });
 });
