@@ -33,13 +33,7 @@ import type {
   ContentIntelligence,
   StrategicData,
 } from "@/types/visibility";
-
-const sectionCard: React.CSSProperties = {
-  background: "var(--bg-card)",
-  border: "1px solid var(--border)",
-  borderRadius: "12px",
-  padding: "24px",
-};
+import { sectionCard } from "@/components/charts/shared";
 
 function scoreColor(score: number): string {
   if (score >= 70) return "var(--color-success)";

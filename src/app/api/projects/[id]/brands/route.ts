@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
 import { syncBrandToProject, syncBrandDisassociate } from '@/lib/proxy/zhijian-client';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
+import { isUniqueViolation } from '@/lib/prisma-helpers';
 
 // Verify user owns the project
 async function verifyProjectAccess(userId: string, projectId: string) {
@@ -80,7 +81,7 @@ export async function POST(
       data: { projectId, brandId },
     });
   } catch (err: unknown) {
-    if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'P2002') {
+    if (isUniqueViolation(err)) {
       return NextResponse.json({ error: '品牌已关联到此项目' }, { status: 409 });
     }
     throw err;

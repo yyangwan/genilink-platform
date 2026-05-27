@@ -13,13 +13,7 @@ import {
   type DiagnosticItem,
 } from "@/components/ui/diagnostic-checklist";
 import type { Schedule } from "@/types/visibility";
-
-const sectionCard: React.CSSProperties = {
-  background: "var(--bg-card)",
-  border: "1px solid var(--border)",
-  borderRadius: "12px",
-  padding: "24px",
-};
+import { sectionCard } from "@/components/charts/shared";
 
 interface SchedulesResponse {
   schedules: Schedule[];

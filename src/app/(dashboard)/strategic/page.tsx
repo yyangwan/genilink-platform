@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import {
   Target,
   Globe,
@@ -47,35 +47,54 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-/** Fetch hook for per-tab data */
+/** Fetch hook for per-tab data with AbortController + billing guard */
 function useStrategicData<T>(projectId: string | null, tabKey: TabKey) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const url = projectId ? `/api/integration/strategic/${tabKey}?projectId=${projectId}` : null;
 
   useEffect(() => {
     if (!url) { setData(null); return; }
-    let cancelled = false;
+
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setError(false);
-    fetch(url)
-      .then((res) => { if (!res.ok) throw new Error(); return res.json(); })
-      .then((d) => { if (!cancelled) setData(d); })
-      .catch(() => { if (!cancelled) setError(true); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    setLocked(false);
+
+    fetch(url, { signal: controller.signal })
+      .then((res) => {
+        if (res.status === 403) { setLocked(true); setLoading(false); return null; }
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
+      .then((d) => { if (d !== null) setData(d); })
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        setError(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => { controller.abort(); };
   }, [url, tabKey]);
 
-  return { data, loading, error };
+  return { data, loading, error, locked };
 }
 
 /** Tab 1: Source Authority Trends */
 function SourceAuthorityTab({ projectId }: { projectId: string }) {
-  const { data, loading, error } = useStrategicData<StrategicData["source_authority"]>(projectId, "source-authority");
+  const { data, loading, error, locked } = useStrategicData<StrategicData["source_authority"]>(projectId, "source-authority");
 
   if (loading) return <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />;
+  if (locked) return <div style={cardStyle}><EmptyState icon={Globe} title="需要升级" description="战略智能功能需要订阅智见专业版" /></div>;
   if (error) return <div style={cardStyle}><ErrorState onRetry={() => window.location.reload()} /></div>;
   if (!data || data.length === 0) {
     return <div style={cardStyle}><EmptyState icon={Globe} title="暂无来源权威数据" description="运行审计后可查看来源权威趋势" /></div>;
@@ -142,9 +161,10 @@ function SourceAuthorityTab({ projectId }: { projectId: string }) {
 
 /** Tab 2: Competitor Positioning Map */
 function CompetitorPositioningTab({ projectId }: { projectId: string }) {
-  const { data, loading, error } = useStrategicData<StrategicData["competitor_positioning"]>(projectId, "competitor-positioning");
+  const { data, loading, error, locked } = useStrategicData<StrategicData["competitor_positioning"]>(projectId, "competitor-positioning");
 
   if (loading) return <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />;
+  if (locked) return <div style={cardStyle}><EmptyState icon={Target} title="需要升级" description="战略智能功能需要订阅智见专业版" /></div>;
   if (error) return <div style={cardStyle}><ErrorState onRetry={() => window.location.reload()} /></div>;
   if (!data || data.length === 0) {
     return <div style={cardStyle}><EmptyState icon={Target} title="暂无竞品定位数据" description="运行审计后可查看竞品定位地图" /></div>;
@@ -210,9 +230,10 @@ function CompetitorPositioningTab({ projectId }: { projectId: string }) {
 
 /** Tab 3: Structure Evolution */
 function StructureEvolutionTab({ projectId }: { projectId: string }) {
-  const { data, loading, error } = useStrategicData<StrategicData["structure_evolution"]>(projectId, "structure-evolution");
+  const { data, loading, error, locked } = useStrategicData<StrategicData["structure_evolution"]>(projectId, "structure-evolution");
 
   if (loading) return <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />;
+  if (locked) return <div style={cardStyle}><EmptyState icon={BarChart3} title="需要升级" description="战略智能功能需要订阅智见专业版" /></div>;
   if (error) return <div style={cardStyle}><ErrorState onRetry={() => window.location.reload()} /></div>;
   if (!data || data.length === 0) {
     return <div style={cardStyle}><EmptyState icon={BarChart3} title="暂无结构演变数据" description="运行多次审计后可查看结构演变趋势" /></div>;

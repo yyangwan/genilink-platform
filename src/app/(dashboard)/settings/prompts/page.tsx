@@ -9,13 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-
-const sectionCard: React.CSSProperties = {
-  background: "var(--bg-card)",
-  border: "1px solid var(--border)",
-  borderRadius: "12px",
-  padding: "24px",
-};
+import { sectionCard } from "@/components/charts/shared";
 
 interface Prompt {
   id: string;

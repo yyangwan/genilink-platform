@@ -158,12 +158,13 @@ export async function syncBrandToVisibility(
     },
   });
 
-  for (const assoc of associations) {
+  // Sync to all associated projects in parallel
+  const syncOne = async (assoc: typeof associations[number]): Promise<{ err?: string; rid?: { project: string; id: string } } | null> => {
     const project = assoc.project;
     const mapping = project.externalMappings[0];
-    if (!mapping) continue; // project not linked to visibility yet
+    if (!mapping) return null; // project not linked to visibility yet
 
-    const visibilityProjectId = mapping.externalId;
+    const visibilityProjectId: string = mapping.externalId;
     const payload: Record<string, unknown> = {
       name: brand.name,
       aliases: brand.aliases,
@@ -178,8 +179,9 @@ export async function syncBrandToVisibility(
           { method: 'PATCH', headers, body: JSON.stringify(payload) },
         );
         if (!res.ok) {
-          errors.push(`visibility project ${visibilityProjectId}: PATCH ${res.status}`);
+          return { err: `visibility project ${visibilityProjectId}: PATCH ${res.status}` };
         }
+        return null;
       } else {
         const res = await fetchWithRetry(
           `${baseUrl}/api/projects/${visibilityProjectId}/brands`,
@@ -187,13 +189,22 @@ export async function syncBrandToVisibility(
         );
         if (res.ok) {
           const data = await res.json();
-          remoteIds[visibilityProjectId] = String(data.id);
+          return { rid: { project: visibilityProjectId, id: String(data.id) } };
         } else {
-          errors.push(`visibility project ${visibilityProjectId}: POST ${res.status}`);
+          return { err: `visibility project ${visibilityProjectId}: POST ${res.status}` };
         }
       }
     } catch (err) {
-      errors.push(`visibility project ${visibilityProjectId}: ${(err as Error).message}`);
+      return { err: `visibility project ${visibilityProjectId}: ${(err as Error).message}` };
+    }
+  };
+
+  const results = await Promise.allSettled(associations.map(syncOne));
+
+  for (const r of results) {
+    if (r.status === 'fulfilled' && r.value) {
+      if (r.value.err) errors.push(r.value.err);
+      else if (r.value.rid) remoteIds[r.value.rid.project] = r.value.rid.id;
     }
   }
 

@@ -15,13 +15,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import type { TrendData, TrendAnnotation, AuditListItem } from "@/types/visibility";
-
-const sectionCard: React.CSSProperties = {
-  background: "var(--bg-card)",
-  border: "1px solid var(--border)",
-  borderRadius: "12px",
-  padding: "24px",
-};
+import { sectionCard } from "@/components/charts/shared";
 
 type Period = "daily" | "weekly" | "monthly";
 

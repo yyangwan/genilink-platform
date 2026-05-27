@@ -18,13 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import type { AuditListItem } from "@/types/visibility";
-
-const sectionCard: React.CSSProperties = {
-  background: "var(--bg-card)",
-  border: "1px solid var(--border)",
-  borderRadius: "12px",
-  padding: "24px",
-};
+import { sectionCard } from "@/components/charts/shared";
 
 const statusConfig: Record<string, { color: string; bg: string; label: string; Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }> = {
   completed: { color: "var(--color-success)", bg: "var(--color-success)20", label: "已完成", Icon: CheckCircle2 },

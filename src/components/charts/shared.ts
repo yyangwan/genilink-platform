@@ -58,3 +58,13 @@ export const BRAND_COLORS = [
   "#6366f1",
   "#22c55e",
 ] as const;
+
+/**
+ * Shared section card style used across dashboard pages.
+ */
+export const sectionCard: React.CSSProperties = {
+  background: "var(--bg-card)",
+  border: "1px solid var(--border)",
+  borderRadius: "12px",
+  padding: "24px",
+} as const;

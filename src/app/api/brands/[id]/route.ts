@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withBrandRoute } from '@/lib/auth/brand-route';
 import { prisma } from '@/lib/db';
 import { syncBrandToVisibility, syncBrandDeleteToVisibility } from '@/lib/proxy/zhijian-client';
+import { isUniqueViolation } from '@/lib/prisma-helpers';
 
 export const GET = withBrandRoute(async (_req, { workspaceId }, params) => {
   const { id } = params!;
@@ -45,7 +46,7 @@ export const PATCH = withBrandRoute(async (req, { workspaceId }, params) => {
       data: updates,
     });
   } catch (err: unknown) {
-    if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'P2002') {
+    if (isUniqueViolation(err)) {
       return NextResponse.json({ error: '同名品牌已存在' }, { status: 409 });
     }
     throw err;

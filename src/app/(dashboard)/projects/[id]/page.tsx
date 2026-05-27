@@ -17,13 +17,7 @@ import {
   Package,
   Tag,
 } from "lucide-react";
-
-const sectionCard: React.CSSProperties = {
-  background: "var(--bg-card)",
-  border: "1px solid var(--border)",
-  borderRadius: "12px",
-  padding: "24px",
-};
+import { sectionCard } from "@/components/charts/shared";
 
 interface ProjectData {
   id: string;

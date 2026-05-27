@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { syncBrandToVisibility, syncBrandDeleteToVisibility } from '@/lib/proxy/zhijian-client';
+import { syncBrandToVisibility, syncBrandDeleteToVisibility, syncBrandToProject, syncBrandDisassociate } from '@/lib/proxy/zhijian-client';
 import { prisma } from '@/lib/db';
 
 vi.mock('@/lib/db', () => ({
@@ -9,6 +9,9 @@ vi.mock('@/lib/db', () => ({
     },
     brand: {
       update: vi.fn(),
+    },
+    externalResourceMapping: {
+      findUnique: vi.fn(),
     },
   },
 }));
@@ -148,6 +151,126 @@ describe('Brand Sync', () => {
     it('does nothing when remoteIds is null', async () => {
       await syncBrandDeleteToVisibility(brand, null);
       expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('syncBrandToProject', () => {
+    it('creates remote brand and returns remote ID', async () => {
+      (prisma.externalResourceMapping.findUnique as any).mockResolvedValue({
+        externalId: 'ext-10',
+      });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ id: 42 }),
+      });
+
+      const result = await syncBrandToProject(
+        { id: 'b-1', name: 'Acme', aliases: [], isCompetitor: false },
+        'proj-1',
+        null,
+      );
+
+      if ('remoteId' in result) {
+        expect(result.remoteId).toBe('42');
+        expect(result.remoteIds).toEqual({ 'ext-10': '42' });
+      } else {
+        expect.fail('Expected success result');
+      }
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/projects/ext-10/brands'),
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+
+    it('returns error when project has no visibility mapping', async () => {
+      (prisma.externalResourceMapping.findUnique as any).mockResolvedValue(null);
+
+      const result = await syncBrandToProject(
+        { id: 'b-1', name: 'Acme', aliases: [], isCompetitor: false },
+        'proj-1',
+        null,
+      );
+
+      if ('error' in result) {
+        expect(result.error).toContain('not linked');
+      } else {
+        expect.fail('Expected error result');
+      }
+    });
+
+    it('returns error when upstream POST fails', async () => {
+      (prisma.externalResourceMapping.findUnique as any).mockResolvedValue({
+        externalId: 'ext-10',
+      });
+      mockFetch.mockResolvedValue({ ok: false, status: 500 });
+
+      const result = await syncBrandToProject(
+        { id: 'b-1', name: 'Acme', aliases: [], isCompetitor: false },
+        'proj-1',
+        null,
+      );
+
+      if ('error' in result) {
+        expect(result.error).toContain('500');
+      } else {
+        expect.fail('Expected error result');
+      }
+    });
+  });
+
+  describe('syncBrandDisassociate', () => {
+    it('deletes remote brand and removes from remoteIds', async () => {
+      (prisma.externalResourceMapping.findUnique as any).mockResolvedValue({
+        externalId: 'ext-10',
+      });
+      mockFetch.mockResolvedValue({ ok: true });
+
+      const result = await syncBrandDisassociate(
+        { id: 'b-1' },
+        'proj-1',
+        { 'ext-10': '42' },
+      );
+
+      if ('remoteIds' in result) {
+        expect(result.remoteIds).toEqual({});
+      } else {
+        expect.fail('Expected success result');
+      }
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/projects/ext-10/brands/42'),
+        expect.objectContaining({ method: 'DELETE' }),
+      );
+    });
+
+    it('returns empty remoteIds when no existing remoteIds', async () => {
+      const result = await syncBrandDisassociate(
+        { id: 'b-1' },
+        'proj-1',
+        null,
+      );
+
+      if ('remoteIds' in result) {
+        expect(result.remoteIds).toEqual({});
+      } else {
+        expect.fail('Expected success result');
+      }
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('keeps remoteIds for other projects when mapping not found', async () => {
+      (prisma.externalResourceMapping.findUnique as any).mockResolvedValue(null);
+
+      const result = await syncBrandDisassociate(
+        { id: 'b-1' },
+        'proj-1',
+        { 'ext-10': '42', 'ext-20': '99' },
+      );
+
+      if ('remoteIds' in result) {
+        expect(result.remoteIds).toEqual({ 'ext-10': '42', 'ext-20': '99' });
+      } else {
+        expect.fail('Expected success result');
+      }
     });
   });
 });

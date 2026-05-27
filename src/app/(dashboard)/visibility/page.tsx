@@ -30,13 +30,7 @@ import {
   type DiagnosticItem,
 } from "@/components/ui/diagnostic-checklist";
 import type { VisibilitySummary } from "@/types";
-
-const sectionCard: React.CSSProperties = {
-  background: "var(--bg-card)",
-  border: "1px solid var(--border)",
-  borderRadius: "12px",
-  padding: "24px",
-};
+import { sectionCard } from "@/components/charts/shared";
 
 type AnalysisPhase = "idle" | "creating" | "collecting" | "analyzing" | "done" | "error";
 

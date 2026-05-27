@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
 import { nanoid } from 'nanoid';
-import { syncBrandToProject } from '@/lib/proxy/zhijian-client';
+import { createBrandForProject } from '@/lib/brand-helpers';
 
 const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
 
@@ -131,16 +131,7 @@ export async function POST(req: NextRequest) {
 
     // Auto-create own brand if brandName provided
     if (brandName?.trim()) {
-      try {
-        const brand = await prisma.brand.create({
-          data: { name: brandName.trim(), isCompetitor: false, workspaceId: workspace.id },
-        });
-        await prisma.projectBrand.create({ data: { projectId: project.id, brandId: brand.id } });
-        const syncResult = await syncBrandToProject(brand, project.id, null);
-        if ('remoteIds' in syncResult && Object.keys(syncResult.remoteIds).length > 0) {
-          await prisma.brand.update({ where: { id: brand.id }, data: { remoteIds: syncResult.remoteIds } });
-        }
-      } catch { /* non-blocking */ }
+      await createBrandForProject(brandName, project.id, workspace.id);
     }
 
     // Update user onboarding status
@@ -242,16 +233,7 @@ export async function POST(req: NextRequest) {
 
   // Auto-create own brand if brandName provided (outside transaction — HTTP sync is non-deterministic)
   if (brandName?.trim()) {
-    try {
-      const brand = await prisma.brand.create({
-        data: { name: brandName.trim(), isCompetitor: false, workspaceId: result.workspaceId },
-      });
-      await prisma.projectBrand.create({ data: { projectId: result.projectId, brandId: brand.id } });
-      const syncResult = await syncBrandToProject(brand, result.projectId, null);
-      if ('remoteIds' in syncResult && Object.keys(syncResult.remoteIds).length > 0) {
-        await prisma.brand.update({ where: { id: brand.id }, data: { remoteIds: syncResult.remoteIds } });
-      }
-    } catch { /* non-blocking */ }
+    await createBrandForProject(brandName, result.projectId, result.workspaceId);
   }
 
   const response = NextResponse.json(result);

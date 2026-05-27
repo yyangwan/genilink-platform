@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useState, useEffect, useMemo } from "react";
+import React, { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { GitCompare, RefreshCw, Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
@@ -19,18 +19,11 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts";
-import { tooltipStyles, legendStyles, BRAND_COLORS } from "@/components/charts/shared";
+import { tooltipStyles, legendStyles, BRAND_COLORS, sectionCard } from "@/components/charts/shared";
 import { useProject } from "@/components/project/project-context";
 import { PageHeader } from "@/components/ui/page-header";
 import { DiagnosticChecklist, type DiagnosticItem } from "@/components/ui/diagnostic-checklist";
 import { EmptyState } from "@/components/ui/empty-state";
-
-const sectionCard: React.CSSProperties = {
-  background: "var(--bg-card)",
-  border: "1px solid var(--border)",
-  borderRadius: "12px",
-  padding: "24px",
-};
 
 interface Brand {
   id: number;
@@ -70,8 +63,10 @@ function CompareContent() {
   const [results, setResults] = useState<QueryResult[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [error, setError] = useState("");
+  const [locked, setLocked] = useState(false);
   const [filterPlatform, setFilterPlatform] = useState("all");
   const [filterMentionOnly, setFilterMentionOnly] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const platformNames = PLATFORM_LABELS;
   const platformKeys = useMemo(
@@ -81,12 +76,19 @@ function CompareContent() {
 
   const loadData = async () => {
     if (!currentProjectId) return;
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const signal = controller.signal;
+
     setDataLoading(true);
     setError("");
+    setLocked(false);
 
     try {
       // 1. Get audits to find the latest one
-      const auditsRes = await fetch(`/api/integration/audits?projectId=${currentProjectId}`);
+      const auditsRes = await fetch(`/api/integration/audits?projectId=${currentProjectId}`, { signal });
+      if (auditsRes.status === 403) { setLocked(true); setDataLoading(false); return; }
       if (!auditsRes.ok) throw new Error("获取审计数据失败");
       const auditsData = await auditsRes.json();
       const audits = auditsData.audits || auditsData;
@@ -97,6 +99,7 @@ function CompareContent() {
       if (completedAudits.length === 0) {
         setResults([]);
         setBrands([]);
+        setDataLoading(false);
         return;
       }
 
@@ -104,9 +107,11 @@ function CompareContent() {
 
       // 2. Fetch brands and audit results in parallel
       const [brandsRes, resultsRes] = await Promise.all([
-        fetch(`/api/integration/brands?projectId=${currentProjectId}`),
-        fetch(`/api/integration/audits/${latestAudit.id}/results?projectId=${currentProjectId}`),
+        fetch(`/api/integration/brands?projectId=${currentProjectId}`, { signal }),
+        fetch(`/api/integration/audits/${latestAudit.id}/results?projectId=${currentProjectId}`, { signal }),
       ]);
+
+      if (brandsRes.status === 403 || resultsRes.status === 403) { setLocked(true); setDataLoading(false); return; }
 
       if (brandsRes.ok) {
         const brandsData = await brandsRes.json();
@@ -120,14 +125,16 @@ function CompareContent() {
         throw new Error("获取审计结果失败");
       }
     } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
       setError(e instanceof Error ? e.message : "加载数据失败");
     } finally {
-      setDataLoading(false);
+      if (!controller.signal.aborted) setDataLoading(false);
     }
   };
 
   useEffect(() => {
     loadData();
+    return () => { if (abortRef.current) abortRef.current.abort(); };
   }, [currentProjectId]);
 
   // Brand column order: primary brands first, then competitors
@@ -285,6 +292,17 @@ function CompareContent() {
           <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
         </div>
         <div className="h-48 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+      </div>
+    );
+  }
+
+  if (locked) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
+        <div style={sectionCard}>
+          <EmptyState icon={GitCompare} title="需要升级" description="竞品对比功能需要订阅智见专业版" />
+        </div>
       </div>
     );
   }

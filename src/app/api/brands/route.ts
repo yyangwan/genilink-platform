@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withBrandRoute } from '@/lib/auth/brand-route';
 import { prisma } from '@/lib/db';
 import { syncBrandToVisibility } from '@/lib/proxy/zhijian-client';
+import { isUniqueViolation } from '@/lib/prisma-helpers';
 
 type BrandSyncResult = {
   synced: 'full' | 'partial' | 'failed' | 'skipped';
@@ -42,7 +43,7 @@ export const POST = withBrandRoute(async (req, { workspaceId }) => {
     });
   } catch (err: unknown) {
     // P2002 = unique constraint violation
-    if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'P2002') {
+    if (isUniqueViolation(err)) {
       return NextResponse.json({ error: '同名品牌已存在' }, { status: 409 });
     }
     throw err;
