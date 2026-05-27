@@ -15,6 +15,8 @@ export default async function DashboardLayout({
   let workspaceCookie = cookieStore.get("genilink-workspace");
 
   // Auto-recover: if no workspace cookie but user is logged in, pick first workspace
+  // Note: cookieStore.set() is not allowed in SSR in Next.js 16+.
+  // We just resolve the workspace ID — the cookie gets set via POST /api/workspaces/switch.
   if (!workspaceCookie?.value) {
     const session = await auth();
     if (session?.user?.id) {
@@ -24,13 +26,6 @@ export default async function DashboardLayout({
         select: { workspaceId: true },
       });
       if (membership) {
-        cookieStore.set("genilink-workspace", membership.workspaceId, {
-          httpOnly: false,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: 365 * 24 * 60 * 60,
-          path: "/",
-        });
         workspaceCookie = { name: "genilink-workspace", value: membership.workspaceId };
       }
     }
