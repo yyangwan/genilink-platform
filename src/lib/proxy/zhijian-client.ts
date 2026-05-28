@@ -246,6 +246,19 @@ export async function syncBrandToProject(
   };
 
   try {
+    // Check if remote brand already exists for this project (re-associate scenario)
+    const existingRemoteId = remoteIds[visibilityProjectId];
+    if (existingRemoteId) {
+      const res = await fetchWithRetry(
+        `${baseUrl}/api/projects/${visibilityProjectId}/brands/${existingRemoteId}`,
+        { method: 'PATCH', headers, body: JSON.stringify(payload) },
+      );
+      if (res.ok) {
+        return { remoteId: existingRemoteId, remoteIds };
+      }
+      // PATCH failed — fall through to create new
+    }
+
     const res = await fetchWithRetry(
       `${baseUrl}/api/projects/${visibilityProjectId}/brands`,
       { method: 'POST', headers, body: JSON.stringify(payload) },
@@ -295,15 +308,21 @@ export async function syncBrandDisassociate(
   }
 
   try {
-    await fetchWithRetry(
+    const res = await fetchWithRetry(
       `${baseUrl}/api/projects/${visibilityProjectId}/brands/${remoteBrandId}`,
       { method: 'DELETE', headers },
     );
+    // Only remove remote mapping on upstream success
+    if (!res.ok) {
+      console.warn(`[brand-sync] Disassociate DELETE returned ${res.status} for brand ${brand.id} in visibility project ${visibilityProjectId}`);
+      return { remoteIds: existingRemoteIds };
+    }
   } catch (err) {
     console.warn(`[brand-sync] Disassociate DELETE failed for brand ${brand.id} in visibility project ${visibilityProjectId}:`, (err as Error).message);
+    return { remoteIds: existingRemoteIds };
   }
 
-  // Remove the remote ID for this project
+  // Remove the remote ID for this project only after confirmed upstream deletion
   const remoteIds = { ...existingRemoteIds };
   delete remoteIds[visibilityProjectId];
   return { remoteIds };

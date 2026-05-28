@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { syncBrandToProject } from '@/lib/proxy/zhijian-client';
+import { isUniqueViolation } from '@/lib/prisma-helpers';
 
 /**
  * Auto-create an own (non-competitor) brand, associate it with a project,
@@ -29,10 +30,24 @@ export async function createBrandForProject(
       console.warn(`[brand-auto-create] Sync failed: ${syncResult.error}`);
     }
   } catch (err) {
-    if (err !== null && err !== undefined && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'P2002') {
-      console.warn(`[brand-auto-create] Brand "${brandName.trim()}" already exists in workspace`);
+    if (isUniqueViolation(err)) {
+      // Brand name already exists — find it and create association
+      try {
+        const existing = await prisma.brand.findFirst({
+          where: { name: brandName.trim(), workspaceId, deletedAt: null },
+        });
+        if (existing) {
+          await prisma.projectBrand.upsert({
+            where: { projectId_brandId: { projectId, brandId: existing.id } },
+            create: { projectId, brandId: existing.id },
+            update: {},
+          });
+        }
+      } catch (attachErr) {
+        console.error('[brand-auto-create] Failed to attach existing brand:', (attachErr as Error).message);
+      }
     } else {
-      console.warn('[brand-auto-create] Failed:', (err as Error).message);
+      console.error('[brand-auto-create] Failed:', (err as Error).message);
     }
   }
 }

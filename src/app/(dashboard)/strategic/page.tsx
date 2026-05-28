@@ -709,19 +709,19 @@ function StrategicContent() {
         ))}
       </div>
 
-      {/* Tab content — lazy loaded per tab */}
-      {currentProjectId && activeTab === "source-authority" && (
-        <SourceAuthorityTab projectId={currentProjectId} />
-      )}
-      {currentProjectId && activeTab === "competitor-positioning" && (
-        <CompetitorPositioningTab projectId={currentProjectId} />
-      )}
-      {currentProjectId && activeTab === "structure-evolution" && (
-        <StructureEvolutionTab projectId={currentProjectId} />
-      )}
-      {currentProjectId && activeTab === "multi-audit-compare" && (
-        <MultiAuditCompareTab projectId={currentProjectId} />
-      )}
+      {/* Tab content — hidden via CSS to preserve state */}
+      <div style={{ display: activeTab === "source-authority" ? "block" : "none" }}>
+        {currentProjectId && <SourceAuthorityTab projectId={currentProjectId} />}
+      </div>
+      <div style={{ display: activeTab === "competitor-positioning" ? "block" : "none" }}>
+        {currentProjectId && <CompetitorPositioningTab projectId={currentProjectId} />}
+      </div>
+      <div style={{ display: activeTab === "structure-evolution" ? "block" : "none" }}>
+        {currentProjectId && <StructureEvolutionTab projectId={currentProjectId} />}
+      </div>
+      <div style={{ display: activeTab === "multi-audit-compare" ? "block" : "none" }}>
+        {currentProjectId && <MultiAuditCompareTab projectId={currentProjectId} />}
+      </div>
     </div>
   );
 }

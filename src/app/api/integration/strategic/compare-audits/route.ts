@@ -4,6 +4,7 @@ import { requireBilling, BillingError } from '@/lib/billing/guard';
 import { getExternalId } from '@/lib/proxy/zhijian-client';
 import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
+import { UPSTREAM_TIMEOUT_MS } from '@/lib/proxy/constants';
 
 const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
 
@@ -50,12 +51,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  if (!Array.isArray(body.audit_ids) || body.audit_ids.length < 2 || body.audit_ids.length > 5) {
-    return NextResponse.json({ error: 'audit_ids must be an array of 2-5 IDs' }, { status: 400 });
+  if (!Array.isArray(body.audit_ids) || body.audit_ids.length < 2 || body.audit_ids.length > 5 || !body.audit_ids.every((id) => typeof id === 'number' && Number.isFinite(id))) {
+    return NextResponse.json({ error: 'audit_ids must be an array of 2-5 numeric IDs' }, { status: 400 });
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15_000);
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
 
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };

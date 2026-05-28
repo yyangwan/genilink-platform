@@ -93,6 +93,7 @@ describe('Brand CRUD API', () => {
       expect(prisma.brand.findMany).toHaveBeenCalledWith({
         where: { workspaceId: 'ws-1', deletedAt: null },
         orderBy: { createdAt: 'desc' },
+        take: 200,
       });
     });
 

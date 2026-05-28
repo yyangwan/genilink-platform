@@ -14,6 +14,7 @@ export const GET = withBrandRoute(async (_req, { workspaceId }) => {
   const brands = await prisma.brand.findMany({
     where: { workspaceId, deletedAt: null },
     orderBy: { createdAt: 'desc' },
+    take: 200,
   });
 
   return NextResponse.json(brands);

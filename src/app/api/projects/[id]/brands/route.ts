@@ -3,12 +3,16 @@ import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
 import { syncBrandToProject, syncBrandDisassociate } from '@/lib/proxy/zhijian-client';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
+import { validateWorkspaceAccess } from '@/lib/auth/workspace';
 import { isUniqueViolation } from '@/lib/prisma-helpers';
 
-// Verify user owns the project
+// Verify user owns the project (with workspace membership check)
 async function verifyProjectAccess(userId: string, projectId: string) {
   const workspaceId = await getWorkspaceId(userId);
   if (!workspaceId) return null;
+
+  const isMember = await validateWorkspaceAccess(userId, workspaceId);
+  if (!isMember) return null;
 
   const project = await prisma.project.findFirst({
     where: { id: projectId, workspaceId },

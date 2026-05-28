@@ -3,11 +3,15 @@ import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
 import { syncBrandDisassociate } from '@/lib/proxy/zhijian-client';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
+import { validateWorkspaceAccess } from '@/lib/auth/workspace';
 
 // Verify user has access to the brand's workspace
 async function verifyBrandAccess(userId: string, brandId: string) {
   const workspaceId = await getWorkspaceId(userId);
   if (!workspaceId) return null;
+
+  const isMember = await validateWorkspaceAccess(userId, workspaceId);
+  if (!isMember) return null;
 
   const brand = await prisma.brand.findFirst({
     where: { id: brandId, workspaceId, deletedAt: null },

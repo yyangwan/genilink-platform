@@ -4,6 +4,7 @@ import { requireBilling, BillingError } from '@/lib/billing/guard';
 import { getExternalId } from '@/lib/proxy/zhijian-client';
 import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
+import { UPSTREAM_TIMEOUT_MS } from '@/lib/proxy/constants';
 
 const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
 
@@ -42,10 +43,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No external mapping for project' }, { status: 404 });
   }
 
-  const limit = req.nextUrl.searchParams.get('limit') || '20';
+  const rawLimit = req.nextUrl.searchParams.get('limit') || '20';
+  const limit = Math.min(Math.max(parseInt(rawLimit, 10) || 20, 1), 100);
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15_000);
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
 
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };

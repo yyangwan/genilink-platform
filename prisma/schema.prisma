@@ -164,6 +164,7 @@ model ProjectBrand {
 
   @@unique([projectId, brandId])
   @@index([brandId])
+  @@index([projectId])
 }
 
 // ─── Billing ────────────────────────────────────────────────────────

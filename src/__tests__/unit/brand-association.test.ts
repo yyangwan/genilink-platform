@@ -30,6 +30,11 @@ vi.mock('@/lib/auth/get-workspace', () => ({
   getWorkspaceId: vi.fn().mockResolvedValue('ws-1'),
 }));
 
+vi.mock('@/lib/auth/workspace', () => ({
+  validateWorkspaceAccess: vi.fn().mockResolvedValue(true),
+  verifyProjectInWorkspace: vi.fn().mockResolvedValue({ id: 'proj-1' }),
+}));
+
 vi.mock('@/lib/proxy/zhijian-client', () => ({
   syncBrandToProject: vi.fn().mockResolvedValue({ remoteId: 'remote-1', remoteIds: { 'ext-1': 'remote-1' } }),
   syncBrandDisassociate: vi.fn().mockResolvedValue({ remoteIds: {} }),

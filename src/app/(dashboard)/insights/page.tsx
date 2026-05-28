@@ -189,15 +189,8 @@ function InsightsContent() {
         { name: "负面", value: data.sentiment.negative, fill: SENTIMENT_COLORS.negative },
       ]
     : [];
-  // Derive answer structure from topic distribution (placeholder structure types)
-  const answerStructureData = data?.topics
-    ? [
-        { type: "列表式", count: Math.ceil(data.topics.length * 0.4), percentage: 40 },
-        { type: "段落式", count: Math.ceil(data.topics.length * 0.3), percentage: 30 },
-        { type: "对比式", count: Math.ceil(data.topics.length * 0.2), percentage: 20 },
-        { type: "引用式", count: Math.ceil(data.topics.length * 0.1), percentage: 10 },
-      ]
-    : [];
+  // TODO: derive answer structure from real API data when endpoint available
+  const answerStructureData: never[] = [];
 
   return (
     <div className="space-y-6">
