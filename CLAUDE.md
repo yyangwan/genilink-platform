@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-Insights 回答结构图表已接通后端 API，build 通过 (2026-05-29). 未 commit. 下一步: commit + QA. 进度: ~/.gstack/projects/genilink-platform/progress.md
+Insights 图表 + 品牌关联 UI 已推送 (2026-05-29). 下一步: QA 或 DRY refactor. 进度: ~/.gstack/projects/genilink-platform/progress.md
 
 ## ContentOS JWT Integration (done)
 智链发送 RS256 JWT 到 ContentOS (port 4002)。ContentOS 中间件验证 JWT，注入 x-genilink-* headers。

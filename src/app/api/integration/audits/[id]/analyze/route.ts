@@ -1,67 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth/config';
-import { requireBilling, BillingError } from '@/lib/billing/guard';
-import { getWorkspaceId } from '@/lib/auth/get-workspace';
+import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
 
-const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://localhost:8000';
-
-// POST /api/integration/audits/[id]/analyze — trigger analysis for an audit
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const workspaceId = await getWorkspaceId(session.user.id);
-  if (!workspaceId) {
-    return NextResponse.json({ error: 'No workspace selected' }, { status: 400 });
-  }
-
-  // Check billing
-  try {
-    await requireBilling(session.user.id, workspaceId, 'visibility');
-  } catch (err) {
-    if (err instanceof BillingError) {
-      return NextResponse.json({ error: 'NO_SUBSCRIPTION', module: 'visibility' }, { status: 403 });
-    }
-    throw err;
-  }
+  const result = await resolveGuard(_req, { requireProject: false });
+  if (!result.ok) return result.response;
 
   const { id } = await params;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
-
-  try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const serviceToken = process.env.SERVICE_TOKEN;
-    if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
-
-    const res = await fetch(`${VISIBILITY_URL}/api/analysis/audits/${id}/analyze`, {
-      method: 'POST',
-      headers,
-      signal: controller.signal,
-    });
-
-    clearTimeout(timer);
-
-    if (!res.ok) {
-      return NextResponse.json(
-        { error: `Upstream error: ${res.status}` },
-        { status: res.status >= 500 ? 502 : res.status }
-      );
-    }
-
-    const data = await res.json();
-    return NextResponse.json(data);
-  } catch (err) {
-    clearTimeout(timer);
-    if ((err as Error).name === 'AbortError') {
-      return NextResponse.json({ error: 'Upstream timeout' }, { status: 504 });
-    }
-    return NextResponse.json({ error: 'Failed to trigger analysis' }, { status: 502 });
-  }
+  const upstream = await fetchUpstream(result.ctx, `/api/analysis/audits/${id}/analyze`, {
+    method: 'POST',
+    timeoutMs: 30_000,
+    errorMessage: 'Failed to trigger analysis',
+  });
+  if ('response' in upstream) return upstream.response;
+  return NextResponse.json(upstream.data);
 }

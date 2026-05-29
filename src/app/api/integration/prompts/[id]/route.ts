@@ -1,175 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth/config';
-import { requireBilling, BillingError } from '@/lib/billing/guard';
-import { getExternalId, evictCache, syncProjectToVisibility } from '@/lib/proxy/zhijian-client';
-import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
-import { getWorkspaceId } from '@/lib/auth/get-workspace';
-
-const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
+import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
 
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const workspaceId = await getWorkspaceId(session.user.id);
-  if (!workspaceId) {
-    return NextResponse.json({ error: 'No workspace selected' }, { status: 400 });
-  }
-
-  const projectId = req.nextUrl.searchParams.get('projectId');
-  if (!projectId) {
-    return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
-  }
-
-  // Verify project belongs to this workspace
-  const _project = await verifyProjectInWorkspace(projectId, workspaceId);
-  if (!_project) {
-    return NextResponse.json({ error: 'Project not found in workspace' }, { status: 403 });
-  }
-
-  try {
-    await requireBilling(session.user.id, workspaceId, 'visibility');
-  } catch (err) {
-    if (err instanceof BillingError) {
-      return NextResponse.json({ error: 'NO_SUBSCRIPTION', module: 'visibility' }, { status: 403 });
-    }
-    throw err;
-  }
-
-  const externalId = await getExternalId(projectId, 'visibility');
-  if (!externalId) {
-    return NextResponse.json({ error: 'No external mapping for project' }, { status: 404 });
-  }
-
-  let projectPk: number;
-  try {
-    projectPk = await syncProjectToVisibility(projectId, externalId);
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
-  }
+  const result = await resolveGuard(req, { sync: true });
+  if (!result.ok) return result.response;
 
   const { id } = await params;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
-
-  try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const serviceToken = process.env.SERVICE_TOKEN;
-    if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
-
-    const res = await fetch(`${VISIBILITY_URL}/api/projects/${projectPk}/prompts/${id}`, {
-      method: 'DELETE',
-      headers,
-      signal: controller.signal,
-    });
-
-    clearTimeout(timer);
-
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      return NextResponse.json(
-        { error: `Upstream error: ${res.status}`, detail: errBody },
-        { status: res.status >= 500 ? 502 : res.status },
-      );
-    }
-
-    return new NextResponse(null, { status: 204 });
-  } catch (err) {
-    clearTimeout(timer);
-    if ((err as Error).name === 'AbortError') {
-      return NextResponse.json({ error: 'Upstream timeout' }, { status: 504 });
-    }
-    return NextResponse.json({ error: `Failed to delete prompt: ${(err as Error).message}` }, { status: 502 });
-  }
+  const upstream = await fetchUpstream(result.ctx, `/api/projects/${result.ctx.projectPk}/prompts/${id}`, {
+    method: 'DELETE',
+    timeoutMs: 30_000,
+    errorMessage: 'Failed to delete prompt',
+  });
+  if ('response' in upstream) return upstream.response;
+  return new NextResponse(null, { status: 204 });
 }
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const workspaceId = await getWorkspaceId(session.user.id);
-  if (!workspaceId) {
-    return NextResponse.json({ error: 'No workspace selected' }, { status: 400 });
-  }
-
-  const projectId = req.nextUrl.searchParams.get('projectId');
-  if (!projectId) {
-    return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
-  }
-
-  // Verify project belongs to this workspace
-  const _project = await verifyProjectInWorkspace(projectId, workspaceId);
-  if (!_project) {
-    return NextResponse.json({ error: 'Project not found in workspace' }, { status: 403 });
-  }
-
-  try {
-    await requireBilling(session.user.id, workspaceId, 'visibility');
-  } catch (err) {
-    if (err instanceof BillingError) {
-      return NextResponse.json({ error: 'NO_SUBSCRIPTION', module: 'visibility' }, { status: 403 });
-    }
-    throw err;
-  }
-
-  const externalId = await getExternalId(projectId, 'visibility');
-  if (!externalId) {
-    return NextResponse.json({ error: 'No external mapping for project' }, { status: 404 });
-  }
-
-  let projectPk: number;
-  try {
-    projectPk = await syncProjectToVisibility(projectId, externalId);
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
-  }
+  const result = await resolveGuard(req, { sync: true });
+  if (!result.ok) return result.response;
 
   const { id } = await params;
-  const body = await req.json();
+  const body = await req.json().catch(() => ({}));
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
-
-  try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const serviceToken = process.env.SERVICE_TOKEN;
-    if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
-
-    const res = await fetch(`${VISIBILITY_URL}/api/projects/${projectPk}/prompts/${id}`, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timer);
-
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      return NextResponse.json(
-        { error: `Upstream error: ${res.status}`, detail: errBody },
-        { status: res.status >= 500 ? 502 : res.status },
-      );
-    }
-
-    const data = await res.json();
-    return NextResponse.json(data);
-  } catch (err) {
-    clearTimeout(timer);
-    if ((err as Error).name === 'AbortError') {
-      return NextResponse.json({ error: 'Upstream timeout' }, { status: 504 });
-    }
-    return NextResponse.json({ error: `Failed to update prompt: ${(err as Error).message}` }, { status: 502 });
-  }
+  const upstream = await fetchUpstream(result.ctx, `/api/projects/${result.ctx.projectPk}/prompts/${id}`, {
+    method: 'PATCH',
+    body,
+    timeoutMs: 30_000,
+    errorMessage: 'Failed to update prompt',
+  });
+  if ('response' in upstream) return upstream.response;
+  return NextResponse.json(upstream.data);
 }

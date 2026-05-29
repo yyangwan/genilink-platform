@@ -1,57 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth/config';
-import { requireBilling, BillingError } from '@/lib/billing/guard';
-import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
-import { getWorkspaceId } from '@/lib/auth/get-workspace';
-
-const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
+import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const workspaceId = await getWorkspaceId(session.user.id);
-  if (!workspaceId) {
-    return NextResponse.json({ error: 'No workspace selected' }, { status: 400 });
-  }
-
-  const projectId = req.nextUrl.searchParams.get('projectId');
-  if (!projectId) {
-    return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
-  }
-
-  // Verify project belongs to this workspace
-  const _project = await verifyProjectInWorkspace(projectId, workspaceId);
-  if (!_project) {
-    return NextResponse.json({ error: 'Project not found in workspace' }, { status: 403 });
-  }
-
-  try {
-    await requireBilling(session.user.id, workspaceId, 'visibility');
-  } catch (err) {
-    if (err instanceof BillingError) {
-      return NextResponse.json({ error: 'NO_SUBSCRIPTION', module: 'visibility' }, { status: 403 });
-    }
-    throw err;
-  }
+  const result = await resolveGuard(req);
+  if (!result.ok) return result.response;
 
   const { id } = await params;
-
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
 
   try {
-    const headers: Record<string, string> = {};
-    const serviceToken = process.env.SERVICE_TOKEN;
-    if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
-
-    const res = await fetch(`${VISIBILITY_URL}/api/reports/${id}/pdf`, {
-      headers,
+    const res = await fetch(result.ctx.upstreamUrl(`/api/reports/${id}/pdf`), {
+      headers: result.ctx.headers,
       signal: controller.signal,
     });
 

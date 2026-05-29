@@ -1,29 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth/config';
-import { requireBilling, BillingError } from '@/lib/billing/guard';
-import { getWorkspaceId } from '@/lib/auth/get-workspace';
-
-const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
+import { resolveGuard } from '@/lib/proxy/route-guard';
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const workspaceId = await getWorkspaceId(session.user.id);
-  if (!workspaceId) {
-    return NextResponse.json({ error: 'No workspace selected' }, { status: 400 });
-  }
-
-  try {
-    await requireBilling(session.user.id, workspaceId, 'visibility');
-  } catch (err) {
-    if (err instanceof BillingError) {
-      return NextResponse.json({ error: 'NO_SUBSCRIPTION', module: 'visibility' }, { status: 403 });
-    }
-    throw err;
-  }
+  const result = await resolveGuard(req, { requireProject: false });
+  if (!result.ok) return result.response;
 
   const body = await req.json();
 
@@ -31,13 +11,9 @@ export async function POST(req: NextRequest) {
   const timer = setTimeout(() => controller.abort(), 30_000);
 
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const serviceToken = process.env.SERVICE_TOKEN;
-    if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
-
-    const res = await fetch(`${VISIBILITY_URL}/api/strategic/compare-audits`, {
+    const res = await fetch(result.ctx.upstreamUrl('/api/strategic/compare-audits'), {
       method: 'POST',
-      headers,
+      headers: result.ctx.headers,
       body: JSON.stringify(body),
       signal: controller.signal,
     });
