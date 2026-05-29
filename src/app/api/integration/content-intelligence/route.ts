@@ -86,6 +86,14 @@ export async function GET(req: NextRequest) {
         mention_count: s.total_count as number,
         authority_score: Math.round((s.authority_avg as number) * 20), // normalize 0-5 → 0-100
       })),
+      answerStructure: Object.entries(data.answer_structure_distribution || {}).map(([type, count]) => {
+        const total = Object.values<number>(data.answer_structure_distribution || {}).reduce((a, b) => a + b, 0);
+        return {
+          type,
+          count: count as number,
+          percentage: total > 0 ? Math.round(((count as number) / total) * 100) : 0,
+        };
+      }),
     };
     return NextResponse.json(mapped);
   } catch (err) {

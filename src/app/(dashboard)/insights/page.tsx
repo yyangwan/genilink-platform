@@ -189,8 +189,7 @@ function InsightsContent() {
         { name: "负面", value: data.sentiment.negative, fill: SENTIMENT_COLORS.negative },
       ]
     : [];
-  // TODO: derive answer structure from real API data when endpoint available
-  const answerStructureData: never[] = [];
+  const answerStructureData = data?.answerStructure ?? [];
 
   return (
     <div className="space-y-6">

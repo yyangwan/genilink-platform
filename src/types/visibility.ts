@@ -113,6 +113,11 @@ export interface ContentIntelligence {
     mention_count: number;
     authority_score: number;
   }[];
+  answerStructure: {
+    type: string;
+    count: number;
+    percentage: number;
+  }[];
   heatmap?: {
     platform: string;
     category: string;
