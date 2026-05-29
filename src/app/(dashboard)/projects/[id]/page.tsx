@@ -16,8 +16,16 @@ import {
   Settings,
   Package,
   Tag,
+  Plus,
+  X,
+  Loader2,
+  ChevronDown,
+  Star,
+  Swords,
 } from "lucide-react";
 import { sectionCard } from "@/components/charts/shared";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/ui/toast-context";
 
 interface ProjectData {
   id: string;
@@ -32,6 +40,13 @@ interface ProjectData {
   createdAt: string;
   updatedAt: string;
   externalMappings: { service: string; externalId: string }[];
+}
+
+interface Brand {
+  id: string;
+  name: string;
+  aliases: string[];
+  isCompetitor: boolean;
 }
 
 export default function ProjectDetailPage() {
@@ -74,6 +89,77 @@ export default function ProjectDetailPage() {
     if (prevWizardOpen.current && !wizardOpen) fetchProject();
     prevWizardOpen.current = wizardOpen;
   }, [wizardOpen, fetchProject]);
+
+  // Brand association state
+  const { addToast } = useToast();
+  const [associatedBrands, setAssociatedBrands] = useState<Brand[]>([]);
+  const [allBrands, setAllBrands] = useState<Brand[]>([]);
+  const [showPicker, setShowPicker] = useState(false);
+  const [brandLoading, setBrandLoading] = useState(false);
+  const [disassociateTarget, setDisassociateTarget] = useState<Brand | null>(null);
+
+  const fetchBrands = useCallback(async () => {
+    const [assocRes, allRes] = await Promise.all([
+      fetch(`/api/projects/${projectId}/brands`),
+      fetch("/api/brands"),
+    ]);
+    if (assocRes.ok) {
+      const data = await assocRes.json();
+      setAssociatedBrands(data.brands || []);
+    }
+    if (allRes.ok) {
+      setAllBrands(await allRes.json());
+    }
+  }, [projectId]);
+
+  useEffect(() => { fetchBrands(); }, [fetchBrands]);
+
+  const associateBrand = useCallback(async (brandId: string) => {
+    setBrandLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/brands`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandId }),
+      });
+      if (res.ok) {
+        await fetchBrands();
+        setShowPicker(false);
+        addToast({ type: "success", title: "品牌已关联" });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        addToast({ type: "error", title: data.error || "关联失败" });
+      }
+    } catch {
+      addToast({ type: "error", title: "网络错误" });
+    } finally {
+      setBrandLoading(false);
+    }
+  }, [projectId, fetchBrands, addToast]);
+
+  const disassociateBrand = useCallback(async () => {
+    if (!disassociateTarget) return;
+    try {
+      const res = await fetch(`/api/projects/${projectId}/brands`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandId: disassociateTarget.id }),
+      });
+      if (res.ok) {
+        await fetchBrands();
+        addToast({ type: "success", title: "已取消关联" });
+      } else {
+        addToast({ type: "error", title: "取消关联失败" });
+      }
+    } catch {
+      addToast({ type: "error", title: "网络错误" });
+    } finally {
+      setDisassociateTarget(null);
+    }
+  }, [disassociateTarget, projectId, fetchBrands, addToast]);
+
+  const associatedIds = new Set(associatedBrands.map((b) => b.id));
+  const availableBrands = allBrands.filter((b) => !associatedIds.has(b.id));
 
   if (loading) {
     return (
@@ -315,6 +401,174 @@ export default function ProjectDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Brand association card */}
+      <div style={sectionCard}>
+        <div className="flex items-center justify-between mb-4">
+          <h3
+            className="text-base font-semibold"
+            style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
+          >
+            关联品牌
+          </h3>
+          {availableBrands.length > 0 && (
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setShowPicker(!showPicker)}
+                disabled={brandLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  background: "var(--color-primary-dim)",
+                  color: "var(--color-primary)",
+                  border: "none",
+                  cursor: brandLoading ? "not-allowed" : "pointer",
+                  fontFamily: "var(--font-body)",
+                  opacity: brandLoading ? 0.5 : 1,
+                }}
+              >
+                {brandLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                关联品牌
+              </button>
+              {showPicker && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    right: 0,
+                    marginTop: 4,
+                    minWidth: 200,
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    zIndex: 50,
+                    maxHeight: 240,
+                    overflowY: "auto",
+                  }}
+                >
+                  {availableBrands.map((brand) => (
+                    <button
+                      key={brand.id}
+                      onClick={() => associateBrand(brand.id)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-left"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--text-primary)",
+                        cursor: "pointer",
+                        fontFamily: "var(--font-body)",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      {brand.isCompetitor ? (
+                        <Swords className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-warning)" }} />
+                      ) : (
+                        <Star className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-success)" }} />
+                      )}
+                      <span style={{ flex: 1 }}>{brand.name}</span>
+                      <span
+                        className="text-xs px-1.5 py-0.5 rounded-full"
+                        style={{
+                          background: brand.isCompetitor ? "var(--color-warning)20" : "var(--color-success)20",
+                          color: brand.isCompetitor ? "var(--color-warning)" : "var(--color-success)",
+                        }}
+                      >
+                        {brand.isCompetitor ? "竞品" : "自有"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        {associatedBrands.length > 0 ? (
+          <div className="space-y-2">
+            {associatedBrands.map((brand) => (
+              <div
+                key={brand.id}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg"
+                style={{ background: "var(--bg-hover)" }}
+              >
+                {brand.isCompetitor ? (
+                  <Swords className="w-4 h-4 shrink-0" style={{ color: "var(--color-warning)" }} />
+                ) : (
+                  <Star className="w-4 h-4 shrink-0" style={{ color: "var(--color-success)" }} />
+                )}
+                <span
+                  className="text-sm flex-1"
+                  style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                >
+                  {brand.name}
+                </span>
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full font-medium"
+                  style={{
+                    background: brand.isCompetitor ? "var(--color-warning)20" : "var(--color-success)20",
+                    color: brand.isCompetitor ? "var(--color-warning)" : "var(--color-success)",
+                  }}
+                >
+                  {brand.isCompetitor ? "竞品" : "自有"}
+                </span>
+                <button
+                  onClick={() => setDisassociateTarget(brand)}
+                  className="p-1 rounded transition-colors"
+                  style={{ color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--color-error)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center py-6">
+            <p className="text-sm mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              暂未关联品牌
+            </p>
+            {allBrands.length > 0 ? (
+              <button
+                onClick={() => setShowPicker(true)}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  background: "var(--color-primary-dim)",
+                  color: "var(--color-primary)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-body)",
+                }}
+              >
+                关联品牌
+              </button>
+            ) : (
+              <Link
+                href="/brands"
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  background: "var(--color-primary-dim)",
+                  color: "var(--color-primary)",
+                  textDecoration: "none",
+                  fontFamily: "var(--font-body)",
+                }}
+              >
+                前往创建品牌
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
+
+      <ConfirmDialog
+        open={!!disassociateTarget}
+        title="取消品牌关联"
+        message={`确定要取消「${disassociateTarget?.name}」与此项目的关联吗？`}
+        confirmLabel="取消关联"
+        cancelLabel="返回"
+        onConfirm={disassociateBrand}
+        onCancel={() => setDisassociateTarget(null)}
+      />
 
       {/* Action links */}
       <div className="flex flex-col sm:flex-row gap-3">
