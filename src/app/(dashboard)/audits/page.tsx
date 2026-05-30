@@ -22,10 +22,12 @@ import { sectionCard } from "@/components/charts/shared";
 
 const statusConfig: Record<string, { color: string; bg: string; label: string; Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }> = {
   completed: { color: "var(--color-success)", bg: "var(--color-success)20", label: "已完成", Icon: CheckCircle2 },
+  partial: { color: "var(--color-warning)", bg: "var(--color-warning)20", label: "部分完成", Icon: CheckCircle2 },
   failed: { color: "var(--color-error)", bg: "var(--color-error)20", label: "失败", Icon: XCircle },
   pending: { color: "var(--color-warning)", bg: "var(--color-warning)20", label: "等待中", Icon: Clock },
   collecting: { color: "var(--color-warning)", bg: "var(--color-warning)20", label: "采集中", Icon: Loader2 },
   analyzing: { color: "var(--color-warning)", bg: "var(--color-warning)20", label: "分析中", Icon: Loader2 },
+  done: { color: "var(--color-success)", bg: "var(--color-success)20", label: "已完成", Icon: CheckCircle2 },
 };
 
 function formatDate(dateStr: string | null): string {
