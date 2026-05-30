@@ -14,7 +14,15 @@ const PATH_LABELS: Record<string, string> = {
   suggestions: "优化建议",
   trends: "趋势分析",
   compare: "竞品对比",
+  insights: "内容洞察",
+  strategic: "战略智能",
   content: "智创",
+  list: "内容列表",
+  new: "新建内容",
+  templates: "模板",
+  genie: "AI 助手",
+  calendar: "日历",
+  "brand-voices": "品牌声音",
   projects: "项目管理",
   settings: "设置",
   brands: "品牌管理",
@@ -31,7 +39,8 @@ const PATH_PARENT: Record<string, string> = {
   suggestions: "智見",
   trends: "智見",
   compare: "智見",
-  content: "智創",
+  insights: "智見",
+  strategic: "智見",
 };
 
 function buildBreadcrumb(pathname: string): Array<{ label: string; href?: string }> {
