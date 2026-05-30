@@ -1,7 +1,7 @@
 @AGENTS.md
 
 ## Current Status
-全平台 QA 通过 (29/29 OK + 1 SKIP). 智创 10/10 + 智見 8/8 + 其他 11/11. 进度: ~/.gstack/projects/genilink-platform/progress.md
+全平台 QA 通过 (29/29 OK + 1 SKIP). 面包屑修复已推送. 下一步: 后端联调/UAT. 进度: ~/.gstack/projects/genilink-platform/progress.md
 
 ## ContentOS JWT Integration (done)
 智链发送 RS256 JWT 到 ContentOS (port 4002)。ContentOS 中间件验证 JWT，注入 x-genilink-* headers。
