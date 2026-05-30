@@ -75,8 +75,9 @@ function AuditsContent() {
       header: "状态",
       width: "140px",
       render: (row: AuditListItem) => {
-        const cfg = statusConfig[row.status] ?? statusConfig.pending;
-        const isSpinning = row.status === "collecting" || row.status === "analyzing";
+        const status = (row as unknown as Record<string, string>).phase || row.status;
+        const cfg = statusConfig[status] ?? statusConfig.pending;
+        const isSpinning = status === "collecting" || status === "analyzing";
         return (
           <span
             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
@@ -135,7 +136,8 @@ function AuditsContent() {
       header: "操作",
       width: "120px",
       render: (row: AuditListItem) => {
-        if (row.status !== "completed") return null;
+        const status = (row as unknown as Record<string, string>).phase || row.status;
+        if (status !== "completed" && status !== "done") return null;
         return (
           <span
             className="inline-flex items-center gap-1 text-xs font-medium"
@@ -164,7 +166,8 @@ function AuditsContent() {
   }
 
   const handleRowClick = (row: AuditListItem) => {
-    if (row.status === "completed") {
+    const status = (row as unknown as Record<string, string>).phase || row.status;
+    if (status === "completed" || status === "done") {
       router.push(`/audits/${row.id}/report`);
     }
   };

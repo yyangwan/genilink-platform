@@ -106,7 +106,8 @@ export async function GET(req: NextRequest) {
       if (Array.isArray(audits) && audits.length > 0) {
         const latest = audits[0];
         latestAuditDate = latest.created_at ?? null;
-        if (latest.status === 'completed' || latest.status === 'partial') {
+        const status = latest.phase || latest.status;
+        if (status === 'completed' || status === 'done' || status === 'partial') {
           latestAuditId = latest.id;
         }
       }
