@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
-import { getExternalId, syncProjectToVisibility } from '@/lib/proxy/zhijian-client';
 import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
 
@@ -11,9 +10,6 @@ export interface GuardContext {
   session: { user: { id: string } };
   workspaceId: string;
   projectId: string;
-  externalId: string;
-  /** Integer PK in the visibility service (resolved via sync). Only present when `sync: true`. */
-  projectPk?: number;
   /** Build the full upstream URL for a given path. */
   upstreamUrl: (path: string) => string;
   /** Pre-configured headers with Content-Type and SERVICE_TOKEN. */
@@ -23,8 +19,6 @@ export interface GuardContext {
 export interface GuardOptions {
   /** Billing module to check. Default: 'visibility'. */
   module?: 'visibility' | 'content';
-  /** Whether to resolve project PK via syncProjectToVisibility. Default: false. */
-  sync?: boolean;
   /** Whether to require projectId (set false for routes like /platforms). Default: true. */
   requireProject?: boolean;
   /** Override default timeout in ms. Default: 15_000. */
@@ -36,14 +30,15 @@ type GuardResult =
   | { ok: false; response: NextResponse };
 
 /**
- * Resolve auth → workspace → billing → project verification → external ID.
+ * Resolve auth → workspace → billing → project verification.
  * Returns either a GuardContext for the route handler to use, or a NextResponse error.
+ * No longer resolves external IDs or syncs projects — just passes projectId directly.
  */
 export async function resolveGuard(
   req: NextRequest,
   opts: GuardOptions = {},
 ): Promise<GuardResult> {
-  const { module = 'visibility', sync = false, requireProject = true, timeoutMs = 15_000 } = opts;
+  const { module = 'visibility', requireProject = true, timeoutMs = 15_000 } = opts;
 
   // 1. Auth
   const rawSession = await auth();
@@ -80,11 +75,11 @@ export async function resolveGuard(
   if (!requireProject) {
     return {
       ok: true,
-      ctx: { session, workspaceId, projectId: '', externalId: '', upstreamUrl, headers },
+      ctx: { session, workspaceId, projectId: '', upstreamUrl, headers },
     };
   }
 
-  // 6. Project verification — try query params first (non-destructive) to avoid consuming the body stream
+  // 6. Project verification
   let projectId: string | undefined = req.nextUrl.searchParams.get('projectId') || undefined;
   if (!projectId && req.method !== 'GET') {
     try {
@@ -101,24 +96,7 @@ export async function resolveGuard(
     return { ok: false, response: NextResponse.json({ error: 'Project not found in workspace' }, { status: 403 }) };
   }
 
-  // 7. External ID
-  const externalId = await getExternalId(projectId, 'visibility');
-  if (!externalId) {
-    return { ok: false, response: NextResponse.json({ error: 'No external mapping for project' }, { status: 404 }) };
-  }
-
-  const ctx: GuardContext = { session, workspaceId, projectId, externalId, upstreamUrl, headers };
-
-  // 8. Optional sync to get integer PK
-  if (sync) {
-    try {
-      ctx.projectPk = await syncProjectToVisibility(projectId, externalId);
-    } catch (err) {
-      return { ok: false, response: NextResponse.json({ error: (err as Error).message }, { status: 502 }) };
-    }
-  }
-
-  return { ok: true, ctx };
+  return { ok: true, ctx: { session, workspaceId, projectId, upstreamUrl, headers } };
 }
 
 /**

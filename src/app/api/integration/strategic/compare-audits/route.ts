@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   const upstream = await fetchUpstream(
     result.ctx,
-    `/api/strategic/projects/${result.ctx.externalId}/compare-audits`,
+    `/api/strategic/projects/${result.ctx.projectId}/compare-audits`,
     { method: 'POST', body, errorMessage: 'Failed to compare audits' },
   );
   if ('response' in upstream) return upstream.response;

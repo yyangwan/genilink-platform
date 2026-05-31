@@ -5,11 +5,11 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const result = await resolveGuard(req, { sync: true });
+  const result = await resolveGuard(req);
   if (!result.ok) return result.response;
 
   const { id } = await params;
-  const upstream = await fetchUpstream(result.ctx, `/api/projects/${result.ctx.projectPk}/prompts/${id}`, {
+  const upstream = await fetchUpstream(result.ctx, `/api/prompts/${id}?project_id=${result.ctx.projectId}`, {
     method: 'DELETE',
     timeoutMs: 30_000,
     errorMessage: 'Failed to delete prompt',
@@ -22,13 +22,13 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const result = await resolveGuard(req, { sync: true });
+  const result = await resolveGuard(req);
   if (!result.ok) return result.response;
 
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
 
-  const upstream = await fetchUpstream(result.ctx, `/api/projects/${result.ctx.projectPk}/prompts/${id}`, {
+  const upstream = await fetchUpstream(result.ctx, `/api/prompts/${id}?project_id=${result.ctx.projectId}`, {
     method: 'PATCH',
     body,
     timeoutMs: 30_000,

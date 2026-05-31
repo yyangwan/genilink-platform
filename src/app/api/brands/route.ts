@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withBrandRoute } from '@/lib/auth/brand-route';
 import { prisma } from '@/lib/db';
-import { syncBrandToVisibility } from '@/lib/proxy/zhijian-client';
 import { isUniqueViolation } from '@/lib/prisma-helpers';
-
-type BrandSyncResult = {
-  synced: 'full' | 'partial' | 'failed' | 'skipped';
-  remoteIds: Record<string, string>;
-  errors: string[];
-};
 
 export const GET = withBrandRoute(async (_req, { workspaceId }) => {
   const brands = await prisma.brand.findMany({
@@ -50,29 +43,5 @@ export const POST = withBrandRoute(async (req, { workspaceId }) => {
     throw err;
   }
 
-  // Sync to 智見 only if brand has project associations
-  // (brands created without association are "orphans" — synced when associated later)
-  const associationCount = await prisma.projectBrand.count({
-    where: { brandId: brand.id },
-  });
-
-  let syncResult: BrandSyncResult;
-  if (associationCount === 0) {
-    syncResult = { synced: 'skipped', remoteIds: {}, errors: [] };
-  } else {
-    const result = await syncBrandToVisibility(brand, null);
-    syncResult = result;
-  }
-
-  // Store remote IDs from sync
-  if (Object.keys(syncResult.remoteIds).length > 0) {
-    await prisma.brand.update({
-      where: { id: brand.id },
-      data: { remoteIds: syncResult.remoteIds },
-    });
-    brand.remoteIds = syncResult.remoteIds;
-  }
-
-  const status = syncResult.synced === 'full' ? 201 : 207;
-  return NextResponse.json(brand, { status });
+  return NextResponse.json(brand, { status: 201 });
 });

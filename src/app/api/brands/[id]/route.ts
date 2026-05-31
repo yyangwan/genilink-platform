@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withBrandRoute } from '@/lib/auth/brand-route';
 import { prisma } from '@/lib/db';
-import { syncBrandToVisibility, syncBrandDeleteToVisibility } from '@/lib/proxy/zhijian-client';
 import { isUniqueViolation } from '@/lib/prisma-helpers';
 
 export const GET = withBrandRoute(async (_req, { workspaceId }, params) => {
@@ -52,20 +51,7 @@ export const PATCH = withBrandRoute(async (req, { workspaceId }, params) => {
     throw err;
   }
 
-  // Await sync to 智見
-  const syncResult = await syncBrandToVisibility(updated, updated.remoteIds as Record<string, string> | null);
-
-  // Update remote IDs
-  if (Object.keys(syncResult.remoteIds).length > 0) {
-    await prisma.brand.update({
-      where: { id },
-      data: { remoteIds: syncResult.remoteIds },
-    });
-    updated.remoteIds = syncResult.remoteIds;
-  }
-
-  const status = syncResult.synced === 'full' ? 200 : 207;
-  return NextResponse.json(updated, { status });
+  return NextResponse.json(updated);
 });
 
 export const DELETE = withBrandRoute(async (_req, { workspaceId }, params) => {
@@ -83,11 +69,6 @@ export const DELETE = withBrandRoute(async (_req, { workspaceId }, params) => {
   await prisma.brand.update({
     where: { id },
     data: { deletedAt: new Date() },
-  });
-
-  // Fire-and-forget delete sync to 智見
-  syncBrandDeleteToVisibility(existing, existing.remoteIds as Record<string, string> | null).catch((err) => {
-    console.error(`[brand-sync] Background delete sync failed for brand ${id}:`, err.message);
   });
 
   return NextResponse.json({ success: true });

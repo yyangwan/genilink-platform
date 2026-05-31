@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   const upstream = await fetchUpstream(
     result.ctx,
-    `/api/strategic/projects/${result.ctx.externalId}/competitor-positioning${qs}`,
+    `/api/strategic/projects/${result.ctx.projectId}/competitor-positioning${qs}`,
     { errorMessage: 'Failed to fetch competitor positioning' },
   );
   if ('response' in upstream) return upstream.response;

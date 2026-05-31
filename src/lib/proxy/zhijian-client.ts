@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 
-// Simple in-memory LRU cache for cuid↔integer mapping
+// Simple in-memory LRU cache for cuid↔integer mapping (content service only)
 const cache = new Map<string, { externalId: string; expires: number }>();
 const MAX_CACHE = 500;
 const TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -26,84 +26,14 @@ export async function getExternalId(projectId: string, service: string): Promise
   });
   if (!mapping) return null;
 
-  // Evict stale entries if at capacity
   if (cache.size >= MAX_CACHE) evictStale();
   if (cache.size >= MAX_CACHE) {
-    // Evict oldest entry
     const firstKey = cache.keys().next().value;
     if (firstKey) cache.delete(firstKey);
   }
 
   cache.set(key, { externalId: mapping.externalId, expires: Date.now() + TTL_MS });
   return mapping.externalId;
-}
-
-/**
- * Ensure the visibility service project exists and is synced with the latest
- * product info. Creates the project if needed, otherwise PATCHes to update
- * product_category.
- */
-export async function syncProjectToVisibility(
-  projectId: string,
-  externalId: string,
-): Promise<number> {
-  const serviceToken = process.env.SERVICE_TOKEN;
-  const baseUrl = SERVICE_URLS['visibility'];
-  const parsed = parseInt(externalId, 10);
-  const alreadyInteger = !isNaN(parsed) && String(parsed) === externalId;
-
-  // Look up local project for product info
-  const project = await prisma.project.findUnique({ where: { id: projectId } });
-  const name = project?.name || `Project-${projectId.slice(-6)}`;
-  const industry = project?.industry || undefined;
-  const product_category = [project?.productName, ...(project?.productKeywords || [])].filter(Boolean).join('、') || undefined;
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
-
-  if (alreadyInteger) {
-    // Project exists — PATCH to update product info
-    try {
-      await fetch(`${baseUrl}/api/projects/${parsed}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ name, industry, product_category }),
-        signal: AbortSignal.timeout(10_000),
-      });
-    } catch (err) {
-      console.warn(`[sync-project] PATCH failed for project ${projectId} (visibility ${parsed}):`, (err as Error).message);
-    }
-    return parsed;
-  }
-
-  // externalId is a nanoid — need to create project
-  if (!serviceToken) {
-    throw new Error('SERVICE_TOKEN not configured — cannot auto-create visibility project');
-  }
-
-  const res = await fetch(`${baseUrl}/api/projects`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ name, industry, product_category }),
-    signal: AbortSignal.timeout(10_000),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to create project on visibility service: ${res.status}`);
-  }
-
-  const data = await res.json();
-  const newId = String(data.id);
-
-  await prisma.externalResourceMapping.update({
-    where: { projectId_service: { projectId, service: 'visibility' } },
-    data: { externalId: newId },
-  });
-  evictCache(projectId, 'visibility');
-
-  return data.id as number;
 }
 
 export function evictCache(projectId: string, service?: string): void {
@@ -114,260 +44,6 @@ export function evictCache(projectId: string, service?: string): void {
       if (key.startsWith(`${projectId}:`)) cache.delete(key);
     }
   }
-}
-
-// ─── Brand Sync ─────────────────────────────────────────────────────
-
-interface BrandSyncPayload {
-  name: string;
-  aliases: string[];
-  isCompetitor: boolean;
-  logo?: string | null;
-  website?: string | null;
-  description?: string | null;
-}
-
-interface BrandSyncResult {
-  synced: 'full' | 'partial' | 'failed';
-  remoteIds: Record<string, string>;
-  errors: string[];
-}
-
-/**
- * Sync brand to 智見 (visibility service). Awaited by the route handler.
- * Only syncs to projects that have an active ProjectBrand association.
- * Returns remote IDs for storage in Brand.remoteIds.
- */
-export async function syncBrandToVisibility(
-  brand: { id: string; name: string; aliases: string[]; isCompetitor: boolean; logo?: string | null; website?: string | null; description?: string | null; workspaceId: string },
-  existingRemoteIds: Record<string, string> | null,
-): Promise<BrandSyncResult> {
-  const errors: string[] = [];
-  const remoteIds: Record<string, string> = { ...(existingRemoteIds ?? {}) };
-  const serviceToken = process.env.SERVICE_TOKEN;
-  const baseUrl = SERVICE_URLS['visibility'];
-
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
-
-  // Get only associated projects via ProjectBrand (not all workspace projects)
-  const associations = await prisma.projectBrand.findMany({
-    where: { brandId: brand.id },
-    include: {
-      project: { include: { externalMappings: { where: { service: 'visibility' } } } },
-    },
-  });
-
-  // Sync to all associated projects in parallel
-  const syncOne = async (assoc: typeof associations[number]): Promise<{ err?: string; rid?: { project: string; id: string } } | null> => {
-    const project = assoc.project;
-    const mapping = project.externalMappings[0];
-    if (!mapping) return null; // project not linked to visibility yet
-
-    const visibilityProjectId: string = mapping.externalId;
-    const payload: Record<string, unknown> = {
-      name: brand.name,
-      aliases: brand.aliases,
-      is_competitor: brand.isCompetitor, // 智見 uses snake_case
-    };
-
-    try {
-      const remoteBrandId = remoteIds[visibilityProjectId];
-      if (remoteBrandId) {
-        const res = await fetchWithRetry(
-          `${baseUrl}/api/projects/${visibilityProjectId}/brands/${remoteBrandId}`,
-          { method: 'PATCH', headers, body: JSON.stringify(payload) },
-        );
-        if (!res.ok) {
-          return { err: `visibility project ${visibilityProjectId}: PATCH ${res.status}` };
-        }
-        return null;
-      } else {
-        const res = await fetchWithRetry(
-          `${baseUrl}/api/projects/${visibilityProjectId}/brands`,
-          { method: 'POST', headers, body: JSON.stringify(payload) },
-        );
-        if (res.ok) {
-          const data = await res.json();
-          return { rid: { project: visibilityProjectId, id: String(data.id) } };
-        } else {
-          return { err: `visibility project ${visibilityProjectId}: POST ${res.status}` };
-        }
-      }
-    } catch (err) {
-      return { err: `visibility project ${visibilityProjectId}: ${(err as Error).message}` };
-    }
-  };
-
-  const results = await Promise.allSettled(associations.map(syncOne));
-
-  for (const r of results) {
-    if (r.status === 'fulfilled' && r.value) {
-      if (r.value.err) errors.push(r.value.err);
-      else if (r.value.rid) remoteIds[r.value.rid.project] = r.value.rid.id;
-    }
-  }
-
-  return {
-    synced: errors.length === 0 ? 'full' : Object.keys(remoteIds).length > 0 ? 'partial' : 'failed',
-    remoteIds,
-    errors,
-  };
-}
-
-/**
- * Sync a single brand to a single 智見 project (on association create).
- * Returns the remote brand ID for storage in Brand.remoteIds.
- */
-export async function syncBrandToProject(
-  brand: { id: string; name: string; aliases: string[]; isCompetitor: boolean },
-  projectId: string,
-  existingRemoteIds: Record<string, string> | null,
-): Promise<{ remoteId: string; remoteIds: Record<string, string> } | { error: string }> {
-  const serviceToken = process.env.SERVICE_TOKEN;
-  const baseUrl = SERVICE_URLS['visibility'];
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
-
-  // Get the project's visibility external ID
-  const mapping = await prisma.externalResourceMapping.findUnique({
-    where: { projectId_service: { projectId, service: 'visibility' } },
-  });
-  if (!mapping) {
-    return { error: `Project ${projectId} not linked to visibility service` };
-  }
-
-  const visibilityProjectId = mapping.externalId;
-  const remoteIds: Record<string, string> = { ...(existingRemoteIds ?? {}) };
-  const payload = {
-    name: brand.name,
-    aliases: brand.aliases,
-    is_competitor: brand.isCompetitor,
-  };
-
-  try {
-    // Check if remote brand already exists for this project (re-associate scenario)
-    const existingRemoteId = remoteIds[visibilityProjectId];
-    if (existingRemoteId) {
-      const res = await fetchWithRetry(
-        `${baseUrl}/api/projects/${visibilityProjectId}/brands/${existingRemoteId}`,
-        { method: 'PATCH', headers, body: JSON.stringify(payload) },
-      );
-      if (res.ok) {
-        return { remoteId: existingRemoteId, remoteIds };
-      }
-      // PATCH failed — fall through to create new
-    }
-
-    const res = await fetchWithRetry(
-      `${baseUrl}/api/projects/${visibilityProjectId}/brands`,
-      { method: 'POST', headers, body: JSON.stringify(payload) },
-    );
-    if (!res.ok) {
-      return { error: `visibility project ${visibilityProjectId}: POST ${res.status}` };
-    }
-    const data = await res.json();
-    const remoteId = String(data.id);
-    remoteIds[visibilityProjectId] = remoteId;
-    return { remoteId, remoteIds };
-  } catch (err) {
-    return { error: `visibility project ${visibilityProjectId}: ${(err as Error).message}` };
-  }
-}
-
-/**
- * Remove a brand from a single 智見 project (on disassociation).
- * Looks up the remote brand ID via Brand.remoteIds keyed by external ID.
- */
-export async function syncBrandDisassociate(
-  brand: { id: string },
-  projectId: string,
-  existingRemoteIds: Record<string, string> | null,
-): Promise<{ remoteIds: Record<string, string> } | { error: string }> {
-  if (!existingRemoteIds) {
-    return { remoteIds: {} };
-  }
-
-  const serviceToken = process.env.SERVICE_TOKEN;
-  const baseUrl = SERVICE_URLS['visibility'];
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
-
-  // Get the project's visibility external ID
-  const mapping = await prisma.externalResourceMapping.findUnique({
-    where: { projectId_service: { projectId, service: 'visibility' } },
-  });
-  if (!mapping) {
-    return { remoteIds: existingRemoteIds };
-  }
-
-  const visibilityProjectId = mapping.externalId;
-  const remoteBrandId = existingRemoteIds[visibilityProjectId];
-  if (!remoteBrandId) {
-    return { remoteIds: existingRemoteIds };
-  }
-
-  try {
-    const res = await fetchWithRetry(
-      `${baseUrl}/api/projects/${visibilityProjectId}/brands/${remoteBrandId}`,
-      { method: 'DELETE', headers },
-    );
-    // Only remove remote mapping on upstream success
-    if (!res.ok) {
-      console.warn(`[brand-sync] Disassociate DELETE returned ${res.status} for brand ${brand.id} in visibility project ${visibilityProjectId}`);
-      return { remoteIds: existingRemoteIds };
-    }
-  } catch (err) {
-    console.warn(`[brand-sync] Disassociate DELETE failed for brand ${brand.id} in visibility project ${visibilityProjectId}:`, (err as Error).message);
-    return { remoteIds: existingRemoteIds };
-  }
-
-  // Remove the remote ID for this project only after confirmed upstream deletion
-  const remoteIds = { ...existingRemoteIds };
-  delete remoteIds[visibilityProjectId];
-  return { remoteIds };
-}
-
-/**
- * Sync brand delete to 智見. Fire-and-forget with retries.
- */
-export async function syncBrandDeleteToVisibility(
-  brand: { id: string; workspaceId: string },
-  remoteIds: Record<string, string> | null,
-): Promise<void> {
-  if (!remoteIds) return;
-
-  const serviceToken = process.env.SERVICE_TOKEN;
-  const baseUrl = SERVICE_URLS['visibility'];
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
-
-  for (const [projectId, brandId] of Object.entries(remoteIds)) {
-    try {
-      await fetchWithRetry(
-        `${baseUrl}/api/projects/${projectId}/brands/${brandId}`,
-        { method: 'DELETE', headers },
-      );
-    } catch (err) {
-      console.error(`[brand-sync] DELETE failed for brand ${brand.id} in visibility project ${projectId}:`, (err as Error).message);
-    }
-  }
-}
-
-/** Fetch with up to 2 retries and 1s backoff */
-async function fetchWithRetry(url: string, init: RequestInit, retries = 2): Promise<Response> {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      return await fetch(url, { ...init, signal: AbortSignal.timeout(10_000) });
-    } catch (err) {
-      if (attempt < retries) {
-        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-      } else {
-        throw err;
-      }
-    }
-  }
-  throw new Error('unreachable');
 }
 
 export interface ProxyRequestOptions {
@@ -422,26 +98,18 @@ export async function proxyRequest<T = unknown>(opts: ProxyRequestOptions): Prom
 
     clearTimeout(timer);
 
-    if (res.status === 401) {
-      throw new Error('AUTH_EXPIRED');
-    }
-    if (res.status === 403) {
-      throw new Error('ACCESS_DENIED');
-    }
+    if (res.status === 401) throw new Error('AUTH_EXPIRED');
+    if (res.status === 403) throw new Error('ACCESS_DENIED');
     if (res.status === 404) {
       evictCache(opts.projectId, opts.service);
       throw new Error('NOT_FOUND');
     }
-    if (!res.ok) {
-      throw new Error(`UPSTREAM_ERROR_${res.status}`);
-    }
+    if (!res.ok) throw new Error(`UPSTREAM_ERROR_${res.status}`);
 
     return (await res.json()) as T;
   } catch (err) {
     clearTimeout(timer);
-    if ((err as Error).name === 'AbortError') {
-      throw new Error('TIMEOUT');
-    }
+    if ((err as Error).name === 'AbortError') throw new Error('TIMEOUT');
     throw err;
   }
 }
@@ -469,12 +137,8 @@ export async function proxyStreamRequest(opts: ProxyRequestOptions): Promise<Res
     'Content-Type': 'application/json',
     Accept: 'text/event-stream',
   };
-  if (opts.accessToken) {
-    headers['Authorization'] = `Bearer ${opts.accessToken}`;
-  }
-  if (externalId && opts.service === 'content') {
-    headers['X-ContentOS-Project-Id'] = externalId;
-  }
+  if (opts.accessToken) headers['Authorization'] = `Bearer ${opts.accessToken}`;
+  if (externalId && opts.service === 'content') headers['X-ContentOS-Project-Id'] = externalId;
 
   try {
     const res = await fetch(url, {

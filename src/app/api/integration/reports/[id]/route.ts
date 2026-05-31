@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
+import { prisma } from '@/lib/db';
 
 export async function GET(
   req: NextRequest,
@@ -10,25 +11,20 @@ export async function GET(
 
   const { id } = await params;
 
-  // Resolve project's external ID for brands lookup
-  const projectPk = parseInt(result.ctx.externalId, 10);
-  const ownBrandNamesPromise = !isNaN(projectPk)
-    ? fetch(result.ctx.upstreamUrl(`/api/projects/${projectPk}/brands`), {
-        headers: result.ctx.headers,
-        signal: AbortSignal.timeout(10_000),
-      })
-        .then(async (r) => {
-          if (!r.ok) return new Set<string>();
-          const brands = await r.json();
-          if (!Array.isArray(brands)) return new Set<string>();
-          return new Set(
-            brands
-              .filter((b: { is_competitor?: boolean; name: string }) => !b.is_competitor)
-              .map((b: { name: string }) => b.name),
-          );
-        })
-        .catch(() => new Set<string>())
-    : Promise.resolve(new Set<string>());
+  // Fetch own brand names from prisma (ProjectBrand join table)
+  const ownBrandNamesPromise = prisma.projectBrand
+    .findMany({
+      where: { projectId: result.ctx.projectId },
+      include: { brand: true },
+    })
+    .then((associations) =>
+      new Set(
+        associations
+          .filter((a) => a.brand && !a.brand.deletedAt && !a.brand.isCompetitor)
+          .map((a) => a.brand.name),
+      ),
+    )
+    .catch(() => new Set<string>());
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);

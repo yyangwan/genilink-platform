@@ -1,10 +1,9 @@
 import { prisma } from '@/lib/db';
-import { syncBrandToProject } from '@/lib/proxy/zhijian-client';
 import { isUniqueViolation } from '@/lib/prisma-helpers';
 
 /**
- * Auto-create an own (non-competitor) brand, associate it with a project,
- * and sync to 智見. Non-blocking — errors are logged, not thrown.
+ * Auto-create an own (non-competitor) brand and associate it with a project.
+ * No downstream sync needed — brands live only in 智鏈.
  */
 export async function createBrandForProject(
   brandName: string,
@@ -19,16 +18,6 @@ export async function createBrandForProject(
     await prisma.projectBrand.create({
       data: { projectId, brandId: brand.id },
     });
-
-    const syncResult = await syncBrandToProject(brand, projectId, null);
-    if ('remoteIds' in syncResult && Object.keys(syncResult.remoteIds).length > 0) {
-      await prisma.brand.update({
-        where: { id: brand.id },
-        data: { remoteIds: syncResult.remoteIds },
-      });
-    } else if ('error' in syncResult) {
-      console.warn(`[brand-auto-create] Sync failed: ${syncResult.error}`);
-    }
   } catch (err) {
     if (isUniqueViolation(err)) {
       // Brand name already exists — find it and create association

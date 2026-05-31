@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   const upstream = await fetchUpstream(
     result.ctx,
-    `/api/trends/${result.ctx.externalId}/audits-history?limit=${limit}`,
+    `/api/trends/${result.ctx.projectId}/audits-history?limit=${limit}`,
     { errorMessage: 'Failed to fetch audits history' },
   );
   if ('response' in upstream) return upstream.response;

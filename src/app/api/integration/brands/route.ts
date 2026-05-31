@@ -1,47 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withBrandRoute } from '@/lib/auth/brand-route';
-import { resolveBrandProject, proxyBrandFetch, transformBrandBody } from '@/lib/proxy/brand-proxy';
+import { resolveGuard } from '@/lib/proxy/route-guard';
+import { prisma } from '@/lib/db';
 
-export const GET = withBrandRoute(async (req, { userId, workspaceId }) => {
-  const projectId = req.nextUrl.searchParams.get('projectId');
-  if (!projectId) {
-    return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
-  }
-
-  const result = await resolveBrandProject(projectId, userId, workspaceId);
+export async function GET(req: NextRequest) {
+  const result = await resolveGuard(req);
   if (!result.ok) return result.response;
 
-  return proxyBrandFetch('GET', `/api/projects/${result.projectPk}/brands`, { timeoutMs: 15_000 });
-});
-
-export const POST = withBrandRoute(async (req, { userId, workspaceId }) => {
-  const body = await req.json();
-  const projectId = body.projectId || req.nextUrl.searchParams.get('projectId');
-  if (!projectId) {
-    return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
-  }
-
-  const result = await resolveBrandProject(projectId, userId, workspaceId);
-  if (!result.ok) return result.response;
-
-  const { projectId: _, ...rest } = body;
-  return proxyBrandFetch('POST', `/api/projects/${result.projectPk}/brands`, {
-    body: transformBrandBody(rest),
+  // Fetch brands associated with this project via ProjectBrand join table
+  const associations = await prisma.projectBrand.findMany({
+    where: { projectId: result.ctx.projectId },
+    include: { brand: true },
   });
-});
 
-export const PATCH = withBrandRoute(async (req, { userId, workspaceId }) => {
-  const body = await req.json();
-  const projectId = body.projectId || req.nextUrl.searchParams.get('projectId');
-  if (!projectId) {
-    return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
-  }
+  const brands = associations
+    .filter(a => a.brand && !a.brand.deletedAt)
+    .map(a => ({
+      id: a.brand.id,
+      name: a.brand.name,
+      aliases: a.brand.aliases || [],
+      is_competitor: a.brand.isCompetitor || false,
+    }));
 
-  const result = await resolveBrandProject(projectId, userId, workspaceId);
-  if (!result.ok) return result.response;
+  return NextResponse.json(brands);
+}
 
-  const { projectId: _, ...rest } = body;
-  return proxyBrandFetch('PATCH', `/api/projects/${result.projectPk}/brands`, {
-    body: transformBrandBody(rest),
-  });
-});
+// POST, PATCH, DELETE — brands are now managed via /api/brands directly
+export async function POST() {
+  return NextResponse.json(
+    { error: 'Use /api/brands to create brands' },
+    { status: 410 },
+  );
+}
+
+export async function PATCH() {
+  return NextResponse.json(
+    { error: 'Use /api/brands to update brands' },
+    { status: 410 },
+  );
+}

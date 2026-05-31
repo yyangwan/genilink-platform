@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   const upstream = await fetchUpstream(
     result.ctx,
-    `/api/analysis/projects/${result.ctx.externalId}/content-intelligence${qs}`,
+    `/api/analysis/projects/${result.ctx.projectId}/content-intelligence${qs}`,
     { errorMessage: 'Failed to fetch content intelligence' },
   );
   if ('response' in upstream) return upstream.response;

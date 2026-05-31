@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   const upstream = await fetchUpstream(
     result.ctx,
-    `/api/strategic/projects/${result.ctx.externalId}/structure-evolution${qs}`,
+    `/api/strategic/projects/${result.ctx.projectId}/structure-evolution${qs}`,
     { errorMessage: 'Failed to fetch structure evolution' },
   );
   if ('response' in upstream) return upstream.response;

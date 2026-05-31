@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
-import { syncBrandDisassociate } from '@/lib/proxy/zhijian-client';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
 import { validateWorkspaceAccess } from '@/lib/auth/workspace';
 
@@ -73,23 +72,6 @@ export async function DELETE(
 
   if (deleted.count === 0) {
     return NextResponse.json({ error: 'Association not found' }, { status: 404 });
-  }
-
-  // Sync disassociation to 智見
-  const brand = await prisma.brand.findUnique({ where: { id: brandId } });
-  if (brand) {
-    const syncResult = await syncBrandDisassociate(
-      { id: brand.id },
-      projectId,
-      (brand.remoteIds as Record<string, string>) ?? null,
-    );
-
-    if ('remoteIds' in syncResult) {
-      await prisma.brand.update({
-        where: { id: brand.id },
-        data: { remoteIds: syncResult.remoteIds },
-      });
-    }
   }
 
   return NextResponse.json({ success: true });

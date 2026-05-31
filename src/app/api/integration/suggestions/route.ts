@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
 
 export async function GET(req: NextRequest) {
-  const result = await resolveGuard(req, { sync: true });
+  const result = await resolveGuard(req);
   if (!result.ok) return result.response;
 
-  const upstream = await fetchUpstream(result.ctx, `/api/suggestions/${result.ctx.projectPk}`, {
+  const upstream = await fetchUpstream(result.ctx, `/api/suggestions/${result.ctx.projectId}`, {
     errorMessage: 'Failed to fetch suggestions',
   });
   if ('response' in upstream) return upstream.response;
@@ -15,10 +15,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const result = await resolveGuard(req, { sync: true });
+  const result = await resolveGuard(req);
   if (!result.ok) return result.response;
 
-  const upstream = await fetchUpstream(result.ctx, `/api/suggestions/${result.ctx.projectPk}/generate`, {
+  const upstream = await fetchUpstream(result.ctx, `/api/suggestions/${result.ctx.projectId}/generate`, {
     method: 'POST',
     timeoutMs: 60_000,
     errorMessage: 'Failed to generate suggestions',

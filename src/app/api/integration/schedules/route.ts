@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
 
 export async function GET(req: NextRequest) {
-  const result = await resolveGuard(req, { sync: true });
+  const result = await resolveGuard(req);
   if (!result.ok) return result.response;
 
   const upstream = await fetchUpstream(result.ctx, `/api/schedules`, {
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const result = await resolveGuard(req, { sync: true });
+  const result = await resolveGuard(req);
   if (!result.ok) return result.response;
 
   const body = await req.json().catch(() => ({}));
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
   const upstream = await fetchUpstream(result.ctx, `/api/schedules`, {
     method: 'POST',
-    body: { project_id: result.ctx.projectPk, ...rest },
+    body: { project_id: result.ctx.projectId, ...rest },
     timeoutMs: 30_000,
     errorMessage: 'Failed to create schedule',
   });

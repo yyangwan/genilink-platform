@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   const upstream = await fetchUpstream(
     result.ctx,
-    `/api/strategic/projects/${result.ctx.externalId}/source-authority-trends${qs}`,
+    `/api/strategic/projects/${result.ctx.projectId}/source-authority-trends${qs}`,
     { errorMessage: 'Failed to fetch source authority trends' },
   );
   if ('response' in upstream) return upstream.response;

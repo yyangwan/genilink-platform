@@ -141,14 +141,14 @@ function VisibilityContent() {
     try {
       const [promptsRes, brandsRes] = await Promise.all([
         fetch(`/api/integration/prompts?projectId=${currentProjectId}`),
-        fetch(`/api/integration/brands?projectId=${currentProjectId}`),
+        fetch(`/api/projects/${currentProjectId}/brands`),
       ]);
 
       const promptsData = promptsRes.ok ? await promptsRes.json() : [];
-      const brandsData = brandsRes.ok ? await brandsRes.json() : [];
+      const brandsData = brandsRes.ok ? await brandsRes.json() : {};
 
       const hasPrompts = Array.isArray(promptsData) && promptsData.length > 0;
-      const hasBrands = Array.isArray(brandsData) && brandsData.length > 0;
+      const hasBrands = Array.isArray(brandsData.brands) && brandsData.brands.length > 0;
 
       if (!hasBrands) {
         setAnalysisPhase("error");
