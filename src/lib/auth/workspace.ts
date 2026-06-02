@@ -15,6 +15,14 @@ export async function validateWorkspaceAccess(userId: string, workspaceId: strin
   return !!membership;
 }
 
+export async function getWorkspaceRole(userId: string, workspaceId: string): Promise<string | null> {
+  const membership = await prisma.workspaceMember.findFirst({
+    where: { userId, workspaceId },
+    select: { role: true },
+  });
+  return membership?.role ?? null;
+}
+
 /**
  * Verify that a project belongs to the given workspace.
  * Returns the project if found, or null if not.

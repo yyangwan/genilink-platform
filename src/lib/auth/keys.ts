@@ -1,4 +1,5 @@
 import { importPKCS8, importSPKI } from 'jose';
+import { execSync } from 'node:child_process';
 import fs from 'fs';
 import path from 'path';
 
@@ -7,7 +8,6 @@ const PRIVATE_KEY_PATH = path.join(KEYS_DIR, 'private.pem');
 const PUBLIC_KEY_PATH = path.join(KEYS_DIR, 'public.pem');
 
 function generateKeyPairPEM(): { privateKey: string; publicKey: string } {
-  const { execSync } = require('child_process');
   if (!fs.existsSync(KEYS_DIR)) fs.mkdirSync(KEYS_DIR, { recursive: true });
 
   execSync(

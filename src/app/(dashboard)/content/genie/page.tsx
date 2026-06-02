@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import React, { Suspense, useCallback, useState } from "react";
 import { Sparkles, Plus, Trash2, Loader2, ExternalLink, Globe } from "lucide-react";

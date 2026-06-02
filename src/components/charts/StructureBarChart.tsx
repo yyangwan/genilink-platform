@@ -13,7 +13,7 @@ import {
 import { tooltipStyles, axisTickStyles, axisLineStyles, tickLineStyles, gridStyles, legendStyles, chartMargin } from "./shared";
 
 interface StructureBarChartProps {
-  data: Record<string, any>[];
+  data: Array<Record<string, string | number | null>>;
 }
 
 export default function StructureBarChart({ data }: StructureBarChartProps) {

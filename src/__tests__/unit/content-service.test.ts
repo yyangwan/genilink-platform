@@ -19,12 +19,11 @@ import {
 } from '@/lib/content/service';
 
 describe('content service', () => {
-  const ctx = { projectId: 'proj-1', externalId: 'ext-123', serviceToken: 'dynamic-jwt' };
+  const ctx = { projectId: 'proj-1', serviceToken: 'dynamic-jwt' };
 
   const baseArgs = {
     service: 'content' as const,
     accessToken: 'dynamic-jwt',
-    externalId: 'ext-123',
     projectId: 'proj-1',
   };
 

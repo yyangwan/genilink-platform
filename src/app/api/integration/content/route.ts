@@ -4,6 +4,8 @@ import { requireBilling, BillingError } from '@/lib/billing/guard';
 import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
 import { proxyRequest } from '@/lib/proxy/zhijian-client';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
+import { getWorkspaceRole } from '@/lib/auth/workspace';
+import { issueContentProjectJWT } from '@/lib/auth/service-jwt';
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -48,11 +50,23 @@ export async function GET(req: NextRequest) {
 
   // Proxy to content service
   try {
+    const role = await getWorkspaceRole(session.user.id, workspaceId);
+    if (!role) {
+      return NextResponse.json({ error: 'Not a workspace member' }, { status: 403 });
+    }
+    const serviceToken = await issueContentProjectJWT({
+      userId: session.user.id,
+      email: session.user.email,
+      name: session.user.name,
+      workspaceId,
+      projectId,
+      role,
+    });
     const data = await proxyRequest({
       projectId,
       service: 'content',
       path: '/api/projects/:id/summary',
-      accessToken: process.env.SERVICE_TOKEN,
+      accessToken: serviceToken,
     });
 
     return NextResponse.json({ data });

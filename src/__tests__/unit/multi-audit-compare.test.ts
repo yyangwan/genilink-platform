@@ -12,13 +12,15 @@ vi.mock('@/lib/auth/get-workspace', () => ({
 }));
 vi.mock('@/lib/auth/workspace', () => ({
   verifyProjectInWorkspace: vi.fn().mockResolvedValue({ id: 'proj-1' }),
+  getWorkspaceRole: vi.fn().mockResolvedValue('owner'),
 }));
 vi.mock('@/lib/billing/guard', () => ({
   requireBilling: vi.fn().mockResolvedValue(undefined),
   BillingError: class extends Error {},
 }));
-vi.mock('@/lib/proxy/zhijian-client', () => ({
-  getExternalId: vi.fn().mockResolvedValue('ext-10'),
+vi.mock('@/lib/auth/service-jwt', () => ({
+  issueVisibilityProjectJWT: vi.fn().mockResolvedValue('project-jwt'),
+  issueVisibilityWorkspaceJWT: vi.fn().mockResolvedValue('workspace-jwt'),
 }));
 
 const mockFetch = vi.fn();
@@ -61,8 +63,11 @@ describe('GET /api/integration/trends/audits-history', () => {
     expect(data).toHaveLength(3);
     expect(data[0].id).toBe(1);
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/trends/ext-10/audits-history?limit=20'),
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      expect.stringContaining('/api/trends/proj-1/audits-history?limit=20'),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer project-jwt' }),
+        signal: expect.any(AbortSignal),
+      }),
     );
   });
 
@@ -75,15 +80,6 @@ describe('GET /api/integration/trends/audits-history', () => {
     expect(res.status).toBe(502);
   });
 
-  it('returns 404 when no external mapping', async () => {
-    const { getExternalId } = await import('@/lib/proxy/zhijian-client');
-    (getExternalId as any).mockResolvedValueOnce(null);
-
-    const req = makeReq('http://localhost/api/integration/trends/audits-history?projectId=proj-1');
-    const res = await getAuditsHistory(req);
-
-    expect(res.status).toBe(404);
-  });
 });
 
 describe('POST /api/integration/strategic/compare-audits', () => {
@@ -106,7 +102,7 @@ describe('POST /api/integration/strategic/compare-audits', () => {
     expect(data.audits).toHaveLength(2);
     expect(data.diffs.score_delta).toBe(6);
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/strategic/projects/ext-10/compare-audits'),
+      expect.stringContaining('/api/strategic/projects/proj-1/compare-audits'),
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ audit_ids: [1, 2] }),

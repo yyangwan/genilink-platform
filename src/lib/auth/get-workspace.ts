@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/db';
+import { validateWorkspaceAccess } from '@/lib/auth/workspace';
 
 /**
  * Resolve the active workspace ID from cookie, with auto-recovery.
@@ -9,7 +10,9 @@ import { prisma } from '@/lib/db';
 export async function getWorkspaceId(userId: string): Promise<string | null> {
   const cookieStore = await cookies();
   const cookie = cookieStore.get('genilink-workspace')?.value;
-  if (cookie) return cookie;
+  if (cookie && await validateWorkspaceAccess(userId, cookie)) {
+    return cookie;
+  }
 
   // Auto-recover: pick first workspace membership
   const membership = await prisma.workspaceMember.findFirst({

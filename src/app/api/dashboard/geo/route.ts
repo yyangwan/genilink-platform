@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
 import { proxyRequest } from '@/lib/proxy/zhijian-client';
+import { getWorkspaceRole } from '@/lib/auth/workspace';
+import { issueVisibilityProjectJWT } from '@/lib/auth/service-jwt';
 
 // GET /api/dashboard/geo — fetch real geo data from 智見
 export async function GET(req: NextRequest) {
@@ -21,7 +23,6 @@ export async function GET(req: NextRequest) {
 
   const projects = await prisma.project.findMany({
     where: projectId ? { id: projectId, workspaceId } : { workspaceId },
-    include: { externalMappings: true },
     take: 1,
   });
 
@@ -30,17 +31,23 @@ export async function GET(req: NextRequest) {
   }
 
   const project = projects[0];
-  const visibilityMapping = project.externalMappings.find((m) => m.service === 'visibility');
-
-  if (!visibilityMapping) {
-    return NextResponse.json({ websites: [], totalCitations: 0, avgAiScore: null, optimizationTasks: [] });
-  }
 
   try {
+    const role = await getWorkspaceRole(session.user.id, workspaceId);
+    if (!role) return NextResponse.json({ websites: [], totalCitations: 0, avgAiScore: null, optimizationTasks: [] });
+    const serviceToken = await issueVisibilityProjectJWT({
+      userId: session.user.id,
+      email: session.user.email,
+      name: session.user.name,
+      workspaceId,
+      projectId: project.id,
+      role,
+    });
     const data = await proxyRequest({
       projectId: project.id,
       service: 'visibility',
       path: '/api/v1/projects/:id/geo-summary',
+      accessToken: serviceToken,
     });
 
     const result = data as Record<string, unknown>;

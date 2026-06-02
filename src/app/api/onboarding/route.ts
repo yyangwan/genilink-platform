@@ -1,74 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
-import { nanoid } from 'nanoid';
 import { createBrandForProject } from '@/lib/brand-helpers';
-
-const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
-
-/**
- * Create a project on the visibility service and return its integer ID.
- * Falls back to nanoid if the service is unavailable.
- */
-async function createVisibilityProject(
-  name: string,
-  industry?: string | null,
-): Promise<string> {
-  const serviceToken = process.env.SERVICE_TOKEN;
-  if (!serviceToken) return nanoid(12);
-
-  try {
-    const res = await fetch(`${VISIBILITY_URL}/api/projects`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${serviceToken}`,
-      },
-      body: JSON.stringify({ name, industry: industry || undefined }),
-      signal: AbortSignal.timeout(10_000),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      return String(data.id);
-    }
-  } catch {
-    // Service unavailable — fall back to nanoid
-  }
-
-  return nanoid(12);
-}
-
-/**
- * Ensure external mappings exist for a project. Creates them if missing.
- */
-async function ensureMappings(
-  projectId: string,
-  projectName: string,
-  industry?: string | null,
-): Promise<void> {
-  const existing = await prisma.externalResourceMapping.findMany({
-    where: { projectId },
-  });
-
-  const hasVisibility = existing.some((m) => m.service === 'visibility');
-  const hasContent = existing.some((m) => m.service === 'content');
-
-  const toCreate: { projectId: string; service: 'visibility' | 'content'; externalId: string }[] = [];
-
-  if (!hasVisibility) {
-    const externalId = await createVisibilityProject(projectName, industry);
-    toCreate.push({ projectId, service: 'visibility', externalId });
-  }
-
-  if (!hasContent) {
-    toCreate.push({ projectId, service: 'content', externalId: nanoid(12) });
-  }
-
-  if (toCreate.length > 0) {
-    await prisma.externalResourceMapping.createMany({ data: toCreate });
-  }
-}
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -125,9 +58,6 @@ export async function POST(req: NextRequest) {
         },
       });
     }
-
-    // Ensure external mappings (creates project on visibility service)
-    await ensureMappings(project.id, project.name, industry);
 
     // Auto-create own brand if brandName provided
     if (brandName?.trim()) {
@@ -201,25 +131,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // 4. Create project on visibility service and store its integer ID
-    const visibilityExternalId = await createVisibilityProject(projectName, industry);
-
-    await tx.externalResourceMapping.createMany({
-      data: [
-        {
-          projectId: project.id,
-          service: 'visibility',
-          externalId: visibilityExternalId,
-        },
-        {
-          projectId: project.id,
-          service: 'content',
-          externalId: nanoid(12),
-        },
-      ],
-    });
-
-    // 5. Mark user onboarding as completed
+    // 4. Mark user onboarding as completed
     await tx.user.update({
       where: { id: userId },
       data: {

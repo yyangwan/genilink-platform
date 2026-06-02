@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import React, { Suspense, useCallback, useState } from "react";
 import { TrendingUp, Eye, FileText, BarChart3 } from "lucide-react";

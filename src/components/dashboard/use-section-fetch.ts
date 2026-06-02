@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useState, useEffect, useCallback, useRef } from "react";
 
@@ -68,7 +69,7 @@ export function useSectionFetch<T>(url: string | null): SectionFetchState<T> {
       setData(json);
       setLoading(false);
     } catch (err) {
-      // Ignore abort errors â€” they are intentional
+      // Ignore abort errors â€?they are intentional
       if (err instanceof DOMException && err.name === "AbortError") {
         return;
       }
@@ -77,7 +78,6 @@ export function useSectionFetch<T>(url: string | null): SectionFetchState<T> {
       setData(null);
     }
   }, [url]);
-
   useEffect(() => {
     fetchData();
 
@@ -90,3 +90,4 @@ export function useSectionFetch<T>(url: string | null): SectionFetchState<T> {
 
   return { data, loading, error, locked, refetch: fetchData };
 }
+

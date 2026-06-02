@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
-import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
+import { getWorkspaceRole, verifyProjectInWorkspace } from '@/lib/auth/workspace';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
+import { issueVisibilityProjectJWT, issueVisibilityWorkspaceJWT } from '@/lib/auth/service-jwt';
 
 const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
 
@@ -10,9 +11,10 @@ export interface GuardContext {
   session: { user: { id: string } };
   workspaceId: string;
   projectId: string;
+  serviceToken: string;
   /** Build the full upstream URL for a given path. */
   upstreamUrl: (path: string) => string;
-  /** Pre-configured headers with Content-Type and SERVICE_TOKEN. */
+  /** Pre-configured headers with Content-Type and a Portal-issued JWT. */
   headers: Record<string, string>;
 }
 
@@ -38,7 +40,7 @@ export async function resolveGuard(
   req: NextRequest,
   opts: GuardOptions = {},
 ): Promise<GuardResult> {
-  const { module = 'visibility', requireProject = true, timeoutMs = 15_000 } = opts;
+  const { module = 'visibility', requireProject = true } = opts;
 
   // 1. Auth
   const rawSession = await auth();
@@ -63,23 +65,39 @@ export async function resolveGuard(
     throw err;
   }
 
-  // 4. Build upstream headers
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const serviceToken = process.env.SERVICE_TOKEN;
-  if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
+  const role = await getWorkspaceRole(session.user.id, workspaceId);
+  if (!role) {
+    return { ok: false, response: NextResponse.json({ error: 'Not a workspace member' }, { status: 403 }) };
+  }
 
-  // Helper for building URLs
   const upstreamUrl = (path: string) => `${VISIBILITY_URL}${path}`;
 
-  // 5. If no project required, return early
+  // 4. Workspace-level Visibility routes use an explicit workspace-scoped JWT.
   if (!requireProject) {
+    const serviceToken = await issueVisibilityWorkspaceJWT({
+      userId: session.user.id,
+      email: rawSession.user.email,
+      name: rawSession.user.name,
+      workspaceId,
+      role,
+    });
     return {
       ok: true,
-      ctx: { session, workspaceId, projectId: '', upstreamUrl, headers },
+      ctx: {
+        session,
+        workspaceId,
+        projectId: '',
+        serviceToken,
+        upstreamUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${serviceToken}`,
+        },
+      },
     };
   }
 
-  // 6. Project verification
+  // 5. Project verification
   let projectId: string | undefined = req.nextUrl.searchParams.get('projectId') || undefined;
   if (!projectId && req.method !== 'GET') {
     try {
@@ -96,7 +114,29 @@ export async function resolveGuard(
     return { ok: false, response: NextResponse.json({ error: 'Project not found in workspace' }, { status: 403 }) };
   }
 
-  return { ok: true, ctx: { session, workspaceId, projectId, upstreamUrl, headers } };
+  const serviceToken = await issueVisibilityProjectJWT({
+    userId: session.user.id,
+    email: rawSession.user.email,
+    name: rawSession.user.name,
+    workspaceId,
+    projectId,
+    role,
+  });
+
+  return {
+    ok: true,
+    ctx: {
+      session,
+      workspaceId,
+      projectId,
+      serviceToken,
+      upstreamUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${serviceToken}`,
+      },
+    },
+  };
 }
 
 /**

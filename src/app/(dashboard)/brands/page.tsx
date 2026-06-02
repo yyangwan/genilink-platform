@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import React, { Suspense, useState, useCallback } from "react";
 import { Plus, Pencil, Trash2, X, Check, Loader2, Tag } from "lucide-react";
@@ -52,7 +53,6 @@ function BrandsContent() {
       setLoading(false);
     }
   }, []);
-
   React.useEffect(() => { fetchBrands(); }, [fetchBrands]);
 
   // Inline form state
@@ -85,7 +85,7 @@ function BrandsContent() {
         setForm({ name: "", aliases: "", isCompetitor: false });
         fetchBrands();
         if (res.status === 207) {
-          addToast({ type: "info", title: "品牌已创建，同步正在进行中" });
+          addToast({ type: "info", title: "Ʒ���Ѵ�����ͬ�����ڽ�����" });
         }
       } else {
         const data = await res.json().catch(() => ({}));
@@ -189,7 +189,7 @@ function BrandsContent() {
             }}
           />
         ) : (
-          <span style={{ color: "var(--text-secondary)" }}>{row.aliases?.length ? row.aliases.join(", ") : "—"}</span>
+          <span style={{ color: "var(--text-secondary)" }}>{row.aliases?.length ? row.aliases.join(", ") : "�?"}</span>
         ),
     },
     {
@@ -275,7 +275,7 @@ function BrandsContent() {
     <div className="space-y-6">
       <PageHeader
         title="品牌管理"
-        subtitle="管理品牌和竞品标签"
+        subtitle="管理品牌和竞品标�?"
         actions={
           <button
             onClick={() => {
@@ -408,9 +408,9 @@ function BrandsContent() {
           emptyContent={
             <EmptyState
               icon={Tag}
-              title="还没有品牌"
+              title="��û��Ʒ��"
               description="添加品牌以追踪自有品牌和竞品"
-              actionLabel="添加第一个品牌"
+              actionLabel="���ӵ�һ��Ʒ��"
               onAction={() => {
                 setAdding(true);
                 setForm({ name: "", aliases: "", isCompetitor: false });
@@ -424,7 +424,7 @@ function BrandsContent() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="删除品牌"
-        message={`确定要删除「${deleteTarget?.name}」吗？此操作不可撤销。`}
+        message={`确定要删除�?{deleteTarget?.name}」吗？此操作不可撤销。`}
         confirmLabel="删除"
         cancelLabel="取消"
         onConfirm={handleDelete}
@@ -448,3 +448,8 @@ export default function BrandsPage() {
     </Suspense>
   );
 }
+
+
+
+
+

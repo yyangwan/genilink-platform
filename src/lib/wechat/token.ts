@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/db';
+import crypto from 'node:crypto';
 
 const TOKEN_URL = 'https://api.weixin.qq.com/cgi-bin/token';
 const QRCODE_URL = 'https://api.weixin.qq.com/cgi-bin/qrcode/create';
@@ -54,7 +54,6 @@ export async function createQRCode(scene: string): Promise<string> {
 }
 
 export function verifySignature(signature: string, timestamp: string, nonce: string): boolean {
-  const crypto = require('crypto');
   const token = process.env.WECHAT_MP_TOKEN;
   const arr = [token, timestamp, nonce].sort();
   const sha1 = crypto.createHash('sha1').update(arr.join('')).digest('hex');

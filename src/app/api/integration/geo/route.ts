@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth/config';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
 import { proxyRequest } from '@/lib/proxy/zhijian-client';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
+import { getWorkspaceRole, verifyProjectInWorkspace } from '@/lib/auth/workspace';
+import { issueVisibilityProjectJWT } from '@/lib/auth/service-jwt';
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -26,6 +28,11 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const project = await verifyProjectInWorkspace(projectId, workspaceId);
+  if (!project) {
+    return NextResponse.json({ error: 'Project not found in workspace' }, { status: 403 });
+  }
+
   // Check billing
   try {
     await requireBilling(session.user.id, workspaceId, 'visibility');
@@ -41,11 +48,23 @@ export async function GET(req: NextRequest) {
 
   // Proxy to FastAPI GEO analysis service
   try {
+    const role = await getWorkspaceRole(session.user.id, workspaceId);
+    if (!role) {
+      return NextResponse.json({ error: 'Not a workspace member' }, { status: 403 });
+    }
+    const serviceToken = await issueVisibilityProjectJWT({
+      userId: session.user.id,
+      email: session.user.email,
+      name: session.user.name,
+      workspaceId,
+      projectId,
+      role,
+    });
     const data = await proxyRequest({
       projectId,
       service: 'visibility',
       path: '/api/trends/:id',
-      accessToken: process.env.SERVICE_TOKEN,
+      accessToken: serviceToken,
     });
 
     return NextResponse.json({ data });

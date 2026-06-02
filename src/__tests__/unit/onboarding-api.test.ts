@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from '@/app/api/onboarding/route';
 import { prisma } from '@/lib/db';
@@ -18,7 +19,7 @@ describe('POST /api/onboarding', () => {
     vi.clearAllMocks();
   });
 
-  it('should create workspace + project + member + mapping in transaction', async () => {
+  it('should create workspace + project + member in transaction', async () => {
     // Authenticated
     (auth as ReturnType<typeof vi.fn>).mockResolvedValue({
       user: { id: 'user-new', email: 'new@example.com', name: 'New User' },
@@ -37,9 +38,6 @@ describe('POST /api/onboarding', () => {
       },
       project: {
         create: vi.fn().mockResolvedValue({ id: 'proj-new', name: 'My Project' }),
-      },
-      externalResourceMapping: {
-        createMany: vi.fn().mockResolvedValue({ count: 2 }),
       },
       user: {
         update: vi.fn().mockResolvedValue({ id: 'user-new' }),
@@ -88,20 +86,6 @@ describe('POST /api/onboarding', () => {
         workspaceId: 'ws-new',
       },
     });
-    expect(txMock.externalResourceMapping.createMany).toHaveBeenCalledWith({
-      data: [
-        {
-          projectId: 'proj-new',
-          service: 'visibility',
-          externalId: expect.any(String),
-        },
-        {
-          projectId: 'proj-new',
-          service: 'content',
-          externalId: expect.any(String),
-        },
-      ],
-    });
     expect(txMock.user.update).toHaveBeenCalledWith({
       where: { id: 'user-new' },
       data: { onboardingCompleted: true, onboardingStep: 'completed' },
@@ -133,10 +117,6 @@ describe('POST /api/onboarding', () => {
       id: 'proj-created',
       name: 'New Project',
     });
-
-    // No existing external mappings (ensureMappings needs findMany)
-    (prisma.externalResourceMapping.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    (prisma.externalResourceMapping.createMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 2 });
 
     (prisma.user.update as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'user-existing' });
     (prisma.workspace.update as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'ws-existing' });
@@ -273,9 +253,6 @@ describe('POST /api/onboarding', () => {
       },
       project: {
         create: vi.fn().mockResolvedValue({ id: 'proj-cookie', name: 'Cookie Proj' }),
-      },
-      externalResourceMapping: {
-        createMany: vi.fn().mockResolvedValue({ count: 2 }),
       },
       user: {
         update: vi.fn().mockResolvedValue({ id: 'user-cookie' }),

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
+import { getWorkspaceRole } from '@/lib/auth/workspace';
+import { issueVisibilityProjectJWT } from '@/lib/auth/service-jwt';
 
 const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
 
@@ -13,13 +15,6 @@ const EMPTY = {
   suggestions: [] as { priority: string; text: string }[],
   latestAuditDate: null as string | null,
 };
-
-function makeHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const serviceToken = process.env.SERVICE_TOKEN;
-  if (serviceToken) headers['Authorization'] = `Bearer ${serviceToken}`;
-  return headers;
-}
 
 // GET /api/dashboard/visibility — fetch real visibility data from 智見
 export async function GET(req: NextRequest) {
@@ -35,27 +30,32 @@ export async function GET(req: NextRequest) {
 
   const projects = await prisma.project.findMany({
     where: projectId ? { id: projectId, workspaceId } : { workspaceId },
-    include: { externalMappings: true },
     take: 1,
   });
 
   if (projects.length === 0) return NextResponse.json(EMPTY);
 
   const project = projects[0];
-  const visibilityMapping = project.externalMappings.find((m) => m.service === 'visibility');
-  if (!visibilityMapping) return NextResponse.json(EMPTY);
-
-  const externalId = visibilityMapping.externalId;
-  const projectPk = parseInt(externalId, 10);
-  if (isNaN(projectPk)) return NextResponse.json(EMPTY);
-
-  const headers = makeHeaders();
+  const role = await getWorkspaceRole(session.user.id, workspaceId);
+  if (!role) return NextResponse.json(EMPTY);
+  const serviceToken = await issueVisibilityProjectJWT({
+    userId: session.user.id,
+    email: session.user.email,
+    name: session.user.name,
+    workspaceId,
+    projectId: project.id,
+    role,
+  });
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${serviceToken}`,
+  };
 
   try {
     const [positioningRes, auditsRes, suggestionsRes, platformsRes] = await Promise.allSettled([
-      fetch(`${VISIBILITY_URL}/api/strategic/projects/${projectPk}/competitor-positioning`, { headers, signal: AbortSignal.timeout(15_000) }),
-      fetch(`${VISIBILITY_URL}/api/trends/${projectPk}/audits-history`, { headers, signal: AbortSignal.timeout(15_000) }),
-      fetch(`${VISIBILITY_URL}/api/suggestions/${projectPk}`, { headers, signal: AbortSignal.timeout(15_000) }),
+      fetch(`${VISIBILITY_URL}/api/strategic/projects/${project.id}/competitor-positioning`, { headers, signal: AbortSignal.timeout(15_000) }),
+      fetch(`${VISIBILITY_URL}/api/trends/${project.id}/audits-history`, { headers, signal: AbortSignal.timeout(15_000) }),
+      fetch(`${VISIBILITY_URL}/api/suggestions/${project.id}`, { headers, signal: AbortSignal.timeout(15_000) }),
       fetch(`${VISIBILITY_URL}/api/platforms`, { headers, signal: AbortSignal.timeout(15_000) }),
     ]);
 
@@ -176,7 +176,7 @@ export async function GET(req: NextRequest) {
 
     // Fallback: if no results, show platforms with 0 score
     if (platformCoverage.length === 0) {
-      for (const [key, label] of Object.entries(platformLabels)) {
+      for (const label of Object.values(platformLabels)) {
         platformCoverage.push({ name: label, score: 0 });
       }
     }

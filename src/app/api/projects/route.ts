@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
-import { nanoid } from 'nanoid';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
-import { isUniqueViolation } from '@/lib/prisma-helpers';
 import { createBrandForProject } from '@/lib/brand-helpers';
 
 // GET /api/projects — list projects for current workspace
@@ -22,11 +20,6 @@ export async function GET() {
   const projects = await prisma.project.findMany({
     where: { workspaceId },
     orderBy: { createdAt: 'desc' },
-    include: {
-      externalMappings: {
-        select: { service: true, externalId: true },
-      },
-    },
   });
 
   return NextResponse.json({ projects });
@@ -82,38 +75,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Create project + external mappings in transaction
-  const project = await prisma.$transaction(async (tx) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const proj = await tx.project.create({
-      data: {
-        name,
-        url: url || null,
-        industry: industry || null,
-        productName: productName || null,
-        productKeywords: productKeywords || [],
-        productDescription: productDescription || null,
-        productUrl: productUrl || null,
-        workspaceId,
-      } as any,
-    });
-
-    await tx.externalResourceMapping.createMany({
-      data: [
-        {
-          projectId: proj.id,
-          service: 'visibility',
-          externalId: nanoid(12),
-        },
-        {
-          projectId: proj.id,
-          service: 'content',
-          externalId: nanoid(12),
-        },
-      ],
-    });
-
-    return proj;
+  const project = await prisma.project.create({
+    data: {
+      name,
+      url: url || null,
+      industry: industry || null,
+      productName: productName || null,
+      productKeywords: productKeywords || [],
+      productDescription: productDescription || null,
+      productUrl: productUrl || null,
+      workspaceId,
+    },
   });
 
   // Auto-create own brand if brandName provided (outside transaction — HTTP sync is non-deterministic)

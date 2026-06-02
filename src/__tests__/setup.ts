@@ -25,13 +25,6 @@ vi.mock('@/lib/db', () => ({
       findFirst: vi.fn(),
       create: vi.fn(),
     },
-    externalResourceMapping: {
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
-      create: vi.fn(),
-      createMany: vi.fn(),
-      update: vi.fn(),
-    },
     workspace: {
       create: vi.fn(),
       findFirst: vi.fn(),

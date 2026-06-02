@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const serviceToken = process.env.SERVICE_TOKEN || '';
+    const { serviceToken } = result.ctx;
     const upstreamUrl = result.ctx.upstreamUrl(`/api/audits/${auditId}/events?token=${encodeURIComponent(serviceToken)}`);
     return proxySSE(upstreamUrl, { Authorization: `Bearer ${serviceToken}` });
   } catch (err) {

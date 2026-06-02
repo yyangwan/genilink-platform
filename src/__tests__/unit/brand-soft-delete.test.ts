@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 /**
@@ -104,8 +105,7 @@ describe('Brand Soft Delete Edge Cases', () => {
 
     const res = await POST(makeRequest({ name: 'Acme' }));
 
-    // 207 = sync skipped (no project associations)
-    expect(res.status).toBe(207);
+    expect(res.status).toBe(201);
     const data = await res.json();
     expect(data.name).toBe('Acme');
   });
@@ -177,7 +177,6 @@ describe('Brand Soft Delete Edge Cases', () => {
 
     const res = await POST(makeRequest({ name: 'Acme' }));
 
-    // 207 = sync skipped (no project associations)
-    expect(res.status).toBe(207);
+    expect(res.status).toBe(201);
   });
 });

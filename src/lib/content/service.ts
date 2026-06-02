@@ -6,10 +6,10 @@ const SERVICE = 'content' as const;
 export const CRUD_TIMEOUT = 30_000;
 export const STREAM_TIMEOUT = 180_000;
 
-type Ctx = Pick<ContentAuthContext, 'projectId' | 'externalId' | 'serviceToken'> & { accessToken?: string };
+type Ctx = Pick<ContentAuthContext, 'projectId' | 'serviceToken'> & { accessToken?: string };
 
 function ctxOpts(ctx: Ctx) {
-  return { projectId: ctx.projectId, externalId: ctx.externalId, accessToken: ctx.serviceToken, service: SERVICE };
+  return { projectId: ctx.projectId, accessToken: ctx.serviceToken, service: SERVICE };
 }
 
 // ─── Content CRUD ──────────────────────────────────────────────────

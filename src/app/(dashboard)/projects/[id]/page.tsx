@@ -19,7 +19,6 @@ import {
   Plus,
   X,
   Loader2,
-  ChevronDown,
   Star,
   Swords,
 } from "lucide-react";
@@ -39,7 +38,6 @@ interface ProjectData {
   workspaceId: string;
   createdAt: string;
   updatedAt: string;
-  externalMappings: { service: string; externalId: string }[];
 }
 
 interface Brand {
@@ -64,31 +62,63 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const fetchProject = useCallback(() => {
-    setLoading(true);
-    setError(false);
-    fetch(`/api/projects/${projectId}`)
-      .then((res) => {
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadProject = async () => {
+      setLoading(true);
+      setError(false);
+
+      try {
+        const res = await fetch(`/api/projects/${projectId}`);
         if (!res.ok) throw new Error("Failed");
-        return res.json();
-      })
-      .then((data) => {
-        if (data?.project) {
+
+        const data = await res.json();
+        if (!cancelled && data?.project) {
           setProject(data.project);
         }
-      })
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, [projectId]);
+      } catch {
+        if (!cancelled) setError(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
 
-  useEffect(() => { fetchProject(); }, [fetchProject]);
+    void loadProject();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   // Re-fetch when wizard closes after editing
   const prevWizardOpen = useRef(false);
   useEffect(() => {
-    if (prevWizardOpen.current && !wizardOpen) fetchProject();
+    if (prevWizardOpen.current && !wizardOpen) {
+      let cancelled = false;
+
+      const reloadProject = async () => {
+        try {
+          const res = await fetch(`/api/projects/${projectId}`);
+          if (!res.ok) throw new Error("Failed");
+
+          const data = await res.json();
+          if (!cancelled && data?.project) {
+            setProject(data.project);
+          }
+        } catch {
+          if (!cancelled) setError(true);
+        }
+      };
+
+      void reloadProject();
+
+      return () => {
+        cancelled = true;
+      };
+    }
     prevWizardOpen.current = wizardOpen;
-  }, [wizardOpen, fetchProject]);
+  }, [wizardOpen, projectId]);
 
   // Brand association state
   const { addToast } = useToast();
@@ -112,7 +142,32 @@ export default function ProjectDetailPage() {
     }
   }, [projectId]);
 
-  useEffect(() => { fetchBrands(); }, [fetchBrands]);
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadBrands = async () => {
+      const [assocRes, allRes] = await Promise.all([
+        fetch(`/api/projects/${projectId}/brands`),
+        fetch("/api/brands"),
+      ]);
+
+      if (cancelled) return;
+
+      if (assocRes.ok) {
+        const data = await assocRes.json();
+        if (!cancelled) setAssociatedBrands(data.brands || []);
+      }
+      if (allRes.ok && !cancelled) {
+        setAllBrands(await allRes.json());
+      }
+    };
+
+    void loadBrands();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   const associateBrand = useCallback(async (brandId: string) => {
     setBrandLoading(true);
@@ -193,8 +248,6 @@ export default function ProjectDetailPage() {
       </div>
     );
   }
-
-  const hasVisibilityMapping = project.externalMappings.some((m) => m.service === "visibility");
 
   return (
     <div className="space-y-6">
@@ -379,27 +432,15 @@ export default function ProjectDetailPage() {
         >
           分析状态
         </h3>
-        {hasVisibilityMapping ? (
-          <div className="flex items-center gap-2">
-            <div
-              className="w-2 h-2 rounded-full"
-              style={{ background: "var(--color-success)" }}
-            />
-            <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-              已关联智見分析服务
-            </span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <div
-              className="w-2 h-2 rounded-full"
-              style={{ background: "var(--color-warning)" }}
-            />
-            <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-              尚未关联分析服务
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <div
+            className="w-2 h-2 rounded-full"
+            style={{ background: "var(--color-success)" }}
+          />
+          <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+            使用统一项目 ID 接入分析服务
+          </span>
+        </div>
       </div>
 
       {/* Brand association card */}

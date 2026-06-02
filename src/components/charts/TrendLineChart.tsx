@@ -13,7 +13,7 @@ import {
 import { tooltipStyles, axisTickStyles, axisLineStyles, tickLineStyles, gridStyles, legendStyles, chartMargin, PLATFORM_COLORS } from "./shared";
 
 interface TrendLineChartProps {
-  chartData: Record<string, any>[];
+  chartData: Array<Record<string, string | number | null>>;
   platformNames: string[];
 }
 

@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import React, { Suspense, useState, useEffect, useCallback } from "react";
+import React, { Suspense, useState, useCallback, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -39,15 +39,13 @@ function LoginContent() {
     "idle" | "pending" | "scanned" | "confirmed" | "expired"
   >("idle");
 
-  // Show URL error param
-  useEffect(() => {
-    if (errorParam === "CredentialsSignin") {
-      setError("邮箱或密码错误");
-    } else if (errorParam === "SessionRequired") {
-      setError("请先登录");
-    }
-  }, [errorParam]);
-
+  const urlErrorMessage =
+    errorParam === "CredentialsSignin"
+      ? "������������"
+      : errorParam === "SessionRequired"
+        ? "���ȵ�¼"
+        : null;
+  const displayedError = error || urlErrorMessage;
   // ─── Email/password login ────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +60,7 @@ function LoginContent() {
       });
 
       if (result?.error) {
-        setError("邮箱或密码错误");
+        setError("������������");
         return;
       }
 
@@ -81,7 +79,7 @@ function LoginContent() {
           }
         }
       } catch {
-        // Non-critical — continue to dashboard
+        // Non-critical �?continue to dashboard
       }
 
       router.push(callbackUrl);
@@ -106,7 +104,7 @@ function LoginContent() {
       setQrData(data);
       setQrStatus("pending");
     } catch {
-      setQrError("无法生成微信二维码，请稍后重试");
+      setQrError("�޷�����΢�Ŷ�ά�룬���Ժ�����");
     } finally {
       setQrLoading(false);
     }
@@ -199,8 +197,7 @@ function LoginContent() {
             fontFamily: "var(--font-display)",
           }}
         >
-          智
-        </div>
+          �?        </div>
         <span
           className="text-lg font-semibold tracking-tight"
           style={{
@@ -220,8 +217,7 @@ function LoginContent() {
           fontFamily: "var(--font-display)",
         }}
       >
-        登录到智链
-      </h2>
+        登录到智�?      </h2>
       <p
         className="text-sm text-center mb-6"
         style={{
@@ -229,11 +225,10 @@ function LoginContent() {
           fontFamily: "var(--font-body)",
         }}
       >
-        中国GEO全链路平台
-      </p>
+        中国GEO全链路平�?      </p>
 
       {/* Error banner */}
-      {error && (
+      {displayedError && (
         <div
           className="mb-4 px-3 py-2 rounded-lg text-sm"
           style={{
@@ -243,7 +238,7 @@ function LoginContent() {
             fontFamily: "var(--font-body)",
           }}
         >
-          {error}
+          {displayedError}
         </div>
       )}
 
@@ -306,7 +301,7 @@ function LoginContent() {
         </div>
 
         <button type="submit" disabled={loading} style={buttonStyle}>
-          {loading ? "登录中..." : "登录"}
+          {loading ? "登录�?.." : "登录"}
         </button>
       </form>
 
@@ -318,8 +313,7 @@ function LoginContent() {
           fontFamily: "var(--font-body)",
         }}
       >
-        没有账号？
-        <Link
+        没有账号�?        <Link
           href="/auth/register"
           style={{
             color: "var(--color-primary)",
@@ -344,8 +338,7 @@ function LoginContent() {
             fontFamily: "var(--font-body)",
           }}
         >
-          或
-        </span>
+          �?        </span>
         <div
           className="flex-1 h-px"
           style={{ background: "var(--border)" }}
@@ -384,7 +377,7 @@ function LoginContent() {
             >
               <Image
                 src={qrData.url}
-                alt="微信登录二维码"
+                alt="΢�ŵ�¼��ά��"
                 width={200}
                 height={200}
                 unoptimized
@@ -433,8 +426,7 @@ function LoginContent() {
                 cursor: "pointer",
               }}
             >
-              刷新二维码
-            </button>
+              刷新二维�?            </button>
           </div>
         )}
 
@@ -453,3 +445,9 @@ function LoginContent() {
     </div>
   );
 }
+
+
+
+
+
+

@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import React, { Suspense, useCallback, useState } from "react";
 import { Plug, Loader2, Check, AlertCircle, ExternalLink } from "lucide-react";

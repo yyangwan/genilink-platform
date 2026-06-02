@@ -1,14 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { proxyStreamRequest } from '@/lib/proxy/zhijian-client';
-import { prisma } from '@/lib/db';
-
-vi.mock('@/lib/db', () => ({
-  prisma: {
-    externalResourceMapping: {
-      findUnique: vi.fn(),
-    },
-  },
-}));
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -18,26 +9,7 @@ describe('proxyStreamRequest', () => {
     vi.clearAllMocks();
   });
 
-  it('should return 404 Response when no mapping exists', async () => {
-    (prisma.externalResourceMapping.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-
-    const res = await proxyStreamRequest({
-      projectId: 'proj-none',
-      service: 'content',
-      path: '/api/contents/123/generate',
-      body: { prompt: 'test' },
-    });
-
-    expect(res.status).toBe(404);
-    const body = await res.json();
-    expect(body.error).toContain('No mapping found');
-  });
-
   it('should return SSE stream on success', async () => {
-    (prisma.externalResourceMapping.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
-      externalId: 'ext-123',
-    });
-
     const mockBody = new ReadableStream();
     mockFetch.mockResolvedValue({
       ok: true,
@@ -64,16 +36,13 @@ describe('proxyStreamRequest', () => {
         headers: expect.objectContaining({
           Authorization: 'Bearer test-token',
           Accept: 'text/event-stream',
+          'X-ContentOS-Project-Id': 'proj-ok',
         }),
       }),
     );
   });
 
   it('should return 401 Response on AUTH_EXPIRED', async () => {
-    (prisma.externalResourceMapping.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
-      externalId: 'ext-401',
-    });
-
     mockFetch.mockResolvedValue({
       ok: false,
       status: 401,
@@ -91,10 +60,6 @@ describe('proxyStreamRequest', () => {
   });
 
   it('should return 504 Response on timeout', async () => {
-    (prisma.externalResourceMapping.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
-      externalId: 'ext-timeout',
-    });
-
     const abortError = new DOMException('Aborted', 'AbortError');
     mockFetch.mockRejectedValue(abortError);
 

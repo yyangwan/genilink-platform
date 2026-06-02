@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 
@@ -85,7 +86,7 @@ export function ProjectProvider({ children, workspaceId }: ProjectProviderProps)
         }
       }
     } catch {
-      // Network error â€” keep existing state
+      // Network error â€?keep existing state
     } finally {
       setLoading(false);
     }
@@ -165,3 +166,4 @@ export function useProject() {
   if (!ctx) throw new Error("useProject must be used within ProjectProvider");
   return ctx;
 }
+

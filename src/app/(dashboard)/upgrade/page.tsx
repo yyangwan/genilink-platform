@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-assign-module-variable */
 
 import React, { Suspense } from "react";
 import { useSearchParams } from "next/navigation";

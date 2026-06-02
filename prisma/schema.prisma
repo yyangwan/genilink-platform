@@ -113,22 +113,9 @@ model Project {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  externalMappings ExternalResourceMapping[]
-  projectBrands    ProjectBrand[]
+  projectBrands ProjectBrand[]
 
   @@unique([workspaceId, name])
-}
-
-model ExternalResourceMapping {
-  id         String   @id @default(cuid()) @db.Text
-  projectId  String   @db.Text
-  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  service    String   @db.Text
-  externalId String   @db.Text
-  metadata   Json?
-  createdAt  DateTime @default(now())
-
-  @@unique([projectId, service])
 }
 
 // ─── Brands ────────────────────────────────────────────────────────

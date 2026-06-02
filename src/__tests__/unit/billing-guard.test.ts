@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-assign-module-variable */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
 import { prisma } from '@/lib/db';

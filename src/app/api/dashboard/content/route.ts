@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
 import { proxyRequest } from '@/lib/proxy/zhijian-client';
+import { getWorkspaceRole } from '@/lib/auth/workspace';
+import { issueContentProjectJWT } from '@/lib/auth/service-jwt';
 
 const emptyData = { totalContent: 0, publishedCount: 0, recentContent: [], qualityAvg: null };
 
@@ -23,7 +25,6 @@ export async function GET(req: NextRequest) {
 
   const projects = await prisma.project.findMany({
     where: projectId ? { id: projectId, workspaceId } : { workspaceId },
-    include: { externalMappings: true },
     take: 1,
   });
 
@@ -32,17 +33,23 @@ export async function GET(req: NextRequest) {
   }
 
   const project = projects[0];
-  const contentMapping = project.externalMappings.find((m) => m.service === 'content');
-
-  if (!contentMapping) {
-    return NextResponse.json(emptyData);
-  }
 
   try {
+    const role = await getWorkspaceRole(session.user.id, workspaceId);
+    if (!role) return NextResponse.json(emptyData);
+    const serviceToken = await issueContentProjectJWT({
+      userId: session.user.id,
+      email: session.user.email,
+      name: session.user.name,
+      workspaceId,
+      projectId: project.id,
+      role,
+    });
     const data = await proxyRequest({
       projectId: project.id,
       service: 'content',
       path: '/api/v1/projects/:id/content-summary',
+      accessToken: serviceToken,
     });
 
     const result = data as Record<string, unknown>;

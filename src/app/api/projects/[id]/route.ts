@@ -15,7 +15,6 @@ interface ProjectRow {
   workspaceId: string;
   createdAt: Date;
   updatedAt: Date;
-  externalMappings?: Array<{ service: string; externalId: string }>;
 }
 
 function formatProject(p: ProjectRow) {
@@ -31,10 +30,6 @@ function formatProject(p: ProjectRow) {
     workspaceId: p.workspaceId,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
-    externalMappings: (p.externalMappings || []).map((m) => ({
-      service: m.service,
-      externalId: m.externalId,
-    })),
   };
 }
 
@@ -66,7 +61,6 @@ export async function GET(
   // Fetch project, ensuring user has access via workspace membership
   const project = await prisma.project.findFirst({
     where: { id },
-    include: { externalMappings: true },
   }) as unknown as ProjectRow | null;
 
   if (!project) {
@@ -144,7 +138,6 @@ export async function PATCH(
   const updated = await prisma.project.update({
     where: { id },
     data,
-    include: { externalMappings: true },
   }) as unknown as ProjectRow;
 
   return NextResponse.json({ project: formatProject(updated) });
