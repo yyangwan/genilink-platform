@@ -15,6 +15,7 @@ import {
   updateContent,
   deleteContent,
   generateContent,
+  generateGenieContent,
   publishContent,
 } from '@/lib/content/service';
 
@@ -132,5 +133,19 @@ describe('content service', () => {
       body,
       timeoutMs: 30_000,
     });
+  });
+
+  it('generateGenieContent uses JSON proxyRequest instead of streaming proxy', async () => {
+    mockProxyRequest.mockResolvedValue({ success: true });
+    await generateGenieContent(ctx, { topic: 'AI' });
+
+    expect(mockProxyRequest).toHaveBeenCalledWith({
+      ...baseArgs,
+      path: '/api/genie/generate',
+      method: 'POST',
+      body: { topic: 'AI' },
+      timeoutMs: 180_000,
+    });
+    expect(mockProxyStreamRequest).not.toHaveBeenCalled();
   });
 });

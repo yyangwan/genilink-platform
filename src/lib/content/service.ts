@@ -167,7 +167,7 @@ export function getCalendarEvents(ctx: Ctx) {
 // ─── Genie AI ────────────────────────────────────────────────────────
 
 export function generateGenieContent(ctx: Ctx, body: unknown) {
-  return proxyStreamRequest({ ...ctxOpts(ctx), path: '/api/genie/generate', method: 'POST', body, timeoutMs: STREAM_TIMEOUT });
+  return proxyRequest({ ...ctxOpts(ctx), path: '/api/genie/generate', method: 'POST', body, timeoutMs: STREAM_TIMEOUT });
 }
 
 export function getGenieGenerations(ctx: Ctx) {
