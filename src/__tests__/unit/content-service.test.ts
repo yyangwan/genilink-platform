@@ -102,7 +102,20 @@ describe('content service', () => {
       ...baseArgs,
       path: '/api/generate',
       method: 'POST',
-      body: { contentPieceId: 'c1', prompt: 'Write about AI' },
+      body: { contentPieceId: 'c1', prompt: 'Write about AI', platform: 'wechat' },
+      timeoutMs: 180_000,
+    });
+  });
+
+  it('generateContent uses the first selected platform for upstream generation', async () => {
+    mockProxyStreamRequest.mockResolvedValue(new Response('stream'));
+    await generateContent(ctx, 'c1', { platforms: ['xiaohongshu', 'wechat'] });
+
+    expect(mockProxyStreamRequest).toHaveBeenCalledWith({
+      ...baseArgs,
+      path: '/api/generate',
+      method: 'POST',
+      body: { contentPieceId: 'c1', platforms: ['xiaohongshu', 'wechat'], platform: 'xiaohongshu' },
       timeoutMs: 180_000,
     });
   });

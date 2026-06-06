@@ -35,11 +35,17 @@ export function deleteContent(ctx: Ctx, contentId: string) {
 }
 
 export function generateContent(ctx: Ctx, contentId: string, body: Record<string, unknown>) {
+  const platform = typeof body.platform === 'string'
+    ? body.platform
+    : Array.isArray(body.platforms) && typeof body.platforms[0] === 'string'
+      ? body.platforms[0]
+      : 'wechat';
+
   return proxyStreamRequest({
     ...ctxOpts(ctx),
     path: '/api/generate',
     method: 'POST',
-    body: { contentPieceId: contentId, ...body },
+    body: { ...body, contentPieceId: contentId, platform },
     timeoutMs: STREAM_TIMEOUT,
   });
 }
