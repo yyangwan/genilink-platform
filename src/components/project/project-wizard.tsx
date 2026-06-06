@@ -162,7 +162,7 @@ export function ProjectWizard() {
 
       addToast({
         type: "success",
-        title: isEdit ? "ÏîÄ¿ÒÑ¸üĞÂ" : "ÏîÄ¿ÒÑ´´½¨",
+        title: isEdit ? "é¡¹ç›®å·²æ›´æ–°" : "é¡¹ç›®å·²åˆ›å»º",
         description: form.name.trim(),
       });
 
@@ -338,7 +338,7 @@ export function ProjectWizard() {
                   style={inputStyle}
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="ÀıÈç£ºÎÒµÄÆ·ÅÆ"
+                  placeholder="ä¾‹å¦‚ï¼šæˆ‘çš„å“ç‰Œ"
                   autoFocus
                 />
               </div>
@@ -375,18 +375,18 @@ export function ProjectWizard() {
                   style={inputStyle}
                   value={form.productName}
                   onChange={(e) => setForm((f) => ({ ...f, productName: e.target.value }))}
-                  placeholder="²úÆ·»ò·şÎñÃû³Æ"
+                  placeholder="äº§å“æˆ–æœåŠ¡åç§°"
                 />
               </div>
               <div>
-                <label style={labelStyle}>²úÆ·¹Ø¼ü´Ê</label>
+                <label style={labelStyle}>äº§å“å…³é”®è¯</label>
                 <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                   <input
                     style={{ ...inputStyle, flex: 1 }}
                     value={keywordInput}
                     onChange={(e) => setKeywordInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addKeyword(); } }}
-                    placeholder="ÊäÈë¹Ø¼ü´Êºó°´»Ø³µ"
+                    placeholder="è¾“å…¥å…³é”®è¯åæŒ‰å›è½¦"
                   />
                   <button
                     onClick={addKeyword}
@@ -436,7 +436,7 @@ export function ProjectWizard() {
                   style={{ ...inputStyle, minHeight: 80, resize: "vertical" }}
                   value={form.productDescription}
                   onChange={(e) => setForm((f) => ({ ...f, productDescription: e.target.value }))}
-                  placeholder="¼òÒªÃèÊö²úÆ·ÌØĞÔ"
+                  placeholder="ç®€è¦æè¿°äº§å“ç‰¹æ€§"
                 />
               </div>
               <div>
@@ -458,9 +458,9 @@ export function ProjectWizard() {
                   é¡¹ç›®ä¿¡æ¯
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13 }}>
-                  <div><span style={{ color: "var(--text-secondary)" }}>Ãû³Æ£º</span>{form.name}</div>
-                  <div><span style={{ color: "var(--text-secondary)" }}>ĞĞÒµ£º</span>{form.industry || "¡ª"}</div>
-                  <div style={{ gridColumn: "1 / -1" }}><span style={{ color: "var(--text-secondary)" }}>URL£º</span>{form.url || "¡ª"}</div>
+                  <div><span style={{ color: "var(--text-secondary)" }}>åç§°ï¼š</span>{form.name}</div>
+                  <div><span style={{ color: "var(--text-secondary)" }}>è¡Œä¸šï¼š</span>{form.industry || "â€”"}</div>
+                  <div style={{ gridColumn: "1 / -1" }}><span style={{ color: "var(--text-secondary)" }}>URLï¼š</span>{form.url || "â€”"}</div>
                 </div>
               </div>
               <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
@@ -468,17 +468,17 @@ export function ProjectWizard() {
                   äº§å“ä¿¡æ¯
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13 }}>
-                  <div><span style={{ color: "var(--text-secondary)" }}>²úÆ·Ãû³Æ£º</span>{form.productName || "¡ª"}</div>
-                  <div><span style={{ color: "var(--text-secondary)" }}>²úÆ· URL£º</span>{form.productUrl || "¡ª"}</div>
+                  <div><span style={{ color: "var(--text-secondary)" }}>äº§å“åç§°ï¼š</span>{form.productName || "â€”"}</div>
+                  <div><span style={{ color: "var(--text-secondary)" }}>äº§å“ URLï¼š</span>{form.productUrl || "â€”"}</div>
                   {form.productKeywords.length > 0 && (
                     <div style={{ gridColumn: "1 / -1" }}>
-                      <span style={{ color: "var(--text-secondary)" }}>¹Ø¼ü´Ê£º</span>
-                      {form.productKeywords.join("¡¢")}
+                      <span style={{ color: "var(--text-secondary)" }}>å…³é”®è¯ï¼š</span>
+                      {form.productKeywords.join("ã€")}
                     </div>
                   )}
                   {form.productDescription && (
                     <div style={{ gridColumn: "1 / -1" }}>
-                      <span style={{ color: "var(--text-secondary)" }}>ÃèÊö£º</span>{form.productDescription}
+                      <span style={{ color: "var(--text-secondary)" }}>æè¿°ï¼š</span>{form.productDescription}
                     </div>
                   )}
                 </div>
@@ -530,7 +530,7 @@ export function ProjectWizard() {
                   fontFamily: "var(--font-body)",
                 }}
               >
-                <ChevronLeft size={14} /> ä¸Šä¸€æ­?              </button>
+                <ChevronLeft size={14} /> ä¸Šä¸€æ­¥              </button>
             )}
             {step < 2 ? (
               <button
@@ -550,7 +550,7 @@ export function ProjectWizard() {
                   fontFamily: "var(--font-body)",
                 }}
               >
-                ä¸‹ä¸€æ­?<ChevronRight size={14} />
+                ä¸‹ä¸€æ­¥<ChevronRight size={14} />
               </button>
             ) : (
               <button
@@ -617,9 +617,9 @@ export function ProjectWizard() {
           <div style={{ width: 20 }} />
         </div>
 
-        {/* Mobile step content â€?reuse same steps */}
+          {/* Mobile step content - reuse same steps */}
         <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-          {/* Same content as desktop â€?simplified for mobile */}
+          {/* Same content as desktop - simplified for mobile */}
           {step === 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
@@ -628,7 +628,7 @@ export function ProjectWizard() {
                   style={{ ...inputStyle, fontSize: 16 }}
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="ÀıÈç£ºÎÒµÄÆ·ÅÆ"
+                  placeholder="ä¾‹å¦‚ï¼šæˆ‘çš„å“ç‰Œ"
                   autoFocus
                 />
               </div>
@@ -660,17 +660,17 @@ export function ProjectWizard() {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
                 <label style={labelStyle}>äº§å“åç§°</label>
-                <input style={{ ...inputStyle, fontSize: 16 }} value={form.productName} onChange={(e) => setForm((f) => ({ ...f, productName: e.target.value }))} placeholder="²úÆ·»ò·şÎñÃû³Æ" />
+                <input style={{ ...inputStyle, fontSize: 16 }} value={form.productName} onChange={(e) => setForm((f) => ({ ...f, productName: e.target.value }))} placeholder="äº§å“æˆ–æœåŠ¡åç§°" />
               </div>
               <div>
-                <label style={labelStyle}>²úÆ·¹Ø¼ü´Ê</label>
+                <label style={labelStyle}>äº§å“å…³é”®è¯</label>
                 <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                   <input
                     style={{ ...inputStyle, flex: 1, fontSize: 16 }}
                     value={keywordInput}
                     onChange={(e) => setKeywordInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addKeyword(); } }}
-                    placeholder="ÊäÈë¹Ø¼ü´Êºó°´»Ø³µ"
+                    placeholder="è¾“å…¥å…³é”®è¯åæŒ‰å›è½¦"
                   />
                   <button onClick={addKeyword} style={{ padding: "8px 12px", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", color: "var(--color-primary)", cursor: "pointer" }}>
                     <Plus size={14} />
@@ -687,7 +687,7 @@ export function ProjectWizard() {
               </div>
               <div>
                 <label style={labelStyle}>äº§å“æè¿°</label>
-                <textarea style={{ ...inputStyle, fontSize: 16, minHeight: 80, resize: "vertical" }} value={form.productDescription} onChange={(e) => setForm((f) => ({ ...f, productDescription: e.target.value }))} placeholder="¼òÒªÃèÊö²úÆ·ÌØĞÔ" />
+                <textarea style={{ ...inputStyle, fontSize: 16, minHeight: 80, resize: "vertical" }} value={form.productDescription} onChange={(e) => setForm((f) => ({ ...f, productDescription: e.target.value }))} placeholder="ç®€è¦æè¿°äº§å“ç‰¹æ€§" />
               </div>
               <div>
                 <label style={labelStyle}>äº§å“ URL</label>
@@ -699,13 +699,13 @@ export function ProjectWizard() {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ fontSize: 13, lineHeight: 1.6 }}>
                 <strong style={{ color: "var(--text-primary)" }}>é¡¹ç›®ä¿¡æ¯</strong>
-                <div style={{ color: "var(--text-secondary)", marginTop: 4 }}>Ãû³Æ: {form.name} | ĞĞÒµ: {form.industry || "¡ª"}</div>
-                <div style={{ color: "var(--text-secondary)" }}>URL: {form.url || "¡ª"}</div>
+                <div style={{ color: "var(--text-secondary)", marginTop: 4 }}>åç§°: {form.name} | è¡Œä¸š: {form.industry || "â€”"}</div>
+                <div style={{ color: "var(--text-secondary)" }}>URL: {form.url || "â€”"}</div>
               </div>
               <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, fontSize: 13, lineHeight: 1.6 }}>
                 <strong style={{ color: "var(--text-primary)" }}>äº§å“ä¿¡æ¯</strong>
-                <div style={{ color: "var(--text-secondary)", marginTop: 4 }}>²úÆ·: {form.productName || "¡ª"}</div>
-                {form.productKeywords.length > 0 && <div style={{ color: "var(--text-secondary)" }}>¹Ø¼ü´Ê£º{form.productKeywords.join("¡¢")}</div>}
+                <div style={{ color: "var(--text-secondary)", marginTop: 4 }}>äº§å“: {form.productName || "â€”"}</div>
+                {form.productKeywords.length > 0 && <div style={{ color: "var(--text-secondary)" }}>å…³é”®è¯ï¼š{form.productKeywords.join("ã€")}</div>}
               </div>
             </div>
           )}
@@ -722,14 +722,14 @@ export function ProjectWizard() {
         <div style={{ display: "flex", gap: 8, padding: "16px", borderTop: "1px solid var(--border)" }}>
           {step > 0 && (
             <button onClick={prev} style={{ flex: 1, padding: "12px", background: "transparent", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", color: "var(--text-primary)", cursor: "pointer", fontSize: 14, fontFamily: "var(--font-body)" }}>
-              ä¸Šä¸€æ­?            </button>
+              ä¸Šä¸€æ­¥            </button>
           )}
           {step < 2 ? (
             <button onClick={next} style={{ flex: 1, padding: "12px", background: "var(--color-primary)", border: "none", borderRadius: "var(--radius-md)", color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 600, fontFamily: "var(--font-body)" }}>
-              ä¸‹ä¸€æ­?            </button>
+              ä¸‹ä¸€æ­¥            </button>
           ) : (
             <button onClick={handleSubmit} disabled={submitting} style={{ flex: 1, padding: "12px", background: "var(--color-primary)", border: "none", borderRadius: "var(--radius-md)", color: "#fff", cursor: submitting ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 600, fontFamily: "var(--font-body)", opacity: submitting ? 0.7 : 1 }}>
-              {submitting ? "æäº¤ä¸?.." : isEdit ? "ä¿å­˜æ›´æ”¹" : "åˆ›å»ºé¡¹ç›®"}
+              {submitting ? "æäº¤ä¸­..." : isEdit ? "ä¿å­˜æ›´æ”¹" : "åˆ›å»ºé¡¹ç›®"}
             </button>
           )}
         </div>

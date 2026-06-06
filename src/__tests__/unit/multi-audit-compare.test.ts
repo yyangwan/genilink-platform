@@ -27,6 +27,7 @@ const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
 const makeReq = (url: string, init?: RequestInit) => new NextRequest(new Request(url, init));
+const getFetchedRequest = () => mockFetch.mock.calls[0]?.[0] as Request | undefined;
 
 const historyResponse = [
   { id: 1, status: 'completed', platforms: ['gpt-4'], created_at: '2026-05-01T00:00:00Z', completed_at: '2026-05-01T01:00:00Z' },
@@ -62,13 +63,12 @@ describe('GET /api/integration/trends/audits-history', () => {
     expect(res.status).toBe(200);
     expect(data).toHaveLength(3);
     expect(data[0].id).toBe(1);
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/trends/proj-1/audits-history?limit=20'),
-      expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: 'Bearer project-jwt' }),
-        signal: expect.any(AbortSignal),
-      }),
-    );
+
+    const upstreamReq = getFetchedRequest();
+    expect(upstreamReq).toBeDefined();
+    expect(upstreamReq?.url).toContain('/api/trends/proj-1/audits-history?limit=20');
+    expect(upstreamReq?.method).toBe('GET');
+    expect(upstreamReq?.headers.get('authorization')).toBe('Bearer project-jwt');
   });
 
   it('returns 502 on upstream failure', async () => {
@@ -101,13 +101,13 @@ describe('POST /api/integration/strategic/compare-audits', () => {
     expect(res.status).toBe(200);
     expect(data.audits).toHaveLength(2);
     expect(data.diffs.score_delta).toBe(6);
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/strategic/projects/proj-1/compare-audits'),
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ audit_ids: [1, 2] }),
-      }),
-    );
+
+    const upstreamReq = getFetchedRequest();
+    expect(upstreamReq).toBeDefined();
+    expect(upstreamReq?.url).toContain('/api/strategic/projects/proj-1/compare-audits');
+    expect(upstreamReq?.method).toBe('POST');
+    expect(upstreamReq?.headers.get('authorization')).toBe('Bearer project-jwt');
+    expect(await upstreamReq?.text()).toBe(JSON.stringify({ audit_ids: [1, 2] }));
   });
 
   it('rejects fewer than 2 audit_ids', async () => {

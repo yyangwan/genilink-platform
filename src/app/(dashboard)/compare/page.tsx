@@ -15,7 +15,7 @@ import { useProject } from "@/components/project/project-context";
 import { PageHeader } from "@/components/ui/page-header";
 import { DiagnosticChecklist, type DiagnosticItem } from "@/components/ui/diagnostic-checklist";
 import { EmptyState } from "@/components/ui/empty-state";
-
+import { getAuditStatus, isAuditFinished } from "@/lib/audit-status";
 interface Brand {
   id: number;
   name: string;
@@ -38,6 +38,13 @@ interface GroupedRow {
   promptText: string;
   brandResults: Record<string, QueryResult | undefined>;
   mentionGap: number;
+}
+
+function getAuditDateValue(audit: { completed_at?: string | null; created_at?: string | null; started_at?: string | null; id?: number }): number {
+  const raw = audit.completed_at ?? audit.created_at ?? audit.started_at;
+  const value = raw ? new Date(raw).getTime() : Number.NaN;
+  if (!Number.isNaN(value)) return value;
+  return audit.id ?? 0;
 }
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -84,7 +91,10 @@ function CompareContent() {
       const auditsData = await auditsRes.json();
       const audits = auditsData.audits || auditsData;
       const completedAudits = (Array.isArray(audits) ? audits : []).filter(
-        (a: { status: string }) => a.status === "completed"
+        (a: { phase?: string; status: string; completed_at?: string | null; created_at?: string | null; started_at?: string | null; id?: number }) => isAuditFinished(getAuditStatus(a))
+      );
+      completedAudits.sort((a: { completed_at?: string | null; created_at?: string | null; started_at?: string | null; id?: number }, b: { completed_at?: string | null; created_at?: string | null; started_at?: string | null; id?: number }) =>
+        getAuditDateValue(b) - getAuditDateValue(a),
       );
 
       if (completedAudits.length === 0) {
@@ -267,7 +277,7 @@ function CompareContent() {
     ];
     return (
       <div className="space-y-6">
-        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表�?" />
+        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
         <DiagnosticChecklist items={checklistItems} title="准备工作" />
       </div>
     );
@@ -276,7 +286,7 @@ function CompareContent() {
   if (dataLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表�?" />
+        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
         <div className="grid grid-cols-2 gap-4">
           <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
           <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
@@ -289,7 +299,7 @@ function CompareContent() {
   if (locked) {
     return (
       <div className="space-y-6">
-        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表�?" />
+        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
         <div style={sectionCard}>
           <EmptyState icon={GitCompare} title="需要升级后使用" description="竞品对比功能需要订阅智见专业版" />
         </div>
@@ -300,7 +310,7 @@ function CompareContent() {
   if (error) {
     return (
       <div className="space-y-6">
-        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表�?" />
+        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
         <div style={sectionCard}>
           <EmptyState
             icon={GitCompare}
@@ -317,7 +327,7 @@ function CompareContent() {
   if (results.length === 0) {
     return (
       <div className="space-y-6">
-        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表�?" />
+        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
         <div style={sectionCard}>
           <EmptyState
             icon={GitCompare}
@@ -335,7 +345,7 @@ function CompareContent() {
     <div className="space-y-6">
       <PageHeader
         title="竞品对比"
-        subtitle="对比你与竞品在AI平台的可见性表�?"
+        subtitle="对比你与竞品在AI平台的可见性表现"
         actions={
           <button
             onClick={loadData}
@@ -362,7 +372,7 @@ function CompareContent() {
       <div style={sectionCard}>
         <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
           <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-            <span className="font-normal text-xs" style={{ color: "var(--text-muted)" }}>{groupedResults.length} ���ѯ</span>
+            <span className="font-normal text-xs" style={{ color: "var(--text-muted)" }}>{groupedResults.length} 组查询</span>
           </h3>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex gap-1 flex-wrap">
@@ -417,10 +427,10 @@ function CompareContent() {
           className="flex gap-4 flex-wrap mb-3 px-3 py-2 rounded-md text-xs"
           style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}
         >
-          <span><span style={{ color: "var(--color-success)" }}>?</span> ���ἰ</span>
+          <span><span style={{ color: "var(--color-success)" }}>?</span> 被提及</span>
           <span>#N 推荐排名</span>
-          <span>N% ������Ŷ�</span>
-          <span style={{ color: "var(--text-muted)" }}>�� δ�ἰ</span>
+          <span>N% 情感置信度</span>
+          <span style={{ color: "var(--text-muted)" }}>—</span>
         </div>
 
         {/* Table */}
@@ -458,7 +468,7 @@ function CompareContent() {
                     >
                       {brand}
                       {isPrimary && (
-                        <span className="font-normal text-[9px]" style={{ color: "var(--color-primary)" }}>���㣩</span>
+                        <span className="font-normal text-[9px]" style={{ color: "var(--color-primary)" }}>（你）</span>
                       )}
                     </th>
                   );
@@ -476,7 +486,7 @@ function CompareContent() {
                     style={{ borderBottom: "1px solid var(--border)", color: "var(--text-secondary)" }}
                     title={row.promptText}
                   >
-                    {row.promptText || "��"}
+                    {row.promptText || "—"}
                   </td>
                   {brandColumns.map((brand) => {
                     const result = row.brandResults[brand];
@@ -511,7 +521,7 @@ function CompareContent() {
                             )}
                           </>
                         ) : result ? (
-                          <span style={{ color: "var(--text-muted)" }}>��</span>
+                          <span style={{ color: "var(--text-muted)" }}>—</span>
                         ) : null}
                       </td>
                     );
@@ -525,7 +535,8 @@ function CompareContent() {
                     className="text-center py-8"
                     style={{ color: "var(--text-muted)" }}
                   >
-                    无匹配结果，试试调整筛选条�?                  </td>
+                    无匹配结果，试试调整筛选条件
+                  </td>
                 </tr>
               )}
             </tbody>

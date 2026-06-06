@@ -16,6 +16,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import type { TrendData, TrendAnnotation, AuditListItem } from "@/types/visibility";
 import { sectionCard } from "@/components/charts/shared";
+import { getAuditStatus, isAuditFinished } from "@/lib/audit-status";
 
 type Period = "daily" | "weekly" | "monthly";
 
@@ -142,7 +143,7 @@ function AuditTimeline({ audits }: { audits: AuditListItem[] }) {
       <div className="space-y-0">
         {audits.slice(0, 8).map((audit, i) => {
           const date = audit.completed_at || audit.started_at;
-          const isCompleted = audit.status === "completed" || audit.status === "done";
+          const isCompleted = isAuditFinished(getAuditStatus(audit));
           return (
             <div
               key={audit.id}

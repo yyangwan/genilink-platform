@@ -52,6 +52,20 @@ describe('resolveGuard', () => {
     expect(result.ctx.headers.Authorization).toBe('Bearer project-jwt');
   });
 
+  it('reads projectId from a cloned POST body so handlers can still read it', async () => {
+    const req = new NextRequest('http://localhost/api/integration/prompts', {
+      method: 'POST',
+      body: JSON.stringify({ projectId: 'project-1', prompt: 'test prompt' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const result = await resolveGuard(req);
+    const body = await req.json();
+
+    expect(result.ok).toBe(true);
+    expect(body).toEqual({ projectId: 'project-1', prompt: 'test prompt' });
+  });
+
   it('issues a workspace-scoped Visibility JWT for non-project routes', async () => {
     const result = await resolveGuard(
       new NextRequest('http://localhost/api/integration/platforms'),

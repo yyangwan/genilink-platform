@@ -29,7 +29,7 @@ function getHeaders(
   };
   if (accept) headers.Accept = accept;
   if (opts.accessToken) headers.Authorization = `Bearer ${opts.accessToken}`;
-  if (opts.service === 'content') headers['X-ContentOS-Project-Id'] = opts.projectId;
+  if (opts.service === 'content') headers['X-Genilink-Project-Id'] = opts.projectId;
   return headers;
 }
 

@@ -55,10 +55,10 @@ export const colors = {
   error: "#ef4444",
   info: "#60a5fa",
 
-  // Light theme semantic (darker for contrast)
-  lightSuccess: "#059669",
+  // Light theme semantic (darker for AA contrast on light surfaces)
+  lightSuccess: "#065f46",
   lightWarning: "#d97706",
-  lightError: "#dc2626",
+  lightError: "#b91c1c",
   lightInfo: "#2563eb",
 
   // Borders

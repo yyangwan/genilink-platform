@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
+import { getAuditStatus, isAuditFinished } from '@/lib/audit-status';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
 import { getWorkspaceRole } from '@/lib/auth/workspace';
 import { issueVisibilityProjectJWT } from '@/lib/auth/service-jwt';
@@ -27,15 +28,13 @@ export async function GET(req: NextRequest) {
   if (!workspaceId) return NextResponse.json(EMPTY);
 
   const projectId = req.nextUrl.searchParams.get('project');
+  if (!projectId) return NextResponse.json(EMPTY);
 
-  const projects = await prisma.project.findMany({
-    where: projectId ? { id: projectId, workspaceId } : { workspaceId },
-    take: 1,
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, workspaceId },
   });
+  if (!project) return NextResponse.json(EMPTY);
 
-  if (projects.length === 0) return NextResponse.json(EMPTY);
-
-  const project = projects[0];
   const role = await getWorkspaceRole(session.user.id, workspaceId);
   if (!role) return NextResponse.json(EMPTY);
   const serviceToken = await issueVisibilityProjectJWT({
@@ -106,8 +105,8 @@ export async function GET(req: NextRequest) {
       if (Array.isArray(audits) && audits.length > 0) {
         const latest = audits[0];
         latestAuditDate = latest.created_at ?? null;
-        const status = latest.phase || latest.status;
-        if (status === 'completed' || status === 'done' || status === 'partial') {
+        const status = getAuditStatus(latest);
+        if (isAuditFinished(status)) {
           latestAuditId = latest.id;
         }
       }

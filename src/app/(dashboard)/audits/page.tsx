@@ -19,6 +19,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import type { AuditListItem } from "@/types/visibility";
 import { sectionCard } from "@/components/charts/shared";
+import { getAuditStatus, isAuditFinished } from "@/lib/audit-status";
 
 const statusConfig: Record<string, { color: string; bg: string; label: string; Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }> = {
   completed: { color: "var(--color-success)", bg: "var(--color-success)20", label: "已完成", Icon: CheckCircle2 },
@@ -77,7 +78,7 @@ function AuditsContent() {
       header: "状态",
       width: "140px",
       render: (row: AuditListItem) => {
-        const status = (row as unknown as Record<string, string>).phase || row.status;
+        const status = getAuditStatus(row);
         const cfg = statusConfig[status] ?? statusConfig.pending;
         const isSpinning = status === "collecting" || status === "analyzing";
         return (
@@ -138,8 +139,8 @@ function AuditsContent() {
       header: "操作",
       width: "120px",
       render: (row: AuditListItem) => {
-        const status = (row as unknown as Record<string, string>).phase || row.status;
-        if (status !== "completed" && status !== "done") return null;
+        const status = getAuditStatus(row);
+        if (!isAuditFinished(status)) return null;
         return (
           <span
             className="inline-flex items-center gap-1 text-xs font-medium"
@@ -168,8 +169,8 @@ function AuditsContent() {
   }
 
   const handleRowClick = (row: AuditListItem) => {
-    const status = (row as unknown as Record<string, string>).phase || row.status;
-    if (status === "completed" || status === "done") {
+    const status = getAuditStatus(row);
+    if (isAuditFinished(status)) {
       router.push(`/audits/${row.id}/report`);
     }
   };

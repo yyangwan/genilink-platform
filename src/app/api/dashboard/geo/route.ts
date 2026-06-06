@@ -20,17 +20,16 @@ export async function GET(req: NextRequest) {
   }
 
   const projectId = req.nextUrl.searchParams.get('project');
-
-  const projects = await prisma.project.findMany({
-    where: projectId ? { id: projectId, workspaceId } : { workspaceId },
-    take: 1,
-  });
-
-  if (projects.length === 0) {
+  if (!projectId) {
     return NextResponse.json({ websites: [], totalCitations: 0, avgAiScore: null, optimizationTasks: [] });
   }
 
-  const project = projects[0];
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, workspaceId },
+  });
+  if (!project) {
+    return NextResponse.json({ websites: [], totalCitations: 0, avgAiScore: null, optimizationTasks: [] });
+  }
 
   try {
     const role = await getWorkspaceRole(session.user.id, workspaceId);
@@ -46,16 +45,34 @@ export async function GET(req: NextRequest) {
     const data = await proxyRequest({
       projectId: project.id,
       service: 'visibility',
-      path: '/api/v1/projects/:id/geo-summary',
+      path: `/api/integration/summary?project_id=${encodeURIComponent(project.id)}`,
       accessToken: serviceToken,
     });
 
     const result = data as Record<string, unknown>;
+    const platformCoverage = Array.isArray(result.platformCoverage)
+      ? result.platformCoverage as Array<{ name?: string; score?: number }>
+      : [];
+    const suggestions = Array.isArray(result.suggestions)
+      ? result.suggestions as Array<{ text?: string; priority?: string }>
+      : [];
+
     return NextResponse.json({
-      websites: Array.isArray(result.websites) ? result.websites : [],
-      totalCitations: (result.total_citations as number) ?? 0,
-      avgAiScore: (result.avg_ai_score as number) ?? null,
-      optimizationTasks: Array.isArray(result.optimization_tasks) ? result.optimization_tasks : [],
+      websites: platformCoverage.map((platform, index) => ({
+        id: platform.name ?? String(index),
+        name: platform.name ?? '',
+        domain: platform.name ?? '',
+        aiScore: platform.score ?? null,
+        citationCount: 0,
+        lastAnalyzedAt: null,
+      })),
+      totalCitations: (result.mentionCount as number) ?? 0,
+      avgAiScore: (result.overallScore as number) ?? null,
+      optimizationTasks: suggestions.map((suggestion, index) => ({
+        text: suggestion.text ?? '',
+        priority: suggestion.priority ?? 'medium',
+        status: 'pending',
+      })),
     });
   } catch {
     return NextResponse.json({ websites: [], totalCitations: 0, avgAiScore: null, optimizationTasks: [] });

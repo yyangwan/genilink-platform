@@ -1,4 +1,18 @@
 import { vi } from 'vitest';
+import { afterAll, afterEach, beforeAll } from 'vitest';
+import { server } from './msw/server';
+
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'bypass' });
+});
+
+afterEach(() => {
+  server.resetHandlers();
+});
+
+afterAll(() => {
+  server.close();
+});
 
 // Mock NextAuth
 vi.mock('@/lib/auth/config', () => ({

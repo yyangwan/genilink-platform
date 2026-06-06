@@ -7,7 +7,7 @@
 智链发送 RS256 JWT 到 ContentOS (port 4002)。ContentOS 中间件验证 JWT，注入 x-genilink-* headers。
 - **Algorithm**: RS256, **Issuer**: `https://app.genilink.cn`, **Audience**: `content.genilink.cn`, **kid**: `genilink-v1`
 - **JWKS**: `/.well-known/jwks.json` (从 `.keys/public.pem` 导出)
-- **Proxy header**: `X-ContentOS-Project-Id` 携带 ContentOS 项目 ID
+- **Proxy header**: `X-Genilink-Project-Id` 携带 Genilink 项目 ID
 - **ContentOS 认证**: `getServiceSession()` 读取 JWT headers, `getServiceWorkspace()` 从项目 ID 推导 workspace
 - **架构方向**: 智链统一管理用户/工作空间/项目，智创只提供业务功能
 - **ContentOS 启动**: 需要 `NO_PROXY=localhost,127.0.0.1` (否则 JWKS fetch 被代理拦截)

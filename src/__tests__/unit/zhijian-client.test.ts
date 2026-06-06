@@ -23,16 +23,11 @@ describe('zhijian client proxyRequest', () => {
       accessToken: 'token-123',
     });
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:4002/api/projects/proj-123/summary',
-      expect.objectContaining({
-        method: 'GET',
-        headers: expect.objectContaining({
-          Authorization: 'Bearer token-123',
-          'X-ContentOS-Project-Id': 'proj-123',
-        }),
-      }),
-    );
+    const request = mockFetch.mock.calls[0][0] as Request;
+    expect(request.url).toBe('http://127.0.0.1:4002/api/projects/proj-123/summary');
+    expect(request.method).toBe('GET');
+    expect(request.headers.get('authorization')).toBe('Bearer token-123');
+    expect(request.headers.get('x-genilink-project-id')).toBe('proj-123');
   });
 
   it('sends a JSON body when one is provided', async () => {
@@ -50,16 +45,11 @@ describe('zhijian client proxyRequest', () => {
       body: { channel: 'wechat' },
     });
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:4002/api/publish/proj-456',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ channel: 'wechat' }),
-        headers: expect.objectContaining({
-          'Content-Type': 'application/json',
-          'X-ContentOS-Project-Id': 'proj-456',
-        }),
-      }),
-    );
+    const request = mockFetch.mock.calls[0][0] as Request;
+    expect(request.url).toBe('http://127.0.0.1:4002/api/publish/proj-456');
+    expect(request.method).toBe('POST');
+    expect(await request.text()).toBe(JSON.stringify({ channel: 'wechat' }));
+    expect(request.headers.get('content-type')).toBe('application/json');
+    expect(request.headers.get('x-genilink-project-id')).toBe('proj-456');
   });
 });

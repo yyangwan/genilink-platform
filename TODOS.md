@@ -6,7 +6,7 @@
   - Depends on: None. Can run anytime.
 
 ## Accessibility
-- [ ] **Audit color contrast ratios** 鈥?Verify `var(--color-error)` and `var(--color-success)` against `var(--bg-primary)` meet WCAG AA (鈮?.5:1). Check ErrorState, KPIScorecard, and new diagnostic checklist components.
+- [x] **Audit color contrast ratios** 鈥?Verified `var(--color-error)` and `var(--color-success)` against `var(--bg-base)` / tinted status surfaces. Updated the light-theme semantic tokens so both normal text and status badges meet WCAG AA.
   - Why: Low-vision users may not see error/success messages if contrast is insufficient.
   - Depends on: CSS variable values (check current theme).
 
@@ -16,8 +16,8 @@
   - Depends on: None. Can fix independently.
 
 ## Test Infrastructure
-- [ ] **Set up test infrastructure** 鈥?Zero test coverage currently. Add Vitest + Playwright + MSW.
-  - Why: Manual testing only. Regressions are caught in production.
+- [x] **Set up test infrastructure** 鈥?Vitest is wired with shared setup, MSW now has a reusable server harness, and Playwright has a working Chromium smoke test plus config.
+  - Why: The repo needs repeatable unit and end-to-end coverage instead of manual-only checks.
   - Depends on: None.
 
 ## 鏅哄壍 Content Studio 鈥?Frontend Gaps (2026-05-23)

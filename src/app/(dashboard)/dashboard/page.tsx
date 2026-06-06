@@ -17,7 +17,7 @@ import type {
   VisibilitySummary,
   GeoSummary,
   ContentSummary,
-  Suggestion,
+  OptimizationTask,
 } from "@/types";
 
 // ─── Platform display names ─────────────────────────────────
@@ -501,16 +501,16 @@ function DashboardContent() {
           <ErrorState onRetry={geo.refetch} />
         ) : geo.locked ? (
           <EmptyState message="升级解锁AI优化建议" actionLabel="联系销售" />
-        ) : visibility.data?.suggestions &&
-          visibility.data.suggestions.length > 0 ? (
+        ) : geo.data?.optimizationTasks &&
+          geo.data.optimizationTasks.length > 0 ? (
           <ul className="space-y-2">
-            {visibility.data.suggestions.map((s: Suggestion, i: number) => (
+            {geo.data.optimizationTasks.map((task: OptimizationTask, i: number) => (
               <li
                 key={i}
                 className="flex items-start gap-3 py-2.5 px-3 rounded-lg"
                 style={{ background: "var(--bg-elevated)" }}
               >
-                <PriorityBadge priority={s.priority} />
+                <PriorityBadge priority={task.priority} />
                 <span
                   className="text-sm pt-0.5"
                   style={{
@@ -518,7 +518,7 @@ function DashboardContent() {
                     fontFamily: "var(--font-body)",
                   }}
                 >
-                  {s.text}
+                  {task.text}
                 </span>
               </li>
             ))}

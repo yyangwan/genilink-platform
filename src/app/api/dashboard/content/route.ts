@@ -5,6 +5,7 @@ import { getWorkspaceId } from '@/lib/auth/get-workspace';
 import { proxyRequest } from '@/lib/proxy/zhijian-client';
 import { getWorkspaceRole } from '@/lib/auth/workspace';
 import { issueContentProjectJWT } from '@/lib/auth/service-jwt';
+import { buildContentSummary } from '@/lib/content/content-summary';
 
 const emptyData = { totalContent: 0, publishedCount: 0, recentContent: [], qualityAvg: null };
 
@@ -22,17 +23,16 @@ export async function GET(req: NextRequest) {
   }
 
   const projectId = req.nextUrl.searchParams.get('project');
-
-  const projects = await prisma.project.findMany({
-    where: projectId ? { id: projectId, workspaceId } : { workspaceId },
-    take: 1,
-  });
-
-  if (projects.length === 0) {
+  if (!projectId) {
     return NextResponse.json(emptyData);
   }
 
-  const project = projects[0];
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, workspaceId },
+  });
+  if (!project) {
+    return NextResponse.json(emptyData);
+  }
 
   try {
     const role = await getWorkspaceRole(session.user.id, workspaceId);
@@ -42,23 +42,44 @@ export async function GET(req: NextRequest) {
       email: session.user.email,
       name: session.user.name,
       workspaceId,
-      projectId: project.id,
+      projectId,
       role,
     });
-    const data = await proxyRequest({
-      projectId: project.id,
-      service: 'content',
-      path: '/api/v1/projects/:id/content-summary',
-      accessToken: serviceToken,
-    });
+    const [contentItems, analytics] = await Promise.allSettled([
+      proxyRequest({
+        projectId,
+        service: 'content',
+        path: `/api/content?projectId=${encodeURIComponent(projectId)}`,
+        accessToken: serviceToken,
+      }),
+      proxyRequest({
+        projectId,
+        service: 'content',
+        path: '/api/analytics?timeRange=30',
+        accessToken: serviceToken,
+      }),
+    ]);
 
-    const result = data as Record<string, unknown>;
-    return NextResponse.json({
-      totalContent: (result.total_content as number) ?? 0,
-      publishedCount: (result.published_count as number) ?? 0,
-      recentContent: Array.isArray(result.recent_content) ? result.recent_content : [],
-      qualityAvg: (result.quality_avg as number) ?? null,
-    });
+    const contentList = contentItems.status === 'fulfilled' && Array.isArray(contentItems.value)
+      ? contentItems.value as Array<{ id: string; title: string; platform: string; status: string; createdAt: string }>
+      : [];
+    const analyticsData = analytics.status === 'fulfilled'
+      ? analytics.value as {
+          summary?: {
+            totalContent?: number;
+            publishedCount?: number;
+            avgQualityScore?: number | null;
+          };
+          recentActivity?: Array<{ id: string; title: string; status: string; projectName: string; createdAt: string }>;
+        }
+      : null;
+
+    const summary = buildContentSummary(
+      contentList,
+      analyticsData,
+      contentItems.status === 'fulfilled',
+    );
+    return NextResponse.json(summary);
   } catch {
     return NextResponse.json(emptyData);
   }

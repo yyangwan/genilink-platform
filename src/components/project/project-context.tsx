@@ -76,17 +76,17 @@ export function ProjectProvider({ children, workspaceId }: ProjectProviderProps)
         }));
         setProjects(list);
 
-        // Resolve current project: cookie > first project > null
+        // Resolve current project from the persisted cookie only.
         const cookieId = readProjectCookie();
         const validCookie = cookieId && list.some((p) => p.id === cookieId);
-        const resolved = validCookie ? cookieId : list[0]?.id || null;
+        const resolved = validCookie ? cookieId : null;
         setCurrentProjectId(resolved);
-        if (resolved !== cookieId) {
-          setProjectCookie(resolved);
+        if (!validCookie && cookieId) {
+          setProjectCookie(null);
         }
       }
     } catch {
-      // Network error â€?keep existing state
+      // Network error, keep existing state.
     } finally {
       setLoading(false);
     }
@@ -166,4 +166,3 @@ export function useProject() {
   if (!ctx) throw new Error("useProject must be used within ProjectProvider");
   return ctx;
 }
-

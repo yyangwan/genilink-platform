@@ -29,17 +29,12 @@ describe('proxyStreamRequest', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toBe('text/event-stream');
     expect(res.headers.get('Cache-Control')).toBe('no-cache');
-    expect(mockFetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:4002/api/contents/123/generate',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          Authorization: 'Bearer test-token',
-          Accept: 'text/event-stream',
-          'X-ContentOS-Project-Id': 'proj-ok',
-        }),
-      }),
-    );
+    const request = mockFetch.mock.calls[0][0] as Request;
+    expect(request.url).toBe('http://127.0.0.1:4002/api/contents/123/generate');
+    expect(request.method).toBe('POST');
+    expect(request.headers.get('authorization')).toBe('Bearer test-token');
+    expect(request.headers.get('accept')).toBe('text/event-stream');
+    expect(request.headers.get('x-genilink-project-id')).toBe('proj-ok');
   });
 
   it('should return 401 Response on AUTH_EXPIRED', async () => {

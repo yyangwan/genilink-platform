@@ -57,7 +57,7 @@ interface Workspace {
 }
 
 const topItems: NavItem[] = [
-  { label: "¹¤×÷Ì¨", href: "/dashboard", icon: LayoutDashboard },
+  { label: "ä»ªè¡¨ç›˜", href: "/dashboard", icon: LayoutDashboard },
   { label: "é¡¹ç›®ç®¡ç†", href: "/projects", icon: FolderKanban },
   { label: "å“ç‰Œç®¡ç†", href: "/brands", icon: Tag },
 ];
@@ -67,7 +67,7 @@ const zhijianSection: NavSection = {
   label: "æ™ºè¦‹",
   icon: Eye,
   items: [
-    { label: "¿É¼ûÐÔ·ÖÎö", href: "/visibility", icon: Play },
+    { label: "å¯è§æ€§åˆ†æž", href: "/visibility", icon: Play },
     { label: "å®¡è®¡è®°å½•", href: "/audits", icon: FileText },
     { label: "å®šæ—¶ä»»åŠ¡", href: "/schedules", icon: Clock },
     { label: "ä¼˜åŒ–å»ºè®®", href: "/suggestions", icon: Lightbulb },
@@ -258,7 +258,7 @@ export default function Sidebar() {
               fontFamily: "var(--font-display)",
             }}
           >
-            æ™?
+            æ™º
           </div>
           <span
             className="text-base font-semibold tracking-tight"
@@ -289,12 +289,12 @@ export default function Sidebar() {
           className="px-3 py-2 text-xs font-medium tracking-wider"
           style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}
         >
-          {currentWorkspace?.name || "¹¤×÷Çø"}
+          {currentWorkspace?.name || "å·¥ä½œåŒº"}
         </div>
       </div>
 
       {/* Main navigation */}
-      <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto" aria-label="Ö÷µ¼º½">
+      <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto" aria-label="ä¸»å¯¼èˆª">
         {/* Top items */}
         {topItems.map(navLink)}
 
@@ -370,7 +370,7 @@ export default function Sidebar() {
             />
           </button>
 
-          {/* Collapsible children â€?grouped with sub-dividers */}
+          {/* Collapsible children - grouped with sub-dividers */}
           <div
             className={cn(
               "overflow-hidden transition-all duration-[var(--duration-medium)]",
@@ -435,7 +435,7 @@ export default function Sidebar() {
           }}
         >
           <LogOut className="w-[18px] h-[18px] shrink-0" />
-          <span>ÍË³öµÇÂ¼</span>
+          <span>é€€å‡ºç™»å½•</span>
         </button>
       </div>
     </>
@@ -476,7 +476,7 @@ export default function Sidebar() {
           borderRight: "1px solid var(--border)",
         }}
         role="navigation"
-        aria-label="²à±ßÀ¸µ¼º½"
+        aria-label="ä¾§è¾¹æ å¯¼èˆª"
       >
         {sidebarContent}
       </aside>
@@ -493,7 +493,7 @@ export default function Sidebar() {
           borderRight: "1px solid var(--border)",
         }}
         role="navigation"
-        aria-label="²à±ßÀ¸µ¼º½"
+        aria-label="ä¾§è¾¹æ å¯¼èˆª"
         aria-hidden={!mobileOpen}
       >
         {sidebarContent}
@@ -506,9 +506,9 @@ export default function Sidebar() {
           signOut({ callbackUrl: "/auth/login" });
         }}
         onCancel={() => setLogoutConfirm(false)}
-        title="ÍË³öµÇÂ¼"
-        message="È·¶¨ÒªÍË³öµÇÂ¼Âð£¿"
-        confirmLabel="ÍË³ö"
+        title="é€€å‡ºç™»å½•"
+        message="ç¡®å®šè¦é€€å‡ºç™»å½•å—ï¼Ÿ"
+        confirmLabel="é€€å‡º"
         cancelLabel="å–æ¶ˆ"
       />
     </>

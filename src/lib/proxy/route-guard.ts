@@ -101,7 +101,7 @@ export async function resolveGuard(
   let projectId: string | undefined = req.nextUrl.searchParams.get('projectId') || undefined;
   if (!projectId && req.method !== 'GET') {
     try {
-      const body = await req.json();
+      const body = await req.clone().json();
       projectId = body.projectId;
     } catch {}
   }

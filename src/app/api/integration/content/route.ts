@@ -6,6 +6,7 @@ import { proxyRequest } from '@/lib/proxy/zhijian-client';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
 import { getWorkspaceRole } from '@/lib/auth/workspace';
 import { issueContentProjectJWT } from '@/lib/auth/service-jwt';
+import { buildContentSummary } from '@/lib/content/content-summary';
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -62,14 +63,42 @@ export async function GET(req: NextRequest) {
       projectId,
       role,
     });
-    const data = await proxyRequest({
-      projectId,
-      service: 'content',
-      path: '/api/projects/:id/summary',
-      accessToken: serviceToken,
-    });
+    const [contentItems, analytics] = await Promise.allSettled([
+      proxyRequest({
+        projectId,
+        service: 'content',
+        path: `/api/content?projectId=${encodeURIComponent(projectId)}`,
+        accessToken: serviceToken,
+      }),
+      proxyRequest({
+        projectId,
+        service: 'content',
+        path: '/api/analytics?timeRange=30',
+        accessToken: serviceToken,
+      }),
+    ]);
 
-    return NextResponse.json({ data });
+    const contentList = contentItems.status === 'fulfilled' && Array.isArray(contentItems.value)
+      ? contentItems.value as Array<{ id: string; title: string; platform: string; status: string; createdAt: string }>
+      : [];
+    const analyticsData = analytics.status === 'fulfilled'
+      ? analytics.value as {
+          summary?: {
+            totalContent?: number;
+            publishedCount?: number;
+            avgQualityScore?: number | null;
+          };
+          recentActivity?: Array<{ id: string; title: string; status: string; projectName: string; createdAt: string }>;
+        }
+      : null;
+
+    return NextResponse.json({
+      data: buildContentSummary(
+        contentList,
+        analyticsData,
+        contentItems.status === 'fulfilled',
+      ),
+    });
   } catch (err) {
     const message = (err as Error).message;
     if (message === 'TIMEOUT') {
