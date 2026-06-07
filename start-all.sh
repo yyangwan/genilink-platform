@@ -48,17 +48,19 @@ ZHIJIAN_PID=$!
 echo "      PID: $ZHIJIAN_PID"
 
 # ── 2. 智创 (Content Service) — Next.js on :4002 ──
+echo "[2/3] 构建 智创 (port 4002)..."
+powershell.exe -NoLogo -NoProfile -Command "Set-Location 'E:/workspace/marketing'; npm.cmd run build" > /dev/null 2>&1
 echo "[2/3] 启动 智创 (port 4002)..."
-cd "E:/workspace/marketing"
-npx next dev -p 4002 > /dev/null 2>&1 &
+powershell.exe -NoLogo -NoProfile -Command "Set-Location 'E:/workspace/marketing'; npm.cmd run start -- -p 4002" > /dev/null 2>&1 &
 ZHICHUANG_PID=$!
 echo "      PID: $ZHICHUANG_PID"
 
 # ── 3. 智链 (Frontend) — Next.js on :3001 ──
+echo "[3/3] 构建 智链 (port 3001)..."
+PLATFORM_DIST_DIR=".next-runtime"
+powershell.exe -NoLogo -NoProfile -Command "Set-Location 'E:/workspace/genilink-platform'; \$env:NEXT_DIST_DIR='$PLATFORM_DIST_DIR'; npm.cmd run build" > /dev/null 2>&1
 echo "[3/3] 启动 智链 (port 3001)..."
-cd "E:/workspace/genilink-platform"
-# Use build+start for stable proxy routes (next dev has issues with external proxies)
-npx next start -p 3001 > /dev/null 2>&1 &
+powershell.exe -NoLogo -NoProfile -Command "Set-Location 'E:/workspace/genilink-platform'; \$env:NEXT_DIST_DIR='$PLATFORM_DIST_DIR'; npm.cmd run start -- -p 3001" > /dev/null 2>&1 &
 ZHILIAN_PID=$!
 echo "      PID: $ZHILIAN_PID"
 

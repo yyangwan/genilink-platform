@@ -1,35 +1,6 @@
 import type { Metadata } from "next";
-import { Sora, Plus_Jakarta_Sans, JetBrains_Mono, Noto_Sans_SC } from "next/font/google";
 import Providers from "./providers";
 import "./globals.css";
-
-const sora = Sora({
-  variable: "--font-sora",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
-
-const plusJakarta = Plus_Jakarta_Sans({
-  variable: "--font-plus-jakarta",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  display: "swap",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  display: "swap",
-});
-
-const notoSansSC = Noto_Sans_SC({
-  variable: "--font-noto-sans-sc",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "智链 — GEO全链路平台",
@@ -56,7 +27,7 @@ export default function RootLayout({
   return (
     <html
       lang="zh-CN"
-      className={`${sora.variable} ${plusJakarta.variable} ${jetbrainsMono.variable} ${notoSansSC.variable} h-full antialiased`}
+      className="h-full antialiased"
       suppressHydrationWarning
     >
       <head>

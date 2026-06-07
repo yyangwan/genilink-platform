@@ -15,6 +15,8 @@
 ## Dev Notes
 - Dev server stability: `next build && next start` preferred over `next dev` for routes proxying to external services
 - Build segfaults on Windows — retry with `NODE_OPTIONS="--max-old-space-size=4096"`
+- On this Windows machine, `node:child_process.spawn()` with `stdio: 'pipe'` can fail with `EPERM`; `stdio: 'inherit'` and `stdio: 'ignore'` still work. If `next dev` hits this, prefer `next build && next start`.
+- `start-all.sh` uses PowerShell wrappers for the two Next apps on Windows and writes the frontend build to `/.next-runtime/`; treat that directory as disposable build output, not source.
 - 智見 backend: port 8000, proxied via `/api/integration/*` routes with billing guard
 - 智創 backend: port 4002, JWT Bearer auth working, proxied via `/api/content/*` routes
 - SERVICE_TOKEN: stored in .env.local, obtained from visibility backend `/api/auth/login`
