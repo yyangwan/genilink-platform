@@ -85,7 +85,7 @@ function BrandsContent() {
         setForm({ name: "", aliases: "", isCompetitor: false });
         fetchBrands();
         if (res.status === 207) {
-          addToast({ type: "info", title: "品牌已创建，同步正在进行中" });
+          addToast({ type: "info", title: "Brand created, syncing now" });
         }
       } else {
         const data = await res.json().catch(() => ({}));
@@ -189,7 +189,7 @@ function BrandsContent() {
             }}
           />
         ) : (
-          <span style={{ color: "var(--text-secondary)" }}>{row.aliases?.length ? row.aliases.join(", ") : "鈥?"}</span>
+          <span style={{ color: "var(--text-secondary)" }}>{row.aliases?.length ? row.aliases.join(", ") : "None"}</span>
         ),
     },
     {
@@ -275,7 +275,7 @@ function BrandsContent() {
     <div className="space-y-6">
       <PageHeader
         title="鍝佺墝绠＄悊"
-        subtitle="绠＄悊鍝佺墝鍜岀珵鍝佹爣绛?"
+        subtitle="Manage brands and competitor labels"
         actions={
           <button
             onClick={() => {
@@ -408,9 +408,9 @@ function BrandsContent() {
           emptyContent={
             <EmptyState
               icon={Tag}
-              title="还没有品牌"
+              title="No brands yet"
               description="娣诲姞鍝佺墝浠ヨ拷韪嚜鏈夊搧鐗屽拰绔炲搧"
-              actionLabel="添加第一个品牌"
+              actionLabel="Add first brand"
               onAction={() => {
                 setAdding(true);
                 setForm({ name: "", aliases: "", isCompetitor: false });
@@ -424,7 +424,7 @@ function BrandsContent() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="鍒犻櫎鍝佺墝"
-        message={`纭畾瑕佸垹闄ゃ�?{deleteTarget?.name}銆嶅悧锛熸鎿嶄綔涓嶅彲鎾ら攢銆俙}
+        message={`Are you sure you want to delete "${deleteTarget?.name}"? This cannot be undone.`}
         confirmLabel="鍒犻櫎"
         cancelLabel="鍙栨秷"
         onConfirm={handleDelete}

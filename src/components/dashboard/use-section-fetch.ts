@@ -69,7 +69,7 @@ export function useSectionFetch<T>(url: string | null): SectionFetchState<T> {
       setData(json);
       setLoading(false);
     } catch (err) {
-      // Ignore abort errors â€?they are intentional
+      // Ignore abort errors - they are intentional
       if (err instanceof DOMException && err.name === "AbortError") {
         return;
       }

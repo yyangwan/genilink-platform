@@ -77,8 +77,41 @@ check_service() {
         echo "  ✗ ${name} (port ${port}) — 启动中..."
     fi
 }
+check_frontend_static_assets() {
+    local name=$1 port=$2
+    local html urls failed
+    html=$(curl -fsSL --noproxy "*" --max-time 10 "http://localhost:${port}/" 2>/dev/null || true)
+    if [ -z "$html" ]; then
+        echo "  FAIL ${name} (port ${port}) - unable to fetch homepage"
+        return 1
+    fi
+
+    urls=$(printf '%s' "$html" | grep -oE '/_next/static/[^"]+' | sort -u)
+    if [ -z "$urls" ]; then
+        echo "  FAIL ${name} (port ${port}) - no static assets found in homepage HTML"
+        return 1
+    fi
+
+    failed=0
+    while IFS= read -r url; do
+        [ -n "$url" ] || continue
+        if ! curl -fsI --noproxy "*" --max-time 5 "http://localhost:${port}${url}" > /dev/null 2>&1; then
+            echo "  FAIL ${name} static asset failed: ${url}"
+            failed=1
+        fi
+    done <<EOF
+$urls
+EOF
+
+    if [ "$failed" -ne 0 ]; then
+        return 1
+    fi
+
+    echo "  OK ${name} static assets - healthy"
+}
 
 check_service "智链-Frontend" 3001
+check_frontend_static_assets "frontend" 3001
 check_service "智创-Content"  4002
 check_service "智见-Visibility" 8000
 
