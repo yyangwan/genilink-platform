@@ -1,23 +1,34 @@
 import { NextResponse } from 'next/server';
-import { readFileSync } from 'fs';
+import crypto from 'crypto';
+import { readFile } from 'fs/promises';
 import { join } from 'path';
-import { createPublicKey } from 'crypto';
 
-export const dynamic = 'force-dynamic';
-
+/** JWKS endpoint for local development — serves the public key used for RS256 JWT signing. */
 export async function GET() {
-  const publicKeyPem = readFileSync(join(process.cwd(), '.keys', 'public.pem'), 'utf-8');
-  const publicKey = createPublicKey(publicKeyPem);
-  const jwk = publicKey.export({ format: 'jwk' });
+  try {
+    const pemPath = join(process.cwd(), '.keys', 'public.pem');
+    const pem = await readFile(pemPath, 'utf-8');
+    const key = crypto.createPublicKey(pem);
+    const exportObj = key.export({ format: 'jwk' });
 
-  return NextResponse.json({
-    keys: [
-      {
-        ...jwk,
-        kid: 'genilink-v1',
-        use: 'sig',
-        alg: 'RS256',
-      },
-    ],
-  });
+    const jwks = {
+      keys: [
+        {
+          kty: 'RSA',
+          kid: 'genilink-v1',
+          alg: 'RS256',
+          use: 'sig',
+          n: exportObj.n,
+          e: exportObj.e,
+        },
+      ],
+    };
+
+    return NextResponse.json(jwks);
+  } catch {
+    return NextResponse.json(
+      { error: 'JWKS not available' },
+      { status: 503 }
+    );
+  }
 }

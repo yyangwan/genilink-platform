@@ -20,6 +20,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import type { AuditListItem } from "@/types/visibility";
 import { sectionCard } from "@/components/charts/shared";
 import { getAuditStatus, isAuditFinished } from "@/lib/audit-status";
+import { formatDateInTimeZone } from "@/lib/time";
 
 const statusConfig: Record<string, { color: string; bg: string; label: string; Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }> = {
   completed: { color: "var(--color-success)", bg: "var(--color-success)20", label: "已完成", Icon: CheckCircle2 },
@@ -33,17 +34,7 @@ const statusConfig: Record<string, { color: string; bg: string; label: string; I
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "--";
-  try {
-    return new Date(dateStr).toLocaleDateString("zh-CN", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return dateStr;
-  }
+  return formatDateInTimeZone(dateStr, { includeYear: true });
 }
 
 function scoreColor(score: number): string {

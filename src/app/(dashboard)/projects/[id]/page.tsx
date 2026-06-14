@@ -25,6 +25,7 @@ import {
 import { sectionCard } from "@/components/charts/shared";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast-context";
+import { formatDateInTimeZone } from "@/lib/time";
 
 interface ProjectData {
   id: string;
@@ -332,7 +333,7 @@ export default function ProjectDetailPage() {
           <div className="flex items-center gap-3">
             <Calendar className="w-4 h-4 shrink-0" style={{ color: "var(--text-muted)" }} />
             <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-              创建于 {new Date(project.createdAt).toLocaleDateString("zh-CN")}
+              创建于 {formatDateInTimeZone(project.createdAt, { includeTime: false, includeYear: true })}
             </span>
           </div>
         </div>

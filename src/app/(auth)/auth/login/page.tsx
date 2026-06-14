@@ -41,9 +41,9 @@ function LoginContent() {
 
   const urlErrorMessage =
     errorParam === "CredentialsSignin"
-      ? "������������"
+      ? "邮箱或密码不正确"
       : errorParam === "SessionRequired"
-        ? "���ȵ�¼"
+        ? "请先登录"
         : null;
   const displayedError = error || urlErrorMessage;
   // ─── Email/password login ────────────────────────────────────
@@ -60,7 +60,7 @@ function LoginContent() {
       });
 
       if (result?.error) {
-        setError("������������");
+        setError("邮箱或密码不正确");
         return;
       }
 
@@ -79,7 +79,7 @@ function LoginContent() {
           }
         }
       } catch {
-        // Non-critical �?continue to dashboard
+        // Non-critical; continue to dashboard
       }
 
       router.push(callbackUrl);
@@ -104,7 +104,7 @@ function LoginContent() {
       setQrData(data);
       setQrStatus("pending");
     } catch {
-      setQrError("�޷�����΢�Ŷ�ά�룬���Ժ�����");
+      setQrError("无法生成微信二维码，请稍后重试");
     } finally {
       setQrLoading(false);
     }
@@ -197,7 +197,8 @@ function LoginContent() {
             fontFamily: "var(--font-display)",
           }}
         >
-          �?        </div>
+          智
+        </div>
         <span
           className="text-lg font-semibold tracking-tight"
           style={{
@@ -217,7 +218,8 @@ function LoginContent() {
           fontFamily: "var(--font-display)",
         }}
       >
-        登录到智�?      </h2>
+        登录到智链
+      </h2>
       <p
         className="text-sm text-center mb-6"
         style={{
@@ -225,7 +227,8 @@ function LoginContent() {
           fontFamily: "var(--font-body)",
         }}
       >
-        中国GEO全链路平�?      </p>
+        中国GEO全链路平台
+      </p>
 
       {/* Error banner */}
       {displayedError && (
@@ -301,7 +304,7 @@ function LoginContent() {
         </div>
 
         <button type="submit" disabled={loading} style={buttonStyle}>
-          {loading ? "登录�?.." : "登录"}
+          {loading ? "登录中..." : "登录"}
         </button>
       </form>
 
@@ -313,7 +316,8 @@ function LoginContent() {
           fontFamily: "var(--font-body)",
         }}
       >
-        没有账号�?        <Link
+        没有账号？
+        <Link
           href="/auth/register"
           style={{
             color: "var(--color-primary)",
@@ -338,7 +342,8 @@ function LoginContent() {
             fontFamily: "var(--font-body)",
           }}
         >
-          �?        </span>
+          或
+        </span>
         <div
           className="flex-1 h-px"
           style={{ background: "var(--border)" }}
@@ -377,7 +382,7 @@ function LoginContent() {
             >
               <Image
                 src={qrData.url}
-                alt="΢�ŵ�¼��ά��"
+                alt="微信登录二维码"
                 width={200}
                 height={200}
                 unoptimized
@@ -426,7 +431,8 @@ function LoginContent() {
                 cursor: "pointer",
               }}
             >
-              刷新二维�?            </button>
+              刷新二维码
+            </button>
           </div>
         )}
 

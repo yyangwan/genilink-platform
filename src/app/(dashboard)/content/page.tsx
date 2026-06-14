@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/diagnostic-checklist";
 import type { ContentSummary } from "@/types";
 import type { ContentIntelligence } from "@/types/visibility";
+import { formatDateInTimeZone } from "@/lib/time";
 
 const card: React.CSSProperties = {
   background: "var(--bg-card)",
@@ -281,7 +282,7 @@ function RecentContent({ content }: { content: { data: ContentSummary | null; lo
               className="text-xs shrink-0"
               style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
             >
-              {new Date(item.createdAt).toLocaleDateString("zh-CN", { month: "short", day: "numeric" })}
+              {formatDateInTimeZone(item.createdAt, { includeTime: false })}
             </span>
           </Link>
         ))}

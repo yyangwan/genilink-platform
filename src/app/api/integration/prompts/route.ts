@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
 
+type PromptRecord = Record<string, unknown> & {
+  id?: string | number;
+  prompt_id?: string | number;
+  promptId?: string | number;
+};
+
+function normalizePromptId(record: unknown): unknown {
+  if (!record || typeof record !== 'object') return record;
+
+  const prompt = record as PromptRecord;
+  const rawId = prompt.id ?? prompt.prompt_id ?? prompt.promptId;
+  if (rawId == null) return record;
+
+  return { ...prompt, id: String(rawId) };
+}
+
 export async function GET(req: NextRequest) {
   const result = await resolveGuard(req);
   if (!result.ok) return result.response;
@@ -9,6 +25,11 @@ export async function GET(req: NextRequest) {
     errorMessage: 'Failed to fetch prompts',
   });
   if ('response' in upstream) return upstream.response;
+
+  if (Array.isArray(upstream.data)) {
+    return NextResponse.json(upstream.data.map(normalizePromptId));
+  }
+
   return NextResponse.json(upstream.data);
 }
 

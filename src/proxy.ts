@@ -15,7 +15,7 @@ function requiresModule(pathname: string): string | null {
   if (BASE_ROUTES.some((r) => pathname === r || pathname.startsWith(r + '/'))) return null;
   if (VISIBILITY_ROUTES.some((r) => pathname.startsWith(r))) return 'visibility';
   if (CONTENT_ROUTES.some((r) => pathname.startsWith(r))) return 'content';
-  return null; // unknown route — treat as base (allowed)
+  return null;
 }
 
 export async function proxy(request: NextRequest) {
@@ -43,8 +43,13 @@ export async function proxy(request: NextRequest) {
   // Check module access
   const requiredModule = requiresModule(pathname);
 
-  // null = base route or unknown — always allowed
+  // null = base route or unknown, always allowed
   if (requiredModule === null) {
+    return NextResponse.next();
+  }
+
+  // Development mode and explicit billing disable both bypass subscription gating.
+  if (process.env.NODE_ENV === 'development' || process.env.BILLING_DISABLED === 'true') {
     return NextResponse.next();
   }
 
@@ -59,11 +64,6 @@ export async function proxy(request: NextRequest) {
   }
 
   const activeModules = modulesCookie.split(',').filter(Boolean);
-
-  // In development or when billing is disabled, allow all
-  if (process.env.BILLING_DISABLED === 'true') {
-    return NextResponse.next();
-  }
 
   if (!activeModules.includes(requiredModule)) {
     const upgradeUrl = new URL('/upgrade', request.url);

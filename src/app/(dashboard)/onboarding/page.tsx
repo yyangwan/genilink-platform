@@ -67,6 +67,20 @@ export default function OnboardingPage() {
         return;
       }
 
+      const data = await res.json();
+
+      if (data.projectId) {
+        try {
+          await fetch("/api/projects/select", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ projectId: data.projectId }),
+          });
+        } catch {
+          // Best-effort: dashboard can still recover on the next selection.
+        }
+      }
+
       router.push("/dashboard");
       router.refresh();
     } catch {

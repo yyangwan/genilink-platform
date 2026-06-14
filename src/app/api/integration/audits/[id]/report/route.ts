@@ -5,7 +5,7 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const result = await resolveGuard(_req, { requireProject: false });
+  const result = await resolveGuard(_req);
   if (!result.ok) return result.response;
 
   const { id } = await params;

@@ -7,6 +7,19 @@ import { issueVisibilityProjectJWT, issueVisibilityWorkspaceJWT } from '@/lib/au
 
 const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
 
+// Configure global HTTPS agent for SSL compatibility (requires NODE_TLS_REJECT_UNAUTHORIZED=0)
+if (VISIBILITY_URL.startsWith('https://') && process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
+  (async () => {
+    const { default: https } = await import('https');
+    const agent = new https.Agent({
+      rejectUnauthorized: false,
+      minVersion: 'TLSv1.2',
+    });
+    // @ts-ignore
+    globalThis.__httpsAgent = agent;
+  })();
+}
+
 export interface GuardContext {
   session: { user: { id: string } };
   workspaceId: string;
@@ -179,8 +192,20 @@ export async function fetchUpstream(
       };
     }
 
-    const data = await res.json();
-    return { data };
+    if (res.status === 204 || res.status === 205) {
+      return { data: null };
+    }
+
+    const text = await res.text();
+    if (!text) {
+      return { data: null };
+    }
+
+    try {
+      return { data: JSON.parse(text) };
+    } catch {
+      return { data: text };
+    }
   } catch (err) {
     clearTimeout(timer);
     if ((err as Error).name === 'AbortError') {

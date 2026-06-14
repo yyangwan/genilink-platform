@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useState, useCallback, useRef } from "react";
+import React, { Suspense, useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import {
   Eye,
@@ -31,8 +31,17 @@ import {
 } from "@/components/ui/diagnostic-checklist";
 import type { VisibilitySummary } from "@/types";
 import { sectionCard } from "@/components/charts/shared";
+import { formatDateInTimeZone } from "@/lib/time";
 
 type AnalysisPhase = "idle" | "creating" | "collecting" | "analyzing" | "done" | "error";
+
+const PLATFORM_LABELS: Record<string, string> = {
+  deepseek: "DeepSeek",
+  qwen: "通义千问",
+  doubao: "豆包",
+  kimi: "Kimi",
+  hunyuan: "腾讯元宝",
+};
 
 function scoreColor(score: number | null | undefined): string {
   if (score == null) return "var(--text-primary)";
@@ -53,14 +62,120 @@ function VisibilityContent() {
   // Analysis state
   const [analysisPhase, setAnalysisPhase] = useState<AnalysisPhase>("idle");
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisDetail, setAnalysisDetail] = useState<string>("");
+  const [currentAuditId, setCurrentAuditId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  const closeAuditStream = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+  }, []);
+
+  const openAuditStream = useCallback((auditId: string, projectId: string | null) => {
+    closeAuditStream();
+
+    if (typeof window === "undefined") return;
+    if (!projectId) return;
+
+    const source = new EventSource(
+      `/api/integration/audit-status?auditId=${encodeURIComponent(auditId)}&projectId=${encodeURIComponent(projectId)}`,
+    );
+    eventSourceRef.current = source;
+
+    source.addEventListener("platform_start", (rawEvent) => {
+      const event = rawEvent as MessageEvent;
+      try {
+        const payload = JSON.parse(String(event.data)) as { platform?: string };
+        const label = payload.platform ? PLATFORM_LABELS[payload.platform] ?? payload.platform : "平台";
+        setAnalysisPhase("collecting");
+        setAnalysisDetail(`正在查询 ${label}...`);
+      } catch {
+        setAnalysisPhase("collecting");
+        setAnalysisDetail("正在查询平台...");
+      }
+    });
+
+    source.addEventListener("platform_done", (rawEvent) => {
+      const event = rawEvent as MessageEvent;
+      try {
+        const payload = JSON.parse(String(event.data)) as { platform?: string };
+        const label = payload.platform ? PLATFORM_LABELS[payload.platform] ?? payload.platform : "平台";
+        setAnalysisPhase("collecting");
+        setAnalysisDetail(`${label} 查询完成，继续处理其他平台...`);
+      } catch {
+        setAnalysisPhase("collecting");
+        setAnalysisDetail("平台查询完成，继续处理其他平台...");
+      }
+    });
+
+    source.addEventListener("platform_error", (rawEvent) => {
+      const event = rawEvent as MessageEvent;
+      try {
+        const payload = JSON.parse(String(event.data)) as { platform?: string };
+        const label = payload.platform ? PLATFORM_LABELS[payload.platform] ?? payload.platform : "平台";
+        setAnalysisPhase("collecting");
+        setAnalysisDetail(`${label} 查询失败，继续处理剩余平台...`);
+      } catch {
+        setAnalysisPhase("collecting");
+        setAnalysisDetail("某个平台查询失败，继续处理剩余平台...");
+      }
+    });
+
+    source.addEventListener("audit_done", () => {
+      closeAuditStream();
+      setCurrentAuditId(null);
+      setAnalysisPhase("done");
+      setAnalysisDetail("分析完成，正在刷新数据...");
+      visibility.refetch();
+      if (currentProjectId) {
+        fetch(`/api/integration/audits/${auditId}/report`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId: currentProjectId }),
+        })
+          .then((r) => r.ok ? fetch("/api/integration/suggestions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ projectId: currentProjectId }),
+          }) : Promise.reject())
+          .catch(() => { /* non-critical */ });
+      }
+    });
+
+    source.addEventListener("audit_failed", (rawEvent) => {
+      closeAuditStream();
+      setCurrentAuditId(null);
+      setAnalysisPhase("error");
+      try {
+        const payload = JSON.parse(String((rawEvent as MessageEvent).data)) as { error?: string };
+        setAnalysisError(payload.error || "分析失败");
+      } catch {
+        setAnalysisError("分析失败");
+      }
+      setAnalysisDetail("");
+    });
+
+    source.onerror = () => {
+      // SSE is best-effort; polling remains the fallback.
+    };
+  }, [closeAuditStream, currentProjectId, visibility]);
+
+  useEffect(() => {
+    if (!currentAuditId) return;
+    openAuditStream(currentAuditId, currentProjectId);
+    return () => closeAuditStream();
+  }, [closeAuditStream, currentAuditId, currentProjectId, openAuditStream]);
 
   // Extract polling logic so it can be reused for resume
-  const startPolling = useCallback((auditId: string) => {
+  const startPolling = useCallback((auditId: string, projectId: string | null) => {
     if (pollRef.current) clearInterval(pollRef.current);
+    if (!projectId) return;
     pollRef.current = setInterval(async () => {
       try {
-        const statusRes = await fetch(`/api/integration/audits/${auditId}`);
+        const statusRes = await fetch(`/api/integration/audits/${auditId}?projectId=${encodeURIComponent(projectId)}`);
         if (!statusRes.ok) return;
         const status = await statusRes.json();
         const phase = status.phase || status.status;
@@ -71,11 +186,17 @@ function VisibilityContent() {
           setAnalysisPhase("analyzing");
         } else if (phase === "completed" || phase === "done" || phase === "partial") {
           if (pollRef.current) clearInterval(pollRef.current);
+          closeAuditStream();
+          setCurrentAuditId(null);
           setAnalysisPhase("done");
           visibility.refetch();
           // Chain: generate report → generate suggestions
           if (currentProjectId) {
-            fetch(`/api/integration/audits/${auditId}/report`, { method: "POST" })
+            fetch(`/api/integration/audits/${auditId}/report`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ projectId: currentProjectId }),
+            })
               .then((r) => r.ok ? fetch("/api/integration/suggestions", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -85,6 +206,8 @@ function VisibilityContent() {
           }
         } else if (phase === "failed" || phase === "error") {
           if (pollRef.current) clearInterval(pollRef.current);
+          closeAuditStream();
+          setCurrentAuditId(null);
           setAnalysisPhase("error");
           setAnalysisError(status.error_message || "分析失败");
         }
@@ -92,14 +215,15 @@ function VisibilityContent() {
         // Poll errors are transient, keep trying
       }
     }, 3000);
-  }, [visibility]);
+  }, [currentProjectId, visibility]);
 
   // Cleanup polling on unmount
   React.useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      closeAuditStream();
     };
-  }, []);
+  }, [closeAuditStream]);
 
   // On mount, check for an active audit and resume polling
   React.useEffect(() => {
@@ -123,7 +247,9 @@ function VisibilityContent() {
 
         const phase = (active.phase as string) || (active.status as string);
         setAnalysisPhase(phase === "analyzing" || phase === "running" ? "analyzing" : "collecting");
-        startPolling(auditId);
+        setAnalysisDetail(phase === "analyzing" || phase === "running" ? "正在分析平台返回结果..." : "正在收集平台数据...");
+        setCurrentAuditId(auditId);
+        startPolling(auditId, currentProjectId);
       } catch {
         // non-critical
       }
@@ -137,6 +263,7 @@ function VisibilityContent() {
 
     setAnalysisPhase("creating");
     setAnalysisError(null);
+    setAnalysisDetail("正在检查提示词和品牌数据...");
 
     try {
       const [promptsRes, brandsRes] = await Promise.all([
@@ -147,31 +274,36 @@ function VisibilityContent() {
       const promptsData = promptsRes.ok ? await promptsRes.json() : [];
       const brandsData = brandsRes.ok ? await brandsRes.json() : {};
 
-      const hasPrompts = Array.isArray(promptsData) && promptsData.length > 0;
+      const promptList = Array.isArray(promptsData) ? promptsData : [];
+      const hasPrompts = promptList.length > 0;
       const hasBrands = Array.isArray(brandsData.brands) && brandsData.brands.length > 0;
 
       if (!hasBrands) {
         setAnalysisPhase("error");
         setAnalysisError("NO_BRANDS");
+        setAnalysisDetail("");
         return;
       }
 
       if (!hasPrompts) {
         setAnalysisPhase("creating");
-        const genRes = await fetch("/api/integration/prompts/generate", {
+        setAnalysisDetail("当前没有提示词，正在自动生成...");
+
+        const generateRes = await fetch("/api/integration/prompts/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ projectId: currentProjectId }),
         });
-        if (!genRes.ok) {
-          const err = await genRes.json().catch(() => ({}));
-          setAnalysisPhase("error");
-          setAnalysisError(err.error || "NO_PROMPTS");
-          return;
+
+        if (!generateRes.ok) {
+          throw new Error("PROMPTS_GENERATE_FAILED");
         }
+
+        setAnalysisDetail("提示词已生成，正在创建审计...");
       }
 
       setAnalysisPhase("creating");
+      setAnalysisDetail("正在创建审计...");
       const createRes = await fetch("/api/integration/audits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -191,12 +323,15 @@ function VisibilityContent() {
       }
 
       setAnalysisPhase("collecting");
-      startPolling(auditId);
+      setAnalysisDetail("审计已启动，正在收集平台数据...");
+      setCurrentAuditId(auditId);
+      startPolling(auditId, currentProjectId);
     } catch (err) {
       setAnalysisPhase("error");
       setAnalysisError((err as Error).message);
+      setAnalysisDetail("");
     }
-  }, [currentProjectId, startPolling]);
+  }, [currentProject, currentProjectId, startPolling]);
 
   const phaseText: Record<AnalysisPhase, string> = {
     idle: "",
@@ -206,8 +341,8 @@ function VisibilityContent() {
     done: "分析完成",
     error: analysisError === "NO_BRANDS"
       ? "请先在设置中添加品牌"
-      : analysisError === "NO_PROMPTS"
-      ? "提示词生成失败，请在设置中手动添加"
+      : analysisError === "PROMPTS_GENERATE_FAILED"
+      ? "提示词自动生成失败，请在设置中手动管理"
       : analysisError || "分析失败",
   };
 
@@ -345,6 +480,22 @@ function VisibilityContent() {
                 <Settings className="w-3.5 h-3.5" />
                 请先添加品牌
               </Link>
+            ) : analysisError === "PROMPTS_GENERATE_FAILED" ? (
+              <Link
+                href="/settings/prompts"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  background: "var(--color-primary-dim)",
+                  color: "var(--color-primary)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-body)",
+                  textDecoration: "none",
+                }}
+              >
+                <Lightbulb className="w-3.5 h-3.5" />
+                手动管理提示词
+              </Link>
             ) : (
               <button
                 onClick={handleStartAnalysis}
@@ -381,18 +532,25 @@ function VisibilityContent() {
 
       {/* Progress bar during analysis */}
       {isAnalyzing && (
-        <div
-          className="h-1 rounded-full overflow-hidden"
-          style={{ background: "var(--bg-hover)" }}
-        >
+        <>
           <div
-            className="h-full rounded-full transition-all duration-1000"
-            style={{
-              width: analysisPhase === "creating" ? "10%" : analysisPhase === "collecting" ? "40%" : "70%",
-              background: "var(--color-primary)",
-            }}
-          />
-        </div>
+            className="h-1 rounded-full overflow-hidden"
+            style={{ background: "var(--bg-hover)" }}
+          >
+            <div
+              className="h-full rounded-full transition-all duration-1000"
+              style={{
+                width: analysisPhase === "creating" ? "10%" : analysisPhase === "collecting" ? "40%" : "70%",
+                background: "var(--color-primary)",
+              }}
+            />
+          </div>
+          {analysisDetail && (
+            <p className="mt-2 text-xs" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+              {analysisDetail}
+            </p>
+          )}
+        </>
       )}
 
       {/* Two-column hero layout */}
@@ -527,7 +685,7 @@ function VisibilityContent() {
                 ) : (
                   <span className="text-base font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
                     {visibility.data?.latestAuditDate
-                      ? new Date(visibility.data.latestAuditDate).toLocaleDateString("zh-CN", { month: "short", day: "numeric" })
+                      ? formatDateInTimeZone(visibility.data.latestAuditDate, { includeTime: false })
                       : "--"}
                   </span>
                 )}

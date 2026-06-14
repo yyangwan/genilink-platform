@@ -34,6 +34,7 @@ import type {
   StrategicData,
 } from "@/types/visibility";
 import { sectionCard } from "@/components/charts/shared";
+import { formatDateInTimeZone } from "@/lib/time";
 
 function scoreColor(score: number): string {
   if (score >= 70) return "var(--color-success)";
@@ -81,9 +82,7 @@ function buildStructureChartData(evolution: {
 
   return sortedIds.map((id) => {
     const date = auditLabels.get(id);
-    const period = date
-      ? new Date(date).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" })
-      : `#${id}`;
+    const period = date ? formatDateInTimeZone(date, { includeTime: false }) : `#${id}`;
     return {
       period,
       structured: Math.round((lookup.get("list")?.get(id) || 0) * 100),

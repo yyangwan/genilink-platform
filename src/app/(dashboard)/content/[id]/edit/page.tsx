@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useProject } from "@/components/project/project-context";
 import { ContentEditor } from "@/components/content/content-editor";
+import { formatDateInTimeZone } from "@/lib/time";
 
 const AIPanel = dynamic(
   () => import("@/components/content/ai-panel").then((mod) => ({ default: mod.AIPanel })),
@@ -472,7 +473,7 @@ function EditContentInner({ id }: { id: string }) {
         >
           <Calendar size={12} style={{ color: "var(--color-primary)" }} />
           <span style={{ color: "var(--color-primary)", fontFamily: "var(--font-body)" }}>
-            计划发布: {new Date(scheduledAt).toLocaleString("zh-CN")}
+            计划发布: {formatDateInTimeZone(scheduledAt, { includeYear: true })}
           </span>
         </div>
       )}

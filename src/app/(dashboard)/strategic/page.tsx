@@ -24,6 +24,7 @@ import CompetitorPositioningMap from "@/components/charts/CompetitorPositioningM
 import StructureEvolution from "@/components/charts/StructureEvolution";
 
 import type { StrategicData, AuditHistoryItem, MultiAuditComparison } from "@/types/visibility";
+import { formatDateInTimeZone } from "@/lib/time";
 
 const cardStyle: React.CSSProperties = {
   background: "var(--bg-card)",
@@ -457,7 +458,7 @@ function MultiAuditCompareTab({ projectId }: { projectId: string }) {
                   style={{ accentColor: "var(--color-primary)" }}
                 />
                 <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>#{audit.id}</span>
-                <span style={{ color: "var(--text-muted)" }}>{new Date(audit.created_at).toLocaleDateString("zh-CN")}</span>
+                <span style={{ color: "var(--text-muted)" }}>{formatDateInTimeZone(audit.created_at, { includeTime: false, includeYear: true })}</span>
                 {audit.platforms?.length > 0 && (
                   <span style={{ fontSize: 12, color: "var(--text-muted)" }}>({audit.platforms.join(", ")})</span>
                 )}

@@ -17,6 +17,7 @@ import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import type { TrendData, TrendAnnotation, AuditListItem } from "@/types/visibility";
 import { sectionCard } from "@/components/charts/shared";
 import { getAuditStatus, isAuditFinished } from "@/lib/audit-status";
+import { formatDateInTimeZone } from "@/lib/time";
 
 type Period = "daily" | "weekly" | "monthly";
 
@@ -152,7 +153,7 @@ function AuditTimeline({ audits }: { audits: AuditListItem[] }) {
             >
               <div className="flex-1 min-w-0">
                 <span className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-                  {date ? new Date(date).toLocaleDateString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "--"}
+                  {date ? formatDateInTimeZone(date) : "--"}
                 </span>
                 {audit.overall_score != null && (
                   <span className="ml-2 text-xs font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>

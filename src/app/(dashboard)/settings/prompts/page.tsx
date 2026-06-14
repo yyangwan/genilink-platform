@@ -12,7 +12,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { sectionCard } from "@/components/charts/shared";
 
 interface Prompt {
-  id: string;
+  id: string | number;
   text: string;
   platform: string;
   category: string;
@@ -64,9 +64,10 @@ function PromptsContent() {
         }),
       });
       if (res.ok) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        await refetch();
         setAdding(false);
         setForm({ text: "", platform: "", category: "" });
-        refetch();
       }
     } catch {
       // silent
@@ -89,8 +90,9 @@ function PromptsContent() {
         }),
       });
       if (res.ok) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        await refetch();
         setEditingId(null);
-        refetch();
       }
     } catch {
       // silent
@@ -99,28 +101,43 @@ function PromptsContent() {
     }
   }, [currentProjectId, editingId, editForm, refetch]);
 
-  const handleDelete = useCallback(async () => {
-    if (!currentProjectId || !deleteTarget) return;
+  const handleDelete = useCallback(async (target: Prompt | null) => {
+    if (!currentProjectId || !target) return;
     try {
-      const res = await fetch(`/api/integration/prompts/${deleteTarget.id}?projectId=${currentProjectId}`, {
+      const res = await fetch(`/api/integration/prompts/${target.id}?projectId=${currentProjectId}`, {
         method: "DELETE",
       });
-      if (res.ok) refetch();
+      if (res.ok) {
+        // Small delay to ensure backend transaction is fully committed
+        await new Promise(resolve => setTimeout(resolve, 100));
+        await refetch();
+      }
     } catch {
       // silent
     } finally {
       setDeleteTarget(null);
     }
-  }, [currentProjectId, deleteTarget, refetch]);
+  }, [currentProjectId, refetch]);
 
   const handleGenerate = useCallback(async () => {
     if (!currentProjectId || generating) return;
     setGenerating(true);
     try {
+      const currentProjectData = projects.find((project) => project.id === currentProjectId) || null;
       await fetch("/api/integration/prompts/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: currentProjectId }),
+        body: JSON.stringify({
+          projectId: currentProjectId,
+          projectName: currentProjectData?.name,
+          projectUrl: currentProjectData?.url,
+          industry: currentProjectData?.industry,
+          productCategory: currentProjectData?.industry,
+          productName: currentProjectData?.productName,
+          productKeywords: currentProjectData?.productKeywords,
+          productDescription: currentProjectData?.productDescription,
+          productUrl: currentProjectData?.productUrl,
+        }),
       });
       refetch();
     } catch {
@@ -128,10 +145,10 @@ function PromptsContent() {
     } finally {
       setGenerating(false);
     }
-  }, [currentProjectId, generating, refetch]);
+  }, [currentProjectId, generating, projects, refetch]);
 
   const startEdit = (prompt: Prompt) => {
-    setEditingId(prompt.id);
+    setEditingId(String(prompt.id));
     setEditForm({ text: prompt.text, platform: prompt.platform || "", category: prompt.category || "" });
   };
 
@@ -143,7 +160,7 @@ function PromptsContent() {
       header: "提示词",
       width: "45%",
       render: (row: Prompt) =>
-        editingId === row.id ? (
+        editingId === String(row.id) ? (
           <input
             value={editForm.text}
             onChange={(e) => setEditForm((f) => ({ ...f, text: e.target.value }))}
@@ -172,7 +189,7 @@ function PromptsContent() {
       header: "平台",
       width: "15%",
       render: (row: Prompt) =>
-        editingId === row.id ? (
+        editingId === String(row.id) ? (
           <input
             value={editForm.platform}
             onChange={(e) => setEditForm((f) => ({ ...f, platform: e.target.value }))}
@@ -195,7 +212,7 @@ function PromptsContent() {
       header: "分类",
       width: "15%",
       render: (row: Prompt) =>
-        editingId === row.id ? (
+        editingId === String(row.id) ? (
           <input
             value={editForm.category}
             onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value }))}
@@ -218,7 +235,7 @@ function PromptsContent() {
       header: "操作",
       width: "25%",
       render: (row: Prompt) =>
-        editingId === row.id ? (
+        editingId === String(row.id) ? (
           <div className="flex items-center gap-1">
             <button
               onClick={handleEdit}
@@ -452,7 +469,7 @@ function PromptsContent() {
         <DataTable
           columns={columns}
           data={data}
-          rowKey={(row: Prompt) => row.id}
+          rowKey={(row: Prompt) => String(row.id)}
           loading={prompts.loading}
           loadingRows={4}
           emptyContent={
@@ -477,7 +494,7 @@ function PromptsContent() {
         message={`确定要删除此提示词吗？此操作不可撤销。`}
         confirmLabel="删除"
         cancelLabel="取消"
-        onConfirm={handleDelete}
+        onConfirm={() => handleDelete(deleteTarget)}
         onCancel={() => setDeleteTarget(null)}
       />
     </div>

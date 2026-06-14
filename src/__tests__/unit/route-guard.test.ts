@@ -27,7 +27,7 @@ vi.mock('@/lib/auth/service-jwt', () => ({
 }));
 
 import { issueVisibilityProjectJWT, issueVisibilityWorkspaceJWT } from '@/lib/auth/service-jwt';
-import { resolveGuard } from '@/lib/proxy/route-guard';
+import { fetchUpstream, resolveGuard } from '@/lib/proxy/route-guard';
 
 describe('resolveGuard', () => {
   beforeEach(() => {
@@ -82,5 +82,34 @@ describe('resolveGuard', () => {
       role: 'owner',
     });
     expect(result.ctx.headers.Authorization).toBe('Bearer workspace-jwt');
+  });
+});
+
+describe('fetchUpstream', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('treats 204 no-content responses as success', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 204,
+      text: vi.fn().mockResolvedValue(''),
+    }));
+
+    const result = await fetchUpstream({
+      session: { user: { id: 'user-1' } },
+      workspaceId: 'workspace-1',
+      projectId: 'project-1',
+      serviceToken: 'token-1',
+      upstreamUrl: (path: string) => `http://upstream${path}`,
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-1' },
+    }, '/api/prompts/274?project_id=project-1', { method: 'DELETE' });
+
+    expect(result).toEqual({ data: null });
   });
 });

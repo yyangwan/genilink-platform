@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Lock, CheckCircle2, Loader2 } from "lucide-react";
+import { formatDateInTimeZone } from "@/lib/time";
 
 interface Subscription {
   id: string;
@@ -169,7 +170,7 @@ export default function BillingSettingsPage() {
                     }}
                   >
                     有效期至{" "}
-                    {new Date(sub.currentPeriodEnd).toLocaleDateString("zh-CN")}
+                    {formatDateInTimeZone(sub.currentPeriodEnd, { includeTime: false, includeYear: true })}
                   </p>
                 )}
 

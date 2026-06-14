@@ -1,0 +1,39 @@
+[Unit]
+Description=GeniLink ContentOS Service
+Documentation=https://genilink.cn
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=genilink
+Group=genilink
+WorkingDirectory=/opt/genilink-platform/content
+Environment=NODE_ENV=production
+Environment=PORT=4002
+EnvironmentFile=/opt/genilink-platform/content/.env.local
+
+# Process management
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 4002
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=60
+
+# Resource limits
+MemoryMax=1G
+CPUQuota=100%
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/genilink-platform/content/.next
+ReadWritePaths=/var/log/genilink
+
+# Logging
+StandardOutput=append:/var/log/genilink/content-out.log
+StandardError=append:/var/log/genilink/content-error.log
+SyslogIdentifier=genilink-content
+
+[Install]
+WantedBy=multi-user.target

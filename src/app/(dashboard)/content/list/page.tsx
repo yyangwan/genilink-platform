@@ -5,6 +5,7 @@ import { Plus, FileText, Search, Trash2, Send, CheckSquare, Square } from "lucid
 import Link from "next/link";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { useProject } from "@/components/project/project-context";
+import { formatDateInTimeZone } from "@/lib/time";
 
 interface ContentItem {
   id: string;
@@ -485,12 +486,7 @@ function ContentListInner() {
                   </td>
                   <td className="px-3 py-2.5">
                     <span className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-                      {new Date(item.createdAt).toLocaleDateString("zh-CN", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {formatDateInTimeZone(item.createdAt)}
                     </span>
                   </td>
                 </tr>

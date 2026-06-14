@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/diagnostic-checklist";
 import type { Schedule } from "@/types/visibility";
 import { sectionCard } from "@/components/charts/shared";
+import { formatDateInTimeZone } from "@/lib/time";
 
 interface SchedulesResponse {
   schedules: Schedule[];
@@ -121,12 +122,7 @@ function SchedulesContent() {
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "--";
-    return new Date(dateStr).toLocaleString("zh-CN", {
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return formatDateInTimeZone(dateStr, { includeYear: false });
   };
 
   const columns = [

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
+import { getDatePartsInTimeZone } from '@/lib/time';
 
 export async function GET(req: NextRequest) {
   const result = await resolveGuard(req);
@@ -10,7 +11,6 @@ export async function GET(req: NextRequest) {
   });
   if ('response' in upstream) return upstream.response;
 
-  // Map upstream trends → frontend TrendsResponse
   const rawPoints = Array.isArray((upstream.data as Record<string, unknown>)?.data)
     ? ((upstream.data as Record<string, unknown>).data as Record<string, unknown>[])
     : [];
@@ -37,51 +37,84 @@ export async function GET(req: NextRequest) {
 
 type RawPoint = { date: string; overall_score: number; platform_scores: Record<string, number> };
 
-/** Group daily data points into weekly or monthly buckets, averaging scores */
+type BeijingDateParts = {
+  year: number;
+  month: number;
+  day: number;
+};
+
+function toBeijingDateParts(date: string): BeijingDateParts | null {
+  const parts = getDatePartsInTimeZone(date);
+  if (!parts) return null;
+  return {
+    year: parts.year,
+    month: parts.month,
+    day: parts.day,
+  };
+}
+
+function getIsoWeekKey(parts: BeijingDateParts): string {
+  const utcDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  const day = utcDate.getUTCDay() || 7;
+  utcDate.setUTCDate(utcDate.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1));
+  const weekNum = Math.ceil((((utcDate.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${utcDate.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+}
+
+/** Group daily data points into weekly or monthly buckets using Asia/Shanghai dates. */
 function aggregateByPeriod(points: RawPoint[], period: 'daily' | 'weekly' | 'monthly'): RawPoint[] {
   if (period === 'daily' || points.length === 0) return points;
 
-  const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
+  const enriched = points
+    .map((point) => ({
+      ...point,
+      beijingParts: toBeijingDateParts(point.date),
+    }))
+    .filter((point) => Boolean(point.beijingParts));
 
-  // Build groups keyed by bucket label
+  if (enriched.length === 0) return points;
+
+  const sorted = [...enriched].sort((a, b) => a.date.localeCompare(b.date));
+
   const groups = new Map<string, RawPoint[]>();
   for (const p of sorted) {
-    const d = new Date(p.date);
-    let key: string;
-    if (period === 'weekly') {
-      // ISO week: "YYYY-WNN"
-      const jan1 = new Date(d.getFullYear(), 0, 1);
-      const weekNum = Math.ceil(((d.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7);
-      key = `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
-    } else {
-      key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    }
+    const parts = p.beijingParts!;
+    const key = period === 'weekly'
+      ? getIsoWeekKey(parts)
+      : `${parts.year}-${String(parts.month).padStart(2, '0')}`;
     const existing = groups.get(key) || [];
-    existing.push(p);
+    existing.push({
+      date: p.date,
+      overall_score: p.overall_score,
+      platform_scores: p.platform_scores,
+    });
     groups.set(key, existing);
   }
 
-  // Average each group
-  return [...groups.entries()].map(([key, pts]) => {
+  return [...groups.values()].map((pts) => {
     const n = pts.length;
-    const overall_score = pts.reduce((s, p) => s + p.overall_score, 0) / n;
+    const overall_score = pts.reduce((sum, point) => sum + point.overall_score, 0) / n;
 
-    // Average per-platform scores
     const platformSums = new Map<string, { sum: number; count: number }>();
-    for (const p of pts) {
-      for (const [platform, score] of Object.entries(p.platform_scores)) {
-        const e = platformSums.get(platform) || { sum: 0, count: 0 };
-        e.sum += score;
-        e.count++;
-        platformSums.set(platform, e);
+    for (const point of pts) {
+      for (const [platform, score] of Object.entries(point.platform_scores)) {
+        const existing = platformSums.get(platform) || { sum: 0, count: 0 };
+        existing.sum += score;
+        existing.count += 1;
+        platformSums.set(platform, existing);
       }
     }
+
     const platform_scores: Record<string, number> = {};
     for (const [platform, { sum, count }] of platformSums) {
       platform_scores[platform] = sum / count;
     }
 
-    // Use the last date in the bucket as the display date
-    return { date: pts[n - 1].date, overall_score, platform_scores };
+    return {
+      date: pts[n - 1].date,
+      overall_score,
+      platform_scores,
+    };
   });
 }
