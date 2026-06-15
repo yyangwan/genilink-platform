@@ -60,8 +60,8 @@ module.exports = {
         // Production URLs
         NEXT_PUBLIC_APP_URL: 'https://genilink.cn',
         AUTH_URL: 'https://genilink.cn',
-        // Database (use same DB as frontend)
-        DATABASE_URL: 'postgresql://genilink:your_password@localhost:5432/genilink?connection_limit=15&pool_timeout=10',
+        // Database (use the shared RDS instance; fill in the production password in server env)
+        DATABASE_URL: 'postgresql://genilink:CHANGE_THIS_PASSWORD@pgm-2zet5egdri6ubm411o.pg.rds.aliyuncs.com:5432/genilink?connection_limit=15&pool_timeout=10',
         // Service URLs
         CONTENT_SERVICE_URL: 'https://genilink.cn/api/content',
         VISIBILITY_SERVICE_URL: 'https://genilink.cn/visibility',
