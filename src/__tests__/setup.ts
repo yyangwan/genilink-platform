@@ -16,8 +16,24 @@ afterAll(() => {
 
 // Mock NextAuth
 vi.mock('@/lib/auth/config', () => ({
-  auth: vi.fn().mockResolvedValue({
-    user: { id: 'test-user-id', email: 'test@example.com', name: 'Test User' },
+  auth: vi.fn((handler?: unknown) => {
+    const defaultSession = {
+      user: { id: 'test-user-id', email: 'test@example.com', name: 'Test User' },
+    };
+    const resolveSession = () => {
+      const mockSession = (globalThis as { __mockAuthSession?: unknown }).__mockAuthSession;
+      return mockSession === undefined ? defaultSession : mockSession;
+    };
+
+    if (typeof handler === 'function') {
+      return async (req: unknown, ctx: unknown) =>
+        (handler as (req: unknown, ctx: unknown) => unknown)(
+          Object.assign(req as object, { auth: resolveSession() }),
+          ctx,
+        );
+    }
+
+    return Promise.resolve(resolveSession());
   }),
   handlers: { GET: vi.fn(), POST: vi.fn() },
   signIn: vi.fn(),

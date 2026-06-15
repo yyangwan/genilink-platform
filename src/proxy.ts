@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { getToken } from 'next-auth/jwt';
+import { auth } from '@/lib/auth/config';
+import type { NextAuthRequest } from 'next-auth';
 
 // Routes that require authentication but no specific module
 const BASE_ROUTES = ['/dashboard', '/projects', '/settings', '/onboarding', '/upgrade'];
@@ -18,7 +18,7 @@ function requiresModule(pathname: string): string | null {
   return null;
 }
 
-export async function proxy(request: NextRequest) {
+export const proxy = auth((request: NextAuthRequest) => {
   const { pathname } = request.nextUrl;
 
   // Skip non-dashboard routes
@@ -32,9 +32,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check authentication via JWT
-  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
-  if (!token) {
+  // Check authentication via the Auth.js session cookie
+  if (!request.auth?.user?.id) {
     const loginUrl = new URL('/auth/login', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
@@ -72,7 +71,7 @@ export async function proxy(request: NextRequest) {
   }
 
   return NextResponse.next();
-}
+});
 
 export const config = {
   matcher: [

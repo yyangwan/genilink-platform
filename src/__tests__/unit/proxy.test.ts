@@ -1,64 +1,82 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-
-vi.mock('next-auth/jwt', () => ({
-  getToken: vi.fn(),
-}));
-
-import { getToken } from 'next-auth/jwt';
 import { proxy } from '@/proxy';
 
 describe('proxy middleware', () => {
-  const originalNodeEnv = process.env.NODE_ENV ?? 'test';
-  const mockGetToken = vi.mocked(getToken);
+  const runProxy = proxy as unknown as (req: NextRequest) => Promise<Response> | Response;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.NODE_ENV = originalNodeEnv;
+    vi.unstubAllEnvs();
     delete process.env.BILLING_DISABLED;
-    mockGetToken.mockResolvedValue({ sub: 'user-1' });
+    (globalThis as { __mockAuthSession?: unknown }).__mockAuthSession = {
+      user: { id: 'user-1', email: 'test@example.com', name: 'Test User' },
+    };
   });
 
   afterEach(() => {
-    process.env.NODE_ENV = originalNodeEnv;
+    vi.unstubAllEnvs();
     delete process.env.BILLING_DISABLED;
+    delete (globalThis as { __mockAuthSession?: unknown }).__mockAuthSession;
   });
 
   it('allows compare routes in development even without an active subscription', async () => {
-    process.env.NODE_ENV = 'development';
+    vi.stubEnv('NODE_ENV', 'development');
 
     const req = new NextRequest('http://localhost/compare', {
       headers: { cookie: 'genilink-modules=content' },
     });
 
-    const res = await proxy(req);
+    const res = await runProxy(req);
 
     expect(res.headers.get('x-middleware-next')).toBe('1');
     expect(res.headers.get('location')).toBeNull();
   });
 
+  it('allows onboarding routes for an authenticated user', async () => {
+    const req = new NextRequest('http://localhost/onboarding');
+
+    const res = await runProxy(req);
+
+    expect(res.headers.get('x-middleware-next')).toBe('1');
+    expect(res.headers.get('location')).toBeNull();
+  });
+
+  it('redirects onboarding routes to login when unauthenticated', async () => {
+    (globalThis as { __mockAuthSession?: unknown }).__mockAuthSession = null;
+
+    const req = new NextRequest('http://localhost/onboarding');
+
+    const res = await runProxy(req);
+    const location = res.headers.get('location');
+
+    expect(location).toBeTruthy();
+    expect(new URL(location!).pathname).toBe('/auth/login');
+    expect(new URL(location!).searchParams.get('callbackUrl')).toBe('/onboarding');
+  });
+
   it('allows compare routes when billing is disabled', async () => {
-    process.env.NODE_ENV = 'production';
+    vi.stubEnv('NODE_ENV', 'production');
     process.env.BILLING_DISABLED = 'true';
 
     const req = new NextRequest('http://localhost/compare', {
       headers: { cookie: 'genilink-modules=content' },
     });
 
-    const res = await proxy(req);
+    const res = await runProxy(req);
 
     expect(res.headers.get('x-middleware-next')).toBe('1');
     expect(res.headers.get('location')).toBeNull();
   });
 
   it('redirects compare routes to upgrade in production when visibility is missing', async () => {
-    process.env.NODE_ENV = 'production';
+    vi.stubEnv('NODE_ENV', 'production');
 
     const req = new NextRequest('http://localhost/compare', {
       headers: { cookie: 'genilink-modules=content' },
     });
 
-    const res = await proxy(req);
+    const res = await runProxy(req);
     const location = res.headers.get('location');
 
     expect(location).toBeTruthy();
