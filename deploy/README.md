@@ -1,199 +1,190 @@
-# GeniLink Platform - 部署配置
+# GeniLink 运维手册
 
-服务器: **8.147.56.119**
-域名: **genilink.cn**
+服务器: `8.147.56.119`
+域名: `genilink.cn`
+更新时间: `2026-06-14`
 
-## 📁 配置文件说明
+## 当前拓扑
 
-| 文件 | 说明 |
-|------|------|
-| `ecosystem.config.js` | PM2 进程管理配置 |
-| `nginx-genilink.conf` | Nginx 反向代理配置 |
-| `.env.production` | 生产环境变量模板 |
-| `setup-server.sh` | 服务器初始化脚本 |
-| `deploy.sh` | 部署脚本 |
+| 组件 | 位置 | 地址/端口 | 管理方式 |
+| --- | --- | --- | --- |
+| 智链前台 | `/opt/genilink-platform/frontend` | `3001` | PM2 |
+| 智创 / ContentOS | `/opt/genilink-platform/content` | `4002` | PM2 |
+| Higress 网关 | `/opt/higress-standalone/compose` | `8080` / `8081` / `8443` / `8848` / `8888` / `15020` | systemd + `docker compose` |
+| 智见 / Visibility | `root@8.147.56.119:/root/geo-visibility-analyze` | `https://genilink.cn/visibility` | SSH + `docker compose` |
 
-## 🚀 快速开始
+## 对外入口
 
-### 1. 安装 PM2
+| 入口 | 地址 |
+| --- | --- |
+| 主站 | `https://genilink.cn/` |
+| 智见 | `https://genilink.cn/visibility` |
+| 智创 API | `https://genilink.cn/api/content/` |
+| Higress Console | `http://8.147.56.119:8080/` |
+| Higress Gateway | `http://8.147.56.119:8081/` |
+| Higress Gateway HTTPS | `https://8.147.56.119:8443/` |
+| 健康检查 | `https://genilink.cn/health` |
 
-服务器上已安装 Nginx，需要安装 PM2：
+## 这套仓库里有什么
+
+| 文件 | 用途 |
+| --- | --- |
+| `deploy/deploy.sh` | 代码同步和重启脚本 |
+| `deploy/setup-server.sh` | 服务器初始化脚本 |
+| `deploy/quick-setup.sh` | 一键初始化提示脚本 |
+| `deploy/ecosystem.config.js` | PM2 配置模板 |
+| `deploy/nginx-http.conf` | 80 端口 Nginx 配置 |
+| `deploy/nginx-genilink.conf` | HTTPS Nginx 配置 |
+| `start-all.sh` | 本地工作区启动脚本 |
+| `start-all.ps1` | Windows PowerShell 包装器 |
+
+## 本地工作区启动
+
+`start-all.sh` 用于当前仓库所在工作区，适合在本机做联调、回归和 E2E。
 
 ```bash
-# SSH 登录服务器
-ssh root@8.147.56.119
-
-# 安装 PM2
-npm install -g pm2
-pm2 install pm2-logrotate
+./start-all.sh
+./start-all.sh status
+./start-all.sh restart
+./start-all.sh stop
+./start-all.sh restart-visibility
+./start-all.sh status-visibility
 ```
 
-### 2. 部署代码到服务器
+Windows 下使用：
 
-在本地机器上运行：
+```powershell
+.\start-all.ps1
+.\start-all.ps1 status
+```
+
+### 常用环境变量
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `CONTENT_ROOT` | `../marketing` | 智创 / ContentOS 的源码目录 |
+| `PLATFORM_ROOT` | 当前仓库 `deploy/..` | 智链前台源码目录 |
+| `VISIBILITY_SERVICE_URL` | `https://genilink.cn/visibility` | 智见对外地址 |
+| `VISIBILITY_REMOTE_SSH_TARGET` | `root@8.147.56.119` | 远端服务器 |
+| `VISIBILITY_REMOTE_ROOT` | `/root/geo-visibility-analyze` | 远端智见代码目录 |
+| `HIGRESS_REMOTE_SSH_TARGET` | `root@8.147.56.119` | Higress 所在服务器 |
+| `HIGRESS_REMOTE_ROOT` | `/opt/higress-standalone/compose` | Higress compose 目录 |
+| `HIGRESS_REMOTE_COMPOSE_BIN` | `/usr/local/bin/docker-compose` | Higress compose 命令 |
+| `START_ALL_LOG_DIR` | `./.run-logs` | 启动日志目录 |
+
+如果 `CONTENT_ROOT` 不在默认位置，执行前显式指定即可：
 
 ```bash
-# 确保 deploy.sh 有执行权限
-chmod +x deploy/deploy.sh
+CONTENT_ROOT=/path/to/marketing ./start-all.sh
+```
 
-# 执行部署
+## 服务器运维
+
+先登录服务器：
+
+```bash
+ssh root@8.147.56.119
+```
+
+### PM2
+
+```bash
+pm2 status
+pm2 logs genilink-frontend
+pm2 logs genilink-content
+pm2 restart genilink-frontend
+pm2 restart genilink-content
+pm2 save
+```
+
+### Nginx
+
+```bash
+nginx -t
+systemctl reload nginx
+systemctl status nginx
+```
+
+### Higress
+
+```bash
+systemctl status higress
+systemctl restart higress
+systemctl stop higress
+systemctl start higress
+cd /opt/higress-standalone/compose
+/usr/local/bin/docker-compose ps
+```
+
+Higress 的网关和路由说明在独立工作空间里维护：
+- [SERVER-INFO.md](E:/workspace/higress/SERVER-INFO.md)
+- [higress-config-guide.md](E:/workspace/higress/higress-config-guide.md)
+- [backend-deployment-guide.md](E:/workspace/higress/backend-deployment-guide.md)
+
+### 远端智见
+
+```bash
+cd /root/geo-visibility-analyze
+docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d backend
+docker compose -f docker-compose.yml -f docker-compose.prod.yml stop backend
+```
+
+## 部署流程
+
+### 1. 本地同步到服务器
+
+```bash
 ./deploy/deploy.sh
 ```
 
-### 3. 配置 Nginx
-
-在服务器上：
+如果是在服务器本机上直接操作：
 
 ```bash
-# 复制 Nginx 配置
-cp deploy/nginx-genilink.conf /etc/nginx/sites-available/genilink.conf
+./deploy/deploy.sh local
+```
 
-# 启用站点
-ln -s /etc/nginx/sites-available/genilink.conf /etc/nginx/sites-enabled/
+### 2. 服务器侧重启
 
-# 测试配置
+如果只是代码变更但环境未变，直接在服务器上重启进程即可：
+
+```bash
+pm2 restart genilink-frontend
+pm2 restart genilink-content
+systemctl restart higress
+```
+
+### 3. 配置变更
+
+Nginx 或证书更新后：
+
+```bash
 nginx -t
-
-# 重载 Nginx
 systemctl reload nginx
 ```
 
-### 4. 配置 SSL 证书
+## 日常检查
 
 ```bash
-# 安装 Certbot
-apt-get install -y certbot python3-certbot-nginx
-
-# 获取证书
-certbot --nginx -d genilink.cn -d www.genilink.cn
-```
-
-### 5. 启动服务
-
-在服务器上：
-
-```bash
-# 复制 PM2 配置
-cp deploy/ecosystem.config.js /opt/genilink-platform/frontend/
-
-# 启动服务
-cd /opt/genilink-platform/frontend
-pm2 start ecosystem.config.js
-
-# 保存配置
-pm2 save
-
-# 设置开机自启
-pm2 startup
-```
-
-## 📊 服务管理
-
-### PM2 命令
-
-```bash
-# 查看状态
-pm2 status
-
-# 查看日志
-pm2 logs genilink-platform
-
-# 重启服务
-pm2 restart genilink-platform
-
-# 停止服务
-pm2 stop genilink-platform
-
-# 监控
-pm2 monit
-```
-
-### 健康检查
-
-```bash
-# 运行健康检查脚本
-/usr/local/bin/genilink-health.sh
-
-# 或手动检查端口
-netstat -tlnp | grep -E '3001|4002'
-```
-
-## 🔧 环境变量
-
-复制并修改生产环境配置：
-
-```bash
-# 在服务器上
-cp deploy/.env.production /opt/genilink-platform/frontend/.env.local
-
-# 编辑配置，更新敏感信息
-nano /opt/genilink-platform/frontend/.env.local
-```
-
-**必须更新的配置：**
-- `DATABASE_URL` - 数据库连接字符串
-- `AUTH_SECRET` - NextAuth 密钥 (运行 `openssl rand -base64 32` 生成)
-- `WECHAT_MP_*` - 微信公众号凭证
-- `BILLING_DISABLED` - 生产环境应设为 `false`
-
-## 🌐 服务架构
-
-```
-                    ┌─────────────────┐
-                    │   Nginx (443)   │
-                    │  genilink.cn    │
-                    └────────┬────────┘
-                             │
-        ┌────────────────────┼────────────────────┐
-        │                    │                    │
-        ▼                    ▼                    ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│   Frontend    │   │   ContentOS   │   │   Visibility  │
-│   (Next.js)   │   │   (Next.js)   │   │   (Remote)    │
-│   Port: 3001  │   │   Port: 4002  │   │   genilink.cn │
-└───────────────┘   └───────────────┘   └───────────────┘
-        │                    │
-        └────────┬───────────┘
-                 ▼
-        ┌──────────────────┐
-        │   PostgreSQL     │
-        │   Port: 5432     │
-        └──────────────────┘
-```
-
-## 🔄 部署流程
-
-1. 本地开发完成后，运行 `./deploy/deploy.sh`
-2. 脚本会自动同步代码到服务器
-3. 在服务器上执行构建
-4. 重启 PM2 服务
-5. 验证服务状态
-
-## 📝 端口说明
-
-| 服务 | 内部端口 | 外部访问 |
-|------|----------|----------|
-| Frontend | 3001 | https://genilink.cn |
-| ContentOS | 4002 | https://genilink.cn/api/content/* |
-| PostgreSQL | 5432 | 仅本地访问 |
-
-## 🔍 故障排查
-
-```bash
-# 查看 PM2 日志
-pm2 logs --lines 100
-
-# 查看 Nginx 日志
-tail -f /var/log/nginx/genilink-error.log
-
-# 检查端口占用
-netstat -tlnp | grep -E '3001|4002'
-
-# 测试 API
+curl http://127.0.0.1:3001/
+curl http://127.0.0.1:4002/
 curl https://genilink.cn/health
-curl https://genilink.cn/api/content/health
+curl https://genilink.cn/visibility/api/health
 ```
 
-## 📞 联系支持
+日志位置：
 
-如有问题，请联系运维团队。
+```bash
+tail -f /var/log/genilink/frontend-out.log
+tail -f /var/log/genilink/frontend-error.log
+tail -f /var/log/genilink/content-out.log
+tail -f /var/log/genilink/content-error.log
+tail -f /var/log/nginx/genilink-error.log
+```
+
+## 备注
+
+- 服务器侧以 `PM2 + Nginx + Higress` 为主，`systemd` unit 文件保留在仓库里作为备份参考。
+- `start-all.sh` 负责本地智链和远端智见的联动启动，不替代服务器上的生产守护进程。
+- 如果智见迁移到别的主机，只需要调整 `VISIBILITY_REMOTE_SSH_TARGET` 和 `VISIBILITY_REMOTE_ROOT`。
+- 如果 Higress 迁移，只需要调整 `HIGRESS_REMOTE_SSH_TARGET` 和 `HIGRESS_REMOTE_ROOT`。

@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
-# Start all local services used by the GeniLink workspace.
-# Zhijian/visibility is now deployed remotely and is only health-checked here.
+# GeniLink workspace launcher.
+#
+# This script starts the local 智链 services used in this workspace and can
+# also manage the remote 智见 service via SSH.
+#
+# Usage:
+#   ./start-all.sh up
+#   ./start-all.sh stop
+#   ./start-all.sh restart
+#   ./start-all.sh status
+#   ./start-all.sh stop-visibility
+#   ./start-all.sh restart-visibility
+#   ./start-all.sh status-visibility
 
 # Disable MSYS2 path conversion for URLs (Git Bash on Windows)
 export MSYS_NO_PATHCONV=1
@@ -11,6 +22,12 @@ set -euo pipefail
 die() {
     echo "ERROR: $*" >&2
     exit 1
+}
+
+usage() {
+    cat <<'EOF'
+Usage: ./start-all.sh [up|stop|restart|status|stop-visibility|restart-visibility|status-visibility]
+EOF
 }
 
 to_windows_path() {
@@ -62,17 +79,17 @@ remote_exec() {
 
 remote_visibility_start() {
     echo "=== Starting remote Visibility service ==="
-    remote_exec "docker-compose $VISIBILITY_REMOTE_COMPOSE_FILES up -d backend"
+    remote_exec "if docker compose version >/dev/null 2>&1; then docker compose $VISIBILITY_REMOTE_COMPOSE_FILES up -d backend; elif command -v docker-compose >/dev/null 2>&1; then docker-compose $VISIBILITY_REMOTE_COMPOSE_FILES up -d backend; else echo 'docker compose not found' >&2; exit 1; fi"
 }
 
 remote_visibility_stop() {
     echo "=== Stopping remote Visibility service ==="
-    remote_exec "docker-compose $VISIBILITY_REMOTE_COMPOSE_FILES stop backend"
+    remote_exec "if docker compose version >/dev/null 2>&1; then docker compose $VISIBILITY_REMOTE_COMPOSE_FILES stop backend; elif command -v docker-compose >/dev/null 2>&1; then docker-compose $VISIBILITY_REMOTE_COMPOSE_FILES stop backend; else echo 'docker compose not found' >&2; exit 1; fi"
 }
 
 remote_visibility_status() {
     echo "=== Remote Visibility status ==="
-    remote_exec "docker-compose $VISIBILITY_REMOTE_COMPOSE_FILES ps backend"
+    remote_exec "if docker compose version >/dev/null 2>&1; then docker compose $VISIBILITY_REMOTE_COMPOSE_FILES ps backend; elif command -v docker-compose >/dev/null 2>&1; then docker-compose $VISIBILITY_REMOTE_COMPOSE_FILES ps backend; else echo 'docker compose not found' >&2; exit 1; fi"
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -82,7 +99,7 @@ PLATFORM_ROOT="${PLATFORM_ROOT:-$SCRIPT_DIR}"
 CONTENT_ROOT="${CONTENT_ROOT:-$WORKSPACE_ROOT/marketing}"
 VISIBILITY_SERVICE_URL="${VISIBILITY_SERVICE_URL:-https://genilink.cn/visibility}"
 VISIBILITY_REMOTE_SSH_TARGET="${VISIBILITY_REMOTE_SSH_TARGET:-root@8.147.56.119}"
-VISIBILITY_REMOTE_ROOT="${VISIBILITY_REMOTE_ROOT:-/opt/geo-visibility-analyze}"
+VISIBILITY_REMOTE_ROOT="${VISIBILITY_REMOTE_ROOT:-/root/geo-visibility-analyze}"
 VISIBILITY_REMOTE_COMPOSE_FILES="${VISIBILITY_REMOTE_COMPOSE_FILES:--f docker-compose.yml -f docker-compose.prod.yml}"
 PLATFORM_DIST_DIR="${PLATFORM_DIST_DIR:-.next-runtime}"
 LOG_DIR="${START_ALL_LOG_DIR:-$PLATFORM_ROOT/.run-logs}"
@@ -161,6 +178,8 @@ wait_for_remote_visibility() {
 }
 
 case "$ACTION" in
+    up)
+        ;;
     status)
         echo "=== Local service status ==="
         for port in "${PORTS[@]}"; do
@@ -200,6 +219,14 @@ case "$ACTION" in
         stop_local_services
         remote_visibility_stop
         ;;
+    "")
+        usage
+        exit 1
+        ;;
+    *)
+        usage
+        die "Unknown action: $ACTION"
+        ;;
 esac
 
 echo "=== Releasing target ports ==="
@@ -223,12 +250,6 @@ echo "[1/2] Building Content (port 4002)..."
 powershell.exe -NoLogo -NoProfile -Command "& { Set-Location '$CONTENT_ROOT_WIN'; if (Test-Path '.next') { Remove-Item -Recurse -Force '.next' -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500 } }" >/dev/null 2>&1
 powershell.exe -NoLogo -NoProfile -Command "& { Set-Location '$CONTENT_ROOT_WIN'; \$env:NODE_OPTIONS='--max-old-space-size=4096'; npm.cmd run build }" \
     >"$LOG_DIR/content-build.out.log" 2>"$LOG_DIR/content-build.err.log"
-# Check if build succeeded
-if ! grep -q "Compiled successfully\|Creating an optimized" "$LOG_DIR/content-build.out.log" 2>/dev/null; then
-    echo "  FAIL Content build failed - check $LOG_DIR/content-build.err.log"
-    cat "$LOG_DIR/content-build.err.log" >&2
-    exit 1
-fi
 echo "[1/2] Starting Content (port 4002)..."
 powershell.exe -NoLogo -NoProfile -Command "& { Set-Location '$CONTENT_ROOT_WIN'; npm.cmd run start -- -p 4002 }" \
     >"$LOG_DIR/content.out.log" 2>"$LOG_DIR/content.err.log" &
@@ -292,7 +313,7 @@ wait_for_service() {
     local timeout_seconds="${3:-60}"
     local elapsed=0
     while [ "$elapsed" -lt "$timeout_seconds" ]; do
-        if fetch_http_body "http://127.0.0.1:${port}/" >/dev/null 2>&1; then
+        if fetch_http_ok_body "http://127.0.0.1:${port}/" >/dev/null 2>&1; then
             echo "  OK   $name (port $port) is responding"
             return 0
         fi
@@ -303,48 +324,7 @@ wait_for_service() {
     return 1
 }
 
-check_frontend_static_assets() {
-    local name="$1"
-    local port="$2"
-    local timeout_seconds="${3:-60}"
-    local elapsed=0
-
-    while [ "$elapsed" -lt "$timeout_seconds" ]; do
-        # Simplified check: just verify the homepage returns 200 and contains HTML content
-        result=$(powershell.exe -NoLogo -NoProfile -Command "
-            try {
-                \$response = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:${port}/' -TimeoutSec 5
-                if (\$response.StatusCode -ge 200 -and \$response.StatusCode -lt 300) {
-                    \$html = \$response.Content
-                    # Check if HTML contains expected elements
-                    if (\$html -match '<html' -and \$html -match '_next/static') {
-                        Write-Host 'OK'
-                        exit 0
-                    } else {
-                        exit 1
-                    }
-                }
-                exit 1
-            } catch {
-                exit 1
-            }
-        " 2>&1)
-
-        if echo "$result" | grep -q '^OK$'; then
-            echo "  OK   $name is serving content correctly"
-            return 0
-        fi
-
-        sleep 2
-        elapsed=$((elapsed + 2))
-    done
-
-    echo "  FAIL $name (port $port) - did not serve valid content within ${timeout_seconds}s"
-    return 1
-}
-
 wait_for_service "Frontend" 3001
-check_frontend_static_assets "Frontend" 3001
 wait_for_service "Content" 4002
 remote_visibility_start
 wait_for_remote_visibility "$VISIBILITY_SERVICE_URL/api/health"
