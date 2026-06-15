@@ -9,15 +9,22 @@ describe('proxy middleware', () => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     delete process.env.BILLING_DISABLED;
-    (globalThis as { __mockAuthSession?: unknown }).__mockAuthSession = {
-      user: { id: 'user-1', email: 'test@example.com', name: 'Test User' },
-    };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.includes('/api/auth/session')) {
+        return new Response(JSON.stringify({ user: { id: 'user-1', email: 'test@example.com', name: 'Test User' } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response('not found', { status: 404 });
+    }));
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
     delete process.env.BILLING_DISABLED;
-    delete (globalThis as { __mockAuthSession?: unknown }).__mockAuthSession;
+    vi.unstubAllGlobals();
   });
 
   it('allows compare routes in development even without an active subscription', async () => {
@@ -43,7 +50,16 @@ describe('proxy middleware', () => {
   });
 
   it('redirects onboarding routes to login when unauthenticated', async () => {
-    (globalThis as { __mockAuthSession?: unknown }).__mockAuthSession = null;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.includes('/api/auth/session')) {
+        return new Response('null', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response('not found', { status: 404 });
+    }));
 
     const req = new NextRequest('http://localhost/onboarding');
 

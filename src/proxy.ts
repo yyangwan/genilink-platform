@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth/config';
-import type { NextAuthRequest } from 'next-auth';
+import type { NextRequest } from 'next/server';
 
 // Routes that require authentication but no specific module
 const BASE_ROUTES = ['/dashboard', '/projects', '/settings', '/onboarding', '/upgrade'];
@@ -18,7 +17,21 @@ function requiresModule(pathname: string): string | null {
   return null;
 }
 
-export const proxy = auth((request: NextAuthRequest) => {
+async function hasValidSession(request: NextRequest): Promise<boolean> {
+  const response = await fetch(new URL('/api/auth/session', request.url), {
+    headers: {
+      cookie: request.headers.get('cookie') ?? '',
+    },
+    cache: 'no-store',
+  });
+
+  if (!response.ok) return false;
+
+  const session = (await response.json()) as { user?: { id?: string } } | null;
+  return Boolean(session?.user?.id);
+}
+
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip non-dashboard routes
@@ -33,7 +46,7 @@ export const proxy = auth((request: NextAuthRequest) => {
   }
 
   // Check authentication via the Auth.js session cookie
-  if (!request.auth?.user?.id) {
+  if (!(await hasValidSession(request))) {
     const loginUrl = new URL('/auth/login', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
@@ -71,7 +84,7 @@ export const proxy = auth((request: NextAuthRequest) => {
   }
 
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: [
