@@ -9,29 +9,20 @@ describe('proxy middleware', () => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     delete process.env.BILLING_DISABLED;
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-      if (url.includes('/api/auth/session')) {
-        return new Response(JSON.stringify({ user: { id: 'user-1', email: 'test@example.com', name: 'Test User' } }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-      return new Response('not found', { status: 404 });
-    }));
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
     delete process.env.BILLING_DISABLED;
-    vi.unstubAllGlobals();
   });
 
   it('allows compare routes in development even without an active subscription', async () => {
     vi.stubEnv('NODE_ENV', 'development');
 
     const req = new NextRequest('http://localhost/compare', {
-      headers: { cookie: 'genilink-modules=content' },
+      headers: {
+        cookie: '__Secure-authjs.session-token=test-session; genilink-modules=content',
+      },
     });
 
     const res = await runProxy(req);
@@ -41,7 +32,9 @@ describe('proxy middleware', () => {
   });
 
   it('allows onboarding routes for an authenticated user', async () => {
-    const req = new NextRequest('http://localhost/onboarding');
+    const req = new NextRequest('http://localhost/onboarding', {
+      headers: { cookie: '__Secure-authjs.session-token=test-session' },
+    });
 
     const res = await runProxy(req);
 
@@ -50,17 +43,6 @@ describe('proxy middleware', () => {
   });
 
   it('redirects onboarding routes to login when unauthenticated', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-      if (url.includes('/api/auth/session')) {
-        return new Response('null', {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-      return new Response('not found', { status: 404 });
-    }));
-
     const req = new NextRequest('http://localhost/onboarding');
 
     const res = await runProxy(req);
@@ -76,7 +58,9 @@ describe('proxy middleware', () => {
     process.env.BILLING_DISABLED = 'true';
 
     const req = new NextRequest('http://localhost/compare', {
-      headers: { cookie: 'genilink-modules=content' },
+      headers: {
+        cookie: '__Secure-authjs.session-token=test-session; genilink-modules=content',
+      },
     });
 
     const res = await runProxy(req);
@@ -89,7 +73,9 @@ describe('proxy middleware', () => {
     vi.stubEnv('NODE_ENV', 'production');
 
     const req = new NextRequest('http://localhost/compare', {
-      headers: { cookie: 'genilink-modules=content' },
+      headers: {
+        cookie: '__Secure-authjs.session-token=test-session; genilink-modules=content',
+      },
     });
 
     const res = await runProxy(req);

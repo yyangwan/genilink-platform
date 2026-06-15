@@ -17,18 +17,12 @@ function requiresModule(pathname: string): string | null {
   return null;
 }
 
-async function hasValidSession(request: NextRequest): Promise<boolean> {
-  const response = await fetch(new URL('/api/auth/session', request.url), {
-    headers: {
-      cookie: request.headers.get('cookie') ?? '',
-    },
-    cache: 'no-store',
-  });
-
-  if (!response.ok) return false;
-
-  const session = (await response.json()) as { user?: { id?: string } } | null;
-  return Boolean(session?.user?.id);
+function hasSessionCookie(request: NextRequest): boolean {
+  return Boolean(
+    request.cookies.get('__Secure-authjs.session-token')?.value ||
+      request.cookies.get('authjs.session-token')?.value ||
+      request.cookies.get('__Host-authjs.session-token')?.value,
+  );
 }
 
 export async function proxy(request: NextRequest) {
@@ -46,7 +40,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Check authentication via the Auth.js session cookie
-  if (!(await hasValidSession(request))) {
+  if (!hasSessionCookie(request)) {
     const loginUrl = new URL('/auth/login', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
