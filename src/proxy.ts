@@ -18,10 +18,11 @@ function requiresModule(pathname: string): string | null {
 }
 
 function hasSessionCookie(request: NextRequest): boolean {
-  return Boolean(
-    request.cookies.get('__Secure-authjs.session-token')?.value ||
-      request.cookies.get('authjs.session-token')?.value ||
-      request.cookies.get('__Host-authjs.session-token')?.value,
+  const cookieHeader = request.headers.get('cookie') ?? '';
+  return (
+    cookieHeader.includes('__Secure-authjs.session-token=') ||
+    cookieHeader.includes('authjs.session-token=') ||
+    cookieHeader.includes('__Host-authjs.session-token=')
   );
 }
 
