@@ -11,12 +11,16 @@ export interface SectionFetchState<T> {
   refetch: () => void;
 }
 
+export interface SectionFetchOptions<T> {
+  notFoundValue?: T;
+}
+
 /**
  * Per-section data fetching hook.
  * - Handles AbortController cleanup on unmount or URL change.
  * - Detects 403 BillingError responses and sets `locked` flag.
  */
-export function useSectionFetch<T>(url: string | null): SectionFetchState<T> {
+export function useSectionFetch<T>(url: string | null, options: SectionFetchOptions<T> = {}): SectionFetchState<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -53,6 +57,12 @@ export function useSectionFetch<T>(url: string | null): SectionFetchState<T> {
         },
       });
 
+      if (res.status === 404 && options.notFoundValue !== undefined) {
+        setData(options.notFoundValue);
+        setLoading(false);
+        return;
+      }
+
       // 403 = billing/subscription issue
       if (res.status === 403) {
         setLocked(true);
@@ -80,7 +90,7 @@ export function useSectionFetch<T>(url: string | null): SectionFetchState<T> {
       setLoading(false);
       setData(null);
     }
-  }, [url]);
+  }, [options.notFoundValue, url]);
   useEffect(() => {
     fetchData();
 

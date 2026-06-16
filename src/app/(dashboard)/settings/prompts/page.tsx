@@ -31,7 +31,7 @@ function PromptsContent() {
     ? `/api/integration/prompts?projectId=${currentProjectId}`
     : null;
 
-  const prompts = useSectionFetch<Prompt[]>(promptsUrl);
+  const prompts = useSectionFetch<Prompt[]>(promptsUrl, { notFoundValue: [] });
 
   // Inline form state
   const [adding, setAdding] = useState(false);
