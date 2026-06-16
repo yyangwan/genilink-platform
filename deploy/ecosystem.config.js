@@ -29,7 +29,7 @@ module.exports = {
         // Billing disabled for testing
         BILLING_DISABLED: 'true',
         // Remote visibility service
-        VISIBILITY_SERVICE_URL: 'https://genilink.cn/visibility',
+        VISIBILITY_SERVICE_URL: 'http://127.0.0.1:8000',
         // Production URLs
         NEXT_PUBLIC_APP_URL: 'https://genilink.cn',
         AUTH_URL: 'https://genilink.cn',
@@ -64,7 +64,7 @@ module.exports = {
         DATABASE_URL: 'postgresql://genilink:CHANGE_THIS_PASSWORD@pgm-2zet5egdri6ubm411o.pg.rds.aliyuncs.com:5432/genilink?connection_limit=15&pool_timeout=10',
         // Service URLs
         CONTENT_SERVICE_URL: 'https://genilink.cn/api/content',
-        VISIBILITY_SERVICE_URL: 'https://genilink.cn/visibility',
+        VISIBILITY_SERVICE_URL: 'http://127.0.0.1:8000',
       },
       instances: 1,
       exec_mode: 'cluster',

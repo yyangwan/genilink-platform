@@ -11,7 +11,7 @@
 | 智链前台 | `/opt/genilink-platform/frontend` | `3001` | PM2 |
 | 智创 / ContentOS | `/opt/genilink-platform/content` | `4002` | PM2 |
 | Higress 网关 | `/opt/higress-standalone/compose` | `8080` / `8081` / `8443` / `8848` / `8888` / `15020` | systemd + `docker compose` |
-| 智见 / Visibility | `root@8.147.56.119:/root/geo-visibility-analyze` | `https://genilink.cn/visibility` | SSH + `docker compose` |
+| 智见 / Visibility | `root@8.147.56.119:/root/geo-visibility-analyze` | `http://127.0.0.1:8000` on host, exposed via `https://genilink.cn/visibility` | SSH + `docker compose` |
 
 ## 对外入口
 
@@ -64,7 +64,7 @@ Windows 下使用：
 | --- | --- | --- |
 | `CONTENT_ROOT` | `../marketing` | 智创 / ContentOS 的源码目录 |
 | `PLATFORM_ROOT` | 当前仓库 `deploy/..` | 智链前台源码目录 |
-| `VISIBILITY_SERVICE_URL` | `https://genilink.cn/visibility` | 智见对外地址 |
+| `VISIBILITY_SERVICE_URL` | `http://127.0.0.1:8000` | 智见服务内网地址 |
 | `VISIBILITY_REMOTE_SSH_TARGET` | `root@8.147.56.119` | 远端服务器 |
 | `VISIBILITY_REMOTE_ROOT` | `/root/geo-visibility-analyze` | 远端智见代码目录 |
 | `HIGRESS_REMOTE_SSH_TARGET` | `root@8.147.56.119` | Higress 所在服务器 |
@@ -169,7 +169,7 @@ systemctl reload nginx
 curl http://127.0.0.1:3001/
 curl http://127.0.0.1:4002/
 curl https://genilink.cn/health
-curl https://genilink.cn/visibility/api/health
+curl http://127.0.0.1:8000/api/health
 ```
 
 日志位置：
