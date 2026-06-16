@@ -26,7 +26,10 @@ export function useSectionFetch<T>(url: string | null): SectionFetchState<T> {
   const fetchData = useCallback(async () => {
     // Skip if no URL (e.g. projectId not yet resolved)
     if (!url) {
-      setLoading(true);
+      setLoading(false);
+      setError(false);
+      setLocked(false);
+      setData(null);
       return;
     }
 

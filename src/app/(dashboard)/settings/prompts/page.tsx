@@ -278,15 +278,15 @@ function PromptsContent() {
     },
   ];
 
-  if (!loading && projects.length === 0) {
+  if (!loading && !currentProjectId) {
     return (
       <div className="space-y-6">
         <PageHeader title="提示词管理" subtitle="管理 AI 分析使用的提示词" />
         <div style={sectionCard}>
           <EmptyState
             icon={MessageSquare}
-            title="暂无项目"
-            description="请先创建项目，然后管理提示词"
+            title="请先选择项目"
+            description="顶部项目选择器里没有找到有效项目。请先切换到一个项目，或者新建项目后再管理提示词。"
             actionLabel="创建项目"
             onAction={() => openWizard()}
           />
