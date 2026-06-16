@@ -74,6 +74,10 @@ else
         --exclude '.next' \
         --exclude '.next-runtime' \
         --exclude '.git' \
+        --exclude 'qa-artifacts' \
+        --exclude 'test-results' \
+        --exclude '.run-logs' \
+        --exclude '*.zip' \
         "$LOCAL_ROOT/" "$SERVER:$FRONTEND_DIR/"
 
     # Sync content code
