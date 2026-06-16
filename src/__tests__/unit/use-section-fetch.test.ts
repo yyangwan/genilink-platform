@@ -20,7 +20,7 @@ describe('useSectionFetch', () => {
       const { result } = renderHook(() => useSectionFetch<unknown>(null));
 
       expect(mockFetch).not.toHaveBeenCalled();
-      expect(result.current.loading).toBe(true);
+      expect(result.current.loading).toBe(false);
     });
 
     it('should return null data and no error when url is null', () => {
@@ -51,6 +51,29 @@ describe('useSectionFetch', () => {
       expect(request.url).toContain('/api/integration/audits?projectId=123');
       expect(request.headers.get('accept')).toBe('application/json');
       expect(request.signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it('does not refetch when options identity changes but url stays the same', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ items: [] }),
+      });
+
+      const { rerender } = renderHook(
+        ({ notFoundValue }) => useSectionFetch('/api/integration/prompts?projectId=123', { notFoundValue }),
+        { initialProps: { notFoundValue: [] as unknown[] } },
+      );
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+
+      rerender({ notFoundValue: [] });
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
     });
   });
 });

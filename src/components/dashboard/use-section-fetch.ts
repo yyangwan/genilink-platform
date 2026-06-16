@@ -26,6 +26,11 @@ export function useSectionFetch<T>(url: string | null, options: SectionFetchOpti
   const [error, setError] = useState(false);
   const [locked, setLocked] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const notFoundValueRef = useRef<T | undefined>(options.notFoundValue);
+
+  useEffect(() => {
+    notFoundValueRef.current = options.notFoundValue;
+  }, [options.notFoundValue]);
 
   const fetchData = useCallback(async () => {
     // Skip if no URL (e.g. projectId not yet resolved)
@@ -57,8 +62,8 @@ export function useSectionFetch<T>(url: string | null, options: SectionFetchOpti
         },
       });
 
-      if (res.status === 404 && options.notFoundValue !== undefined) {
-        setData(options.notFoundValue);
+      if (res.status === 404 && notFoundValueRef.current !== undefined) {
+        setData(notFoundValueRef.current);
         setLoading(false);
         return;
       }
@@ -90,7 +95,7 @@ export function useSectionFetch<T>(url: string | null, options: SectionFetchOpti
       setLoading(false);
       setData(null);
     }
-  }, [options.notFoundValue, url]);
+  }, [url]);
   useEffect(() => {
     fetchData();
 
