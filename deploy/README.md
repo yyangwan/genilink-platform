@@ -67,6 +67,9 @@ Windows 下使用：
 | `VISIBILITY_SERVICE_URL` | `http://127.0.0.1:8000` | 智见服务内网地址 |
 | `VISIBILITY_REMOTE_SSH_TARGET` | `root@8.147.56.119` | 远端服务器 |
 | `VISIBILITY_REMOTE_ROOT` | `/root/geo-visibility-analyze` | 远端智见代码目录 |
+| `VISIBILITY_DEEPSEEK_GATEWAY_BASE_URL` | `http://llm-deepseek.internal.dns:8081` | DeepSeek 走 Higress 的网关入口 |
+| `VISIBILITY_DEEPSEEK_GATEWAY_API_KEY` | `deepseek` | Higress DeepSeek 路由要求的 Authorization token |
+| `VISIBILITY_DEEPSEEK_GATEWAY_MODEL` | `deepseek-v4-flash` | 走 Higress 时传给 DeepSeek 的模型名 |
 | `HIGRESS_REMOTE_SSH_TARGET` | `root@8.147.56.119` | Higress 所在服务器 |
 | `HIGRESS_REMOTE_ROOT` | `/opt/higress-standalone/compose` | Higress compose 目录 |
 | `HIGRESS_REMOTE_COMPOSE_BIN` | `/usr/local/bin/docker-compose` | Higress compose 命令 |
@@ -137,6 +140,10 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml stop backend
 ```bash
 ./deploy/deploy.sh
 ```
+
+这个脚本还会在部署完成后把 `visibility` 的 DeepSeek 平台配置同步成
+`gateway_search`，并把 citation 解析切到 `markdown`，这样审计链路经过
+Higress 后仍然能拿到来源链接。
 
 如果是在服务器本机上直接操作：
 

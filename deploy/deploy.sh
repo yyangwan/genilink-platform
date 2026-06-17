@@ -16,6 +16,11 @@ SERVER="root@8.147.56.119"
 DOMAIN="genilink.cn"
 FRONTEND_DIR="/opt/genilink-platform/frontend"
 CONTENT_DIR="/opt/genilink-platform/content"
+VISIBILITY_ROOT="/opt/geo-visibility-analyze"
+VISIBILITY_COMPOSE_BIN="${VISIBILITY_COMPOSE_BIN:-/usr/local/bin/docker-compose}"
+VISIBILITY_DEEPSEEK_GATEWAY_BASE_URL="${VISIBILITY_DEEPSEEK_GATEWAY_BASE_URL:-http://llm-deepseek.internal.dns:8081}"
+VISIBILITY_DEEPSEEK_GATEWAY_API_KEY="${VISIBILITY_DEEPSEEK_GATEWAY_API_KEY:-deepseek}"
+VISIBILITY_DEEPSEEK_GATEWAY_MODEL="${VISIBILITY_DEEPSEEK_GATEWAY_MODEL:-deepseek-v4-flash}"
 LOCAL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Colors
@@ -29,6 +34,55 @@ log_info() {
 
 log_warn() {
     echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+configure_visibility_deepseek_gateway() {
+    log_info "Configuring visibility DeepSeek gateway mode..."
+
+    ssh "$SERVER" <<ENDSSH
+        set -euo pipefail
+
+        cd "$VISIBILITY_ROOT"
+
+        cat <<'PY' | "$VISIBILITY_COMPOSE_BIN" -f docker-compose.yml -f docker-compose.prod.yml exec -T backend python -
+import asyncio
+import json
+
+from app.database import async_session
+from app.services.platform_config_service import get_platform_config, set_platform_config
+
+CONFIG = {
+    "capture_mode": "gateway_search",
+    "search": {
+        "enable_search": True,
+        "search_options": {"forced_search": True},
+    },
+    "gateway": {
+        "base_url": "$VISIBILITY_DEEPSEEK_GATEWAY_BASE_URL",
+        "api_key": "$VISIBILITY_DEEPSEEK_GATEWAY_API_KEY",
+        "model": "$VISIBILITY_DEEPSEEK_GATEWAY_MODEL",
+    },
+    "request": {
+        "temperature": 0.3,
+        "max_tokens": None,
+    },
+    "parsing": {
+        "citation_format": "markdown",
+    },
+}
+
+
+async def main() -> None:
+    async with async_session() as db:
+        await set_platform_config(db, "deepseek", CONFIG)
+        await db.commit()
+        loaded = await get_platform_config(db, "deepseek")
+        print(json.dumps(loaded, ensure_ascii=False, sort_keys=True, indent=2))
+
+
+asyncio.run(main())
+PY
+ENDSSH
 }
 
 # Check if we're deploying locally or remotely
@@ -53,6 +107,8 @@ if [ "${1:-}" = "local" ]; then
     cd "$FRONTEND_DIR"
     pm2 restart genilink-frontend
     pm2 restart genilink-content
+
+    configure_visibility_deepseek_gateway
 
     log_info "Deployment completed!"
     pm2 status
@@ -119,6 +175,8 @@ else
         echo "Deployment completed!"
         pm2 status
 ENDSSH
+
+    configure_visibility_deepseek_gateway
 
     log_info "Deployment completed successfully!"
     echo ""
