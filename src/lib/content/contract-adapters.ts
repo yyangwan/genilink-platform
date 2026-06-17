@@ -31,6 +31,10 @@ function safeVariableName(value: string, index: number): string {
   return cleaned || `var_${index + 1}`;
 }
 
+function toNumber(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
 export function normalizeBrandVoice(value: unknown) {
   const voice = asObject(value);
   const samples = parseJsonArray(voice.samples);
@@ -141,5 +145,106 @@ export function normalizePlatformConfig(value: unknown, platform: string) {
     ...config,
     platform: typeof config.platform === 'string' ? config.platform : platform,
     connected,
+  };
+}
+
+export function normalizeAnalyticsData(value: unknown) {
+  const body = asObject(value);
+  const summary = asObject(body.summary);
+  const distributions = asObject(body.distributions);
+  const byStatus = asObject(distributions.byStatus);
+  const byPlatform = asObject(distributions.byPlatform);
+
+  const platformBreakdown = Array.isArray(body.platformBreakdown)
+    ? body.platformBreakdown
+      .map((item) => {
+        const entry = asObject(item);
+        const platform = typeof entry.platform === 'string' ? entry.platform : '';
+        return platform
+          ? { platform, count: toNumber(entry.count) }
+          : null;
+      })
+      .filter((item): item is { platform: string; count: number } => item !== null)
+    : Object.entries(byPlatform).map(([platform, count]) => ({
+      platform,
+      count: toNumber(count),
+    }));
+
+  const statusBreakdown = Array.isArray(body.statusBreakdown)
+    ? body.statusBreakdown
+      .map((item) => {
+        const entry = asObject(item);
+        const status = typeof entry.status === 'string' ? entry.status : '';
+        return status
+          ? { status, count: toNumber(entry.count) }
+          : null;
+      })
+      .filter((item): item is { status: string; count: number } => item !== null)
+    : Object.entries(byStatus).map(([status, count]) => ({
+      status,
+      count: toNumber(count),
+    }));
+
+  const topPerforming = Array.isArray(body.topPerforming)
+    ? body.topPerforming
+      .map((item) => {
+        const entry = asObject(item);
+        const id = typeof entry.id === 'string' ? entry.id : '';
+        return id
+          ? {
+              id,
+              title: typeof entry.title === 'string' ? entry.title : '',
+              score: toNumber(entry.score),
+            }
+          : null;
+      })
+      .filter((item): item is { id: string; title: string; score: number } => item !== null)
+    : Array.isArray(body.topProjects)
+      ? body.topProjects
+        .map((item) => {
+          const entry = asObject(item);
+          const id = typeof entry.id === 'string' ? entry.id : typeof entry.projectId === 'string' ? entry.projectId : '';
+          return id
+            ? {
+                id,
+                title: typeof entry.title === 'string'
+                  ? entry.title
+                  : typeof entry.name === 'string'
+                    ? entry.name
+                    : id,
+                score: toNumber(entry.score, toNumber(entry.contentCount)),
+              }
+            : null;
+        })
+        .filter((item): item is { id: string; title: string; score: number } => item !== null)
+      : [];
+
+  const recentActivity = Array.isArray(body.recentActivity)
+    ? body.recentActivity
+      .map((item) => {
+        const entry = asObject(item);
+        if (typeof entry.date === 'string' && typeof entry.count === 'number') {
+          return { date: entry.date, count: entry.count };
+        }
+        if (typeof entry.createdAt === 'string') {
+          return { date: entry.createdAt, count: 1 };
+        }
+        return null;
+      })
+      .filter((item): item is { date: string; count: number } => item !== null)
+    : [];
+
+  return {
+    totalContent: toNumber(body.totalContent, toNumber(summary.totalContent)),
+    publishedCount: toNumber(body.publishedCount, toNumber(summary.publishedCount)),
+    avgQuality: typeof body.avgQuality === 'number'
+      ? body.avgQuality
+      : typeof summary.avgQualityScore === 'number'
+        ? summary.avgQualityScore
+        : null,
+    platformBreakdown,
+    statusBreakdown,
+    topPerforming,
+    recentActivity,
   };
 }

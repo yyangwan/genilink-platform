@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  normalizeAnalyticsData,
   normalizeBrandVoice,
   normalizePlatformConfig,
   normalizeTemplate,
@@ -77,6 +78,44 @@ describe('content contract adapters', () => {
     expect(normalizePlatformConfig({ config: { platform: 'wechat', enabled: true, hasAccessToken: true } }, 'wechat')).toMatchObject({
       platform: 'wechat',
       connected: true,
+    });
+  });
+
+  it('normalizes analytics payloads from either the legacy flat shape or the newer summary shape', () => {
+    expect(normalizeAnalyticsData({
+      summary: {
+        totalContent: 12,
+        publishedCount: 5,
+        avgQualityScore: 78,
+      },
+      distributions: {
+        byStatus: { draft: 2, published: 3 },
+        byPlatform: { wechat: 4, weibo: 1 },
+      },
+      topProjects: [
+        { id: 'p1', name: 'Project One', contentCount: 4 },
+      ],
+      recentActivity: [
+        { id: 'c1', title: 'Post', status: 'published', projectName: 'Project One', createdAt: '2026-06-01T00:00:00Z' },
+      ],
+    })).toMatchObject({
+      totalContent: 12,
+      publishedCount: 5,
+      avgQuality: 78,
+      platformBreakdown: [
+        { platform: 'wechat', count: 4 },
+        { platform: 'weibo', count: 1 },
+      ],
+      statusBreakdown: [
+        { status: 'draft', count: 2 },
+        { status: 'published', count: 3 },
+      ],
+      topPerforming: [
+        { id: 'p1', title: 'Project One', score: 4 },
+      ],
+      recentActivity: [
+        { date: '2026-06-01T00:00:00Z', count: 1 },
+      ],
     });
   });
 });
