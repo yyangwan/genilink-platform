@@ -70,6 +70,9 @@ Windows 下使用：
 | `VISIBILITY_DEEPSEEK_GATEWAY_BASE_URL` | `http://llm-deepseek.internal.dns:8081` | DeepSeek 走 Higress 的网关入口 |
 | `VISIBILITY_DEEPSEEK_GATEWAY_API_KEY` | `deepseek` | Higress DeepSeek 路由要求的 Authorization token |
 | `VISIBILITY_DEEPSEEK_GATEWAY_MODEL` | `deepseek-v4-flash` | 走 Higress 时传给 DeepSeek 的模型名 |
+| `VISIBILITY_ANALYSIS_LLM_API_KEY` | `deepseek` | 智见分析链路默认走 Higress 时的 API key；也可覆盖为直连 DeepSeek 的 key |
+| `VISIBILITY_ANALYSIS_LLM_BASE_URL` | `http://llm-deepseek.internal.dns:8081` | 智见分析链路默认走 Higress 的 base URL；也可覆盖为直连 DeepSeek |
+| `VISIBILITY_ANALYSIS_LLM_MODEL` | `deepseek-v4-flash` | 智见分析链路使用的模型名 |
 | `HIGRESS_REMOTE_SSH_TARGET` | `root@8.147.56.119` | Higress 所在服务器 |
 | `HIGRESS_REMOTE_ROOT` | `/opt/higress-standalone/compose` | Higress compose 目录 |
 | `HIGRESS_REMOTE_COMPOSE_BIN` | `/usr/local/bin/docker-compose` | Higress compose 命令 |

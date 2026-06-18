@@ -21,6 +21,9 @@ VISIBILITY_COMPOSE_BIN="${VISIBILITY_COMPOSE_BIN:-/usr/local/bin/docker-compose}
 VISIBILITY_DEEPSEEK_GATEWAY_BASE_URL="${VISIBILITY_DEEPSEEK_GATEWAY_BASE_URL:-http://llm-deepseek.internal.dns:8081}"
 VISIBILITY_DEEPSEEK_GATEWAY_API_KEY="${VISIBILITY_DEEPSEEK_GATEWAY_API_KEY:-deepseek}"
 VISIBILITY_DEEPSEEK_GATEWAY_MODEL="${VISIBILITY_DEEPSEEK_GATEWAY_MODEL:-deepseek-v4-flash}"
+VISIBILITY_ANALYSIS_LLM_API_KEY="${VISIBILITY_ANALYSIS_LLM_API_KEY:-deepseek}"
+VISIBILITY_ANALYSIS_LLM_BASE_URL="${VISIBILITY_ANALYSIS_LLM_BASE_URL:-http://llm-deepseek.internal.dns:8081}"
+VISIBILITY_ANALYSIS_LLM_MODEL="${VISIBILITY_ANALYSIS_LLM_MODEL:-deepseek-v4-flash}"
 LOCAL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Colors
@@ -85,6 +88,58 @@ PY
 ENDSSH
 }
 
+configure_visibility_analysis_llm() {
+    if [ -z "$VISIBILITY_ANALYSIS_LLM_API_KEY" ]; then
+        log_warn "VISIBILITY_ANALYSIS_LLM_API_KEY is empty; skipping visibility analysis LLM configuration"
+        return 0
+    fi
+
+    log_info "Configuring visibility analysis LLM..."
+
+    ssh "$SERVER" <<ENDSSH
+        set -euo pipefail
+
+        cd "$VISIBILITY_ROOT"
+
+        python3 - <<'PY'
+from pathlib import Path
+import json
+
+env_path = Path(".env")
+updates = {
+    "LLM_API_KEY": ${VISIBILITY_ANALYSIS_LLM_API_KEY@Q},
+    "LLM_BASE_URL": ${VISIBILITY_ANALYSIS_LLM_BASE_URL@Q},
+    "LLM_MODEL": ${VISIBILITY_ANALYSIS_LLM_MODEL@Q},
+}
+
+lines = env_path.read_text(encoding="utf-8").splitlines()
+output = []
+seen = set()
+
+for line in lines:
+    stripped = line.lstrip()
+    if stripped.startswith("#") or "=" not in line:
+        output.append(line)
+        continue
+    key, _ = line.split("=", 1)
+    if key in updates:
+        output.append(f"{key}={json.dumps(updates[key])}")
+        seen.add(key)
+    else:
+        output.append(line)
+
+for key, value in updates.items():
+    if key not in seen:
+        output.append(f"{key}={json.dumps(value)}")
+
+env_path.write_text("\n".join(output) + "\n", encoding="utf-8")
+PY
+
+        "$VISIBILITY_COMPOSE_BIN" -f docker-compose.yml -f docker-compose.prod.yml up -d backend
+        "$VISIBILITY_COMPOSE_BIN" -f docker-compose.yml -f docker-compose.prod.yml ps backend
+ENDSSH
+}
+
 # Check if we're deploying locally or remotely
 if [ "${1:-}" = "local" ]; then
     # Local deployment (running on the server itself)
@@ -109,6 +164,7 @@ if [ "${1:-}" = "local" ]; then
     pm2 restart genilink-content
 
     configure_visibility_deepseek_gateway
+    configure_visibility_analysis_llm
 
     log_info "Deployment completed!"
     pm2 status
@@ -177,6 +233,7 @@ else
 ENDSSH
 
     configure_visibility_deepseek_gateway
+    configure_visibility_analysis_llm
 
     log_info "Deployment completed successfully!"
     echo ""
