@@ -5,6 +5,17 @@ import { getPublicKey } from './keys';
 const ISSUER = 'https://genilink.cn';
 const DEFAULT_AUDIENCE = 'content.genilink.cn';
 
+export interface GenilinkClaims {
+  sub: string;
+  email?: string | null;
+  name?: string | null;
+  wid?: string | null;
+  pid?: string | null;
+  role?: string | null;
+  scope?: string | null;
+  [key: string]: unknown;
+}
+
 function extractBearerToken(input: unknown): string {
   if (typeof input === 'string') {
     return input.startsWith('Bearer ') ? input.slice(7).trim() : input.trim();
@@ -36,7 +47,7 @@ function extractBearerToken(input: unknown): string {
   return '';
 }
 
-export async function verifyBearerToken(input: unknown, audience: string = DEFAULT_AUDIENCE): Promise<Record<string, unknown>> {
+export async function verifyBearerToken(input: unknown, audience: string = DEFAULT_AUDIENCE): Promise<GenilinkClaims> {
   const token = extractBearerToken(input);
   if (!token) {
     throw new Error('Missing bearer token');
@@ -47,5 +58,5 @@ export async function verifyBearerToken(input: unknown, audience: string = DEFAU
     issuer: ISSUER,
     audience,
   });
-  return payload as Record<string, unknown>;
+  return payload as GenilinkClaims;
 }
