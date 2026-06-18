@@ -11,6 +11,7 @@ export interface GenilinkClaims {
   name?: string | null;
   wid?: string | null;
   pid?: string | null;
+  bid?: string | null;
   role?: string | null;
   scope?: string | null;
   [key: string]: unknown;
