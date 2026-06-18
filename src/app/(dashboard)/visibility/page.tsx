@@ -65,7 +65,9 @@ function VisibilityContent() {
   const [analysisDetail, setAnalysisDetail] = useState<string>("");
   const [currentAuditId, setCurrentAuditId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const analysisPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const finalizedAuditRef = useRef<string | null>(null);
 
   const closeAuditStream = useCallback(() => {
     if (eventSourceRef.current) {
@@ -73,6 +75,82 @@ function VisibilityContent() {
       eventSourceRef.current = null;
     }
   }, []);
+
+  const clearAnalysisPoll = useCallback(() => {
+    if (analysisPollRef.current) {
+      clearInterval(analysisPollRef.current);
+      analysisPollRef.current = null;
+    }
+  }, []);
+
+  const triggerAuditAnalysis = useCallback(async (auditId: string, projectId: string | null) => {
+    if (!projectId) return;
+    if (finalizedAuditRef.current === auditId) return;
+    finalizedAuditRef.current = auditId;
+
+    try {
+      await fetch(`/api/integration/audits/${auditId}/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+    } catch {
+      // Best effort.
+    }
+  }, []);
+
+  const finalizeAudit = useCallback(async (auditId: string, projectId: string | null) => {
+    closeAuditStream();
+    setCurrentAuditId(null);
+    setAnalysisPhase("analyzing");
+    setAnalysisDetail("审计完成，正在生成内容洞察...");
+
+    await triggerAuditAnalysis(auditId, projectId);
+
+    clearAnalysisPoll();
+    if (!projectId) return;
+
+    analysisPollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/integration/content-intelligence?projectId=${encodeURIComponent(projectId)}`);
+        if (!res.ok) return;
+        const data = await res.json() as {
+          sentiment?: { positive?: number; neutral?: number; negative?: number };
+          topics?: unknown[];
+          sources?: unknown[];
+          answerStructure?: unknown[];
+        };
+
+        const sentiment = data.sentiment || {};
+        const hasData =
+          (sentiment.positive ?? 0) + (sentiment.neutral ?? 0) + (sentiment.negative ?? 0) > 0 ||
+          (data.topics?.length ?? 0) > 0 ||
+          (data.sources?.length ?? 0) > 0 ||
+          (data.answerStructure?.length ?? 0) > 0;
+
+        if (!hasData) return;
+
+        clearAnalysisPoll();
+        setAnalysisPhase("done");
+        setAnalysisDetail("分析完成，正在刷新数据...");
+        visibility.refetch();
+
+        fetch(`/api/integration/audits/${auditId}/report`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId }),
+        })
+          .then((r) => r.ok ? fetch("/api/integration/suggestions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ projectId }),
+          }) : Promise.reject())
+          .catch(() => { /* non-critical */ });
+      } catch {
+        // keep polling
+      }
+    }, 3000);
+  }, [clearAnalysisPoll, closeAuditStream, triggerAuditAnalysis, visibility]);
 
   const openAuditStream = useCallback((auditId: string, projectId: string | null) => {
     closeAuditStream();
@@ -125,6 +203,8 @@ function VisibilityContent() {
     });
 
     source.addEventListener("audit_done", () => {
+      void finalizeAudit(auditId, currentProjectId);
+      return;
       closeAuditStream();
       setCurrentAuditId(null);
       setAnalysisPhase("done");
@@ -161,7 +241,7 @@ function VisibilityContent() {
     source.onerror = () => {
       // SSE is best-effort; polling remains the fallback.
     };
-  }, [closeAuditStream, currentProjectId, visibility]);
+  }, [closeAuditStream, currentProjectId, finalizeAudit, visibility]);
 
   useEffect(() => {
     if (!currentAuditId) return;
@@ -186,6 +266,8 @@ function VisibilityContent() {
           setAnalysisPhase("analyzing");
         } else if (phase === "completed" || phase === "done" || phase === "partial") {
           if (pollRef.current) clearInterval(pollRef.current);
+          void finalizeAudit(auditId, projectId);
+          return;
           closeAuditStream();
           setCurrentAuditId(null);
           setAnalysisPhase("done");
@@ -215,15 +297,16 @@ function VisibilityContent() {
         // Poll errors are transient, keep trying
       }
     }, 3000);
-  }, [currentProjectId, visibility]);
+  }, [currentProjectId, finalizeAudit, visibility]);
 
   // Cleanup polling on unmount
   React.useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      clearAnalysisPoll();
       closeAuditStream();
     };
-  }, [closeAuditStream]);
+  }, [clearAnalysisPoll, closeAuditStream]);
 
   // On mount, check for an active audit and resume polling
   React.useEffect(() => {
