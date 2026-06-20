@@ -23,8 +23,19 @@ import SourceAuthorityTrends from "@/components/charts/SourceAuthorityTrends";
 import CompetitorPositioningMap from "@/components/charts/CompetitorPositioningMap";
 import StructureEvolution from "@/components/charts/StructureEvolution";
 
-import type { StrategicData, AuditHistoryItem, MultiAuditComparison } from "@/types/visibility";
+import type {
+  AnswerStructureEvolution,
+  AuditHistoryItem,
+  CompetitorPositioning,
+  MultiAuditComparison,
+  SourceAuthorityTrends as SourceAuthorityTrendsData,
+} from "@/types/visibility";
 import { formatDateInTimeZone } from "@/lib/time";
+import {
+  toCompetitorPositions,
+  toSourceAuthorityPoints,
+  toStructureEvolutionPoints,
+} from "@/lib/visibility/strategic-adapters";
 
 const cardStyle: React.CSSProperties = {
   background: "var(--bg-card)",
@@ -97,18 +108,19 @@ function useStrategicData<T>(projectId: string | null, tabKey: TabKey) {
 
 /** Tab 1: Source Authority Trends */
 function SourceAuthorityTab({ projectId }: { projectId: string }) {
-  const { data, loading, error, locked } = useStrategicData<StrategicData["source_authority"]>(projectId, "source-authority");
+  const { data, loading, error, locked } = useStrategicData<SourceAuthorityTrendsData>(projectId, "source-authority");
+  const chartData = toSourceAuthorityPoints(data);
 
   if (loading) return <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />;
   if (locked) return <div style={cardStyle}><EmptyState icon={Globe} title="需要升级" description="战略智能功能需要订阅智见专业版" /></div>;
   if (error) return <div style={cardStyle}><ErrorState onRetry={() => window.location.reload()} /></div>;
-  if (!data || data.length === 0) {
+  if (chartData.length === 0) {
     return <div style={cardStyle}><EmptyState icon={Globe} title="暂无来源权威数据" description="运行审计后可查看来源权威趋势" /></div>;
   }
 
   // Build trend table data
-  const latestPeriod = data[data.length - 1];
-  const prevPeriod = data.length > 1 ? data[data.length - 2] : null;
+  const latestPeriod = chartData[chartData.length - 1];
+  const prevPeriod = chartData.length > 1 ? chartData[chartData.length - 2] : null;
 
   return (
     <div className="space-y-6">
@@ -119,7 +131,7 @@ function SourceAuthorityTab({ projectId }: { projectId: string }) {
           域名权威趋势
         </div>
         <div style={{ height: 320 }}>
-          <SourceAuthorityTrends data={data} />
+          <SourceAuthorityTrends data={chartData} />
         </div>
       </div>
 
@@ -167,17 +179,18 @@ function SourceAuthorityTab({ projectId }: { projectId: string }) {
 
 /** Tab 2: Competitor Positioning Map */
 function CompetitorPositioningTab({ projectId }: { projectId: string }) {
-  const { data, loading, error, locked } = useStrategicData<StrategicData["competitor_positioning"]>(projectId, "competitor-positioning");
+  const { data, loading, error, locked } = useStrategicData<CompetitorPositioning>(projectId, "competitor-positioning");
+  const chartData = toCompetitorPositions(data);
 
   if (loading) return <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />;
   if (locked) return <div style={cardStyle}><EmptyState icon={Target} title="需要升级" description="战略智能功能需要订阅智见专业版" /></div>;
   if (error) return <div style={cardStyle}><ErrorState onRetry={() => window.location.reload()} /></div>;
-  if (!data || data.length === 0) {
+  if (chartData.length === 0) {
     return <div style={cardStyle}><EmptyState icon={Target} title="暂无竞品定位数据" description="运行审计后可查看竞品定位地图" /></div>;
   }
 
   // Brand ranking table sorted by score
-  const ranked = [...data].sort((a, b) => b.score - a.score);
+  const ranked = [...chartData].sort((a, b) => b.score - a.score);
 
   return (
     <div className="space-y-6">
@@ -188,7 +201,7 @@ function CompetitorPositioningTab({ projectId }: { projectId: string }) {
           品牌定位象限图
         </div>
         <div style={{ height: 380 }}>
-          <CompetitorPositioningMap data={data} />
+          <CompetitorPositioningMap data={chartData} />
         </div>
         <div style={{ marginTop: 12, fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
           <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "var(--color-primary)", marginRight: 4, verticalAlign: "middle" }} />
@@ -236,23 +249,24 @@ function CompetitorPositioningTab({ projectId }: { projectId: string }) {
 
 /** Tab 3: Structure Evolution */
 function StructureEvolutionTab({ projectId }: { projectId: string }) {
-  const { data, loading, error, locked } = useStrategicData<StrategicData["structure_evolution"]>(projectId, "structure-evolution");
+  const { data, loading, error, locked } = useStrategicData<AnswerStructureEvolution>(projectId, "structure-evolution");
+  const chartData = toStructureEvolutionPoints(data);
 
   if (loading) return <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />;
   if (locked) return <div style={cardStyle}><EmptyState icon={BarChart3} title="需要升级" description="战略智能功能需要订阅智见专业版" /></div>;
   if (error) return <div style={cardStyle}><ErrorState onRetry={() => window.location.reload()} /></div>;
-  if (!data || data.length === 0) {
+  if (chartData.length === 0) {
     return <div style={cardStyle}><EmptyState icon={BarChart3} title="暂无结构演变数据" description="运行多次审计后可查看结构演变趋势" /></div>;
   }
 
   // Compute changes between periods
   const changes: { period: string; structured_delta: number; semi_structured_delta: number; unstructured_delta: number }[] = [];
-  for (let i = 1; i < data.length; i++) {
+  for (let i = 1; i < chartData.length; i++) {
     changes.push({
-      period: data[i].period,
-      structured_delta: data[i].structured - data[i - 1].structured,
-      semi_structured_delta: data[i].semi_structured - data[i - 1].semi_structured,
-      unstructured_delta: data[i].unstructured - data[i - 1].unstructured,
+      period: chartData[i].period,
+      structured_delta: chartData[i].structured - chartData[i - 1].structured,
+      semi_structured_delta: chartData[i].semi_structured - chartData[i - 1].semi_structured,
+      unstructured_delta: chartData[i].unstructured - chartData[i - 1].unstructured,
     });
   }
 
@@ -265,7 +279,7 @@ function StructureEvolutionTab({ projectId }: { projectId: string }) {
           结构类型演变
         </div>
         <div style={{ height: 320 }}>
-          <StructureEvolution data={data} />
+          <StructureEvolution data={chartData} />
         </div>
       </div>
 
@@ -286,7 +300,7 @@ function StructureEvolutionTab({ projectId }: { projectId: string }) {
               </tr>
             </thead>
             <tbody>
-              {data.map((row, i) => (
+              {chartData.map((row, i) => (
                 <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
                   <td style={{ padding: "8px 12px", fontSize: 13, color: "var(--text-primary)" }}>{row.period}</td>
                   <td style={{ padding: "8px 12px", fontSize: 13, textAlign: "right", fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}>{row.structured}%</td>

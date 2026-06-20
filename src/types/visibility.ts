@@ -126,23 +126,73 @@ export interface ContentIntelligence {
 }
 
 // ── Strategic Intelligence ──
+export interface SourceAuthorityTrends {
+  audits: { audit_id: number; date: string; total_sources: number }[];
+  domain_trends: {
+    domain: string;
+    data: { audit_id: number; count: number; authority_avg: number }[];
+  }[];
+  platform_preferences: {
+    platform: string;
+    top_domains: { domain: string; count: number }[];
+  }[];
+  authority_trend: Record<string, string[]>;
+}
+
+export interface CompetitorPositioning {
+  brands: {
+    name: string;
+    is_competitor: boolean;
+    mention_frequency: number;
+    sentiment_positive_rate: number;
+    avg_authority: number;
+    mention_count: number;
+    trajectory: {
+      audit_id: number;
+      date: string;
+      mention_rate: number;
+      sentiment_positive_rate: number;
+    }[];
+  }[];
+  quadrant_labels: Record<string, string>;
+}
+
+export interface AnswerStructureEvolution {
+  audits: { audit_id: number; date: string }[];
+  structure_distribution: Record<string, { audit_id: number; count: number; pct: number }[]>;
+  platform_structure: Record<string, Record<string, number>>;
+  correlation: Record<string, { mention_rate: number; avg_position: number | null }>;
+  transitions: {
+    audit_id: number;
+    platform: string;
+    prev_structure: string | null;
+    new_structure: string;
+  }[];
+}
+
+export interface SourceAuthorityPoint {
+  date: string;
+  sources: { source: string; authority: number }[];
+}
+
+export interface CompetitorPosition {
+  brand: string;
+  score: number;
+  visibility: number;
+  is_own: boolean;
+}
+
+export interface StructureEvolutionPoint {
+  period: string;
+  structured: number;
+  semi_structured: number;
+  unstructured: number;
+}
+
 export interface StrategicData {
-  source_authority: {
-    date: string;
-    sources: { source: string; authority: number }[];
-  }[];
-  competitor_positioning: {
-    brand: string;
-    score: number;
-    visibility: number;
-    is_own: boolean;
-  }[];
-  structure_evolution: {
-    period: string;
-    structured: number;
-    semi_structured: number;
-    unstructured: number;
-  }[];
+  source_authority: SourceAuthorityPoint[];
+  competitor_positioning: CompetitorPosition[];
+  structure_evolution: StructureEvolutionPoint[];
 }
 
 // ── Suggestions ──
