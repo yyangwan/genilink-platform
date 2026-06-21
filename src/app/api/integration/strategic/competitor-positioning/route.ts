@@ -5,12 +5,9 @@ export async function GET(req: NextRequest) {
   const result = await resolveGuard(req);
   if (!result.ok) return result.response;
 
-  const auditId = req.nextUrl.searchParams.get('auditId');
-  const qs = auditId ? `?audit_id=${auditId}` : '';
-
   const upstream = await fetchUpstream(
     result.ctx,
-    `/api/strategic/projects/${result.ctx.projectId}/competitor-positioning${qs}`,
+    `/api/strategic/projects/${result.ctx.projectId}/competitor-positioning`,
     { errorMessage: 'Failed to fetch competitor positioning' },
   );
   if ('response' in upstream) return upstream.response;

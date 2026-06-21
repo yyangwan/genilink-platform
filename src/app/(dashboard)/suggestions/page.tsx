@@ -28,13 +28,26 @@ import { sectionCard } from "@/components/charts/shared";
 
 interface Suggestion {
   id: string;
+  report_id?: number;
+  audit_id?: number;
   text: string;
+  description?: string;
   category: string;
   platform: string;
   priority: "high" | "medium" | "low";
   status: "pending" | "resolved" | "ignored";
+  evidence_summary?: string;
+  audit_findings?: string[];
+  success_metric?: string;
+  audit_evidence?: Array<string | { platform?: string; prompt?: string; finding?: string }>;
+  acceptance_criteria?: string[];
+  measurement_plan?: string;
   // Action plan detail fields
+  evidence_sources?: string[];
+  evidence_channels?: string[];
+  action_sources?: string[];
   action_channels?: string[];
+  action_type?: string;
   type_tags?: string[];
   keywords?: string[];
   content_outline?: string;
@@ -61,9 +74,19 @@ type PriorityFilter = "all" | "high" | "medium" | "low";
 /** Check if a suggestion has any action plan detail data */
 function hasActionPlan(s: Suggestion): boolean {
   return !!(
+    (s.evidence_sources && s.evidence_sources.length > 0) ||
+    (s.evidence_channels && s.evidence_channels.length > 0) ||
+    (s.action_sources && s.action_sources.length > 0) ||
     (s.action_channels && s.action_channels.length > 0) ||
+    s.action_type ||
     (s.type_tags && s.type_tags.length > 0) ||
     (s.keywords && s.keywords.length > 0) ||
+    s.evidence_summary ||
+    (s.audit_findings && s.audit_findings.length > 0) ||
+    s.success_metric ||
+    (s.audit_evidence && s.audit_evidence.length > 0) ||
+    (s.acceptance_criteria && s.acceptance_criteria.length > 0) ||
+    s.measurement_plan ||
     s.content_outline ||
     (s.weekly_tasks && s.weekly_tasks.length > 0) ||
     s.competitor_reference ||
@@ -94,15 +117,155 @@ function ActionPlanDetail({ suggestion }: { suggestion: Suggestion }) {
     alignItems: "center",
     gap: 6,
   };
+  const textBlock: React.CSSProperties = {
+    padding: "10px 14px",
+    borderRadius: 8,
+    background: "var(--bg-hover)",
+    fontSize: 13,
+    lineHeight: 1.7,
+    fontFamily: "var(--font-body)",
+    color: "var(--text-primary)",
+    whiteSpace: "pre-wrap",
+  };
 
   return (
     <div style={{ padding: "12px 0 0" }}>
-      {/* Action channels */}
+      {(suggestion.audit_id || suggestion.report_id) && (
+        <div style={sectionGap}>
+          <div style={sectionTitle}>
+            <FileText style={{ width: 14, height: 14 }} />
+            关联审计
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {suggestion.audit_id && (
+              <span style={{ padding: "3px 10px", borderRadius: 6, fontSize: 12, fontFamily: "var(--font-body)", background: "var(--bg-hover)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}>
+                审计 #{suggestion.audit_id}
+              </span>
+            )}
+            {suggestion.report_id && (
+              <span style={{ padding: "3px 10px", borderRadius: 6, fontSize: 12, fontFamily: "var(--font-body)", background: "var(--bg-hover)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}>
+                报告 #{suggestion.report_id}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {suggestion.evidence_summary && (
+        <div style={sectionGap}>
+          <div style={sectionTitle}>
+            <FileText style={{ width: 14, height: 14 }} />
+            审计依据
+          </div>
+          <div style={textBlock}>{suggestion.evidence_summary}</div>
+        </div>
+      )}
+
+      {suggestion.audit_findings && suggestion.audit_findings.length > 0 && (
+        <div style={sectionGap}>
+          <div style={sectionTitle}>
+            <Target style={{ width: 14, height: 14 }} />
+            对应发现
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.7, fontFamily: "var(--font-body)", color: "var(--text-primary)" }}>
+            {suggestion.audit_findings.map((finding, i) => (
+              <li key={i}>{finding}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {suggestion.audit_evidence && suggestion.audit_evidence.length > 0 && (
+        <div style={sectionGap}>
+          <div style={sectionTitle}>
+            <FileText style={{ width: 14, height: 14 }} />
+            证据样本
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {suggestion.audit_evidence.slice(0, 3).map((item, i) => (
+              <div key={i} style={textBlock}>
+                {typeof item === "string" ? item : (
+                  <>
+                    {item.platform && <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{item.platform}</div>}
+                    {item.prompt && <div>{item.prompt}</div>}
+                    {item.finding && <div>{item.finding}</div>}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {suggestion.evidence_channels && suggestion.evidence_channels.length > 0 && (
+        <div style={sectionGap}>
+          <div style={sectionTitle}>
+            <Target style={{ width: 14, height: 14 }} />
+            证据来源渠道
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {suggestion.evidence_channels.map((ch, i) => (
+              <span
+                key={i}
+                style={{
+                  padding: "3px 10px",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontFamily: "var(--font-body)",
+                  background: "var(--color-primary)15",
+                  color: "var(--color-primary)",
+                  border: "1px solid var(--color-primary)30",
+                }}
+              >
+                {ch}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {suggestion.evidence_sources && suggestion.evidence_sources.length > 0 && (
+        <div style={sectionGap}>
+          <div style={sectionTitle}>
+            <FileText style={{ width: 14, height: 14 }} />
+            证据引用来源网站
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {suggestion.evidence_sources.map((source, i) => (
+              <span
+                key={i}
+                style={{
+                  padding: "3px 10px",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontFamily: "var(--font-body)",
+                  background: "var(--bg-hover)",
+                  color: "var(--text-primary)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                {source}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {suggestion.action_type && (
+        <div style={sectionGap}>
+          <div style={sectionTitle}>
+            <Sparkles style={{ width: 14, height: 14 }} />
+            执行动作类型
+          </div>
+          <div style={textBlock}>{suggestion.action_type}</div>
+        </div>
+      )}
+
       {suggestion.action_channels && suggestion.action_channels.length > 0 && (
         <div style={sectionGap}>
           <div style={sectionTitle}>
             <Target style={{ width: 14, height: 14 }} />
-            行动渠道
+            执行渠道
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {suggestion.action_channels.map((ch, i) => (
@@ -125,7 +288,33 @@ function ActionPlanDetail({ suggestion }: { suggestion: Suggestion }) {
         </div>
       )}
 
-      {/* Type tags + Keywords on same row */}
+      {suggestion.action_sources && suggestion.action_sources.length > 0 && (
+        <div style={sectionGap}>
+          <div style={sectionTitle}>
+            <FileText style={{ width: 14, height: 14 }} />
+            行动落点网站
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {suggestion.action_sources.map((source, i) => (
+              <span
+                key={i}
+                style={{
+                  padding: "3px 10px",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontFamily: "var(--font-body)",
+                  background: "var(--color-primary)10",
+                  color: "var(--color-primary)",
+                  border: "1px solid var(--color-primary)30",
+                }}
+              >
+                {source}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap", ...sectionGap }}>
         {suggestion.type_tags && suggestion.type_tags.length > 0 && (
           <div>
@@ -181,7 +370,6 @@ function ActionPlanDetail({ suggestion }: { suggestion: Suggestion }) {
         )}
       </div>
 
-      {/* Content outline */}
       {suggestion.content_outline && (
         <div style={sectionGap}>
           <div style={sectionTitle}>
@@ -205,7 +393,6 @@ function ActionPlanDetail({ suggestion }: { suggestion: Suggestion }) {
         </div>
       )}
 
-      {/* Weekly tasks */}
       {suggestion.weekly_tasks && suggestion.weekly_tasks.length > 0 && (
         <div style={sectionGap}>
           <div style={sectionTitle}>
@@ -245,7 +432,6 @@ function ActionPlanDetail({ suggestion }: { suggestion: Suggestion }) {
         </div>
       )}
 
-      {/* Competitor reference */}
       {suggestion.competitor_reference && (
         <div style={sectionGap}>
           <div style={sectionTitle}>
@@ -269,7 +455,40 @@ function ActionPlanDetail({ suggestion }: { suggestion: Suggestion }) {
         </div>
       )}
 
-      {/* Expected result */}
+      {suggestion.success_metric && (
+        <div style={sectionGap}>
+          <div style={sectionTitle}>
+            <TrendingUp style={{ width: 14, height: 14 }} />
+            成功指标
+          </div>
+          <div style={textBlock}>{suggestion.success_metric}</div>
+        </div>
+      )}
+
+      {suggestion.acceptance_criteria && suggestion.acceptance_criteria.length > 0 && (
+        <div style={sectionGap}>
+          <div style={sectionTitle}>
+            <CheckCircle2 style={{ width: 14, height: 14 }} />
+            验收标准
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.7, fontFamily: "var(--font-body)", color: "var(--text-primary)" }}>
+            {suggestion.acceptance_criteria.map((item, i) => (
+              <li key={i}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {suggestion.measurement_plan && (
+        <div style={sectionGap}>
+          <div style={sectionTitle}>
+            <TrendingUp style={{ width: 14, height: 14 }} />
+            衡量方式
+          </div>
+          <div style={textBlock}>{suggestion.measurement_plan}</div>
+        </div>
+      )}
+
       {suggestion.expected_result && (
         <div>
           <div style={sectionTitle}>
@@ -312,9 +531,10 @@ function SuggestionsContent() {
   const suggestions = useSectionFetch<Suggestion[]>(suggestionsUrl);
 
   const refetch = suggestions.refetch;
+  const locked = suggestions.locked;
 
   const handleGenerate = useCallback(async () => {
-    if (!currentProjectId || generating) return;
+    if (!currentProjectId || generating || locked) return;
     setGenerating(true);
     try {
       const res = await fetch("/api/integration/suggestions", {
@@ -325,7 +545,7 @@ function SuggestionsContent() {
       if (res.ok) refetch();
     } catch { /* silent */ }
     finally { setGenerating(false); }
-  }, [currentProjectId, generating, refetch]);
+  }, [currentProjectId, generating, locked, refetch]);
 
   const handleResolve = useCallback(
     async (id: string) => {
@@ -403,15 +623,15 @@ function SuggestionsContent() {
         {currentProjectId && (
           <button
             onClick={handleGenerate}
-            disabled={generating}
+            disabled={generating || locked}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors shrink-0"
             style={{
               background: "var(--color-primary)",
               color: "#0b0d14",
               border: "none",
-              cursor: generating ? "wait" : "pointer",
+              cursor: generating || locked ? "not-allowed" : "pointer",
               fontFamily: "var(--font-body)",
-              opacity: generating ? 0.6 : 1,
+              opacity: generating || locked ? 0.6 : 1,
             }}
           >
             {generating ? (
@@ -478,8 +698,18 @@ function SuggestionsContent() {
         </div>
       )}
 
+      {suggestions.locked && !suggestions.loading && (
+        <div style={sectionCard}>
+          <EmptyState
+            icon={Lightbulb}
+            title="需要升级后使用"
+            description="优化建议功能需要订阅智见专业版"
+          />
+        </div>
+      )}
+
       {/* Suggestion cards */}
-      {!suggestions.loading && !suggestions.error && filtered.length > 0 && (
+      {!suggestions.loading && !suggestions.error && !suggestions.locked && filtered.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filtered.map((s) => {
             const prio = PRIORITY_CONFIG[s.priority] || PRIORITY_CONFIG.medium;
@@ -564,6 +794,14 @@ function SuggestionsContent() {
                         {s.platform}
                       </span>
                     )}
+                    {s.audit_id && (
+                      <span
+                        className="text-xs"
+                        style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+                      >
+                        审计 #{s.audit_id}
+                      </span>
+                    )}
                     {showExpand && !expanded && (
                       <span
                         className="text-xs"
@@ -636,7 +874,7 @@ function SuggestionsContent() {
       )}
 
       {/* Empty state */}
-      {!suggestions.loading && !suggestions.error && filtered.length === 0 && (
+      {!suggestions.loading && !suggestions.error && !suggestions.locked && filtered.length === 0 && (
         <div style={sectionCard}>
           <EmptyState
             icon={Lightbulb}

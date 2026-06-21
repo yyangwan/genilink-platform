@@ -251,6 +251,102 @@ function PriorityBadge({ priority }: { priority: string }) {
   );
 }
 
+function VisibilityTrendChart({
+  points,
+}: {
+  points: { date: string; score: number }[];
+}) {
+  const width = 640;
+  const height = 180;
+  const padding = { top: 18, right: 18, bottom: 30, left: 36 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const safePoints = points.map((point) => ({
+    ...point,
+    score: Math.max(0, Math.min(100, point.score)),
+  }));
+  const xFor = (index: number) =>
+    padding.left + (safePoints.length === 1 ? chartWidth : (index / (safePoints.length - 1)) * chartWidth);
+  const yFor = (score: number) => padding.top + ((100 - score) / 100) * chartHeight;
+  const line = safePoints.map((point, index) => `${xFor(index)},${yFor(point.score)}`).join(" ");
+  const area = `${padding.left},${height - padding.bottom} ${line} ${padding.left + chartWidth},${height - padding.bottom}`;
+  const latest = safePoints[safePoints.length - 1];
+  const previous = safePoints.length > 1 ? safePoints[safePoints.length - 2] : null;
+  const delta = latest && previous ? latest.score - previous.score : null;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <div
+            className="text-2xl font-bold"
+            style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}
+          >
+            {latest?.score ?? "--"}
+          </div>
+          <div className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+            最新可见性得分
+          </div>
+        </div>
+        {delta !== null && (
+          <span
+            className="text-sm font-medium"
+            style={{
+              color: delta > 0 ? "var(--color-success)" : delta < 0 ? "var(--color-error)" : "var(--text-muted)",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            {delta > 0 ? "+" : ""}{delta}
+          </span>
+        )}
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-48" role="img" aria-label="品牌可见性趋势">
+        {[0, 25, 50, 75, 100].map((tick) => (
+          <g key={tick}>
+            <line
+              x1={padding.left}
+              x2={width - padding.right}
+              y1={yFor(tick)}
+              y2={yFor(tick)}
+              stroke="var(--border)"
+              strokeWidth="1"
+            />
+            <text x={8} y={yFor(tick) + 4} fontSize="11" fill="var(--text-muted)" fontFamily="var(--font-mono)">
+              {tick}
+            </text>
+          </g>
+        ))}
+        {safePoints.length > 1 && (
+          <polygon points={area} fill="var(--color-primary)" opacity="0.08" />
+        )}
+        <polyline
+          points={line}
+          fill="none"
+          stroke="var(--color-primary)"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {safePoints.map((point, index) => (
+          <g key={`${point.date}-${index}`}>
+            <circle cx={xFor(index)} cy={yFor(point.score)} r="4" fill="var(--color-primary)" />
+            <text
+              x={xFor(index)}
+              y={height - 8}
+              textAnchor={index === 0 ? "start" : index === safePoints.length - 1 ? "end" : "middle"}
+              fontSize="11"
+              fill="var(--text-muted)"
+              fontFamily="var(--font-body)"
+            >
+              {new Date(point.date).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" })}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 // ─── Main Dashboard Page ────────────────────────────────────
 export default function DashboardPage() {
   return (
@@ -273,6 +369,18 @@ function DashboardContent() {
   const content = useSectionFetch<ContentSummary>(
     currentProjectId ? `/api/dashboard/content?project=${currentProjectId}` : "/api/dashboard/content"
   );
+  const optimizationTasks = useMemo<OptimizationTask[]>(() => {
+    const geoTasks = geo.data?.optimizationTasks ?? [];
+    if (geoTasks.length > 0) return geoTasks;
+
+    return (visibility.data?.suggestions ?? [])
+      .filter((suggestion) => suggestion.text)
+      .map((suggestion) => ({
+        text: suggestion.text,
+        priority: suggestion.priority,
+        status: "pending",
+      }));
+  }, [geo.data?.optimizationTasks, visibility.data?.suggestions]);
 
   return (
     <div className="space-y-8">
@@ -398,30 +506,18 @@ function DashboardContent() {
         </div>
       </div>
 
-      {/* ─── 品牌可见性趋势 (placeholder) ──────────────────────── */}
+      {/* ─── 品牌可见性趋势 ──────────────────────── */}
       <DashboardCard title="品牌可见性趋势">
         {visibility.loading ? (
           <LoadingSkeleton rows={4} />
         ) : visibility.error ? (
           <ErrorState onRetry={visibility.refetch} />
+        ) : visibility.locked ? (
+          <EmptyState message="升级解锁品牌可见性趋势图表" actionLabel="联系销售" />
+        ) : visibility.data?.trend && visibility.data.trend.length > 0 ? (
+          <VisibilityTrendChart points={visibility.data.trend} />
         ) : (
-          <div
-            className="flex items-center justify-center h-48 rounded-lg"
-            style={{
-              background: "var(--bg-elevated)",
-              border: "1px dashed var(--border-strong)",
-            }}
-          >
-            <span
-              className="text-sm"
-              style={{
-                color: "var(--text-muted)",
-                fontFamily: "var(--font-body)",
-              }}
-            >
-              趋势图表即将上线
-            </span>
-          </div>
+          <EmptyState message="暂无趋势数据，请先完成一次品牌可见性分析" />
         )}
       </DashboardCard>
 
@@ -495,16 +591,15 @@ function DashboardContent() {
 
       {/* ─── AI Optimization Suggestions ───────────────────── */}
       <DashboardCard title="AI优化建议" accent="ai">
-        {geo.loading ? (
+        {(geo.loading || visibility.loading) && optimizationTasks.length === 0 ? (
           <LoadingSkeleton rows={4} />
-        ) : geo.error ? (
+        ) : geo.error && optimizationTasks.length === 0 ? (
           <ErrorState onRetry={geo.refetch} />
-        ) : geo.locked ? (
+        ) : geo.locked && optimizationTasks.length === 0 ? (
           <EmptyState message="升级解锁AI优化建议" actionLabel="联系销售" />
-        ) : geo.data?.optimizationTasks &&
-          geo.data.optimizationTasks.length > 0 ? (
+        ) : optimizationTasks.length > 0 ? (
           <ul className="space-y-2">
-            {geo.data.optimizationTasks.map((task: OptimizationTask, i: number) => (
+            {optimizationTasks.map((task: OptimizationTask, i: number) => (
               <li
                 key={i}
                 className="flex items-start gap-3 py-2.5 px-3 rounded-lg"

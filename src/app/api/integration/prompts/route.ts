@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
   const upstream = await fetchUpstream(result.ctx, `/api/prompts?project_id=${result.ctx.projectId}`, {
     method: 'POST',
-    body: rest,
+    body: { ...rest, project_id: result.ctx.projectId },
     timeoutMs: 30_000,
     errorMessage: 'Failed to create prompt',
   });

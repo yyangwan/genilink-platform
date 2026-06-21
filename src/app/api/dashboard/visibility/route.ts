@@ -7,6 +7,13 @@ import { getWorkspaceRole } from '@/lib/auth/workspace';
 import { issueVisibilityProjectJWT } from '@/lib/auth/service-jwt';
 
 const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
+const PLATFORM_LABELS: Record<string, string> = {
+  deepseek: 'DeepSeek',
+  qwen: '通义千问',
+  doubao: '豆包',
+  kimi: 'Kimi',
+  hunyuan: '腾讯元宝',
+};
 
 const EMPTY = {
   overallScore: null as number | null,
@@ -15,6 +22,7 @@ const EMPTY = {
   competitorRank: null as number | null,
   suggestions: [] as { priority: string; text: string }[],
   latestAuditDate: null as string | null,
+  trend: [] as { date: string; score: number }[],
 };
 
 // GET /api/dashboard/visibility — fetch real visibility data from 智見
@@ -51,10 +59,9 @@ export async function GET(req: NextRequest) {
   };
 
   try {
-    const [positioningRes, auditsRes, suggestionsRes, platformsRes] = await Promise.allSettled([
+    const [positioningRes, auditsRes, platformsRes] = await Promise.allSettled([
       fetch(`${VISIBILITY_URL}/api/strategic/projects/${project.id}/competitor-positioning`, { headers, signal: AbortSignal.timeout(15_000) }),
       fetch(`${VISIBILITY_URL}/api/trends/${project.id}/audits-history`, { headers, signal: AbortSignal.timeout(15_000) }),
-      fetch(`${VISIBILITY_URL}/api/suggestions/${project.id}`, { headers, signal: AbortSignal.timeout(15_000) }),
       fetch(`${VISIBILITY_URL}/api/platforms`, { headers, signal: AbortSignal.timeout(15_000) }),
     ]);
 
@@ -99,12 +106,27 @@ export async function GET(req: NextRequest) {
     // ── Audit history → latestAuditDate + fetch latest results for platform scores ──
     let latestAuditDate: string | null = null;
     let latestAuditId: number | null = null;
+    let latestAuditPlatforms: string[] = [];
+    let trend: Array<{ date: string; score: number }> = [];
 
     if (auditsRes.status === 'fulfilled' && auditsRes.value.ok) {
       const audits = await auditsRes.value.json();
       if (Array.isArray(audits) && audits.length > 0) {
+        trend = audits
+          .map((audit: { created_at?: string | null; completed_at?: string | null; started_at?: string | null; overall_score?: number | null; score?: number | null }) => {
+            const score = audit.overall_score ?? audit.score;
+            const date = audit.completed_at ?? audit.created_at ?? audit.started_at;
+            return typeof score === 'number' && Number.isFinite(score) && date
+              ? { date, score: Math.round(score) }
+              : null;
+          })
+          .filter((point): point is { date: string; score: number } => Boolean(point))
+          .sort((a, b) => a.date.localeCompare(b.date))
+          .slice(-8);
+
         const latest = audits[0];
         latestAuditDate = latest.created_at ?? null;
+        latestAuditPlatforms = Array.isArray(latest.platforms) ? latest.platforms : [];
         const status = getAuditStatus(latest);
         if (isAuditFinished(status)) {
           latestAuditId = latest.id;
@@ -113,10 +135,10 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Platform coverage: compute from latest audit results ──
-    const platformCoverage: { name: string; score: number }[] = [];
+    const platformCoverageByKey: Record<string, { name: string; score: number }> = {};
 
     // Build platform label map
-    const platformLabels: Record<string, string> = {};
+    const platformLabels: Record<string, string> = { ...PLATFORM_LABELS };
     if (platformsRes.status === 'fulfilled' && platformsRes.value.ok) {
       const platforms = await platformsRes.value.json();
       if (Array.isArray(platforms)) {
@@ -124,6 +146,10 @@ export async function GET(req: NextRequest) {
           platformLabels[p.key] = p.label ?? p.key;
         }
       }
+    }
+
+    for (const key of latestAuditPlatforms) {
+      platformCoverageByKey[key] = { name: platformLabels[key] ?? key, score: 0 };
     }
 
     if (latestAuditId) {
@@ -165,29 +191,43 @@ export async function GET(req: NextRequest) {
           const mentionRate = stats.total > 0 ? stats.found / stats.total : 0;
           const avgConfidence = stats.found > 0 ? stats.confidenceSum / stats.found : 0;
           const score = Math.round(mentionRate * avgConfidence * 100);
-          platformCoverage.push({
+          platformCoverageByKey[key] = {
             name: platformLabels[key] ?? key,
             score,
-          });
+          };
         }
       }
     }
 
     // Fallback: if no results, show platforms with 0 score
-    if (platformCoverage.length === 0) {
-      for (const label of Object.values(platformLabels)) {
-        platformCoverage.push({ name: label, score: 0 });
+    if (Object.keys(platformCoverageByKey).length === 0) {
+      for (const [key, label] of Object.entries(platformLabels)) {
+        platformCoverageByKey[key] = { name: label, score: 0 };
       }
+    }
+    const platformOrder = latestAuditPlatforms.length > 0
+      ? latestAuditPlatforms
+      : Object.keys(platformCoverageByKey);
+    const platformCoverage = platformOrder
+      .filter((key) => platformCoverageByKey[key])
+      .map((key) => platformCoverageByKey[key]);
+
+    if (trend.length === 0 && latestAuditDate && overallScore !== null) {
+      trend = [{ date: latestAuditDate, score: overallScore }];
     }
 
     // ── Suggestions ──
     let suggestions: Array<{ priority: string; text: string }> = [];
-    if (suggestionsRes.status === 'fulfilled' && suggestionsRes.value.ok) {
-      const raw = await suggestionsRes.value.json();
+    const suggestionsUrl = latestAuditId
+      ? `${VISIBILITY_URL}/api/suggestions/${project.id}?audit_id=${latestAuditId}`
+      : `${VISIBILITY_URL}/api/suggestions/${project.id}`;
+    const suggestionsRes = await fetch(suggestionsUrl, { headers, signal: AbortSignal.timeout(15_000) });
+    if (suggestionsRes.ok) {
+      const raw = await suggestionsRes.json();
       if (Array.isArray(raw)) {
-        suggestions = raw.slice(0, 5).map((s: { priority?: string; text?: string; title?: string; type?: string }) => ({
+        suggestions = raw.slice(0, 5).map((s: { priority?: string; text?: string; title?: string; type?: string; description?: string; detail?: { evidence_summary?: string } }) => ({
           priority: s.priority ?? s.type ?? 'medium',
-          text: s.text ?? s.title ?? '',
+          text: s.text ?? s.title ?? s.detail?.evidence_summary ?? s.description ?? '',
         }));
       }
     }
@@ -199,6 +239,7 @@ export async function GET(req: NextRequest) {
       competitorRank,
       suggestions,
       latestAuditDate,
+      trend,
     });
   } catch {
     return NextResponse.json(EMPTY);

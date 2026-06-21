@@ -11,6 +11,11 @@ export interface PlatformCoverage {
   score: number;
 }
 
+export interface VisibilityTrendPoint {
+  date: string;
+  score: number;
+}
+
 export interface VisibilitySummary {
   overallScore: number | null;
   mentionCount: number;
@@ -18,6 +23,7 @@ export interface VisibilitySummary {
   competitorRank: number | null;
   suggestions: Suggestion[];
   latestAuditDate: string | null;
+  trend: VisibilityTrendPoint[];
 }
 
 export interface GeoSummary {
