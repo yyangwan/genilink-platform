@@ -423,6 +423,7 @@ function EditContentInner({ id }: { id: string }) {
 
       <ContentAnalysisPanel
         contentPieceId={id}
+        projectId={currentProjectId}
         content={content}
         platform={activePlatform}
         onContentUpdate={async (nextContent) => {

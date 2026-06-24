@@ -64,6 +64,7 @@ interface OptimizationResult {
 
 interface ContentAnalysisPanelProps {
   contentPieceId: string;
+  projectId: string | null;
   content: string;
   platform?: string;
   onContentUpdate?: (newContent: string) => Promise<boolean>;
@@ -72,8 +73,25 @@ interface ContentAnalysisPanelProps {
 type TabType = "quality" | "seo";
 type InsightTone = "success" | "warning" | "danger" | "info";
 
+export function buildContentAnalysisUrl(
+  contentPieceId: string,
+  endpoint: "quality" | "quality/local" | "optimize-seo",
+  projectId: string,
+  query: Record<string, string | undefined> = {},
+) {
+  const search = new URLSearchParams();
+  search.set("projectId", projectId);
+  for (const [key, value] of Object.entries(query)) {
+    if (typeof value === "string" && value.length > 0) {
+      search.set(key, value);
+    }
+  }
+  return `/api/content/${contentPieceId}/${endpoint}?${search.toString()}`;
+}
+
 export function ContentAnalysisPanel({
   contentPieceId,
+  projectId,
   content,
   platform = "wechat",
   onContentUpdate,
@@ -94,14 +112,18 @@ export function ContentAnalysisPanel({
     setAiQuality(null);
     setOptimization(null);
     setFeedback(null);
-  }, [contentPieceId, platform]);
+  }, [contentPieceId, platform, projectId]);
 
   const seoAnalysis = useMemo(() => analyzeSeoContent(content, keyword), [content, keyword]);
 
   const loadLocalAnalysis = useCallback(async () => {
+    if (!projectId) {
+      setFeedback({ tone: "error", text: "缺少项目上下文，无法加载分析" });
+      return;
+    }
     setLocalLoading(true);
     try {
-      const res = await fetch(`/api/content/${contentPieceId}/quality/local?platform=${encodeURIComponent(platform)}`);
+      const res = await fetch(buildContentAnalysisUrl(contentPieceId, "quality/local", projectId, { platform }));
       const json = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(json?.error || "加载质量分析失败");
@@ -112,15 +134,19 @@ export function ContentAnalysisPanel({
     } finally {
       setLocalLoading(false);
     }
-  }, [contentPieceId, platform]);
+  }, [contentPieceId, platform, projectId]);
 
   const loadAiQuality = useCallback(async () => {
+    if (!projectId) {
+      setFeedback({ tone: "error", text: "缺少项目上下文，无法生成 AI 质量分析" });
+      return;
+    }
     setAiLoading(true);
     try {
-      const res = await fetch(`/api/content/${contentPieceId}/quality`, {
+      const res = await fetch(buildContentAnalysisUrl(contentPieceId, "quality", projectId), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform }),
+        body: JSON.stringify({ projectId, platform }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
@@ -133,9 +159,13 @@ export function ContentAnalysisPanel({
     } finally {
       setAiLoading(false);
     }
-  }, [contentPieceId, platform]);
+  }, [contentPieceId, platform, projectId]);
 
   const optimizeSeo = useCallback(async () => {
+    if (!projectId) {
+      setFeedback({ tone: "error", text: "缺少项目上下文，无法生成 SEO 优化" });
+      return;
+    }
     if (!content.trim()) {
       setFeedback({ tone: "error", text: "先填写内容，再做 SEO 优化" });
       return;
@@ -143,10 +173,10 @@ export function ContentAnalysisPanel({
 
     setSeoLoading(true);
     try {
-      const res = await fetch(`/api/content/${contentPieceId}/optimize-seo`, {
+      const res = await fetch(buildContentAnalysisUrl(contentPieceId, "optimize-seo", projectId), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, keyword: keyword.trim() }),
+        body: JSON.stringify({ projectId, content, keyword: keyword.trim() }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
@@ -174,7 +204,7 @@ export function ContentAnalysisPanel({
     } finally {
       setSeoLoading(false);
     }
-  }, [content, contentPieceId, keyword]);
+  }, [content, contentPieceId, keyword, projectId]);
 
   const applyOptimization = useCallback(async () => {
     if (!optimization || !onContentUpdate) return;
