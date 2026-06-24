@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useProject } from "@/components/project/project-context";
 import { ContentEditor } from "@/components/content/content-editor";
+import { ContentAnalysisPanel } from "@/components/content/content-analysis-panel";
 import { formatDateInTimeZone } from "@/lib/time";
 
 const AIPanel = dynamic(
@@ -112,18 +113,48 @@ function EditContentInner({ id }: { id: string }) {
 
   // Switch platform tab
   const switchPlatform = useCallback((platform: string) => {
-    // Save current content to current platform
-    setPlatformContents((prev) =>
-      prev.map((pc) => pc.platform === activePlatform ? { ...pc, content } : pc)
+    const nextPlatformContents = platformContents.map((pc) =>
+      pc.platform === activePlatform ? { ...pc, content } : pc
     );
+    const nextPlatformContent = nextPlatformContents.find((p) => p.platform === platform);
+    setPlatformContents(nextPlatformContents);
     setActivePlatform(platform);
-    if (platform === "default") {
-      // Load default content
-    } else {
-      const pc = platformContents.find((p) => p.platform === platform);
-      setContent(pc?.content ?? "");
-    }
+    setContent(nextPlatformContent?.content ?? "");
   }, [activePlatform, content, platformContents]);
+
+  const saveCurrentContent = useCallback(async () => {
+    const body: Record<string, unknown> = { title };
+    if (activePlatform !== "default") {
+      body.platformContent = { platform: activePlatform, content };
+    } else if (platformContents.length > 0) {
+      body.platformContent = { platform: platformContents[0].platform, content };
+    } else {
+      body.content = content;
+    }
+
+    const res = await fetch(`/api/content/${id}?projectId=${currentProjectId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error || "Save failed");
+      return false;
+    }
+
+    const json = await res.json();
+    const updated = (json.data ?? json) as ContentData;
+    if (updated.platformContents?.length) {
+      setPlatformContents(updated.platformContents);
+    } else if (activePlatform !== "default") {
+      setPlatformContents((prev) =>
+        prev.map((pc) => pc.platform === activePlatform ? { ...pc, content } : pc)
+      );
+    }
+    setError(null);
+    return true;
+  }, [activePlatform, content, currentProjectId, id, platformContents, title]);
 
   const handleInsert = useCallback((text: string) => {
     if (editorRef.current) {
@@ -137,10 +168,10 @@ function EditContentInner({ id }: { id: string }) {
     if (!currentProjectId || saving) return;
     setSaving(true);
     try {
-      const body: Record<string, unknown> = { projectId: currentProjectId, title, content };
+      const body: Record<string, unknown> = { title };
       // Save platform-specific content if on a platform tab
       if (activePlatform !== "default") {
-        body.platform = activePlatform;
+        body.platformContent = { platform: activePlatform, content };
       }
       const res = await fetch(`/api/content/${id}?projectId=${currentProjectId}`, {
         method: "PUT",
@@ -160,20 +191,25 @@ function EditContentInner({ id }: { id: string }) {
 
   const handlePublish = useCallback(async () => {
     if (!currentProjectId || saving) return;
+    const currentPlatformContent = platformContents.find((pc) => pc.platform === activePlatform);
+    if (!currentPlatformContent) {
+      setError("No platform content selected");
+      return;
+    }
     setSaving(true);
     try {
       // Save first
       const saveRes = await fetch(`/api/content/${id}?projectId=${currentProjectId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: currentProjectId, title, content }),
+        body: JSON.stringify({ title, platformContent: { platform: activePlatform, content } }),
       });
       if (!saveRes.ok) {
         const data = await saveRes.json();
         setError(data.error || "保存失败");
         return;
       }
-      const pubRes = await fetch(`/api/content/${id}/publish`, {
+      const pubRes = await fetch(`/api/publish/${currentPlatformContent.id}?projectId=${currentProjectId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId: currentProjectId }),
@@ -182,20 +218,29 @@ function EditContentInner({ id }: { id: string }) {
         const data = await pubRes.json();
         setError(data.error || "发布失败");
       } else {
-        setContentStatus("publishing");
+        const json = await pubRes.json();
+        const published = json.data ?? json;
+        setPlatformContents((prev) =>
+          prev.map((pc) => pc.id === currentPlatformContent.id ? { ...pc, ...published, status: "published" } : pc)
+        );
+        const allPublished = platformContents.every((pc) =>
+          pc.id === currentPlatformContent.id ? true : pc.status === "published"
+        );
+        setContentStatus(allPublished ? "published" : "publishing");
       }
     } catch {
       setError("网络错误");
     } finally {
       setSaving(false);
     }
-  }, [id, currentProjectId, title, content, saving]);
+  }, [activePlatform, currentProjectId, content, id, platformContents, saving, title]);
 
   const handleSchedule = useCallback(async () => {
     if (!currentProjectId || !scheduleDate) return;
     setSaving(true);
     try {
-      await handleSave();
+      const saved = await saveCurrentContent();
+      if (!saved) return;
       const res = await fetch(`/api/content/${id}/schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -214,7 +259,7 @@ function EditContentInner({ id }: { id: string }) {
     } finally {
       setSaving(false);
     }
-  }, [id, currentProjectId, scheduleDate, handleSave]);
+  }, [id, currentProjectId, scheduleDate, saveCurrentContent]);
 
   const handleScore = useCallback(async () => {
     if (!currentProjectId) return;
@@ -370,9 +415,21 @@ function EditContentInner({ id }: { id: string }) {
 
       {/* Editor */}
       <ContentEditor
+        key={activePlatform}
         initialContent={content}
         onUpdate={setContent}
         editorRef={editorRef}
+      />
+
+      <ContentAnalysisPanel
+        contentPieceId={id}
+        content={content}
+        platform={activePlatform}
+        onContentUpdate={async (nextContent) => {
+          setContent(nextContent);
+          editorRef.current?.commands.setContent(nextContent);
+          return true;
+        }}
       />
 
       {/* Actions */}
