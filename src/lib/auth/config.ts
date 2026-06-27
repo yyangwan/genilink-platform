@@ -3,6 +3,8 @@ import Credentials from 'next-auth/providers/credentials';
 import { prisma } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 
+const isDev = process.env.NODE_ENV === 'development';
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
@@ -30,6 +32,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   pages: {
     signIn: '/auth/login',
     newUser: '/auth/register',
+  },
+  cookies: {
+    sessionToken: {
+      name: `${isDev ? '' : '__Secure-'}authjs.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: !isDev,
+        domain: undefined,
+      },
+    },
   },
   callbacks: {
     async jwt({ token, user, trigger, session }) {

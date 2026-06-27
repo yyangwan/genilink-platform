@@ -24,7 +24,7 @@ describe('zhijian client proxyRequest', () => {
     });
 
     const request = mockFetch.mock.calls[0][0] as Request;
-    expect(request.url).toBe('http://127.0.0.1:4002/api/projects/proj-123/summary');
+    expect(request.url).toBe('http://127.0.0.1:4003/api/projects/proj-123/summary');
     expect(request.method).toBe('GET');
     expect(request.headers.get('authorization')).toBe('Bearer token-123');
     expect(request.headers.get('x-genilink-project-id')).toBe('proj-123');
@@ -46,7 +46,7 @@ describe('zhijian client proxyRequest', () => {
     });
 
     const request = mockFetch.mock.calls[0][0] as Request;
-    expect(request.url).toBe('http://127.0.0.1:4002/api/publish/proj-456');
+    expect(request.url).toBe('http://127.0.0.1:4003/api/publish/proj-456');
     expect(request.method).toBe('POST');
     expect(await request.text()).toBe(JSON.stringify({ channel: 'wechat' }));
     expect(request.headers.get('content-type')).toBe('application/json');

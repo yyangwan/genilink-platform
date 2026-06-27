@@ -46,6 +46,17 @@ function LoginContent() {
         ? "请先登录"
         : null;
   const displayedError = error || urlErrorMessage;
+
+  const goToCallback = useCallback((target: string) => {
+    const targetUrl = new URL(target, window.location.origin);
+    if (targetUrl.origin === window.location.origin) {
+      router.push(targetUrl.pathname + targetUrl.search + targetUrl.hash);
+      router.refresh();
+      return;
+    }
+
+    window.location.assign(target);
+  }, [router]);
   // ─── Email/password login ────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,13 +77,18 @@ function LoginContent() {
 
       // Auto-select first workspace after login
       try {
-        const wsRes = await fetch("/api/workspaces");
+        const wsRes = await fetch("/api/workspaces", {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
         if (wsRes.ok) {
           const wsData = await wsRes.json();
           const firstWs = wsData.workspaces?.[0];
           if (firstWs) {
             await fetch("/api/workspaces/switch", {
               method: "POST",
+              credentials: "same-origin",
+              cache: "no-store",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ workspaceId: firstWs.id }),
             });
@@ -82,8 +98,7 @@ function LoginContent() {
         // Non-critical; continue to dashboard
       }
 
-      router.push(callbackUrl);
-      router.refresh();
+      goToCallback(callbackUrl);
     } catch {
       setError("登录失败，请稍后重试");
     } finally {
@@ -98,7 +113,10 @@ function LoginContent() {
     setQrStatus("idle");
 
     try {
-      const res = await fetch("/api/auth/wechat/qrcode");
+      const res = await fetch("/api/auth/wechat/qrcode", {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
       if (!res.ok) throw new Error("QR_ERROR");
       const data = await res.json();
       setQrData(data);
@@ -121,9 +139,13 @@ function LoginContent() {
         return;
       }
 
-      try {
-        const res = await fetch(
-          `/api/auth/wechat/status?scene=${qrData.scene}`
+        try {
+          const res = await fetch(
+          `/api/auth/wechat/status?scene=${qrData.scene}`,
+          {
+            credentials: "same-origin",
+            cache: "no-store",
+          }
         );
         const data = await res.json();
 
@@ -134,13 +156,14 @@ function LoginContent() {
           // Exchange token for session
           const verifyRes = await fetch("/api/auth/wechat/verify", {
             method: "POST",
+            credentials: "same-origin",
+            cache: "no-store",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ token: data.token }),
           });
 
           if (verifyRes.ok) {
-            router.push(callbackUrl);
-            router.refresh();
+            goToCallback(callbackUrl);
           } else {
             setQrError("微信登录验证失败");
           }
@@ -156,7 +179,7 @@ function LoginContent() {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [qrData, qrStatus, router, callbackUrl]);
+  }, [qrData, qrStatus, callbackUrl, goToCallback]);
 
   const inputStyle: React.CSSProperties = {
     width: "100%",
@@ -451,9 +474,3 @@ function LoginContent() {
     </div>
   );
 }
-
-
-
-
-
-

@@ -20,7 +20,7 @@ module.exports = {
       name: 'genilink-frontend',
       script: 'node_modules/next/dist/bin/next',
       args: 'start -p 3001',
-      cwd: '/opt/genilink-platform/frontend',
+      cwd: '/opt/genilink-platform',
       env: {
         NODE_ENV: 'production',
         PORT: 3001,
@@ -30,6 +30,8 @@ module.exports = {
         BILLING_DISABLED: 'true',
         // Remote visibility service
         VISIBILITY_SERVICE_URL: 'http://127.0.0.1:8000',
+        // Content service on the production host
+        CONTENT_SERVICE_URL: 'http://127.0.0.1:4003',
         // Production URLs
         NEXT_PUBLIC_APP_URL: 'https://genilink.cn',
         AUTH_URL: 'https://genilink.cn',
@@ -50,11 +52,11 @@ module.exports = {
     {
       name: 'genilink-content',
       script: 'node_modules/next/dist/bin/next',
-      args: 'start -p 4002',
+      args: 'start -p 4003',
       cwd: '/opt/genilink-platform/content',
       env: {
         NODE_ENV: 'production',
-        PORT: 4002,
+        PORT: 4003,
         // ContentOS JWT config
         NO_PROXY: 'localhost,127.0.0.1',
         // Production URLs
@@ -63,7 +65,7 @@ module.exports = {
         // Database (use the shared RDS instance; fill in the production password in server env)
         DATABASE_URL: 'postgresql://genilink:CHANGE_THIS_PASSWORD@pgm-2zet5egdri6ubm411o.pg.rds.aliyuncs.com:5432/genilink?connection_limit=15&pool_timeout=10',
         // Service URLs
-        CONTENT_SERVICE_URL: 'https://genilink.cn/api/content',
+        CONTENT_SERVICE_URL: 'http://127.0.0.1:4003',
         VISIBILITY_SERVICE_URL: 'http://127.0.0.1:8000',
       },
       instances: 1,

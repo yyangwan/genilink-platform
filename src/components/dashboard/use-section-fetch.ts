@@ -57,6 +57,8 @@ export function useSectionFetch<T>(url: string | null, options: SectionFetchOpti
     try {
       const res = await fetch(url, {
         signal: controller.signal,
+        credentials: "same-origin",
+        cache: "no-store",
         headers: {
           Accept: "application/json",
         },

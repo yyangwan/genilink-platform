@@ -30,7 +30,7 @@ describe('proxyStreamRequest', () => {
     expect(res.headers.get('Content-Type')).toBe('text/event-stream');
     expect(res.headers.get('Cache-Control')).toBe('no-cache');
     const request = mockFetch.mock.calls[0][0] as Request;
-    expect(request.url).toBe('http://127.0.0.1:4002/api/contents/123/generate');
+    expect(request.url).toBe('http://127.0.0.1:4003/api/contents/123/generate');
     expect(request.method).toBe('POST');
     expect(request.headers.get('authorization')).toBe('Bearer test-token');
     expect(request.headers.get('accept')).toBe('text/event-stream');

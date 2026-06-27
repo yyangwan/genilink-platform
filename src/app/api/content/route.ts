@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withContentAuth, ContentAuthContext } from '@/lib/auth/content-auth';
 import { handleProxyError } from '@/lib/proxy/proxy-errors';
 import { listContents, createContent } from '@/lib/content/service';
+import { normalizeContentList } from '@/lib/content/contract-adapters';
 
 export const GET = withContentAuth(async (ctx: ContentAuthContext) => {
   try {
-    return NextResponse.json({ data: await listContents(ctx) });
+    return NextResponse.json({ data: normalizeContentList(await listContents(ctx)) });
   } catch (err) {
     return handleProxyError(err);
   }

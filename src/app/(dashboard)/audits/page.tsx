@@ -162,7 +162,8 @@ function AuditsContent() {
   const handleRowClick = (row: AuditListItem) => {
     const status = getAuditStatus(row);
     if (isAuditFinished(status)) {
-      router.push(`/audits/${row.id}/report`);
+      const projectQuery = currentProjectId ? `?project=${encodeURIComponent(currentProjectId)}` : "";
+      router.push(`/audits/${row.id}/report${projectQuery}`);
     }
   };
 

@@ -14,7 +14,7 @@ set -euo pipefail
 # Configuration
 SERVER="root@8.147.56.119"
 DOMAIN="genilink.cn"
-FRONTEND_DIR="/opt/genilink-platform/frontend"
+FRONTEND_DIR="/opt/genilink-platform"
 CONTENT_DIR="/opt/genilink-platform/content"
 VISIBILITY_ROOT="/opt/geo-visibility-analyze"
 VISIBILITY_COMPOSE_BIN="${VISIBILITY_COMPOSE_BIN:-/usr/local/bin/docker-compose}"
@@ -210,7 +210,7 @@ else
     ssh "$SERVER" <<'ENDSSH'
         set -euo pipefail
 
-        FRONTEND_DIR="/opt/genilink-platform/frontend"
+        FRONTEND_DIR="/opt/genilink-platform"
         CONTENT_DIR="/opt/genilink-platform/content"
 
         echo "Building frontend..."

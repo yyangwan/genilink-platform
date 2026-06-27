@@ -1,7 +1,7 @@
 import { SignJWT } from 'jose';
 import { getPrivateKey } from './keys';
 
-const ISSUER = 'https://genilink.cn';
+const ISSUER = 'https://app.genilink.cn';
 const TOKEN_TTL = '5m';
 
 const SERVICE_AUDIENCES = {

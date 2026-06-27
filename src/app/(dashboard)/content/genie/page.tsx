@@ -17,10 +17,18 @@ interface GenieSource {
 
 interface GenieGeneration {
   id: string;
-  sourceId?: string;
+  title?: string;
   status: string;
   result?: string;
   createdAt: string;
+}
+
+interface GenieGenerateResult {
+  ideasCreated?: number;
+  message?: string;
+  content?: string;
+  result?: string;
+  createdAt?: string;
 }
 
 const card: React.CSSProperties = {
@@ -43,6 +51,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
+  genie_draft: { label: "Genie draft", color: "var(--color-primary)", bg: "color-mix(in srgb, var(--color-primary) 12%, transparent)" },
   pending: { label: "处理中", color: "var(--color-warning)", bg: "color-mix(in srgb, var(--color-warning) 12%, transparent)" },
   completed: { label: "已完成", color: "var(--color-success)", bg: "color-mix(in srgb, var(--color-success) 12%, transparent)" },
   failed: { label: "失败", color: "var(--color-error)", bg: "color-mix(in srgb, var(--color-error) 12%, transparent)" },
@@ -125,7 +134,7 @@ function GenieInner() {
   };
 
   const handleGenerate = async () => {
-    if (!currentProjectId || !genTopic.trim() || generating) return;
+    if (!currentProjectId || generating) return;
     setGenerating(true);
     setGenResult(null);
     try {
@@ -134,13 +143,15 @@ function GenieInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectId: currentProjectId,
-          topic: genTopic.trim(),
-          platform: genPlatform || undefined,
+          topic: genTopic.trim() || undefined,
+          platforms: genPlatform.trim() ? [genPlatform.trim()] : undefined,
         }),
       });
       if (!res.ok) throw new Error("生成失败");
       const json = await res.json();
-      setGenResult(json.data?.content ?? json.data?.result ?? JSON.stringify(json.data));
+      const data = (json.data ?? {}) as GenieGenerateResult;
+      setGenResult(data.message ?? data.content ?? data.result ?? "Generation completed");
+      fetchData();
     } catch {
       alert("生成失败");
     } finally {
@@ -277,12 +288,12 @@ function GenieInner() {
                     onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
                   />
                 </div>
-                <button onClick={handleGenerate} disabled={generating || !genTopic.trim()}
+                <button onClick={handleGenerate} disabled={generating}
                   className="text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"
                   style={{
                     background: "var(--color-primary)", color: "white", border: "none",
                     fontFamily: "var(--font-body)", cursor: generating ? "wait" : "pointer",
-                    opacity: generating || !genTopic.trim() ? 0.6 : 1,
+                    opacity: generating ? 0.6 : 1,
                   }}
                 >
                   {generating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
@@ -315,9 +326,13 @@ function GenieInner() {
                   return (
                     <div key={gen.id} className="flex items-center gap-3 py-2">
                       <Sparkles size={14} className="shrink-0" style={{ color: sc.color }} />
-                      <span className="text-sm flex-1 truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
-                        {gen.result ? gen.result.substring(0, 80) + (gen.result.length > 80 ? "..." : "") : "生成中..."}
-                      </span>
+                      <Link
+                        href={`/content/${gen.id}/edit`}
+                        className="text-sm flex-1 truncate"
+                        style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", textDecoration: "none" }}
+                      >
+                        {gen.title || gen.result || "Untitled draft"}
+                      </Link>
                       <span className="text-xs px-2 py-0.5 rounded-full shrink-0"
                         style={{ color: sc.color, background: sc.bg, fontFamily: "var(--font-body)" }}
                       >

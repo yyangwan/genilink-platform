@@ -7,10 +7,10 @@ After=network.target postgresql.service
 Type=simple
 User=genilink
 Group=genilink
-WorkingDirectory=/opt/genilink-platform/frontend
+WorkingDirectory=/opt/genilink-platform
 Environment=NODE_ENV=production
 Environment=PORT=3001
-EnvironmentFile=/opt/genilink-platform/frontend/.env.local
+EnvironmentFile=/opt/genilink-platform/.env.local
 
 # Process management
 ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3001
@@ -27,7 +27,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/genilink-platform/frontend/.next-runtime
+ReadWritePaths=/opt/genilink-platform/.next-runtime
 ReadWritePaths=/var/log/genilink
 
 # Logging

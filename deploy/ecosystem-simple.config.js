@@ -14,6 +14,7 @@ module.exports = {
         PORT: 3001,
         BILLING_DISABLED: 'true',
         VISIBILITY_SERVICE_URL: 'http://127.0.0.1:8000',
+        CONTENT_SERVICE_URL: 'http://127.0.0.1:4003',
         NEXT_PUBLIC_APP_URL: 'https://genilink.cn',
         AUTH_URL: 'https://genilink.cn',
       },

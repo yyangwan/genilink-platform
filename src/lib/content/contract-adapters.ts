@@ -91,6 +91,22 @@ export function normalizeTemplates(value: unknown) {
   return Array.isArray(value) ? value.map(normalizeTemplate) : [];
 }
 
+export function normalizeContentList(value: unknown) {
+  const body = asObject(value);
+  const items = Array.isArray(value)
+    ? value
+    : Array.isArray(body.items)
+      ? body.items
+      : Array.isArray(body.data)
+        ? body.data
+        : [];
+
+  return {
+    items,
+    total: typeof body.total === 'number' ? body.total : items.length,
+  };
+}
+
 export function toUpstreamTemplatePayload(payload: JsonObject) {
   const variables = compactStrings(payload.variables).map((name, index) => ({
     name: safeVariableName(name, index),
@@ -130,10 +146,18 @@ export function unwrapGenieGenerations(value: unknown) {
 
 export function normalizeGenieGenerationResult(value: unknown) {
   const body = asObject(value);
+  const ideasCreated = typeof body.ideas === 'number'
+    ? body.ideas
+    : Array.isArray(body.ideas)
+      ? body.ideas.length
+      : 0;
+
   return {
     ...body,
-    content: body.content ?? (typeof body.ideas === 'number' ? `${body.ideas} ideas generated` : undefined),
-    result: body.result ?? (typeof body.ideas === 'number' ? `${body.ideas} ideas generated` : undefined),
+    ideasCreated,
+    content: body.content ?? (ideasCreated > 0 ? `${ideasCreated} ideas generated` : undefined),
+    result: body.result ?? (ideasCreated > 0 ? `${ideasCreated} ideas generated` : undefined),
+    message: body.message ?? (ideasCreated > 0 ? `${ideasCreated} ideas generated` : undefined),
   };
 }
 

@@ -30,7 +30,7 @@ fi
 
 # 3. Create directories
 echo "[3/6] Creating directories..."
-mkdir -p /opt/genilink-platform/frontend
+mkdir -p /opt/genilink-platform
 mkdir -p /opt/genilink-platform/content
 mkdir -p /var/log/genilink
 mkdir -p /var/www/certbot
@@ -48,7 +48,7 @@ upstream genilink_frontend {
 }
 
 upstream genilink_content {
-    server 127.0.0.1:4002;
+    server 127.0.0.1:4003;
     keepalive 64;
 }
 

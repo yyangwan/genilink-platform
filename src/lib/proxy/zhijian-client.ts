@@ -11,7 +11,7 @@ export interface ProxyRequestOptions {
 
 const SERVICE_URLS: Record<ProxyRequestOptions['service'], string> = {
   visibility: process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000',
-  content: process.env.CONTENT_SERVICE_URL || 'http://127.0.0.1:4002',
+  content: process.env.CONTENT_SERVICE_URL || 'http://127.0.0.1:4003',
 };
 
 const TIMEOUT_MS = 120_000;

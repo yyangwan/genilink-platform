@@ -46,10 +46,12 @@ describe('useSectionFetch', () => {
         expect(mockFetch).toHaveBeenCalledTimes(1);
       });
 
-      const [request, init] = mockFetch.mock.calls[0];
+      const [request] = mockFetch.mock.calls[0];
       expect(request).toBeInstanceOf(Request);
       expect(request.url).toContain('/api/integration/audits?projectId=123');
       expect(request.headers.get('accept')).toBe('application/json');
+      expect((request as Request).credentials).toBe('same-origin');
+      expect((request as Request).cache).toBe('no-store');
       expect(request.signal).toBeInstanceOf(AbortSignal);
     });
 

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   normalizeAnalyticsData,
   normalizeBrandVoice,
+  normalizeContentList,
+  normalizeGenieGenerationResult,
   normalizePlatformConfig,
   normalizeTemplate,
   toUpstreamBrandVoicePayload,
@@ -49,6 +51,18 @@ describe('content contract adapters', () => {
     });
   });
 
+  it('normalizes content lists from the upstream array contract into the UI envelope', () => {
+    expect(normalizeContentList([{ id: 'content-1' }, { id: 'content-2' }])).toEqual({
+      items: [{ id: 'content-1' }, { id: 'content-2' }],
+      total: 2,
+    });
+
+    expect(normalizeContentList({ items: [{ id: 'content-1' }], total: 8 })).toEqual({
+      items: [{ id: 'content-1' }],
+      total: 8,
+    });
+  });
+
   it('converts UI template variables to upstream variable objects', () => {
     expect(toUpstreamTemplatePayload({
       content: 'Hello {{品牌名}}',
@@ -68,6 +82,15 @@ describe('content contract adapters', () => {
     expect(unwrapGenieGenerations({ drafts: [{ id: 'draft-1' }] })).toEqual([
       { id: 'draft-1', status: 'completed' },
     ]);
+  });
+
+  it('normalizes Genie generation summaries from upstream idea counts', () => {
+    expect(normalizeGenieGenerationResult({ success: true, ideas: 3 })).toMatchObject({
+      success: true,
+      ideasCreated: 3,
+      message: '3 ideas generated',
+      result: '3 ideas generated',
+    });
   });
 
   it('marks platform configs connected only when credentials exist and config is enabled', () => {

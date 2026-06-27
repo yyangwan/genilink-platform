@@ -48,7 +48,7 @@ fi
 
 # 3. Create directories
 log_info "Creating directories..."
-mkdir -p /opt/genilink-platform/frontend
+mkdir -p /opt/genilink-platform
 mkdir -p /opt/genilink-platform/content
 mkdir -p /var/log/genilink
 mkdir -p /var/www/certbot
@@ -109,13 +109,13 @@ log_info "=== Setup Completed ==="
 echo ""
 echo "Next steps:"
 echo "  1. Deploy application code to /opt/genilink-platform/"
-echo "  2. Copy ecosystem.config.js to /opt/genilink-platform/frontend/"
+echo "  2. Copy ecosystem.config.js to /opt/genilink-platform/"
 echo "  3. Configure .env.local with the following:"
 echo "     AUTH_SECRET=$AUTH_SECRET"
 echo "  4. Setup Nginx (see nginx-genilink.conf)"
 echo "  5. Get SSL certificate:"
 echo "     certbot certonly --webroot -w /var/www/certbot -d genilink.cn -d www.genilink.cn"
 echo "  6. Start services:"
-echo "     pm2 start /opt/genilink-platform/frontend/ecosystem.config.js"
+echo "     pm2 start /opt/genilink-platform/ecosystem.config.js"
 echo "     pm2 save"
 echo ""

@@ -41,7 +41,7 @@ exec_remote "npm install -g pm2 && pm2 install pm2-logrotate"
 
 echo ""
 echo "=== Step 4: Creating directory structure ==="
-exec_remote "mkdir -p /opt/genilink-platform/frontend && mkdir -p /opt/genilink-platform/content && mkdir -p /var/log/genilink && mkdir -p /var/www/certbot"
+exec_remote "mkdir -p /opt/genilink-platform && mkdir -p /opt/genilink-platform/content && mkdir -p /var/log/genilink && mkdir -p /var/www/certbot"
 
 echo ""
 echo "=== Step 5: Verifying installation ==="

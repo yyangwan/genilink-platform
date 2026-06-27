@@ -61,7 +61,10 @@ export function ProjectProvider({ children, workspaceId }: ProjectProviderProps)
   const fetchProjects = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/projects");
+      const res = await fetch("/api/projects", {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
       if (res.ok) {
         const data = await res.json();
         const list: ProjectSummary[] = (data.projects || []).map((p: Record<string, unknown>) => ({
@@ -117,6 +120,8 @@ export function ProjectProvider({ children, workspaceId }: ProjectProviderProps)
       if (id) {
         fetch("/api/projects/select", {
           method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ projectId: id }),
         }).catch(() => {});

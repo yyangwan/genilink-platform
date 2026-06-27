@@ -140,15 +140,25 @@ function ContentListInner() {
     if (!confirm(`确定要发布选中的 ${selected.size} 篇内容吗？`)) return;
     setBulkLoading(true);
     try {
-      await Promise.all(
-        Array.from(selected).map((id) =>
-          fetch(`/api/content/${id}/publish?projectId=${currentProjectId}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ projectId: currentProjectId }),
-          })
-        )
+      const publishJobs = await Promise.all(
+        Array.from(selected).map(async (id) => {
+          const detailRes = await fetch(`/api/content/${id}?projectId=${currentProjectId}`);
+          if (!detailRes.ok) throw new Error("Failed to load content details");
+          const detailJson = await detailRes.json();
+          const platformContents = detailJson.data?.platformContents ?? [];
+          if (!Array.isArray(platformContents) || platformContents.length === 0) {
+            throw new Error("No platform content to publish");
+          }
+          return platformContents.map((pc: { id: string }) =>
+            fetch(`/api/publish/${pc.id}?projectId=${currentProjectId}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ projectId: currentProjectId }),
+            })
+          );
+        })
       );
+      await Promise.all(publishJobs.flat());
       setSelected(new Set());
       refetch();
     } catch {

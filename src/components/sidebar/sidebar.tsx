@@ -164,7 +164,10 @@ export default function Sidebar() {
 
   // Fetch workspace name on mount
   useEffect(() => {
-    fetch("/api/workspaces")
+    fetch("/api/workspaces", {
+      credentials: "same-origin",
+      cache: "no-store",
+    })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.workspaces) {
