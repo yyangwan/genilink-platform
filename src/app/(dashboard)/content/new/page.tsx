@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import React, { Suspense, useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Plus, X, Loader2, Send, Sparkles, LayoutTemplate, Mic } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2, Sparkles, LayoutTemplate, Mic } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useProject } from "@/components/project/project-context";
+import { parseContentBriefSearchParams } from "@/lib/content/content-brief";
 
 const PLATFORMS = [
   { id: "wechat", label: "微信公众号" },
@@ -44,30 +45,29 @@ function NewContentInner() {
   const { currentProjectId } = useProject();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const initialBrief = parseContentBriefSearchParams(searchParams);
 
-  const [topic, setTopic] = useState(searchParams.get("topic") ?? "");
-  const [keyPoints, setKeyPoints] = useState<string[]>([""]);
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
-  const [references, setReferences] = useState(searchParams.get("references") ?? "");
-  const [notes, setNotes] = useState("");
+  const [topic, setTopic] = useState(initialBrief.topic);
+  const [keyPoints, setKeyPoints] = useState<string[]>(initialBrief.keyPoints);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(initialBrief.platforms);
+  const [references, setReferences] = useState(initialBrief.references);
+  const [notes, setNotes] = useState(initialBrief.notes);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [selectedVoice, setSelectedVoice] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Template & voice options
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [voices, setVoices] = useState<BrandVoiceOption[]>([]);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(Boolean(initialBrief.references || initialBrief.notes));
 
-  // Load templates and brand voices
   useEffect(() => {
     if (!currentProjectId) return;
     Promise.all([
       fetch(`/api/templates?projectId=${currentProjectId}`).then((r) => r.ok ? r.json() : { data: [] }).catch(() => ({ data: [] })),
       fetch(`/api/brand-voices?projectId=${currentProjectId}`).then((r) => r.ok ? r.json() : { data: [] }).catch(() => ({ data: [] })),
-    ]).then(([tmpl, voices]) => {
+    ]).then(([tmpl, voiceData]) => {
       setTemplates(tmpl.data ?? []);
-      setVoices(voices.data ?? []);
+      setVoices(voiceData.data ?? []);
     });
   }, [currentProjectId]);
 
@@ -96,14 +96,18 @@ function NewContentInner() {
       return;
     }
 
+    const cleanedKeyPoints = keyPoints.map((p) => p.trim()).filter(Boolean);
+    const cleanedReferences = references.trim();
+    const cleanedNotes = notes.trim();
+
     setSubmitting(true);
     try {
       const body: Record<string, unknown> = {
         topic: topic.trim(),
-        keyPoints: keyPoints.filter((p) => p.trim()),
+        keyPoints: cleanedKeyPoints,
         platforms: selectedPlatforms.length > 0 ? selectedPlatforms : undefined,
-        references: references.trim() || undefined,
-        notes: notes.trim() || undefined,
+        references: cleanedReferences || undefined,
+        notes: cleanedNotes || undefined,
         templateId: selectedTemplate || undefined,
         brandVoiceId: selectedVoice || undefined,
       };
@@ -123,7 +127,6 @@ function NewContentInner() {
       const json = await res.json();
       const newId = json.data?.id;
       if (newId) {
-        // Trigger AI generation for the new content
         try {
           await fetch(`/api/content/${newId}/generate?projectId=${currentProjectId}`, {
             method: "POST",
@@ -131,14 +134,16 @@ function NewContentInner() {
             body: JSON.stringify({
               projectId: currentProjectId,
               topic: topic.trim(),
-              keyPoints: keyPoints.filter((p) => p.trim()),
+              keyPoints: cleanedKeyPoints,
               platforms: selectedPlatforms.length > 0 ? selectedPlatforms : undefined,
+              references: cleanedReferences || undefined,
+              notes: cleanedNotes || undefined,
               templateId: selectedTemplate || undefined,
               brandVoiceId: selectedVoice || undefined,
             }),
           });
         } catch {
-          // Generation failed, still redirect to edit page
+          // Generation failure should not discard the created draft.
         }
         router.push(`/content/${newId}/edit`);
       } else {
@@ -153,7 +158,6 @@ function NewContentInner() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <Link
           href="/content"
@@ -177,9 +181,7 @@ function NewContentInner() {
         </h1>
       </div>
 
-      {/* Brief Form */}
       <div className="space-y-5">
-        {/* Topic */}
         <div>
           <label
             className="block text-sm font-medium mb-1.5"
@@ -190,14 +192,13 @@ function NewContentInner() {
           <input
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            placeholder="例如：如何打造高转化率的社交媒体内容"
+            placeholder="例如：如何提升 AI 搜索推荐场景下的品牌可见性"
             style={inputStyle}
             onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
             onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
           />
         </div>
 
-        {/* Key Points */}
         <div>
           <label
             className="block text-sm font-medium mb-1.5"
@@ -253,7 +254,6 @@ function NewContentInner() {
           </button>
         </div>
 
-        {/* Platforms */}
         <div>
           <label
             className="block text-sm font-medium mb-1.5"
@@ -286,7 +286,6 @@ function NewContentInner() {
           </div>
         </div>
 
-        {/* Template selector */}
         {templates.length > 0 && (
           <div>
             <label
@@ -311,7 +310,6 @@ function NewContentInner() {
           </div>
         )}
 
-        {/* Brand voice selector */}
         {voices.length > 0 && (
           <div>
             <label
@@ -329,14 +327,13 @@ function NewContentInner() {
               <option value="">默认声音</option>
               {voices.map((v) => (
                 <option key={v.id} value={v.id}>
-                  {v.name}{v.toneKeywords?.length ? ` — ${v.toneKeywords.join(", ")}` : ""}
+                  {v.name}{v.toneKeywords?.length ? ` - ${v.toneKeywords.join(", ")}` : ""}
                 </option>
               ))}
             </select>
           </div>
         )}
 
-        {/* Advanced options toggle */}
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
           className="text-xs font-medium"
@@ -352,7 +349,6 @@ function NewContentInner() {
           {showAdvanced ? "收起高级选项" : "展开高级选项"}
         </button>
 
-        {/* Advanced: References & Notes */}
         {showAdvanced && (
           <div className="space-y-4 p-4 rounded-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
             <div>
@@ -365,7 +361,7 @@ function NewContentInner() {
               <textarea
                 value={references}
                 onChange={(e) => setReferences(e.target.value)}
-                placeholder="粘贴参考文章链接或内容..."
+                placeholder="粘贴参考文章、来源链接或素材摘要..."
                 rows={3}
                 style={{ ...inputStyle, resize: "vertical" }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
@@ -379,11 +375,12 @@ function NewContentInner() {
               >
                 备注
               </label>
-              <input
+              <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="对 AI 生成内容的额外要求..."
-                style={inputStyle}
+                placeholder="对 AI 生成内容的额外要求、审计依据或成功指标..."
+                rows={4}
+                style={{ ...inputStyle, resize: "vertical" }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
                 onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
               />
@@ -392,7 +389,6 @@ function NewContentInner() {
         )}
       </div>
 
-      {/* Actions */}
       <div className="flex items-center gap-3 pt-2">
         <button
           onClick={handleSubmit}

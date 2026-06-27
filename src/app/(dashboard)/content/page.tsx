@@ -11,6 +11,11 @@ import {
 } from "@/components/ui/diagnostic-checklist";
 import type { ContentSummary } from "@/types";
 import { formatDateInTimeZone } from "@/lib/time";
+import {
+  contentBriefToSearchParams,
+  createContentBriefFromSuggestion,
+  type SuggestionForContentBrief,
+} from "@/lib/content/content-brief";
 
 const card: React.CSSProperties = {
   background: "var(--bg-card)",
@@ -19,23 +24,6 @@ const card: React.CSSProperties = {
   padding: "24px",
 };
 
-const gapBadge = (level: string): React.CSSProperties => ({
-  display: "inline-flex",
-  alignItems: "center",
-  fontSize: 11,
-  fontWeight: 600,
-  padding: "2px 8px",
-  borderRadius: "var(--radius-full)",
-  background:
-    level === "high"
-      ? "color-mix(in srgb, var(--color-error) 12%, transparent)"
-      : "color-mix(in srgb, var(--color-warning) 12%, transparent)",
-  color:
-    level === "high"
-      ? "var(--color-error)"
-      : "var(--color-warning)",
-});
-
 const metricStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
@@ -43,10 +31,10 @@ const metricStyle: React.CSSProperties = {
   padding: "12px 0",
 };
 
-// 鈹€鈹€ Data Bridge Section 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// Data Bridge Section
 function DataBridge({ projectId }: { projectId: string }) {
-  const bridgeUrl = projectId ? `/api/dashboard/visibility?project=${projectId}` : null;
-  const bridge = useSectionFetch<{ suggestions: { priority: string; text: string }[] }>(bridgeUrl);
+  const bridgeUrl = projectId ? `/api/integration/suggestions?projectId=${projectId}` : null;
+  const bridge = useSectionFetch<SuggestionForContentBrief[]>(bridgeUrl);
 
   if (bridge.loading) {
     return (
@@ -64,11 +52,11 @@ function DataBridge({ projectId }: { projectId: string }) {
     );
   }
 
-  if (bridge.error || !bridge.data || !bridge.data.suggestions?.length) {
+  if (bridge.error || !bridge.data || !bridge.data.length) {
     return <ColdStartCard />;
   }
 
-  const suggestions = bridge.data.suggestions.slice(0, 5);
+  const suggestions = bridge.data.slice(0, 8);
 
   const priorityBadge = (priority: string): React.CSSProperties => ({
     display: "inline-flex",
@@ -118,7 +106,7 @@ function DataBridge({ projectId }: { projectId: string }) {
               </span>
             </div>
             <Link
-              href={`/content/new?topic=${encodeURIComponent(suggestion.text)}`}
+              href={`/content/new?${contentBriefToSearchParams(createContentBriefFromSuggestion(suggestion)).toString()}`}
               className="flex items-center gap-1 text-xs font-medium shrink-0 ml-3"
               style={{
                 color: "var(--color-primary)",
@@ -136,13 +124,13 @@ function DataBridge({ projectId }: { projectId: string }) {
         ))}
       </div>
 
-      {bridge.data.suggestions.length > 5 && (
+      {bridge.data.length > suggestions.length && (
         <Link
-          href="/content/list"
+          href="/suggestions"
           className="flex items-center gap-1 mt-3 text-xs font-medium"
           style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", textDecoration: "none" }}
         >
-          查看全部 {bridge.data.suggestions.length} 条建议
+          查看全部 {bridge.data.length} 条建议
           <ArrowRight size={11} />
         </Link>
       )}
@@ -158,12 +146,14 @@ function ColdStartCard() {
           className="text-base font-semibold mb-2"
           style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
         >
-          杩樻病鏈夊彲瑙佹€ф暟鎹?        </p>
+          还没有可见性数据
+        </p>
         <p
           className="text-sm mb-4 max-w-sm mx-auto"
           style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
         >
-          杩愯绗竴娆?AI 鍙鎬у璁★紝瑙ｉ攣鍩轰簬鏁版嵁鐨勫唴瀹瑰缓璁?        </p>
+          运行第一次 AI 可见性审计，解锁基于数据的内容建议。
+        </p>
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <Link
             href="/visibility"
@@ -175,7 +165,7 @@ function ColdStartCard() {
               textDecoration: "none",
             }}
           >
-            鍓嶅線鏅鸿
+            前往智见
             <ArrowRight size={14} />
           </Link>
           <Link
@@ -189,7 +179,7 @@ function ColdStartCard() {
             }}
           >
             <Plus size={14} />
-            浠庡ご寮€濮嬪啓
+            从头开始写
           </Link>
         </div>
       </div>
@@ -197,13 +187,13 @@ function ColdStartCard() {
   );
 }
 
-// 鈹€鈹€ KPI Strip 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// KPI Strip
 function KPIStrip({ content }: { content: { data: ContentSummary | null; loading: boolean } }) {
   const metrics = [
-    { label: "Total", value: content.data?.totalContent },
-    { label: "Published", value: content.data?.publishedCount },
+    { label: "总内容", value: content.data?.totalContent },
+    { label: "已发布", value: content.data?.publishedCount },
     {
-      label: "Quality",
+      label: "质量分",
       value: content.data?.qualityAvg != null ? content.data.qualityAvg.toFixed(1) : null,
     },
   ];
@@ -241,7 +231,7 @@ function KPIStrip({ content }: { content: { data: ContentSummary | null; loading
   );
 }
 
-// 鈹€鈹€ Recent Content 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// Recent Content
 function RecentContent({ content }: { content: { data: ContentSummary | null; loading: boolean } }) {
   const items = content.data?.recentContent ?? [];
 
@@ -267,14 +257,14 @@ function RecentContent({ content }: { content: { data: ContentSummary | null; lo
           className="text-sm font-medium"
           style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
         >
-          Recent content
+          最近内容
         </span>
         <Link
           href="/content/list"
           className="text-xs font-medium"
           style={{ color: "var(--color-primary)", fontFamily: "var(--font-body)", textDecoration: "none" }}
         >
-          鏌ョ湅鍏ㄩ儴
+          查看全部
         </Link>
       </div>
       <div className="space-y-2">
@@ -290,7 +280,7 @@ function RecentContent({ content }: { content: { data: ContentSummary | null; lo
               className="text-sm truncate flex-1"
               style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
             >
-              {item.title || "Untitled"}
+              {item.title || "无标题"}
             </span>
             <span
               className="text-xs shrink-0"
@@ -305,7 +295,7 @@ function RecentContent({ content }: { content: { data: ContentSummary | null; lo
   );
 }
 
-// 鈹€鈹€ Main Content 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// Main Content
 function ContentContent() {
   const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
 
@@ -314,19 +304,19 @@ function ContentContent() {
     : null;
   const content = useSectionFetch<ContentSummary>(contentUrl);
 
-  // No project selected 鈥?show diagnostic checklist
+  // No project selected - show diagnostic checklist
   if (!loading && !currentProjectId) {
     const diagnosticItems: DiagnosticItem[] = [
       {
         id: "project",
-        label: "鍒涘缓椤圭洰",
+        label: "创建项目",
         status: projects.length === 0 ? "incomplete" : "complete",
-        actionLabel: "鍒涘缓",
+        actionLabel: "创建",
         onAction: () => openWizard(),
       },
       {
         id: "product",
-        label: "瀹屽杽浜у搧淇℃伅",
+        label: "完善产品信息",
         status: currentProject?.productName ? "complete" : "incomplete",
       },
     ];
@@ -342,13 +332,13 @@ function ContentContent() {
               fontSize: "var(--text-sectionHeading)",
             }}
           >
-            鏅哄壍
+            智创
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-            AI椹卞姩鐨勫唴瀹瑰垱浣滀笌绠＄悊
+            AI 驱动的内容创作与管理
           </p>
         </div>
-        <DiagnosticChecklist items={diagnosticItems} title="鍑嗗宸ヤ綔" />
+        <DiagnosticChecklist items={diagnosticItems} title="准备工作" />
       </div>
     );
   }
@@ -366,10 +356,10 @@ function ContentContent() {
               fontSize: "var(--text-sectionHeading)",
             }}
           >
-            鏅哄壍
+            智创
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-            AI椹卞姩鐨勫唴瀹瑰垱浣滀笌绠＄悊
+            AI 驱动的内容创作与管理
             {currentProject && (
               <span style={{ color: "var(--text-muted)" }}> 路 {currentProject.name}</span>
             )}
@@ -386,14 +376,14 @@ function ContentContent() {
           }}
         >
           <Plus size={14} />
-          鏂板缓鍐呭
+          新建内容
         </Link>
       </div>
 
-      {/* Data Bridge 鈥?owns first viewport */}
+      {/* Data Bridge */}
       {currentProjectId && <DataBridge projectId={currentProjectId} />}
 
-      {/* KPI Strip 鈥?slim inline metrics */}
+      {/* KPI Strip */}
       <KPIStrip content={content} />
 
       {/* Recent Content */}
