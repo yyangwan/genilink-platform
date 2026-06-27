@@ -80,6 +80,7 @@ describe('generateContentBriefFromSuggestion', () => {
     });
 
     expect(brief.generatedBy).toBe('rules');
+    expect(brief.fallbackReason).toBe('missing_llm_config');
     expect(brief.topic).toBe('Publish FAQ：AI search');
     expect(brief.references).toBe('https://brand.com/blog/ai-search');
   });

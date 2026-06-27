@@ -150,17 +150,26 @@ function buildPrompt(project: ProjectBriefContext, suggestion: SuggestionForCont
 export async function generateContentBriefFromSuggestion(
   project: ProjectBriefContext,
   suggestion: SuggestionForContentBrief,
-): Promise<ContentBrief & { generatedBy: "llm" | "rules" }> {
+): Promise<ContentBrief & { generatedBy: "llm" | "rules"; fallbackReason?: string }> {
   const baseFallback = createContentBriefFromSuggestion(suggestion);
   const allowedReferences = filterSpecificReferenceUrls([
     ...(suggestion.action_sources ?? []),
     ...(suggestion.evidence_sources ?? []),
   ]);
   const fallback = withProjectBoundary(baseFallback, project, allowedReferences);
+  const fallbackWithReason = (fallbackReason: string) => {
+    console.warn("[content-brief] Falling back to rule-based brief generation", {
+      fallbackReason,
+      projectId: project.id,
+      suggestionId: suggestion.id,
+      suggestionText: suggestion.text,
+    });
+    return { ...fallback, generatedBy: "rules" as const, fallbackReason };
+  };
   const config = llmConfig();
 
   if (!config) {
-    return { ...fallback, generatedBy: "rules" };
+    return fallbackWithReason("missing_llm_config");
   }
 
   try {
@@ -179,25 +188,25 @@ export async function generateContentBriefFromSuggestion(
     });
 
     if (!res.ok) {
-      return { ...fallback, generatedBy: "rules" };
+      return fallbackWithReason(`llm_http_${res.status}`);
     }
 
     const data = await res.json() as ChatResponse;
     const content = data.choices?.[0]?.message?.content;
     if (!content) {
-      return { ...fallback, generatedBy: "rules" };
+      return fallbackWithReason("empty_llm_content");
     }
 
     const json = extractJson(content);
     if (!json) {
-      return { ...fallback, generatedBy: "rules" };
+      return fallbackWithReason("invalid_llm_json");
     }
 
     return {
       ...normalizeBrief(JSON.parse(json), fallback, allowedReferences),
       generatedBy: "llm",
     };
-  } catch {
-    return { ...fallback, generatedBy: "rules" };
+  } catch (err) {
+    return fallbackWithReason(err instanceof Error ? err.message : "llm_exception");
   }
 }

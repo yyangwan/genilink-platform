@@ -14,7 +14,6 @@ import type { ContentSummary } from "@/types";
 import { formatDateInTimeZone } from "@/lib/time";
 import {
   contentBriefToSearchParams,
-  createContentBriefFromSuggestion,
   type SuggestionForContentBrief,
 } from "@/lib/content/content-brief";
 
@@ -72,16 +71,22 @@ function DataBridge({ projectId }: { projectId: string }) {
       });
       if (res.ok) {
         const json = await res.json();
+        if (json.data?.generatedBy !== "llm") {
+          alert("AI 分析服务暂不可用，未生成内容创建信息。请稍后重试。");
+          return;
+        }
         router.push(`/content/new?${contentBriefToSearchParams(json.data).toString()}`);
         return;
       }
+      const error = await res.json().catch(() => ({}));
+      alert(error.error || "AI 分析失败，请稍后重试");
+      return;
     } catch {
-      // Fall back to deterministic local extraction below.
+      alert("AI 分析请求失败，请稍后重试");
+      return;
     } finally {
       setLoadingSuggestionId(null);
     }
-
-    router.push(`/content/new?${contentBriefToSearchParams(createContentBriefFromSuggestion(suggestion)).toString()}`);
   }
 
   const priorityBadge = (priority = "medium"): React.CSSProperties => ({
