@@ -5,6 +5,7 @@ const SERVICE = 'content' as const;
 
 export const CRUD_TIMEOUT = 30_000;
 export const STREAM_TIMEOUT = 180_000;
+const GENERATION_PLATFORMS = new Set(['wechat', 'weibo', 'xiaohongshu', 'douyin']);
 
 type Ctx = Pick<ContentAuthContext, 'projectId' | 'serviceToken'> & { accessToken?: string };
 
@@ -35,11 +36,12 @@ export function deleteContent(ctx: Ctx, contentId: string) {
 }
 
 export function generateContent(ctx: Ctx, contentId: string, body: Record<string, unknown>) {
-  const platform = typeof body.platform === 'string'
+  const requestedPlatform = typeof body.platform === 'string'
     ? body.platform
     : Array.isArray(body.platforms) && typeof body.platforms[0] === 'string'
       ? body.platforms[0]
       : 'wechat';
+  const platform = GENERATION_PLATFORMS.has(requestedPlatform) ? requestedPlatform : 'wechat';
 
   return proxyStreamRequest({
     ...ctxOpts(ctx),

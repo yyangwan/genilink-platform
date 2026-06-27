@@ -128,7 +128,7 @@ function NewContentInner() {
       const newId = json.data?.id;
       if (newId) {
         try {
-          await fetch(`/api/content/${newId}/generate?projectId=${currentProjectId}`, {
+          const generateRes = await fetch(`/api/content/${newId}/generate?projectId=${currentProjectId}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -142,8 +142,14 @@ function NewContentInner() {
               brandVoiceId: selectedVoice || undefined,
             }),
           });
+          if (!generateRes.ok) {
+            const data = await generateRes.json().catch(() => ({}));
+            alert(data.error || "内容生成失败，请稍后重试");
+            return;
+          }
         } catch {
-          // Generation failure should not discard the created draft.
+          alert("内容生成请求失败，请稍后重试");
+          return;
         }
         router.push(`/content/${newId}/edit`);
       } else {

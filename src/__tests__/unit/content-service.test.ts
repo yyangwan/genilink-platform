@@ -121,6 +121,19 @@ describe('content service', () => {
     });
   });
 
+  it('generateContent falls back to wechat when selected platform has no upstream prompt builder', async () => {
+    mockProxyStreamRequest.mockResolvedValue(new Response('stream'));
+    await generateContent(ctx, 'c1', { platforms: ['zhihu'], topic: 'AI visibility' });
+
+    expect(mockProxyStreamRequest).toHaveBeenCalledWith({
+      ...baseArgs,
+      path: '/api/generate',
+      method: 'POST',
+      body: { contentPieceId: 'c1', platforms: ['zhihu'], topic: 'AI visibility', platform: 'wechat' },
+      timeoutMs: 180_000,
+    });
+  });
+
   it('publishContent calls proxyRequest with POST and body', async () => {
     mockProxyRequest.mockResolvedValue({ published: true });
     const body = { channel: 'wechat' };
