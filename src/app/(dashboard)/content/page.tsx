@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { Suspense } from "react";
 import { Sparkles, ArrowRight, Plus, FileText } from "lucide-react";
@@ -10,7 +10,6 @@ import {
   type DiagnosticItem,
 } from "@/components/ui/diagnostic-checklist";
 import type { ContentSummary } from "@/types";
-import type { ContentIntelligence } from "@/types/visibility";
 import { formatDateInTimeZone } from "@/lib/time";
 
 const card: React.CSSProperties = {
@@ -44,12 +43,10 @@ const metricStyle: React.CSSProperties = {
   padding: "12px 0",
 };
 
-// ── Data Bridge Section ───────────────────────────────────────────────
+// 鈹€鈹€ Data Bridge Section 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 function DataBridge({ projectId }: { projectId: string }) {
-  const bridgeUrl = projectId
-    ? `/api/integration/content-intelligence?projectId=${projectId}`
-    : null;
-  const bridge = useSectionFetch<ContentIntelligence>(bridgeUrl);
+  const bridgeUrl = projectId ? `/api/dashboard/visibility?project=${projectId}` : null;
+  const bridge = useSectionFetch<{ suggestions: { priority: string; text: string }[] }>(bridgeUrl);
 
   if (bridge.loading) {
     return (
@@ -67,41 +64,61 @@ function DataBridge({ projectId }: { projectId: string }) {
     );
   }
 
-  // No visibility data — cold start
-  if (bridge.error || !bridge.data || !bridge.data.topics?.length) {
+  if (bridge.error || !bridge.data || !bridge.data.suggestions?.length) {
     return <ColdStartCard />;
   }
 
-  const topics = bridge.data.topics.slice(0, 5);
+  const suggestions = bridge.data.suggestions.slice(0, 5);
+
+  const priorityBadge = (priority: string): React.CSSProperties => ({
+    display: "inline-flex",
+    alignItems: "center",
+    fontSize: 11,
+    fontWeight: 600,
+    padding: "2px 8px",
+    borderRadius: "var(--radius-full)",
+    background:
+      priority === "high"
+        ? "color-mix(in srgb, var(--color-error) 12%, transparent)"
+        : priority === "low"
+          ? "color-mix(in srgb, var(--text-muted) 12%, transparent)"
+          : "color-mix(in srgb, var(--color-warning) 12%, transparent)",
+    color:
+      priority === "high"
+        ? "var(--color-error)"
+        : priority === "low"
+          ? "var(--text-muted)"
+          : "var(--color-warning)",
+  });
 
   return (
     <div style={card}>
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-          基于智見可见性分析的内容建议
+          基于智见可见性分析的内容建议
         </p>
       </div>
 
       <div className="space-y-1">
-        {topics.map((topic, i) => (
+        {suggestions.map((suggestion, i) => (
           <div
             key={i}
-            className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:opacity-90"
+            className="flex items-start justify-between gap-3 py-2.5 px-3 rounded-lg hover:opacity-90"
             style={{ transition: "background 0.15s" }}
           >
             <div className="flex items-center gap-3 min-w-0">
-              <span style={gapBadge(topic.sentiment < 0 ? "high" : "medium")}>
-                {topic.sentiment < 0 ? "高优先" : "待覆盖"}
+              <span style={priorityBadge(suggestion.priority)}>
+                {suggestion.priority === "high" ? "高优先" : suggestion.priority === "low" ? "低优先" : "待覆盖"}
               </span>
               <span
                 className="text-sm truncate"
                 style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
               >
-                {topic.topic}
+                {suggestion.text}
               </span>
             </div>
             <Link
-              href={`/content/new?topic=${encodeURIComponent(topic.topic)}`}
+              href={`/content/new?topic=${encodeURIComponent(suggestion.text)}`}
               className="flex items-center gap-1 text-xs font-medium shrink-0 ml-3"
               style={{
                 color: "var(--color-primary)",
@@ -119,13 +136,13 @@ function DataBridge({ projectId }: { projectId: string }) {
         ))}
       </div>
 
-      {bridge.data.topics.length > 5 && (
+      {bridge.data.suggestions.length > 5 && (
         <Link
           href="/content/list"
           className="flex items-center gap-1 mt-3 text-xs font-medium"
           style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", textDecoration: "none" }}
         >
-          查看全部 {bridge.data.topics.length} 个建议
+          查看全部 {bridge.data.suggestions.length} 条建议
           <ArrowRight size={11} />
         </Link>
       )}
@@ -133,7 +150,6 @@ function DataBridge({ projectId }: { projectId: string }) {
   );
 }
 
-// ── Cold Start Card ───────────────────────────────────────────────────
 function ColdStartCard() {
   return (
     <div style={card}>
@@ -142,14 +158,12 @@ function ColdStartCard() {
           className="text-base font-semibold mb-2"
           style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
         >
-          还没有可见性数据
-        </p>
+          杩樻病鏈夊彲瑙佹€ф暟鎹?        </p>
         <p
           className="text-sm mb-4 max-w-sm mx-auto"
           style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
         >
-          运行第一次 AI 可见性审计，解锁基于数据的内容建议
-        </p>
+          杩愯绗竴娆?AI 鍙鎬у璁★紝瑙ｉ攣鍩轰簬鏁版嵁鐨勫唴瀹瑰缓璁?        </p>
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <Link
             href="/visibility"
@@ -161,7 +175,7 @@ function ColdStartCard() {
               textDecoration: "none",
             }}
           >
-            前往智見
+            鍓嶅線鏅鸿
             <ArrowRight size={14} />
           </Link>
           <Link
@@ -175,7 +189,7 @@ function ColdStartCard() {
             }}
           >
             <Plus size={14} />
-            从头开始写
+            浠庡ご寮€濮嬪啓
           </Link>
         </div>
       </div>
@@ -183,13 +197,13 @@ function ColdStartCard() {
   );
 }
 
-// ── KPI Strip ─────────────────────────────────────────────────────────
+// 鈹€鈹€ KPI Strip 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 function KPIStrip({ content }: { content: { data: ContentSummary | null; loading: boolean } }) {
   const metrics = [
-    { label: "总内容", value: content.data?.totalContent },
-    { label: "已发布", value: content.data?.publishedCount },
+    { label: "Total", value: content.data?.totalContent },
+    { label: "Published", value: content.data?.publishedCount },
     {
-      label: "质量分",
+      label: "Quality",
       value: content.data?.qualityAvg != null ? content.data.qualityAvg.toFixed(1) : null,
     },
   ];
@@ -227,7 +241,7 @@ function KPIStrip({ content }: { content: { data: ContentSummary | null; loading
   );
 }
 
-// ── Recent Content ────────────────────────────────────────────────────
+// 鈹€鈹€ Recent Content 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 function RecentContent({ content }: { content: { data: ContentSummary | null; loading: boolean } }) {
   const items = content.data?.recentContent ?? [];
 
@@ -253,14 +267,14 @@ function RecentContent({ content }: { content: { data: ContentSummary | null; lo
           className="text-sm font-medium"
           style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
         >
-          最近内容
+          Recent content
         </span>
         <Link
           href="/content/list"
           className="text-xs font-medium"
           style={{ color: "var(--color-primary)", fontFamily: "var(--font-body)", textDecoration: "none" }}
         >
-          查看全部
+          鏌ョ湅鍏ㄩ儴
         </Link>
       </div>
       <div className="space-y-2">
@@ -276,7 +290,7 @@ function RecentContent({ content }: { content: { data: ContentSummary | null; lo
               className="text-sm truncate flex-1"
               style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
             >
-              {item.title || "无标题"}
+              {item.title || "Untitled"}
             </span>
             <span
               className="text-xs shrink-0"
@@ -291,7 +305,7 @@ function RecentContent({ content }: { content: { data: ContentSummary | null; lo
   );
 }
 
-// ── Main Content ──────────────────────────────────────────────────────
+// 鈹€鈹€ Main Content 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 function ContentContent() {
   const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
 
@@ -300,19 +314,19 @@ function ContentContent() {
     : null;
   const content = useSectionFetch<ContentSummary>(contentUrl);
 
-  // No project selected — show diagnostic checklist
+  // No project selected 鈥?show diagnostic checklist
   if (!loading && !currentProjectId) {
     const diagnosticItems: DiagnosticItem[] = [
       {
         id: "project",
-        label: "创建项目",
+        label: "鍒涘缓椤圭洰",
         status: projects.length === 0 ? "incomplete" : "complete",
-        actionLabel: "创建",
+        actionLabel: "鍒涘缓",
         onAction: () => openWizard(),
       },
       {
         id: "product",
-        label: "完善产品信息",
+        label: "瀹屽杽浜у搧淇℃伅",
         status: currentProject?.productName ? "complete" : "incomplete",
       },
     ];
@@ -328,13 +342,13 @@ function ContentContent() {
               fontSize: "var(--text-sectionHeading)",
             }}
           >
-            智創
+            鏅哄壍
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-            AI驱动的内容创作与管理
+            AI椹卞姩鐨勫唴瀹瑰垱浣滀笌绠＄悊
           </p>
         </div>
-        <DiagnosticChecklist items={diagnosticItems} title="准备工作" />
+        <DiagnosticChecklist items={diagnosticItems} title="鍑嗗宸ヤ綔" />
       </div>
     );
   }
@@ -352,12 +366,12 @@ function ContentContent() {
               fontSize: "var(--text-sectionHeading)",
             }}
           >
-            智創
+            鏅哄壍
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-            AI驱动的内容创作与管理
+            AI椹卞姩鐨勫唴瀹瑰垱浣滀笌绠＄悊
             {currentProject && (
-              <span style={{ color: "var(--text-muted)" }}> · {currentProject.name}</span>
+              <span style={{ color: "var(--text-muted)" }}> 路 {currentProject.name}</span>
             )}
           </p>
         </div>
@@ -372,14 +386,14 @@ function ContentContent() {
           }}
         >
           <Plus size={14} />
-          新建内容
+          鏂板缓鍐呭
         </Link>
       </div>
 
-      {/* Data Bridge — owns first viewport */}
+      {/* Data Bridge 鈥?owns first viewport */}
       {currentProjectId && <DataBridge projectId={currentProjectId} />}
 
-      {/* KPI Strip — slim inline metrics */}
+      {/* KPI Strip 鈥?slim inline metrics */}
       <KPIStrip content={content} />
 
       {/* Recent Content */}
@@ -403,3 +417,5 @@ export default function ContentPage() {
     </Suspense>
   );
 }
+
+
