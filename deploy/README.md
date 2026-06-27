@@ -76,6 +76,9 @@ Windows 下使用：
 | `CONTENT_BRIEF_LLM_API_KEY` | 继承 `VISIBILITY_ANALYSIS_LLM_API_KEY` | 智创把智见优化建议分析成创建内容 brief 时使用的 API key |
 | `CONTENT_BRIEF_LLM_BASE_URL` | `http://127.0.0.1:8081` | 智创 brief 分析运行在主机 PM2 进程中，默认走主机本地 Higress/DeepSeek 兼容接口 |
 | `CONTENT_BRIEF_LLM_MODEL` | 继承 `VISIBILITY_ANALYSIS_LLM_MODEL` | 智创 brief 分析使用的模型名 |
+| `CONTENT_GENILINK_JWKS_URL` | `http://127.0.0.1:3001/.well-known/jwks.json` | 智创服务校验智链前台签发的服务 JWT 时使用的 JWKS 地址 |
+| `CONTENT_GENILINK_ISSUER` | `https://app.genilink.cn` | 智创服务校验服务 JWT 的 issuer |
+| `CONTENT_GENILINK_AUDIENCE` | `content.genilink.cn` | 智创服务校验服务 JWT 的 audience |
 | `HIGRESS_REMOTE_SSH_TARGET` | `root@8.147.56.119` | Higress 所在服务器 |
 | `HIGRESS_REMOTE_ROOT` | `/opt/higress-standalone/compose` | Higress compose 目录 |
 | `HIGRESS_REMOTE_COMPOSE_BIN` | `/usr/local/bin/docker-compose` | Higress compose 命令 |

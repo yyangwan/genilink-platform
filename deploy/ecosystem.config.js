@@ -63,6 +63,9 @@ module.exports = {
         PORT: 4002,
         // ContentOS JWT config
         NO_PROXY: 'localhost,127.0.0.1',
+        GENILINK_JWKS_URL: 'http://127.0.0.1:3001/.well-known/jwks.json',
+        GENILINK_ISSUER: 'https://app.genilink.cn',
+        GENILINK_AUDIENCE: 'content.genilink.cn',
         // Production URLs
         NEXT_PUBLIC_APP_URL: 'https://genilink.cn',
         AUTH_URL: 'https://genilink.cn',

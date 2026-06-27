@@ -17,6 +17,9 @@ DOMAIN="genilink.cn"
 FRONTEND_DIR="/opt/genilink-platform"
 CONTENT_DIR="/opt/genilink-platform/content"
 FRONTEND_CONTENT_SERVICE_URL="${FRONTEND_CONTENT_SERVICE_URL:-http://127.0.0.1:4002}"
+CONTENT_GENILINK_JWKS_URL="${CONTENT_GENILINK_JWKS_URL:-http://127.0.0.1:3001/.well-known/jwks.json}"
+CONTENT_GENILINK_ISSUER="${CONTENT_GENILINK_ISSUER:-https://app.genilink.cn}"
+CONTENT_GENILINK_AUDIENCE="${CONTENT_GENILINK_AUDIENCE:-content.genilink.cn}"
 VISIBILITY_ROOT="/opt/geo-visibility-analyze"
 VISIBILITY_COMPOSE_BIN="${VISIBILITY_COMPOSE_BIN:-/usr/local/bin/docker-compose}"
 VISIBILITY_DEEPSEEK_GATEWAY_BASE_URL="${VISIBILITY_DEEPSEEK_GATEWAY_BASE_URL:-http://llm-deepseek.internal.dns:8081}"
@@ -194,6 +197,50 @@ PY
 ENDSSH
 }
 
+configure_content_service_auth() {
+    log_info "Configuring ContentOS service auth..."
+
+    ssh "$SERVER" <<ENDSSH
+        set -euo pipefail
+
+        cd "$CONTENT_DIR"
+
+        python3 - <<'PY'
+from pathlib import Path
+import json
+
+env_path = Path(".env.local")
+updates = {
+    "GENILINK_JWKS_URL": ${CONTENT_GENILINK_JWKS_URL@Q},
+    "GENILINK_ISSUER": ${CONTENT_GENILINK_ISSUER@Q},
+    "GENILINK_AUDIENCE": ${CONTENT_GENILINK_AUDIENCE@Q},
+}
+
+lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+output = []
+seen = set()
+
+for line in lines:
+    stripped = line.lstrip()
+    if stripped.startswith("#") or "=" not in line:
+        output.append(line)
+        continue
+    key, _ = line.split("=", 1)
+    if key in updates:
+        output.append(f"{key}={json.dumps(updates[key])}")
+        seen.add(key)
+    else:
+        output.append(line)
+
+for key, value in updates.items():
+    if key not in seen:
+        output.append(f"{key}={json.dumps(value)}")
+
+env_path.write_text("\n".join(output) + "\n", encoding="utf-8")
+PY
+ENDSSH
+}
+
 # Check if we're deploying locally or remotely
 if [ "${1:-}" = "local" ]; then
     # Local deployment (running on the server itself)
@@ -212,6 +259,7 @@ if [ "${1:-}" = "local" ]; then
     NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
     configure_frontend_content_brief_llm
+    configure_content_service_auth
 
     # Restart services
     log_info "Restarting services..."
@@ -262,6 +310,7 @@ else
     fi
 
     configure_frontend_content_brief_llm
+    configure_content_service_auth
 
     # Build and restart on remote server
     log_info "Building and restarting services on remote server..."
