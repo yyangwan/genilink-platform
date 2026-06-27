@@ -25,7 +25,7 @@ NC='\033[0m' # No Color
 # Configuration
 DOMAIN="genilink.cn"
 FRONTEND_PORT=3001
-CONTENT_PORT=4003
+CONTENT_PORT=4002
 FRONTEND_DIR="/opt/genilink-platform"
 CONTENT_DIR="/opt/genilink-platform/content"
 LOG_DIR="/var/log/genilink"
@@ -197,7 +197,7 @@ check_port() {
 failed=0
 
 check_port 3001 "Frontend" || failed=1
-check_port 4003 "ContentOS" || failed=1
+check_port 4002 "ContentOS" || failed=1
 
 if [ $failed -eq 0 ]; then
     echo "All services are healthy"

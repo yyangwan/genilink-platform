@@ -14,7 +14,7 @@ module.exports = {
         PORT: 3001,
         BILLING_DISABLED: 'true',
         VISIBILITY_SERVICE_URL: 'http://127.0.0.1:8000',
-        CONTENT_SERVICE_URL: 'http://127.0.0.1:4003',
+        CONTENT_SERVICE_URL: 'http://127.0.0.1:4002',
         CONTENT_BRIEF_LLM_API_KEY: 'deepseek',
         CONTENT_BRIEF_LLM_BASE_URL: 'http://127.0.0.1:8081',
         CONTENT_BRIEF_LLM_MODEL: 'deepseek-v4-flash',

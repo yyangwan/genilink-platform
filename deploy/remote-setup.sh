@@ -48,7 +48,7 @@ upstream genilink_frontend {
 }
 
 upstream genilink_content {
-    server 127.0.0.1:4003;
+    server 127.0.0.1:4002;
     keepalive 64;
 }
 

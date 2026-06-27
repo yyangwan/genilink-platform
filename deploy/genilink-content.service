@@ -9,11 +9,11 @@ User=genilink
 Group=genilink
 WorkingDirectory=/opt/genilink-platform/content
 Environment=NODE_ENV=production
-Environment=PORT=4003
+Environment=PORT=4002
 EnvironmentFile=/opt/genilink-platform/content/.env.local
 
 # Process management
-ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 4003
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 4002
 Restart=on-failure
 RestartSec=10
 TimeoutStartSec=60

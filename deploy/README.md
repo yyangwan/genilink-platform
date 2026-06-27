@@ -9,7 +9,7 @@
 | 组件 | 位置 | 地址/端口 | 管理方式 |
 | --- | --- | --- | --- |
 | 智链前台 | `/opt/genilink-platform` | `3001` | PM2 |
-| 智创 / ContentOS | `/opt/genilink-platform/content` | `4003` | PM2 |
+| 智创 / ContentOS | `/opt/genilink-platform/content` | `4002` | PM2 |
 | Higress 网关 | `/opt/higress-standalone/compose` | `8080` / `8081` / `8443` / `8848` / `8888` / `15020` | systemd + `docker compose` |
 | 智见 / Visibility | `root@8.147.56.119:/root/geo-visibility-analyze` | `http://127.0.0.1:8000` on host, exposed via `https://genilink.cn/visibility` | SSH + `docker compose` |
 
@@ -180,7 +180,7 @@ systemctl reload nginx
 
 ```bash
 curl http://127.0.0.1:3001/
-curl http://127.0.0.1:4003/
+curl http://127.0.0.1:4002/
 curl https://genilink.cn/health
 curl http://127.0.0.1:8000/api/health
 ```

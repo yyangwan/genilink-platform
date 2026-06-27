@@ -31,7 +31,7 @@ module.exports = {
         // Remote visibility service
         VISIBILITY_SERVICE_URL: 'http://127.0.0.1:8000',
         // Content service on the production host
-        CONTENT_SERVICE_URL: 'http://127.0.0.1:4003',
+        CONTENT_SERVICE_URL: 'http://127.0.0.1:4002',
         // LLM for converting visibility suggestions into content briefs
         CONTENT_BRIEF_LLM_API_KEY: 'deepseek',
         CONTENT_BRIEF_LLM_BASE_URL: 'http://127.0.0.1:8081',
@@ -56,11 +56,11 @@ module.exports = {
     {
       name: 'genilink-content',
       script: 'node_modules/next/dist/bin/next',
-      args: 'start -p 4003',
+      args: 'start -p 4002',
       cwd: '/opt/genilink-platform/content',
       env: {
         NODE_ENV: 'production',
-        PORT: 4003,
+        PORT: 4002,
         // ContentOS JWT config
         NO_PROXY: 'localhost,127.0.0.1',
         // Production URLs
@@ -69,7 +69,7 @@ module.exports = {
         // Database (use the shared RDS instance; fill in the production password in server env)
         DATABASE_URL: 'postgresql://genilink:CHANGE_THIS_PASSWORD@pgm-2zet5egdri6ubm411o.pg.rds.aliyuncs.com:5432/genilink?connection_limit=15&pool_timeout=10',
         // Service URLs
-        CONTENT_SERVICE_URL: 'http://127.0.0.1:4003',
+        CONTENT_SERVICE_URL: 'http://127.0.0.1:4002',
         VISIBILITY_SERVICE_URL: 'http://127.0.0.1:8000',
       },
       instances: 1,

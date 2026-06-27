@@ -7,7 +7,7 @@
 ## 当前状态
 
 - 智链前台运行在 `3001`
-- 智创 / ContentOS 运行在 `4003`
+- 智创 / ContentOS 运行在 `4002`
 - Higress 运行在同一台服务器上，管理目录是 `/opt/higress-standalone/compose`
 - 智见在主机本地通过 `http://127.0.0.1:8000` 提供服务，对外再由 nginx 映射到 `https://genilink.cn/visibility`
 - 服务器侧常用管理方式是 `PM2 + Nginx + Higress`
