@@ -34,7 +34,7 @@ module.exports = {
         CONTENT_SERVICE_URL: 'http://127.0.0.1:4003',
         // LLM for converting visibility suggestions into content briefs
         CONTENT_BRIEF_LLM_API_KEY: 'deepseek',
-        CONTENT_BRIEF_LLM_BASE_URL: 'http://llm-deepseek.internal.dns:8081',
+        CONTENT_BRIEF_LLM_BASE_URL: 'http://127.0.0.1:8081',
         CONTENT_BRIEF_LLM_MODEL: 'deepseek-v4-flash',
         // Production URLs
         NEXT_PUBLIC_APP_URL: 'https://genilink.cn',

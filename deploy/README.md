@@ -74,7 +74,7 @@ Windows 下使用：
 | `VISIBILITY_ANALYSIS_LLM_BASE_URL` | `http://llm-deepseek.internal.dns:8081` | 智见分析链路默认走 Higress 的 base URL；也可覆盖为直连 DeepSeek |
 | `VISIBILITY_ANALYSIS_LLM_MODEL` | `deepseek-v4-flash` | 智见分析链路使用的模型名 |
 | `CONTENT_BRIEF_LLM_API_KEY` | 继承 `VISIBILITY_ANALYSIS_LLM_API_KEY` | 智创把智见优化建议分析成创建内容 brief 时使用的 API key |
-| `CONTENT_BRIEF_LLM_BASE_URL` | 继承 `VISIBILITY_ANALYSIS_LLM_BASE_URL` | 智创 brief 分析默认走 Higress/DeepSeek 兼容接口 |
+| `CONTENT_BRIEF_LLM_BASE_URL` | `http://127.0.0.1:8081` | 智创 brief 分析运行在主机 PM2 进程中，默认走主机本地 Higress/DeepSeek 兼容接口 |
 | `CONTENT_BRIEF_LLM_MODEL` | 继承 `VISIBILITY_ANALYSIS_LLM_MODEL` | 智创 brief 分析使用的模型名 |
 | `HIGRESS_REMOTE_SSH_TARGET` | `root@8.147.56.119` | Higress 所在服务器 |
 | `HIGRESS_REMOTE_ROOT` | `/opt/higress-standalone/compose` | Higress compose 目录 |
