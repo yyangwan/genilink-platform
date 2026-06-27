@@ -24,6 +24,9 @@ VISIBILITY_DEEPSEEK_GATEWAY_MODEL="${VISIBILITY_DEEPSEEK_GATEWAY_MODEL:-deepseek
 VISIBILITY_ANALYSIS_LLM_API_KEY="${VISIBILITY_ANALYSIS_LLM_API_KEY:-deepseek}"
 VISIBILITY_ANALYSIS_LLM_BASE_URL="${VISIBILITY_ANALYSIS_LLM_BASE_URL:-http://llm-deepseek.internal.dns:8081}"
 VISIBILITY_ANALYSIS_LLM_MODEL="${VISIBILITY_ANALYSIS_LLM_MODEL:-deepseek-v4-flash}"
+CONTENT_BRIEF_LLM_API_KEY="${CONTENT_BRIEF_LLM_API_KEY:-$VISIBILITY_ANALYSIS_LLM_API_KEY}"
+CONTENT_BRIEF_LLM_BASE_URL="${CONTENT_BRIEF_LLM_BASE_URL:-$VISIBILITY_ANALYSIS_LLM_BASE_URL}"
+CONTENT_BRIEF_LLM_MODEL="${CONTENT_BRIEF_LLM_MODEL:-$VISIBILITY_ANALYSIS_LLM_MODEL}"
 LOCAL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Colors
@@ -140,6 +143,55 @@ PY
 ENDSSH
 }
 
+configure_frontend_content_brief_llm() {
+    if [ -z "$CONTENT_BRIEF_LLM_API_KEY" ]; then
+        log_warn "CONTENT_BRIEF_LLM_API_KEY is empty; skipping content brief LLM configuration"
+        return 0
+    fi
+
+    log_info "Configuring frontend content brief LLM..."
+
+    ssh "$SERVER" <<ENDSSH
+        set -euo pipefail
+
+        cd "$FRONTEND_DIR"
+
+        python3 - <<'PY'
+from pathlib import Path
+import json
+
+env_path = Path(".env")
+updates = {
+    "CONTENT_BRIEF_LLM_API_KEY": ${CONTENT_BRIEF_LLM_API_KEY@Q},
+    "CONTENT_BRIEF_LLM_BASE_URL": ${CONTENT_BRIEF_LLM_BASE_URL@Q},
+    "CONTENT_BRIEF_LLM_MODEL": ${CONTENT_BRIEF_LLM_MODEL@Q},
+}
+
+lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+output = []
+seen = set()
+
+for line in lines:
+    stripped = line.lstrip()
+    if stripped.startswith("#") or "=" not in line:
+        output.append(line)
+        continue
+    key, _ = line.split("=", 1)
+    if key in updates:
+        output.append(f"{key}={json.dumps(updates[key])}")
+        seen.add(key)
+    else:
+        output.append(line)
+
+for key, value in updates.items():
+    if key not in seen:
+        output.append(f"{key}={json.dumps(value)}")
+
+env_path.write_text("\n".join(output) + "\n", encoding="utf-8")
+PY
+ENDSSH
+}
+
 # Check if we're deploying locally or remotely
 if [ "${1:-}" = "local" ]; then
     # Local deployment (running on the server itself)
@@ -156,6 +208,8 @@ if [ "${1:-}" = "local" ]; then
     cd "$CONTENT_DIR"
     npm ci --production=false
     NODE_OPTIONS="--max-old-space-size=4096" npm run build
+
+    configure_frontend_content_brief_llm
 
     # Restart services
     log_info "Restarting services..."
@@ -204,6 +258,8 @@ else
     else
         log_warn "Content directory not found: $CONTENT_LOCAL_ROOT"
     fi
+
+    configure_frontend_content_brief_llm
 
     # Build and restart on remote server
     log_info "Building and restarting services on remote server..."

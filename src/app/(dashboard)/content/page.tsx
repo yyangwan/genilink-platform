@@ -1,8 +1,9 @@
 ﻿"use client";
 
-import React, { Suspense } from "react";
+import React, { Suspense, useState } from "react";
 import { Sparkles, ArrowRight, Plus, FileText } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { useProject } from "@/components/project/project-context";
 import {
@@ -35,6 +36,8 @@ const metricStyle: React.CSSProperties = {
 function DataBridge({ projectId }: { projectId: string }) {
   const bridgeUrl = projectId ? `/api/integration/suggestions?projectId=${projectId}` : null;
   const bridge = useSectionFetch<SuggestionForContentBrief[]>(bridgeUrl);
+  const router = useRouter();
+  const [loadingSuggestionId, setLoadingSuggestionId] = useState<string | null>(null);
 
   if (bridge.loading) {
     return (
@@ -58,7 +61,30 @@ function DataBridge({ projectId }: { projectId: string }) {
 
   const suggestions = bridge.data.slice(0, 8);
 
-  const priorityBadge = (priority: string): React.CSSProperties => ({
+  async function createFromSuggestion(suggestion: SuggestionForContentBrief, index: number) {
+    const loadingId = suggestion.id ?? String(index);
+    setLoadingSuggestionId(loadingId);
+    try {
+      const res = await fetch(`/api/content/brief-from-suggestion?projectId=${projectId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, suggestion }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        router.push(`/content/new?${contentBriefToSearchParams(json.data).toString()}`);
+        return;
+      }
+    } catch {
+      // Fall back to deterministic local extraction below.
+    } finally {
+      setLoadingSuggestionId(null);
+    }
+
+    router.push(`/content/new?${contentBriefToSearchParams(createContentBriefFromSuggestion(suggestion)).toString()}`);
+  }
+
+  const priorityBadge = (priority = "medium"): React.CSSProperties => ({
     display: "inline-flex",
     alignItems: "center",
     fontSize: 11,
@@ -105,21 +131,24 @@ function DataBridge({ projectId }: { projectId: string }) {
                 {suggestion.text}
               </span>
             </div>
-            <Link
-              href={`/content/new?${contentBriefToSearchParams(createContentBriefFromSuggestion(suggestion)).toString()}`}
+            <button
+              onClick={() => createFromSuggestion(suggestion, i)}
+              disabled={loadingSuggestionId === (suggestion.id ?? String(i))}
               className="flex items-center gap-1 text-xs font-medium shrink-0 ml-3"
               style={{
                 color: "var(--color-primary)",
                 fontFamily: "var(--font-body)",
-                textDecoration: "none",
+                border: "none",
                 padding: "4px 10px",
                 borderRadius: "var(--radius-md)",
                 background: "color-mix(in srgb, var(--color-primary) 10%, transparent)",
+                cursor: loadingSuggestionId ? "wait" : "pointer",
+                opacity: loadingSuggestionId === (suggestion.id ?? String(i)) ? 0.7 : 1,
               }}
             >
               <Sparkles size={12} />
-              AI 生成
-            </Link>
+              {loadingSuggestionId === (suggestion.id ?? String(i)) ? "分析中" : "AI 生成"}
+            </button>
           </div>
         ))}
       </div>

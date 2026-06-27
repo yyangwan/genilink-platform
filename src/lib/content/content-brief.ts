@@ -28,6 +28,11 @@ export interface ContentBrief {
   references: string;
   notes: string;
   platforms: string[];
+  contentType?: string;
+  intent?: string;
+  titleCandidates?: string[];
+  mustMention?: string[];
+  avoid?: string[];
 }
 
 const SUPPORTED_PLATFORMS = new Set(["wechat", "weibo", "douyin", "xiaohongshu", "toutiao", "zhihu"]);
@@ -63,6 +68,31 @@ function unique(values: string[], limit?: number) {
     if (limit && result.length >= limit) break;
   }
   return result;
+}
+
+function normalizeUrl(value: string) {
+  const trimmed = cleanText(value);
+  if (!trimmed) return "";
+  try {
+    const url = new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`);
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function isSpecificReferenceUrl(value: string) {
+  const normalized = normalizeUrl(value);
+  if (!normalized) return false;
+  const url = new URL(normalized);
+  const pathParts = url.pathname.split("/").filter(Boolean);
+  const hasContentPathHint = /\/(articles?|blogs?|posts?|news|docs?|guides?|cases?|learn|resources?|questions?|knowledge|insights?)\b/i.test(url.pathname);
+  return pathParts.length >= 2 || hasContentPathHint;
+}
+
+export function filterSpecificReferenceUrls(values: string[], limit = 5) {
+  return unique(values.map(normalizeUrl).filter(isSpecificReferenceUrl), limit);
 }
 
 function outlineItems(outline?: string) {
@@ -110,7 +140,7 @@ export function createContentBriefFromSuggestion(suggestion: SuggestionForConten
     8,
   );
 
-  const referenceLines = unique([...(suggestion.action_sources ?? []), ...(suggestion.evidence_sources ?? [])]);
+  const referenceLines = filterSpecificReferenceUrls([...(suggestion.action_sources ?? []), ...(suggestion.evidence_sources ?? [])]);
 
   const noteLines = unique([
     suggestion.description ?? "",
