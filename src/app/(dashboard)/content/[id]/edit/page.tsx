@@ -61,6 +61,11 @@ export function getEditContentProjectError(projectLoading: boolean, currentProje
   return null;
 }
 
+export function pickInitialPlatformContent(platformContents: PlatformContent[]) {
+  if (platformContents.length === 0) return null;
+  return platformContents.find((pc) => (pc.content ?? "").trim().length > 0) ?? platformContents[0] ?? null;
+}
+
 function EditContentInner({ id }: { id: string }) {
   const { currentProjectId, loading: projectLoading } = useProject();
   const [content, setContent] = useState("");
@@ -107,9 +112,9 @@ function EditContentInner({ id }: { id: string }) {
 
         if (data.platformContents && data.platformContents.length > 0) {
           setPlatformContents(data.platformContents);
-          // Default to first platform tab
-          setActivePlatform(data.platformContents[0].platform);
-          setContent(data.platformContents[0].content ?? "");
+          const initialPlatform = pickInitialPlatformContent(data.platformContents);
+          setActivePlatform(initialPlatform?.platform ?? data.platformContents[0].platform);
+          setContent(initialPlatform?.content ?? "");
         } else {
           setContent((data as Record<string, unknown>).content as string ?? "");
         }
