@@ -54,7 +54,7 @@ describe('GET /api/integration/trends/audits-history', () => {
   });
 
   it('returns audit history from upstream', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(historyResponse) });
+    mockFetch.mockResolvedValueOnce(Response.json(historyResponse));
 
     const req = makeReq('http://localhost/api/integration/trends/audits-history?projectId=proj-1');
     const res = await getAuditsHistory(req);
@@ -72,7 +72,7 @@ describe('GET /api/integration/trends/audits-history', () => {
   });
 
   it('returns 502 on upstream failure', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
+    mockFetch.mockResolvedValueOnce(Response.json({ error: 'upstream failed' }, { status: 500 }));
 
     const req = makeReq('http://localhost/api/integration/trends/audits-history?projectId=proj-1');
     const res = await getAuditsHistory(req);
@@ -88,7 +88,7 @@ describe('POST /api/integration/strategic/compare-audits', () => {
   });
 
   it('returns comparison data from upstream', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(compareResponse) });
+    mockFetch.mockResolvedValueOnce(Response.json(compareResponse));
 
     const req = makeReq('http://localhost/api/integration/strategic/compare-audits?projectId=proj-1', {
       method: 'POST',
@@ -133,7 +133,7 @@ describe('POST /api/integration/strategic/compare-audits', () => {
   });
 
   it('returns 502 on upstream failure', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
+    mockFetch.mockResolvedValueOnce(Response.json({ error: 'upstream failed' }, { status: 500 }));
 
     const req = makeReq('http://localhost/api/integration/strategic/compare-audits?projectId=proj-1', {
       method: 'POST',

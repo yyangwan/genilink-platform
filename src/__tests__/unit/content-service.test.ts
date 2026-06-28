@@ -108,20 +108,29 @@ describe('content service', () => {
     });
   });
 
-  it('generateContent uses the first selected platform for upstream generation', async () => {
-    mockProxyStreamRequest.mockResolvedValue(new Response('stream'));
-    await generateContent(ctx, 'c1', { platforms: ['xiaohongshu', 'wechat'] });
+  it('generateContent generates every selected platform', async () => {
+    mockProxyStreamRequest.mockImplementation(() => Promise.resolve(new Response('stream')));
+    const res = await generateContent(ctx, 'c1', { platforms: ['xiaohongshu', 'wechat'] });
 
-    expect(mockProxyStreamRequest).toHaveBeenCalledWith({
+    expect(mockProxyStreamRequest).toHaveBeenCalledTimes(2);
+    expect(mockProxyStreamRequest).toHaveBeenNthCalledWith(1, {
       ...baseArgs,
       path: '/api/generate',
       method: 'POST',
       body: { contentPieceId: 'c1', platforms: ['xiaohongshu', 'wechat'], platform: 'xiaohongshu' },
       timeoutMs: 180_000,
     });
+    expect(mockProxyStreamRequest).toHaveBeenNthCalledWith(2, {
+      ...baseArgs,
+      path: '/api/generate',
+      method: 'POST',
+      body: { contentPieceId: 'c1', platforms: ['xiaohongshu', 'wechat'], platform: 'wechat' },
+      timeoutMs: 180_000,
+    });
+    await expect(res.json()).resolves.toEqual({ ok: true, platforms: ['xiaohongshu', 'wechat'] });
   });
 
-  it('generateContent falls back to wechat when selected platform has no upstream prompt builder', async () => {
+  it('generateContent preserves the selected platform', async () => {
     mockProxyStreamRequest.mockResolvedValue(new Response('stream'));
     await generateContent(ctx, 'c1', { platforms: ['zhihu'], topic: 'AI visibility' });
 
@@ -129,7 +138,7 @@ describe('content service', () => {
       ...baseArgs,
       path: '/api/generate',
       method: 'POST',
-      body: { contentPieceId: 'c1', platforms: ['zhihu'], topic: 'AI visibility', platform: 'wechat' },
+      body: { contentPieceId: 'c1', platforms: ['zhihu'], topic: 'AI visibility', platform: 'zhihu' },
       timeoutMs: 180_000,
     });
   });

@@ -5,7 +5,7 @@ const SERVICE = 'content' as const;
 
 export const CRUD_TIMEOUT = 30_000;
 export const STREAM_TIMEOUT = 180_000;
-const GENERATION_PLATFORMS = new Set(['wechat', 'weibo', 'xiaohongshu', 'douyin']);
+const DEFAULT_GENERATION_PLATFORM = 'wechat';
 
 type Ctx = Pick<ContentAuthContext, 'projectId' | 'serviceToken'> & { accessToken?: string };
 
@@ -35,14 +35,21 @@ export function deleteContent(ctx: Ctx, contentId: string) {
   return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}`, method: 'DELETE', timeoutMs: CRUD_TIMEOUT });
 }
 
-export function generateContent(ctx: Ctx, contentId: string, body: Record<string, unknown>) {
-  const requestedPlatform = typeof body.platform === 'string'
-    ? body.platform
-    : Array.isArray(body.platforms) && typeof body.platforms[0] === 'string'
-      ? body.platforms[0]
-      : 'wechat';
-  const platform = GENERATION_PLATFORMS.has(requestedPlatform) ? requestedPlatform : 'wechat';
+function getRequestedPlatforms(body: Record<string, unknown>) {
+  const requested = typeof body.platform === 'string'
+    ? [body.platform]
+    : Array.isArray(body.platforms)
+      ? body.platforms.filter((platform): platform is string => typeof platform === 'string')
+      : [];
 
+  const platforms = requested
+    .map((platform) => platform.trim())
+    .filter(Boolean);
+
+  return [...new Set(platforms)].length > 0 ? [...new Set(platforms)] : [DEFAULT_GENERATION_PLATFORM];
+}
+
+function generateSinglePlatform(ctx: Ctx, contentId: string, body: Record<string, unknown>, platform: string) {
   return proxyStreamRequest({
     ...ctxOpts(ctx),
     path: '/api/generate',
@@ -50,6 +57,25 @@ export function generateContent(ctx: Ctx, contentId: string, body: Record<string
     body: { ...body, contentPieceId: contentId, platform },
     timeoutMs: STREAM_TIMEOUT,
   });
+}
+
+export async function generateContent(ctx: Ctx, contentId: string, body: Record<string, unknown>) {
+  const platforms = getRequestedPlatforms(body);
+
+  if (platforms.length === 1) {
+    return generateSinglePlatform(ctx, contentId, body, platforms[0]);
+  }
+
+  const generatedPlatforms: string[] = [];
+  for (const platform of platforms) {
+    const response = await generateSinglePlatform(ctx, contentId, body, platform);
+    if (!response.ok) return response;
+
+    await response.text();
+    generatedPlatforms.push(platform);
+  }
+
+  return Response.json({ ok: true, platforms: generatedPlatforms });
 }
 
 export function publishContent(ctx: Ctx, contentId: string, body: unknown) {
