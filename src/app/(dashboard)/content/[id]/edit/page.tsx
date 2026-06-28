@@ -55,8 +55,14 @@ const PLATFORM_LABELS: Record<string, string> = {
   zhihu: "知乎",
 };
 
+export function getEditContentProjectError(projectLoading: boolean, currentProjectId: string | null) {
+  if (projectLoading) return null;
+  if (!currentProjectId) return "请先选择一个项目，再打开内容编辑页";
+  return null;
+}
+
 function EditContentInner({ id }: { id: string }) {
-  const { currentProjectId } = useProject();
+  const { currentProjectId, loading: projectLoading } = useProject();
   const [content, setContent] = useState("");
   const [title, setTitle] = useState("");
   const [contentStatus, setContentStatus] = useState("draft");
@@ -74,7 +80,13 @@ function EditContentInner({ id }: { id: string }) {
 
   // Fetch existing content on mount
   useEffect(() => {
-    if (!id || !currentProjectId) return;
+    if (!id) return;
+    const projectError = getEditContentProjectError(projectLoading, currentProjectId);
+    if (projectError) {
+      setError(projectError);
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
     async function load() {
@@ -109,7 +121,7 @@ function EditContentInner({ id }: { id: string }) {
     }
     load();
     return () => { cancelled = true; };
-  }, [id, currentProjectId]);
+  }, [id, currentProjectId, projectLoading]);
 
   // Switch platform tab
   const switchPlatform = useCallback((platform: string) => {
