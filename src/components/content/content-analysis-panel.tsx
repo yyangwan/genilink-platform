@@ -103,9 +103,34 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+function readOptimizedContent(data: unknown, fallback: string) {
+  if (!data || typeof data !== "object") {
+    return {
+      original: fallback,
+      optimized: fallback,
+      diff: undefined,
+    };
+  }
+
+  const record = data as Record<string, unknown>;
+  return {
+    original: typeof record.original === "string" ? record.original : fallback,
+    optimized: typeof record.optimized === "string"
+      ? record.optimized
+      : typeof record.content === "string"
+        ? record.content
+        : typeof record.result === "string"
+          ? record.result
+          : typeof record.text === "string"
+            ? record.text
+            : fallback,
+    diff: typeof record.diff === "string" ? record.diff : undefined,
+  };
+}
+
 export function buildContentAnalysisUrl(
   contentPieceId: string,
-  endpoint: "quality" | "quality/local" | "optimize-seo",
+  endpoint: "quality" | "quality/local" | "optimize" | "optimize-seo",
   projectId: string,
   query: Record<string, string | undefined> = {},
 ) {
@@ -133,14 +158,17 @@ export function ContentAnalysisPanel({
   const [localLoading, setLocalLoading] = useState(false);
   const [aiQuality, setAiQuality] = useState<AIQualityAnalysis | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [qualityLoading, setQualityLoading] = useState(false);
   const [seoLoading, setSeoLoading] = useState(false);
-  const [optimization, setOptimization] = useState<OptimizationResult | null>(null);
+  const [qualityOptimization, setQualityOptimization] = useState<OptimizationResult | null>(null);
+  const [seoOptimization, setSeoOptimization] = useState<OptimizationResult | null>(null);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     setLocalAnalysis(null);
     setAiQuality(null);
-    setOptimization(null);
+    setQualityOptimization(null);
+    setSeoOptimization(null);
     setFeedback(null);
   }, [contentPieceId, platform, projectId]);
 
@@ -191,6 +219,49 @@ export function ContentAnalysisPanel({
     }
   }, [contentPieceId, platform, projectId]);
 
+  const optimizeQuality = useCallback(async () => {
+    if (!projectId) {
+      setFeedback({ tone: "error", text: "缺少项目上下文，无法生成质量优化" });
+      return;
+    }
+    if (!content.trim()) {
+      setFeedback({ tone: "error", text: "先填写内容，再做质量优化" });
+      return;
+    }
+
+    setQualityLoading(true);
+    try {
+      const res = await fetch(buildContentAnalysisUrl(contentPieceId, "optimize", projectId), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          content,
+          platform,
+          qualityAnalysis: {
+            localAnalysis,
+            aiQuality,
+            qualityScore: combinedQualityScore,
+            suggestions: [...localSuggestions, ...aiSuggestions],
+          },
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(json?.error || "生成质量优化失败");
+      }
+
+      const data = json?.data ?? json ?? {};
+      const optimized = readOptimizedContent(data, content);
+      setQualityOptimization({ ...optimized, applied: false });
+      setFeedback({ tone: "success", text: "质量优化建议已生成" });
+    } catch (error) {
+      setFeedback({ tone: "error", text: error instanceof Error ? error.message : "生成质量优化失败" });
+    } finally {
+      setQualityLoading(false);
+    }
+  }, [aiQuality, aiSuggestions, combinedQualityScore, content, contentPieceId, localAnalysis, localSuggestions, platform, projectId]);
+
   const optimizeSeo = useCallback(async () => {
     if (!projectId) {
       setFeedback({ tone: "error", text: "缺少项目上下文，无法生成 SEO 优化" });
@@ -214,20 +285,7 @@ export function ContentAnalysisPanel({
       }
 
       const data = json?.data ?? json ?? {};
-      setOptimization({
-        original: typeof data.original === "string" ? data.original : content,
-        optimized: typeof data.optimized === "string"
-          ? data.optimized
-          : typeof data.content === "string"
-            ? data.content
-            : typeof data.result === "string"
-              ? data.result
-              : typeof data.text === "string"
-                ? data.text
-                : content,
-        diff: typeof data.diff === "string" ? data.diff : undefined,
-        applied: false,
-      });
+      setSeoOptimization({ ...readOptimizedContent(data, content), applied: false });
       setFeedback({ tone: "success", text: "SEO 优化建议已生成" });
     } catch (error) {
       setFeedback({ tone: "error", text: error instanceof Error ? error.message : "生成 SEO 优化失败" });
@@ -236,14 +294,23 @@ export function ContentAnalysisPanel({
     }
   }, [content, contentPieceId, keyword, projectId]);
 
-  const applyOptimization = useCallback(async () => {
-    if (!optimization || !onContentUpdate) return;
-    const success = await onContentUpdate(optimization.optimized);
+  const applyQualityOptimization = useCallback(async () => {
+    if (!qualityOptimization || !onContentUpdate) return;
+    const success = await onContentUpdate(qualityOptimization.optimized);
     if (success) {
-      setOptimization({ ...optimization, applied: true });
-      setFeedback({ tone: "success", text: "优化结果已应用到编辑器" });
+      setQualityOptimization({ ...qualityOptimization, applied: true });
+      setFeedback({ tone: "success", text: "质量优化结果已应用到编辑器" });
     }
-  }, [onContentUpdate, optimization]);
+  }, [onContentUpdate, qualityOptimization]);
+
+  const applySeoOptimization = useCallback(async () => {
+    if (!seoOptimization || !onContentUpdate) return;
+    const success = await onContentUpdate(seoOptimization.optimized);
+    if (success) {
+      setSeoOptimization({ ...seoOptimization, applied: true });
+      setFeedback({ tone: "success", text: "SEO 优化结果已应用到编辑器" });
+    }
+  }, [onContentUpdate, seoOptimization]);
 
   useEffect(() => {
     if (isOpen && !localAnalysis && !localLoading) {
@@ -385,7 +452,7 @@ export function ContentAnalysisPanel({
                         }
                       />
 
-                      {aiQuality ? (
+                    {aiQuality ? (
                         <div
                           className="space-y-2 rounded-lg border p-3"
                           style={{ background: "var(--bg-elevated)", borderColor: "var(--border)" }}
@@ -406,6 +473,28 @@ export function ContentAnalysisPanel({
                       ) : (
                         <EmptyState icon={Sparkles} title="还没有 AI 质量分析" description="点击「生成」后，后端会返回质量评分和建议。" />
                       )}
+                    </section>
+
+                    <section className="space-y-1.5">
+                      <SectionDivider
+                        icon={Wand2}
+                        title="质量优化"
+                        right={
+                          <button
+                            type="button"
+                            onClick={optimizeQuality}
+                            disabled={qualityLoading}
+                            className={cx(styles.actionButton, "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px]")}
+                            style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
+                          >
+                            {qualityLoading ? <Loader2 className="size-3 animate-spin" /> : <Search className="size-3" />}
+                            生成优化
+                          </button>
+                        }
+                      />
+                      <p className="px-1 text-[11px] leading-5" style={{ color: "var(--text-secondary)" }}>
+                        会基于当前质量评分、结构和建议生成一版可直接替换的内容，随后可以一键写回编辑器。
+                      </p>
                     </section>
                   </>
                 ) : (
@@ -485,7 +574,71 @@ export function ContentAnalysisPanel({
             )}
           </div>
 
-          {optimization && (
+          {qualityOptimization && (
+            <div
+              className="border-t px-4 py-3 sm:px-5"
+              style={{ background: "var(--bg-elevated)", borderColor: "var(--border)" }}
+            >
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="flex size-7 items-center justify-center rounded-lg"
+                    style={semanticPanelStyle("info", 14)}
+                  >
+                    <Wand2 className="size-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-medium text-foreground">质量优化结果</h4>
+                  </div>
+                </div>
+                {!qualityOptimization.applied ? (
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={applyQualityOptimization}
+                      className={cx(styles.primaryAction, "inline-flex h-7 items-center gap-1 rounded-md bg-primary px-2.5 text-xs font-medium text-white")}
+                    >
+                      <Check className="size-3" />
+                      应用
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQualityOptimization(null)}
+                      className={cx(styles.actionButton, "inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-xs font-medium")}
+                      style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
+                    >
+                      <X className="size-3" />
+                      关闭
+                    </button>
+                  </div>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: "var(--color-success)" }}>
+                    <CheckCircle2 className="size-3.5" />
+                    已应用
+                  </span>
+                )}
+              </div>
+              {qualityOptimization.diff && (
+                <pre
+                  className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg p-2.5 text-xs leading-5"
+                  style={{ background: "var(--bg-card)", color: "var(--text-secondary)" }}
+                >
+                  {qualityOptimization.diff}
+                </pre>
+              )}
+              <details className="group mt-2">
+                <summary className={cx(styles.summaryTrigger, "text-[11px]")} style={{ color: "var(--text-secondary)" }}>
+                  查看完整对比
+                </summary>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <PreviewCard title="原始内容" accent="red" content={qualityOptimization.original} />
+                  <PreviewCard title="优化后内容" accent="green" content={qualityOptimization.optimized} />
+                </div>
+              </details>
+            </div>
+          )}
+
+          {seoOptimization && (
             <div
               className="border-t px-4 py-3 sm:px-5"
               style={{ background: "var(--bg-elevated)", borderColor: "var(--border)" }}
@@ -502,11 +655,11 @@ export function ContentAnalysisPanel({
                     <h4 className="text-xs font-medium text-foreground">SEO 优化结果</h4>
                   </div>
                 </div>
-                {!optimization.applied ? (
+                {!seoOptimization.applied ? (
                   <div className="flex gap-1.5">
                     <button
                       type="button"
-                      onClick={applyOptimization}
+                      onClick={applySeoOptimization}
                       className={cx(styles.primaryAction, "inline-flex h-7 items-center gap-1 rounded-md bg-primary px-2.5 text-xs font-medium text-white")}
                     >
                       <Check className="size-3" />
@@ -514,7 +667,7 @@ export function ContentAnalysisPanel({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setOptimization(null)}
+                      onClick={() => setSeoOptimization(null)}
                       className={cx(styles.actionButton, "inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-xs font-medium")}
                       style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
                     >
@@ -529,12 +682,12 @@ export function ContentAnalysisPanel({
                   </span>
                 )}
               </div>
-              {optimization.diff && (
+              {seoOptimization.diff && (
                 <pre
                   className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg p-2.5 text-xs leading-5"
                   style={{ background: "var(--bg-card)", color: "var(--text-secondary)" }}
                 >
-                  {optimization.diff}
+                  {seoOptimization.diff}
                 </pre>
               )}
               <details className="group mt-2">
@@ -542,8 +695,8 @@ export function ContentAnalysisPanel({
                   查看完整对比
                 </summary>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <PreviewCard title="原始内容" accent="red" content={optimization.original} />
-                  <PreviewCard title="优化后内容" accent="green" content={optimization.optimized} />
+                  <PreviewCard title="原始内容" accent="red" content={seoOptimization.original} />
+                  <PreviewCard title="优化后内容" accent="green" content={seoOptimization.optimized} />
                 </div>
               </details>
             </div>

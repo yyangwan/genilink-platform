@@ -27,6 +27,9 @@ describe("analyzeSeoContent", () => {
     expect(buildContentAnalysisUrl("content-1", "quality/local", "project-123", { platform: "wechat" })).toBe(
       "/api/content/content-1/quality/local?projectId=project-123&platform=wechat",
     );
+    expect(buildContentAnalysisUrl("content-1", "optimize", "project-123")).toBe(
+      "/api/content/content-1/optimize?projectId=project-123",
+    );
     expect(buildContentAnalysisUrl("content-1", "quality", "project-123")).toBe(
       "/api/content/content-1/quality?projectId=project-123",
     );
