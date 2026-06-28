@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getEditContentProjectError, pickInitialPlatformContent } from "@/app/(dashboard)/content/[id]/edit/page";
+import { canLoadEditContent, getEditContentProjectError, pickInitialPlatformContent } from "@/app/(dashboard)/content/[id]/edit/page";
 
 describe("getEditContentProjectError", () => {
   it("waits while projects are still loading", () => {
@@ -12,6 +12,11 @@ describe("getEditContentProjectError", () => {
 
   it("allows the page to proceed once a project is selected", () => {
     expect(getEditContentProjectError(false, "project-123")).toBeNull();
+  });
+
+  it("waits for project loading to finish before fetching content", () => {
+    expect(canLoadEditContent(true, null)).toBe(false);
+    expect(canLoadEditContent(false, "project-123")).toBe(true);
   });
 
   it("prefers the first platform that already has content", () => {

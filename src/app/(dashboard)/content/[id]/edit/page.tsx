@@ -66,6 +66,10 @@ export function pickInitialPlatformContent(platformContents: PlatformContent[]) 
   return platformContents.find((pc) => (pc.content ?? "").trim().length > 0) ?? platformContents[0] ?? null;
 }
 
+export function canLoadEditContent(projectLoading: boolean, currentProjectId: string | null) {
+  return !projectLoading && Boolean(currentProjectId);
+}
+
 function EditContentInner({ id }: { id: string }) {
   const { currentProjectId, loading: projectLoading } = useProject();
   const [content, setContent] = useState("");
@@ -86,10 +90,14 @@ function EditContentInner({ id }: { id: string }) {
   // Fetch existing content on mount
   useEffect(() => {
     if (!id) return;
-    const projectError = getEditContentProjectError(projectLoading, currentProjectId);
-    if (projectError) {
-      setError(projectError);
-      setLoading(false);
+    if (!canLoadEditContent(projectLoading, currentProjectId)) {
+      if (!projectLoading) {
+        const projectError = getEditContentProjectError(projectLoading, currentProjectId);
+        if (projectError) {
+          setError(projectError);
+          setLoading(false);
+        }
+      }
       return;
     }
 
