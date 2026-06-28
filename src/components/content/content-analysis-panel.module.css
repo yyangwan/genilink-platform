@@ -1,3 +1,10 @@
+.panel {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 96%, var(--color-primary) 4%), var(--bg-card));
+  border-color: color-mix(in srgb, var(--border) 92%, var(--color-primary) 8%);
+  color: var(--text-primary);
+}
+
 .panelHeader {
   cursor: pointer;
   position: relative;
@@ -51,7 +58,8 @@
 .actionButton,
 .tabChip,
 .summaryTrigger,
-.primaryAction {
+.primaryAction,
+.panel button:not(:disabled) {
   cursor: pointer;
   transition:
     transform var(--duration-short) var(--ease),
@@ -68,6 +76,15 @@
   border-color: color-mix(in srgb, var(--color-primary) 36%, var(--border)) !important;
   color: var(--text-primary) !important;
   box-shadow: var(--shadow-sm);
+}
+
+.panel button:not(:disabled):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 55%, white);
+  outline-offset: 2px;
+}
+
+.panel button:not(:disabled):hover {
+  filter: brightness(1.03);
 }
 
 .actionButton:active:not(:disabled),

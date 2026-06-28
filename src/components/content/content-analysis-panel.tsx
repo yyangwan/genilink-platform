@@ -324,7 +324,7 @@ export function ContentAnalysisPanel({
   const aiSuggestions = useMemo(() => parseAiSuggestions(aiQuality?.suggestions), [aiQuality?.suggestions]);
 
   return (
-    <section className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm ring-1 ring-black/5">
+    <section className={cx(styles.panel, "overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm ring-1 ring-black/5")}>
       <button
         type="button"
         onClick={() => setIsOpen((open) => !open)}

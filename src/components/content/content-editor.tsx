@@ -102,6 +102,17 @@ export function ContentEditor({
     if (editorRef) editorRef.current = editor;
   }, [editor, editorRef]);
 
+  // Keep the editor in sync with async loads and tab switches without
+  // clobbering in-flight edits when the HTML already matches.
+  useEffect(() => {
+    if (!editor) return;
+
+    const currentContent = editor.getHTML();
+    if (initialContent !== currentContent) {
+      editor.commands.setContent(initialContent, false);
+    }
+  }, [editor, initialContent]);
+
   // Auto-save indicator reset
   useEffect(() => {
     if (saveStatus === "unsaved") {
