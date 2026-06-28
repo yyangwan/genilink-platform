@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { analyzeSeoContent } from "./content-analysis";
+import styles from "./content-analysis-panel.module.css";
 
 interface LocalQualityAnalysis {
   localMetrics: {
@@ -96,6 +97,10 @@ function semanticPanelStyle(tone: AnalysisTone, strength = 10): CSSProperties {
     borderColor: toneBorder(tone),
     color: "var(--text-primary)",
   };
+}
+
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
 }
 
 export function buildContentAnalysisUrl(
@@ -256,11 +261,14 @@ export function ContentAnalysisPanel({
       <button
         type="button"
         onClick={() => setIsOpen((open) => !open)}
-        className="w-full bg-[linear-gradient(180deg,rgba(14,165,233,0.06),rgba(14,165,233,0))] px-4 py-3 text-left transition-colors hover:bg-secondary/20 sm:px-5"
+        className={cx(
+          styles.panelHeader,
+          "w-full bg-[linear-gradient(180deg,rgba(14,165,233,0.06),rgba(14,165,233,0))] px-4 py-3 text-left sm:px-5",
+        )}
       >
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <div className={cx(styles.headerIcon, "flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary")}>
               <BarChart3 className="size-4" />
             </div>
             <div className="min-w-0">
@@ -279,7 +287,7 @@ export function ContentAnalysisPanel({
             {combinedQualityScore != null && <ScoreBadge label="质量" value={combinedQualityScore} tone={getScoreTone(combinedQualityScore)} />}
             <ScoreBadge label="SEO" value={seoScore} tone={getScoreTone(seoScore)} />
             <div
-              className="flex size-7 items-center justify-center rounded-full border"
+              className={cx(styles.expandIcon, "flex size-7 items-center justify-center rounded-full border")}
               style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
             >
               {isOpen ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
@@ -315,7 +323,7 @@ export function ContentAnalysisPanel({
                       type="button"
                       onClick={loadLocalAnalysis}
                       disabled={localLoading}
-                      className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors"
+                      className={cx(styles.actionButton, "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px]")}
                       style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
                     >
                       {localLoading ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
@@ -368,7 +376,7 @@ export function ContentAnalysisPanel({
                             type="button"
                             onClick={loadAiQuality}
                             disabled={aiLoading}
-                            className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors"
+                            className={cx(styles.actionButton, "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px]")}
                             style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
                           >
                             {aiLoading ? <Loader2 className="size-3 animate-spin" /> : <Wand2 className="size-3" />}
@@ -461,7 +469,7 @@ export function ContentAnalysisPanel({
                         type="button"
                         onClick={optimizeSeo}
                         disabled={seoLoading}
-                        className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors disabled:cursor-not-allowed"
+                        className={cx(styles.actionButton, "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px]")}
                         style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
                       >
                         {seoLoading ? <Loader2 className="size-3 animate-spin" /> : <Search className="size-3" />}
@@ -499,7 +507,7 @@ export function ContentAnalysisPanel({
                     <button
                       type="button"
                       onClick={applyOptimization}
-                      className="inline-flex h-7 items-center gap-1 rounded-md bg-primary px-2.5 text-xs font-medium text-white"
+                      className={cx(styles.primaryAction, "inline-flex h-7 items-center gap-1 rounded-md bg-primary px-2.5 text-xs font-medium text-white")}
                     >
                       <Check className="size-3" />
                       应用
@@ -507,7 +515,7 @@ export function ContentAnalysisPanel({
                     <button
                       type="button"
                       onClick={() => setOptimization(null)}
-                      className="inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-xs font-medium"
+                      className={cx(styles.actionButton, "inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-xs font-medium")}
                       style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
                     >
                       <X className="size-3" />
@@ -530,7 +538,7 @@ export function ContentAnalysisPanel({
                 </pre>
               )}
               <details className="group mt-2">
-                <summary className="cursor-pointer text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                <summary className={cx(styles.summaryTrigger, "text-[11px]")} style={{ color: "var(--text-secondary)" }}>
                   查看完整对比
                 </summary>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -594,7 +602,7 @@ function TabChip({
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+      className={cx(styles.tabChip, active && styles.tabChipActive, "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium")}
       style={active
         ? {
             ...semanticPanelStyle(activeTone, 12),
