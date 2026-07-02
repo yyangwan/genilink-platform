@@ -19,6 +19,13 @@ function requiresModule(pathname: string): string | null {
 
 function hasSessionCookie(request: NextRequest): boolean {
   const cookieHeader = request.headers.get('cookie') ?? '';
+  if (process.env.NODE_ENV === 'production') {
+    return (
+      cookieHeader.includes('__Secure-authjs.session-token=') ||
+      cookieHeader.includes('__Host-authjs.session-token=')
+    );
+  }
+
   return (
     cookieHeader.includes('__Secure-authjs.session-token=') ||
     cookieHeader.includes('authjs.session-token=') ||

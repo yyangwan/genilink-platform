@@ -53,6 +53,21 @@ describe('proxy middleware', () => {
     expect(new URL(location!).searchParams.get('callbackUrl')).toBe('/onboarding');
   });
 
+  it('redirects legacy non-secure Auth.js cookies in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+
+    const req = new NextRequest('http://localhost/visibility', {
+      headers: { cookie: 'authjs.session-token=legacy-session' },
+    });
+
+    const res = await runProxy(req);
+    const location = res.headers.get('location');
+
+    expect(location).toBeTruthy();
+    expect(new URL(location!).pathname).toBe('/auth/login');
+    expect(new URL(location!).searchParams.get('callbackUrl')).toBe('/visibility');
+  });
+
   it('allows compare routes when billing is disabled', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     process.env.BILLING_DISABLED = 'true';
