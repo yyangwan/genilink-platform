@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { encode } from 'next-auth/jwt';
 
-const AUTH_SECRET =
-  process.env.AUTH_SECRET || 'change-me-to-a-secure-random-string';
+function getAuthSecret(): string {
+  return process.env.AUTH_SECRET || 'change-me-to-a-secure-random-string';
+}
+
+function getSessionCookieName(): string {
+  return process.env.NODE_ENV === 'production'
+    ? '__Secure-authjs.session-token'
+    : 'authjs.session-token';
+}
 
 export async function POST(req: NextRequest) {
   const { token } = await req.json();
@@ -59,10 +66,11 @@ export async function POST(req: NextRequest) {
     role: membership?.role,
   };
 
+  const sessionCookieName = getSessionCookieName();
   const sessionToken = await encode({
     token: jwtPayload,
-    secret: AUTH_SECRET,
-    salt: 'authjs.session-token',
+    secret: getAuthSecret(),
+    salt: sessionCookieName,
   });
 
   // Set session cookie and return success
@@ -71,7 +79,7 @@ export async function POST(req: NextRequest) {
     user: { id: user.id, name: user.name, email: user.email },
   });
 
-  response.cookies.set('authjs.session-token', sessionToken, {
+  response.cookies.set(sessionCookieName, sessionToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
