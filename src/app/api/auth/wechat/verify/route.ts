@@ -12,6 +12,10 @@ function getSessionCookieName(): string {
     : 'authjs.session-token';
 }
 
+function getSessionCookieDomain(): string | undefined {
+  return process.env.NODE_ENV === 'production' ? '.genilink.cn' : undefined;
+}
+
 export async function POST(req: NextRequest) {
   const { token } = await req.json();
 
@@ -85,6 +89,7 @@ export async function POST(req: NextRequest) {
     sameSite: 'lax',
     maxAge: 30 * 24 * 60 * 60, // 30 days
     path: '/',
+    domain: getSessionCookieDomain(),
   });
 
   return response;

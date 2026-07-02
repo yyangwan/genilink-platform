@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 
 const isDev = process.env.NODE_ENV === 'development';
+const authCookieDomain = isDev ? undefined : '.genilink.cn';
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -41,7 +42,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         sameSite: 'lax',
         path: '/',
         secure: !isDev,
-        domain: undefined,
+        domain: authCookieDomain,
       },
     },
   },

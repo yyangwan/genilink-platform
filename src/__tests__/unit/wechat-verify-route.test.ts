@@ -49,6 +49,7 @@ describe('POST /api/auth/wechat/verify', () => {
       secret: 'test-secret',
     }));
     expect(res.headers.get('set-cookie')).toContain('__Secure-authjs.session-token=signed-session-token');
+    expect(res.headers.get('set-cookie')).toContain('Domain=.genilink.cn');
     expect(res.headers.get('set-cookie')).toContain('Secure');
   });
 });
