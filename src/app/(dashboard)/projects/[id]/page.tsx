@@ -629,6 +629,21 @@ export default function ProjectDetailPage() {
           查看分析
         </button>
         <button
+          onClick={() => navigateWithProject("/website-analysis")}
+          className="flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-medium transition-colors"
+          style={{
+            background: "var(--bg-elevated)",
+            color: "var(--text-secondary)",
+            fontFamily: "var(--font-body)",
+            border: "1px solid var(--border)",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "var(--bg-elevated)")}
+        >
+          <Globe className="w-4 h-4" />
+          网站分析
+        </button>
+        <button
           onClick={() => navigateWithProject("/dashboard")}
           className="flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-medium transition-colors"
           style={{

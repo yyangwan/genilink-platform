@@ -32,6 +32,7 @@ import {
   Plug,
   Tag,
   Target,
+  Globe2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -75,8 +76,12 @@ const zhijianSection: NavSection = {
     { label: "竞品对比", href: "/compare", icon: GitCompareArrows },
     { label: "内容洞察", href: "/insights", icon: BarChart3 },
     { label: "战略智能", href: "/strategic", icon: Target },
+    { label: "网站分析", href: "/website-analysis", icon: Globe2 },
   ],
 };
+
+const zhijianWorkflowItems = zhijianSection.items.slice(0, 8);
+const zhijianToolItems = zhijianSection.items.slice(8);
 
 const zhichuangSection: NavSection = {
   id: "zhichuang",
@@ -332,15 +337,37 @@ export default function Sidebar() {
             />
           </button>
 
-          {/* Collapsible children */}
+          {/* Collapsible children - grouped by workflow type */}
           <div
             className={cn(
               "overflow-hidden transition-all duration-[var(--duration-medium)]",
-              accordion[zhijianSection.id] ? "max-h-[480px] opacity-100" : "max-h-0 opacity-0"
+              accordion[zhijianSection.id] ? "max-h-[560px] opacity-100" : "max-h-0 opacity-0"
             )}
           >
             <div className="pl-4 space-y-0.5">
-              {zhijianSection.items.map((item) => navLink(item))}
+              <div className="flex items-center gap-2 px-3 pt-1 pb-0.5">
+                <div className="flex-1" style={{ borderTop: "1px solid var(--border)" }} />
+                <span
+                  className="text-[10px] font-medium uppercase tracking-wider shrink-0"
+                  style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}
+                >
+                  AI 可见性工作流
+                </span>
+                <div className="flex-1" style={{ borderTop: "1px solid var(--border)" }} />
+              </div>
+              {zhijianWorkflowItems.map((item) => navLink(item))}
+
+              <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
+                <div className="flex-1" style={{ borderTop: "1px solid var(--border)" }} />
+                <span
+                  className="text-[10px] font-medium uppercase tracking-wider shrink-0"
+                  style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}
+                >
+                  独立评估工具
+                </span>
+                <div className="flex-1" style={{ borderTop: "1px solid var(--border)" }} />
+              </div>
+              {zhijianToolItems.map((item) => navLink(item))}
             </div>
           </div>
         </div>

@@ -9,6 +9,7 @@ import { Breadcrumb } from "@/components/ui/breadcrumb";
 const PATH_LABELS: Record<string, string> = {
   dashboard: "工作台",
   visibility: "可见性分析",
+  "website-analysis": "网站分析",
   audits: "审计记录",
   schedules: "定时任务",
   suggestions: "优化建议",
@@ -34,6 +35,7 @@ const PATH_LABELS: Record<string, string> = {
 
 const PATH_PARENT: Record<string, string> = {
   visibility: "智見",
+  "website-analysis": "网站评估",
   audits: "智見",
   schedules: "智見",
   suggestions: "智見",
