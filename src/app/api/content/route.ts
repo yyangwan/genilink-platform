@@ -4,9 +4,9 @@ import { handleProxyError } from '@/lib/proxy/proxy-errors';
 import { listContents, createContent } from '@/lib/content/service';
 import { normalizeContentList } from '@/lib/content/contract-adapters';
 
-export const GET = withContentAuth(async (ctx: ContentAuthContext) => {
+export const GET = withContentAuth(async (ctx: ContentAuthContext, req: NextRequest) => {
   try {
-    return NextResponse.json({ data: normalizeContentList(await listContents(ctx)) });
+    return NextResponse.json({ data: normalizeContentList(await listContents(ctx, req.nextUrl.searchParams)) });
   } catch (err) {
     return handleProxyError(err);
   }

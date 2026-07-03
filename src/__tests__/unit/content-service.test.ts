@@ -39,7 +39,24 @@ describe('content service', () => {
 
     expect(mockProxyRequest).toHaveBeenCalledWith({
       ...baseArgs,
-      path: '/api/content',
+      path: '/api/content?projectId=proj-1',
+      timeoutMs: 30_000,
+    });
+  });
+
+  it('listContents forwards list filters and canonical projectId', async () => {
+    mockProxyRequest.mockResolvedValue({ items: [] });
+    const params = new URLSearchParams({
+      projectId: 'tampered-project',
+      unscheduled: 'true',
+      status: 'draft',
+    });
+
+    await listContents(ctx, params);
+
+    expect(mockProxyRequest).toHaveBeenCalledWith({
+      ...baseArgs,
+      path: '/api/content?projectId=proj-1&unscheduled=true&status=draft',
       timeoutMs: 30_000,
     });
   });

@@ -15,8 +15,11 @@ function ctxOpts(ctx: Ctx) {
 
 // ─── Content CRUD ──────────────────────────────────────────────────
 
-export function listContents(ctx: Ctx) {
-  return proxyRequest({ ...ctxOpts(ctx), path: '/api/content', timeoutMs: CRUD_TIMEOUT });
+export function listContents(ctx: Ctx, searchParams?: URLSearchParams) {
+  const params = new URLSearchParams(searchParams);
+  params.set('projectId', ctx.projectId);
+  const query = params.toString();
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/content${query ? `?${query}` : ''}`, timeoutMs: CRUD_TIMEOUT });
 }
 
 export function createContent(ctx: Ctx, body: unknown) {
