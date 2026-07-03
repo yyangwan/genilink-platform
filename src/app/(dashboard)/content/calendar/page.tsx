@@ -29,6 +29,10 @@ const statusColors: Record<string, { color: string; bg: string }> = {
   failed: { color: "var(--color-error)", bg: "color-mix(in srgb, var(--color-error) 12%, transparent)" },
 };
 
+function formatDateParam(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
 function CalendarInner() {
   const { currentProjectId } = useProject();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -44,11 +48,20 @@ function CalendarInner() {
   const [viewMonth, setViewMonth] = useState(todayParts.month - 1);
 
   const fetchEvents = useCallback(async () => {
-    if (!currentProjectId) return;
+    if (!currentProjectId) {
+      setLoading(false);
+      setEvents([]);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/calendar/events?projectId=${currentProjectId}`);
+      const params = new URLSearchParams({
+        projectId: currentProjectId,
+        start: formatDateParam(new Date(Date.UTC(viewYear, viewMonth, 1))),
+        end: formatDateParam(new Date(Date.UTC(viewYear, viewMonth + 1, 0))),
+      });
+      const res = await fetch(`/api/calendar/events?${params.toString()}`);
       if (!res.ok) throw new Error("加载失败");
       const json = await res.json();
       setEvents(json.data ?? []);
@@ -57,7 +70,7 @@ function CalendarInner() {
     } finally {
       setLoading(false);
     }
-  }, [currentProjectId]);
+  }, [currentProjectId, viewMonth, viewYear]);
 
   React.useEffect(() => {
     fetchEvents();

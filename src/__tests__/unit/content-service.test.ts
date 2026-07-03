@@ -16,6 +16,7 @@ import {
   deleteContent,
   generateContent,
   generateGenieContent,
+  getCalendarEvents,
   publishContent,
 } from '@/lib/content/service';
 
@@ -155,6 +156,39 @@ describe('content service', () => {
       body,
       timeoutMs: 30_000,
     });
+  });
+
+  it('getCalendarEvents forwards calendar query params and canonical projectId', async () => {
+    mockProxyRequest.mockResolvedValue([]);
+    const params = new URLSearchParams({
+      projectId: 'tampered-project',
+      start: '2026-07-01',
+      end: '2026-07-31',
+      status: 'scheduled',
+    });
+
+    await getCalendarEvents(ctx, params);
+
+    expect(mockProxyRequest).toHaveBeenCalledWith({
+      ...baseArgs,
+      path: '/api/calendar/events?projectId=proj-1&start=2026-07-01&end=2026-07-31&status=scheduled',
+      timeoutMs: 30_000,
+    });
+  });
+
+  it('getCalendarEvents defaults to the current month when range is missing', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-03T12:00:00Z'));
+    mockProxyRequest.mockResolvedValue([]);
+
+    await getCalendarEvents(ctx, new URLSearchParams({ projectId: 'proj-1' }));
+
+    expect(mockProxyRequest).toHaveBeenCalledWith({
+      ...baseArgs,
+      path: '/api/calendar/events?projectId=proj-1&start=2026-07-01&end=2026-07-31',
+      timeoutMs: 30_000,
+    });
+    vi.useRealTimers();
   });
 
   it('generateGenieContent uses JSON proxyRequest instead of streaming proxy', async () => {

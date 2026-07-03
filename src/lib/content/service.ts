@@ -188,8 +188,22 @@ export function deleteTemplate(ctx: Ctx, id: string) {
 
 // ─── Calendar ────────────────────────────────────────────────────────
 
-export function getCalendarEvents(ctx: Ctx) {
-  return proxyRequest({ ...ctxOpts(ctx), path: '/api/calendar/events', timeoutMs: CRUD_TIMEOUT });
+function defaultCalendarRange() {
+  const now = new Date();
+  return {
+    start: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10),
+    end: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString().slice(0, 10),
+  };
+}
+
+export function getCalendarEvents(ctx: Ctx, searchParams?: URLSearchParams) {
+  const params = new URLSearchParams(searchParams);
+  const defaults = defaultCalendarRange();
+  if (!params.get('start')) params.set('start', defaults.start);
+  if (!params.get('end')) params.set('end', defaults.end);
+  params.set('projectId', ctx.projectId);
+
+  return proxyRequest({ ...ctxOpts(ctx), path: `/api/calendar/events?${params.toString()}`, timeoutMs: CRUD_TIMEOUT });
 }
 
 // ─── Genie AI ────────────────────────────────────────────────────────
