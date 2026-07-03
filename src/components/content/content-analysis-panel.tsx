@@ -173,6 +173,10 @@ export function ContentAnalysisPanel({
   }, [contentPieceId, platform, projectId]);
 
   const seoAnalysis = useMemo(() => analyzeSeoContent(content, keyword), [content, keyword]);
+  const combinedQualityScore = aiQuality?.score ?? aiQuality?.qualityScore ?? aiQuality?.quality ?? localAnalysis?.overallScore ?? null;
+  const seoScore = seoAnalysis.overallScore;
+  const localSuggestions = localAnalysis?.suggestions ?? [];
+  const aiSuggestions = useMemo(() => parseAiSuggestions(aiQuality?.suggestions), [aiQuality?.suggestions]);
 
   const loadLocalAnalysis = useCallback(async () => {
     if (!projectId) {
@@ -317,11 +321,6 @@ export function ContentAnalysisPanel({
       void loadLocalAnalysis();
     }
   }, [isOpen, localAnalysis, localLoading, loadLocalAnalysis]);
-
-  const combinedQualityScore = aiQuality?.score ?? aiQuality?.qualityScore ?? aiQuality?.quality ?? localAnalysis?.overallScore ?? null;
-  const seoScore = seoAnalysis.overallScore;
-  const localSuggestions = localAnalysis?.suggestions ?? [];
-  const aiSuggestions = useMemo(() => parseAiSuggestions(aiQuality?.suggestions), [aiQuality?.suggestions]);
 
   return (
     <section className={cx(styles.panel, "overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm ring-1 ring-black/5")}>
