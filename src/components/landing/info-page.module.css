@@ -1,0 +1,86 @@
+.page {
+  --bg-base: #0b0d14;
+  --bg-card: #12151f;
+  --text-primary: #e4e4e7;
+  --text-secondary: #9ca0b8;
+  --text-muted: #5a607a;
+  --border: rgba(255, 255, 255, 0.07);
+  --color-primary: #00d4aa;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 76% 12%, rgba(0, 212, 170, 0.08), transparent 28%),
+    linear-gradient(180deg, #090b12 0%, #0b0d14 100%);
+  color: var(--text-primary);
+}
+
+.shell {
+  width: min(900px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 42px 0 80px;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.backLink:hover {
+  color: var(--text-primary);
+}
+
+.header {
+  padding: 64px 0 34px;
+}
+
+.header span {
+  color: var(--color-primary);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.header h1 {
+  margin: 14px 0 0;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: clamp(36px, 6vw, 64px);
+  line-height: 1.08;
+}
+
+.header p {
+  max-width: 720px;
+  margin: 18px 0 0;
+  color: var(--text-secondary);
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+.content {
+  display: grid;
+  gap: 12px;
+}
+
+.section {
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+.section h2 {
+  margin: 0 0 10px;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 20px;
+}
+
+.section p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.8;
+}

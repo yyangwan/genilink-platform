@@ -9,6 +9,7 @@ const VISIBILITY_ROUTES = ['/visibility', '/audits', '/schedules', '/suggestions
 
 // Routes that require 'content' module subscription
 const CONTENT_ROUTES = ['/content'];
+const PUBLIC_ROUTES = ['/', '/faq', '/support', '/terms', '/privacy', '/blog'];
 
 function requiresModule(pathname: string): string | null {
   if (BASE_ROUTES.some((r) => pathname === r || pathname.startsWith(r + '/'))) return null;
@@ -35,6 +36,11 @@ function hasSessionCookie(request: NextRequest): boolean {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Public marketing and informational pages.
+  if (PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'))) {
+    return NextResponse.next();
+  }
 
   // Skip non-dashboard routes
   if (
