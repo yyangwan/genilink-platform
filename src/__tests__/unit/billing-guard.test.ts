@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-assign-module-variable */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { requireBilling, BillingError } from '@/lib/billing/guard';
+import { requireBilling, BillingError, isEntitledSubscriptionStatus } from '@/lib/billing/guard';
 import { prisma } from '@/lib/db';
 
 vi.mock('@/lib/db', () => ({
@@ -49,14 +49,12 @@ describe('requireBilling', () => {
   });
 
   it('should not throw when subscription is trialing', async () => {
-    // The guard only allows status === 'active', so trialing should throw
-    // based on the actual implementation: `if (!sub || sub.status !== 'active')`
     (prisma.subscription.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: 'sub-1',
       status: 'trialing',
     });
 
-    await expect(requireBilling(userId, workspaceId, module)).rejects.toThrow(BillingError);
+    await expect(requireBilling(userId, workspaceId, module)).resolves.toBeUndefined();
   });
 
   it('should throw BillingError when subscription is past_due', async () => {
@@ -99,5 +97,12 @@ describe('requireBilling', () => {
       expect(billingErr.statusCode).toBe(403);
       expect(billingErr.name).toBe('BillingError');
     }
+  });
+
+  it('should treat active and trialing as entitled statuses', () => {
+    expect(isEntitledSubscriptionStatus('active')).toBe(true);
+    expect(isEntitledSubscriptionStatus('trialing')).toBe(true);
+    expect(isEntitledSubscriptionStatus('inactive')).toBe(false);
+    expect(isEntitledSubscriptionStatus(undefined)).toBe(false);
   });
 });

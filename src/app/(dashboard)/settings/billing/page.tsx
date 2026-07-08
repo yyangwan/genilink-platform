@@ -1,224 +1,590 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Lock, CheckCircle2, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+  ArrowRight,
+  CheckCircle2,
+  CreditCard,
+  Clock3,
+  Loader2,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { formatDateInTimeZone } from "@/lib/time";
 
-interface Subscription {
+type BillingCycle = "monthly" | "yearly";
+type ModuleType = "visibility" | "content";
+type PaymentProvider = "wechatpay" | "alipay";
+
+type BillingPlan = {
   id: string;
-  module: string;
+  key: string;
+  module: ModuleType;
+  billingCycle: BillingCycle;
+  name: string;
+  description: string | null;
+  priceCents: number;
+  currency: string;
+  provider: PaymentProvider;
+  checkoutUrl: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  configured?: boolean;
+};
+
+type Subscription = {
+  id: string;
+  module: ModuleType;
   status: string;
-  billingCycle: string;
+  billingCycle: BillingCycle;
+  createdAt: string;
   currentPeriodStart: string;
   currentPeriodEnd: string;
   trialEnd: string | null;
+  billingPlanId: string | null;
+  provider: string | null;
+  providerSubscriptionId: string | null;
+};
+
+type BillingOverview = {
+  plans: BillingPlan[];
+  subscriptions: Subscription[];
+  billingDisabled: boolean;
+  providerAvailability?: {
+    wechatpay?: boolean;
+    alipay?: boolean;
+  };
+};
+
+type CheckoutProvider = PaymentProvider;
+
+const MODULE_LABELS: Record<ModuleType, string> = {
+  visibility: "可见性",
+  content: "创作",
+};
+
+const CYCLE_LABELS: Record<BillingCycle, string> = {
+  monthly: "月付",
+  yearly: "年付",
+};
+
+const PROVIDER_LABELS: Record<PaymentProvider, string> = {
+  wechatpay: "微信支付",
+  alipay: "支付宝",
+};
+
+function formatPrice(priceCents: number, currency: string) {
+  if (priceCents <= 0) {
+    return "待配置";
+  }
+  const value = priceCents / 100;
+  if (currency.toUpperCase() === "CNY") {
+    return `¥${value.toFixed(2)}`;
+  }
+  return `${currency.toUpperCase()} ${value.toFixed(2)}`;
 }
 
-const MODULES = [
-  {
-    key: "visibility",
-    name: "智見",
-    description: "AI搜索可见性分析与品牌监控",
-    features: ["品牌提及追踪", "AI可见性得分", "竞品对比分析", "AI优化建议"],
-  },
-  {
-    key: "content",
-    name: "智創",
-    description: "AI驱动的内容创作与管理",
-    features: ["智能内容创作", "多平台发布", "质量评分系统", "SEO/GEO优化"],
-  },
-];
-
 export default function BillingSettingsPage() {
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const searchParams = useSearchParams();
+  const [overview, setOverview] = useState<BillingOverview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [checkoutPendingKey, setCheckoutPendingKey] = useState<string | null>(null);
+  const [selectedProviderByPlanKey, setSelectedProviderByPlanKey] = useState<Record<string, CheckoutProvider>>({});
+  const accessSyncAttemptedRef = useRef(false);
 
   useEffect(() => {
-    fetch("/api/billing/subscriptions")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.subscriptions) {
-          setSubscriptions(data.subscriptions);
+    const controller = new AbortController();
+
+    fetch("/api/billing/plans", { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data: BillingOverview) => {
+        setOverview(data);
+        setError(null);
+      })
+      .catch((err) => {
+        if ((err as Error).name !== "AbortError") {
+          setError("订阅数据加载失败");
         }
       })
-      .catch(() => {})
       .finally(() => setLoading(false));
+
+    return () => controller.abort();
   }, []);
 
-  const isActive = (module: string) =>
-    subscriptions.some((s) => s.module === module && s.status === "active");
+  useEffect(() => {
+    if (!overview?.plans?.length) return;
+
+    setSelectedProviderByPlanKey((current) => {
+      const next = { ...current };
+      let changed = false;
+
+      for (const plan of overview.plans) {
+        if (next[plan.key]) continue;
+
+        const wechatAvailable = overview.providerAvailability?.wechatpay ?? false;
+        const alipayAvailable = overview.providerAvailability?.alipay ?? false;
+        const defaultProvider = plan.provider;
+        const chosen =
+          defaultProvider === "wechatpay" && wechatAvailable
+            ? "wechatpay"
+            : defaultProvider === "alipay" && alipayAvailable
+              ? "alipay"
+              : wechatAvailable
+                ? "wechatpay"
+                : alipayAvailable
+                  ? "alipay"
+                  : defaultProvider;
+
+        next[plan.key] = chosen;
+        changed = true;
+      }
+
+      return changed ? next : current;
+    });
+  }, [overview]);
+
+  const activeSubscriptions = useMemo(() => {
+    return (overview?.subscriptions ?? []).filter(
+      (sub) => sub.status === "active" || sub.status === "trialing",
+    );
+  }, [overview]);
+
+  const checkoutState = searchParams.get("checkout");
+  const checkoutOrderId = searchParams.get("orderId");
+
+  useEffect(() => {
+    if (checkoutState !== "success" || !overview?.workspaceId || accessSyncAttemptedRef.current) {
+      return;
+    }
+
+    accessSyncAttemptedRef.current = true;
+
+    fetch("/api/billing/access", {
+      method: "POST",
+    }).catch(() => {
+      accessSyncAttemptedRef.current = false;
+    });
+  }, [checkoutState, overview?.workspaceId]);
+
+  const handleCheckout = async (planKey: string) => {
+    setCheckoutPendingKey(planKey);
+    setError(null);
+
+    const provider = selectedProviderByPlanKey[planKey];
+
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planKey, provider }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        if (res.status === 409 && data?.code === "ACTIVE_SUBSCRIPTION_EXISTS") {
+          setError("该模块已有有效订阅，无需重复购买。");
+          return;
+        }
+        if (res.status === 503) {
+          setError("收款配置尚未完成，请先补齐支付环境变量。");
+          return;
+        }
+        throw new Error(data?.error || "checkout failed");
+      }
+
+      const checkoutUrl = data?.checkoutUrl as string | undefined;
+      if (!checkoutUrl) {
+        throw new Error("missing checkout url");
+      }
+
+      window.location.assign(checkoutUrl);
+    } catch {
+      setError("创建收款链接失败");
+    } finally {
+      setCheckoutPendingKey(null);
+    }
+  };
+
+  const summaryText = overview?.billingDisabled
+    ? "当前处于订阅关闭模式"
+    : `已开通 ${activeSubscriptions.length} 个订阅`;
 
   return (
     <div className="space-y-6">
-      <h2
-        className="text-lg font-semibold"
-        style={{
-          color: "var(--text-primary)",
-          fontFamily: "var(--font-display)",
-        }}
-      >
-        订阅管理
-      </h2>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1
+            className="text-xl font-semibold"
+            style={{
+              color: "var(--text-primary)",
+              fontFamily: "var(--font-display)",
+            }}
+          >
+            订阅收款
+          </h1>
+          <p
+            className="mt-1 text-sm"
+            style={{
+              color: "var(--text-secondary)",
+              fontFamily: "var(--font-body)",
+            }}
+          >
+            在这里选择模块订阅、支付方式和当前有效期。
+          </p>
+        </div>
+
+        <div
+          className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            color: "var(--text-secondary)",
+            fontFamily: "var(--font-body)",
+          }}
+        >
+          <ShieldCheck className="h-4 w-4" />
+          {summaryText}
+        </div>
+      </div>
+
+      {checkoutState === "success" && (
+        <div
+          className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm"
+          style={{
+            background: "color-mix(in srgb, var(--color-success) 12%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--color-success) 40%, transparent)",
+            color: "var(--text-primary)",
+          }}
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          订单已发起，若支付完成会自动开通。
+          {checkoutOrderId ? `订单号：${checkoutOrderId}` : ""}
+        </div>
+      )}
+
+      {checkoutState === "canceled" && (
+        <div
+          className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm"
+          style={{
+            background: "color-mix(in srgb, var(--color-warning) 10%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--color-warning) 35%, transparent)",
+            color: "var(--text-primary)",
+          }}
+        >
+          <Sparkles className="h-4 w-4" />
+          收款流程已取消。
+        </div>
+      )}
+
+      {error && (
+        <div
+          className="rounded-lg px-4 py-3 text-sm"
+          style={{
+            background: "color-mix(in srgb, var(--color-danger) 10%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--color-danger) 35%, transparent)",
+            color: "var(--text-primary)",
+            fontFamily: "var(--font-body)",
+          }}
+        >
+          {error}
+        </div>
+      )}
 
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {[1, 2].map((i) => (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {[0, 1, 2, 3].map((index) => (
             <div
-              key={i}
-              className="h-48 rounded-xl animate-skeleton-pulse"
+              key={index}
+              className="h-56 rounded-xl animate-skeleton-pulse"
               style={{ background: "var(--bg-hover)" }}
             />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {MODULES.map((mod) => {
-            const active = isActive(mod.key);
-            const sub = subscriptions.find(
-              (s) => s.module === mod.key && s.status === "active"
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {(overview?.plans ?? []).map((plan) => {
+            const active = activeSubscriptions.some(
+              (sub) =>
+                sub.billingPlanId === plan.id ||
+                (sub.module === plan.module && sub.billingCycle === plan.billingCycle),
             );
+            const currentSub = activeSubscriptions.find(
+              (sub) =>
+                sub.billingPlanId === plan.id ||
+                (sub.module === plan.module && sub.billingCycle === plan.billingCycle),
+            );
+            const disabled = active || !plan.configured || overview?.billingDisabled;
+            const providerOptions = [
+              overview?.providerAvailability?.wechatpay && {
+                value: "wechatpay" as const,
+                label: PROVIDER_LABELS.wechatpay,
+              },
+              overview?.providerAvailability?.alipay && {
+                value: "alipay" as const,
+                label: PROVIDER_LABELS.alipay,
+              },
+            ].filter(Boolean) as Array<{ value: CheckoutProvider; label: string }>;
 
             return (
-              <div
-                key={mod.key}
+              <section
+                key={plan.id}
                 className="rounded-xl p-6"
                 style={{
                   background: "var(--bg-card)",
-                  border: `1px solid ${active ? "var(--color-success)" : "var(--border)"}`,
-                  opacity: active ? 1 : 0.8,
+                  border: active ? "1px solid var(--color-success)" : "1px solid var(--border)",
                 }}
               >
-                {/* Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <h3
-                    className="text-base font-semibold"
-                    style={{
-                      color: "var(--text-primary)",
-                      fontFamily: "var(--font-display)",
-                    }}
-                  >
-                    {mod.name}
-                  </h3>
-                  {active ? (
-                    <span
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2
+                        className="text-base font-semibold"
+                        style={{
+                          color: "var(--text-primary)",
+                          fontFamily: "var(--font-display)",
+                        }}
+                      >
+                        {plan.name}
+                      </h2>
+                      {active && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
+                          style={{
+                            background: "color-mix(in srgb, var(--color-success) 14%, transparent)",
+                            color: "var(--color-success)",
+                          }}
+                        >
+                          <CheckCircle2 className="h-3 w-3" />
+                          已开通
+                        </span>
+                      )}
+                      {!plan.configured && !overview?.billingDisabled && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
+                          style={{
+                            background: "var(--bg-hover)",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          未配置
+                        </span>
+                      )}
+                    </div>
+
+                    <p
+                      className="mt-1 text-sm"
                       style={{
-                        background: "var(--color-success)20",
-                        color: "var(--color-success)",
+                        color: "var(--text-secondary)",
+                        fontFamily: "var(--font-body)",
                       }}
                     >
-                      <CheckCircle2 className="w-3 h-3" />
-                      已激活
-                    </span>
-                  ) : (
-                    <span
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                      {plan.description}
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <div
+                      className="text-lg font-semibold"
                       style={{
-                        background: "var(--bg-hover)",
+                        color: "var(--text-primary)",
+                        fontFamily: "var(--font-display)",
+                      }}
+                    >
+                      {formatPrice(plan.priceCents, plan.currency)}
+                    </div>
+                    <div
+                      className="text-xs"
+                      style={{
                         color: "var(--text-muted)",
+                        fontFamily: "var(--font-body)",
                       }}
                     >
-                      <Lock className="w-3 h-3" />
-                      未订阅
-                    </span>
+                      {MODULE_LABELS[plan.module]} · {CYCLE_LABELS[plan.billingCycle]}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 text-sm">
+                  <div
+                    className="flex items-center gap-2"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    默认支付方式：{PROVIDER_LABELS[plan.provider]}
+                  </div>
+
+                  {providerOptions.length > 1 && (
+                    <div className="flex flex-wrap gap-2">
+                      {providerOptions.map((option) => {
+                        const selected = selectedProviderByPlanKey[plan.key] === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            className="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
+                            style={{
+                              background: selected ? "var(--color-primary)" : "var(--bg-hover)",
+                              color: selected ? "#0b0d14" : "var(--text-secondary)",
+                              fontFamily: "var(--font-body)",
+                            }}
+                            onClick={() =>
+                              setSelectedProviderByPlanKey((current) => ({
+                                ...current,
+                                [plan.key]: option.value,
+                              }))
+                            }
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {currentSub && (
+                    <div
+                      className="flex items-center gap-2"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      <Clock3 className="h-4 w-4" />
+                      有效期至{" "}
+                      {formatDateInTimeZone(currentSub.currentPeriodEnd, {
+                        includeTime: false,
+                        includeYear: true,
+                      })}
+                    </div>
                   )}
                 </div>
 
-                {/* Description */}
-                <p
-                  className="text-sm mb-4"
-                  style={{
-                    color: "var(--text-secondary)",
-                    fontFamily: "var(--font-body)",
-                  }}
-                >
-                  {mod.description}
-                </p>
+                <div className="mt-5 flex items-center gap-3">
+                  <button
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors"
+                    style={{
+                      background: disabled ? "var(--bg-hover)" : "var(--color-primary)",
+                      color: disabled ? "var(--text-muted)" : "#0b0d14",
+                      cursor: disabled ? "not-allowed" : "pointer",
+                      fontFamily: "var(--font-body)",
+                    }}
+                    disabled={disabled || checkoutPendingKey === plan.key}
+                    onClick={() => handleCheckout(plan.key)}
+                  >
+                    {checkoutPendingKey === plan.key ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        跳转中
+                      </>
+                    ) : active ? (
+                      <>
+                        <CheckCircle2 className="h-4 w-4" />
+                        当前生效
+                      </>
+                    ) : !plan.configured || overview?.billingDisabled ? (
+                      <>
+                        <ShieldCheck className="h-4 w-4" />
+                        待配置
+                      </>
+                    ) : (
+                      <>
+                        立即开通
+                        <ArrowRight className="h-4 w-4" />
+                      </>
+                    )}
+                  </button>
 
-                {/* Features */}
-                <ul className="space-y-2 mb-6">
-                  {mod.features.map((f, i) => (
-                    <li key={i} className="flex items-center gap-2">
-                      <span
-                        className="w-1 h-1 rounded-full shrink-0"
-                        style={{
-                          background: active
-                            ? "var(--color-success)"
-                            : "var(--text-muted)",
-                        }}
-                      />
-                      <span
-                        className="text-sm"
-                        style={{
-                          color: "var(--text-secondary)",
-                          fontFamily: "var(--font-body)",
-                        }}
-                      >
-                        {f}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-
-                {/* Period info */}
-                {sub && (
-                  <p
-                    className="text-xs mb-3"
+                  <span
+                    className="text-xs"
                     style={{
                       color: "var(--text-muted)",
                       fontFamily: "var(--font-body)",
                     }}
                   >
-                    有效期至{" "}
-                    {formatDateInTimeZone(sub.currentPeriodEnd, { includeTime: false, includeYear: true })}
-                  </p>
-                )}
-
-                {/* CTA */}
-                {active ? (
-                  <button
-                    className="w-full py-2 rounded-lg text-sm font-medium transition-colors"
-                    style={{
-                      background: "var(--bg-elevated)",
-                      color: "var(--text-secondary)",
-                      border: "1px solid var(--border)",
-                      cursor: "pointer",
-                      fontFamily: "var(--font-body)",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = "var(--bg-hover)")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "var(--bg-elevated)")
-                    }
-                  >
-                    管理订阅
-                  </button>
-                ) : (
-                  <button
-                    className="w-full py-2 rounded-lg text-sm font-medium transition-colors"
-                    style={{
-                      background: "var(--color-primary)",
-                      color: "#0b0d14",
-                      border: "none",
-                      cursor: "pointer",
-                      fontFamily: "var(--font-body)",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background =
-                        "var(--color-primary-hover)")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "var(--color-primary)")
-                    }
-                  >
-                    联系销售
-                  </button>
-                )}
-              </div>
+                    {active
+                      ? "订阅已生效，支付入口已锁定。"
+                      : providerOptions.length > 1
+                        ? "可先切换支付方式，再创建订单。"
+                        : `点击后将跳转到 ${PROVIDER_LABELS[plan.provider]} 收银台。`}
+                  </span>
+                </div>
+              </section>
             );
           })}
         </div>
+      )}
+
+      {!loading && activeSubscriptions.length > 0 && (
+        <section
+          className="rounded-xl p-6"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <h2
+            className="text-base font-semibold"
+            style={{
+              color: "var(--text-primary)",
+              fontFamily: "var(--font-display)",
+            }}
+          >
+            当前有效订阅
+          </h2>
+
+          <div className="mt-4 grid gap-3">
+            {activeSubscriptions.map((sub) => (
+              <div
+                key={sub.id}
+                className="flex flex-col gap-2 rounded-lg p-4 sm:flex-row sm:items-center sm:justify-between"
+                style={{
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <div>
+                  <div
+                    className="text-sm font-medium"
+                    style={{
+                      color: "var(--text-primary)",
+                      fontFamily: "var(--font-body)",
+                    }}
+                  >
+                    {MODULE_LABELS[sub.module]} · {sub.billingCycle === "monthly" ? "月付" : "年付"}
+                  </div>
+                  <div
+                    className="mt-1 text-xs"
+                    style={{
+                      color: "var(--text-muted)",
+                      fontFamily: "var(--font-body)",
+                    }}
+                  >
+                    生效至{" "}
+                    {formatDateInTimeZone(sub.currentPeriodEnd, {
+                      includeTime: false,
+                      includeYear: true,
+                    })}
+                  </div>
+                </div>
+
+                <div
+                  className="text-xs"
+                  style={{
+                    color: "var(--text-muted)",
+                    fontFamily: "var(--font-body)",
+                  }}
+                >
+                  状态：{sub.status} · provider：{sub.provider ?? "unknown"}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

@@ -13,6 +13,12 @@ export class BillingError extends Error {
   }
 }
 
+const ENTITLED_STATUSES = new Set(['active', 'trialing']);
+
+export function isEntitledSubscriptionStatus(status: string | null | undefined): boolean {
+  return status ? ENTITLED_STATUSES.has(status) : false;
+}
+
 export async function requireBilling(
   userId: string,
   workspaceId: string,
@@ -30,7 +36,7 @@ export async function requireBilling(
     },
   });
 
-  if (!sub || sub.status !== 'active') {
+  if (!sub || !isEntitledSubscriptionStatus(sub.status)) {
     throw new BillingError(module);
   }
 }

@@ -13,7 +13,9 @@ export async function getActiveModules(userId: string, workspaceId: string): Pro
     where: {
       userId,
       workspaceId,
-      status: 'active',
+      status: {
+        in: ['active', 'trialing'],
+      },
     },
     select: { module: true },
   });

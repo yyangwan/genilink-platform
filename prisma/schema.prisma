@@ -25,6 +25,7 @@ model User {
 
   memberships   WorkspaceMember[]
   accounts      Account[]
+  paymentOrders PaymentOrder[]
   subscriptions Subscription[]
 }
 
@@ -69,6 +70,7 @@ model Workspace {
   projects      Project[]
   brands        Brand[]
   invites       WorkspaceInvite[]
+  paymentOrders PaymentOrder[]
   subscriptions Subscription[]
 }
 
@@ -156,6 +158,78 @@ model ProjectBrand {
 
 // ─── Billing ────────────────────────────────────────────────────────
 
+model BillingPlan {
+  id             String   @id @default(cuid()) @db.Text
+  key            String   @unique @db.Text
+  module         String   @db.Text
+  billingCycle   String   @db.Text
+  name           String   @db.Text
+  description    String?  @db.Text
+  priceCents     Int
+  currency       String   @default("CNY") @db.Text
+  provider       String   @db.Text
+  providerPriceId String? @unique @db.Text
+  checkoutUrl    String?  @db.Text
+  isActive       Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  orders PaymentOrder[]
+  subscriptions Subscription[]
+}
+
+model PaymentOrder {
+  id                   String    @id @default(cuid()) @db.Text
+  userId               String    @db.Text
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId          String    @db.Text
+  workspace            Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  billingPlanId        String    @db.Text
+  billingPlan          BillingPlan @relation(fields: [billingPlanId], references: [id])
+  module               String    @db.Text
+  billingCycle         String    @db.Text
+  provider             String    @db.Text
+  providerSessionId    String?   @unique @db.Text
+  providerCustomerId   String?   @db.Text
+  providerSubscriptionId String? @unique @db.Text
+  status               String    @db.Text
+  amountCents          Int
+  currency             String    @default("CNY") @db.Text
+  checkoutUrl          String?   @db.Text
+  successUrl           String?   @db.Text
+  cancelUrl            String?   @db.Text
+  metadata             Json?
+  paidAt               DateTime?
+  expiredAt            DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  subscription Subscription?
+  events       PaymentEvent[]
+
+  @@index([userId, workspaceId, module, status])
+  @@index([provider, providerSessionId])
+}
+
+model PaymentEvent {
+  id                 String    @id @default(cuid()) @db.Text
+  provider           String    @db.Text
+  providerEventId    String    @unique @db.Text
+  eventType          String    @db.Text
+  status             String    @db.Text
+  signatureVerified  Boolean   @default(false)
+  payload            Json
+  paymentOrderId     String?   @db.Text
+  paymentOrder       PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+  processedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([provider, eventType])
+  @@index([paymentOrderId])
+}
+
 model Subscription {
   id                 String    @id @default(cuid()) @db.Text
   userId             String    @db.Text
@@ -165,6 +239,13 @@ model Subscription {
   module             String    @db.Text
   status             String    @db.Text
   billingCycle       String    @db.Text
+  billingPlanId      String?   @db.Text
+  billingPlan        BillingPlan? @relation(fields: [billingPlanId], references: [id])
+  provider           String?   @db.Text
+  providerCustomerId String?   @db.Text
+  providerSubscriptionId String? @unique @db.Text
+  paymentOrderId     String?   @unique @db.Text
+  paymentOrder       PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
   currentPeriodStart DateTime
   currentPeriodEnd   DateTime
   trialEnd           DateTime?
