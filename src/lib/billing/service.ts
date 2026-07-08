@@ -3,38 +3,42 @@ import { BILLING_PLAN_SEEDS } from '@/lib/billing/catalog';
 import { isPaymentProviderConfigured, type PaymentProvider } from '@/lib/billing/gateways';
 
 export async function syncBillingPlans() {
-  await Promise.all(
-    BILLING_PLAN_SEEDS.map((seed) =>
-      prisma.billingPlan.upsert({
-        where: { key: seed.key },
-        create: {
-          key: seed.key,
-          module: seed.module,
-          billingCycle: seed.billingCycle,
-          name: seed.name,
-          description: seed.description,
-          priceCents: seed.priceCents,
-          currency: seed.currency,
-          provider: seed.provider,
-          checkoutUrl: seed.checkoutUrl ?? null,
-          isActive: seed.isActive,
-          sortOrder: seed.sortOrder,
-        },
-        update: {
-          module: seed.module,
-          billingCycle: seed.billingCycle,
-          name: seed.name,
-          description: seed.description,
-          priceCents: seed.priceCents,
-          currency: seed.currency,
-          provider: seed.provider,
-          checkoutUrl: seed.checkoutUrl ?? null,
-          isActive: seed.isActive,
-          sortOrder: seed.sortOrder,
-        },
-      }),
-    ),
-  );
+  try {
+    await Promise.all(
+      BILLING_PLAN_SEEDS.map((seed) =>
+        prisma.billingPlan.upsert({
+          where: { key: seed.key },
+          create: {
+            key: seed.key,
+            module: seed.module,
+            billingCycle: seed.billingCycle,
+            name: seed.name,
+            description: seed.description,
+            priceCents: seed.priceCents,
+            currency: seed.currency,
+            provider: seed.provider,
+            checkoutUrl: seed.checkoutUrl ?? null,
+            isActive: seed.isActive,
+            sortOrder: seed.sortOrder,
+          },
+          update: {
+            module: seed.module,
+            billingCycle: seed.billingCycle,
+            name: seed.name,
+            description: seed.description,
+            priceCents: seed.priceCents,
+            currency: seed.currency,
+            provider: seed.provider,
+            checkoutUrl: seed.checkoutUrl ?? null,
+            isActive: seed.isActive,
+            sortOrder: seed.sortOrder,
+          },
+        }),
+      ),
+    );
+  } catch (error) {
+    console.warn('Billing plan sync skipped', error);
+  }
 }
 
 export async function listBillingOverview(userId: string, workspaceId: string) {
