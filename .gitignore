@@ -32,6 +32,12 @@ yarn-error.log*
 .pnpm-debug.log*
 logs/
 .run-logs/
+.next-start-*.log
+
+# local agent skills and generated design/motion process artifacts
+.agents/
+motion/
+skills-lock.json
 
 # env files (can opt-in for committing if needed)
 .env*
