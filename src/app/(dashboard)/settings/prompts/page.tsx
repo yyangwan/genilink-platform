@@ -9,7 +9,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { sectionCard } from "@/components/charts/shared";
 
 interface Prompt {
   id: string | number;
@@ -164,14 +163,7 @@ function PromptsContent() {
           <input
             value={editForm.text}
             onChange={(e) => setEditForm((f) => ({ ...f, text: e.target.value }))}
-            className="w-full px-2 py-1 rounded text-sm"
-            style={{
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border)",
-              color: "var(--text-primary)",
-              fontFamily: "var(--font-body)",
-              outline: "none",
-            }}
+            className="dashboard-input px-2 py-1 text-sm"
             autoFocus
           />
         ) : (
@@ -194,14 +186,7 @@ function PromptsContent() {
             value={editForm.platform}
             onChange={(e) => setEditForm((f) => ({ ...f, platform: e.target.value }))}
             placeholder="平台"
-            className="w-full px-2 py-1 rounded text-sm"
-            style={{
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border)",
-              color: "var(--text-primary)",
-              fontFamily: "var(--font-body)",
-              outline: "none",
-            }}
+            className="dashboard-input px-2 py-1 text-sm"
           />
         ) : (
           <span style={{ color: "var(--text-secondary)" }}>{row.platform || "—"}</span>
@@ -217,14 +202,7 @@ function PromptsContent() {
             value={editForm.category}
             onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value }))}
             placeholder="分类"
-            className="w-full px-2 py-1 rounded text-sm"
-            style={{
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border)",
-              color: "var(--text-primary)",
-              fontFamily: "var(--font-body)",
-              outline: "none",
-            }}
+            className="dashboard-input px-2 py-1 text-sm"
           />
         ) : (
           <span style={{ color: "var(--text-secondary)" }}>{row.category || "—"}</span>
@@ -282,7 +260,7 @@ function PromptsContent() {
     return (
       <div className="space-y-6">
         <PageHeader title="提示词管理" subtitle="管理 AI 分析使用的提示词" />
-        <div style={sectionCard}>
+        <div className="dashboard-surface">
           <EmptyState
             icon={MessageSquare}
             title="请先选择项目"
@@ -306,15 +284,8 @@ function PromptsContent() {
               <button
                 onClick={handleGenerate}
                 disabled={generating}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                style={{
-                  background: "var(--bg-elevated)",
-                  color: generating ? "var(--text-muted)" : "var(--color-primary)",
-                  border: "1px solid var(--border)",
-                  cursor: generating ? "not-allowed" : "pointer",
-                  fontFamily: "var(--font-body)",
-                  opacity: generating ? 0.7 : 1,
-                }}
+                className="dashboard-button dashboard-button--secondary"
+                style={{ color: generating ? "var(--text-muted)" : "var(--color-primary)" }}
               >
                 {generating ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -328,16 +299,7 @@ function PromptsContent() {
                   setAdding(true);
                   setForm({ text: "", platform: "", category: "" });
                 }}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                style={{
-                  background: "var(--color-primary)",
-                  color: "#0b0d14",
-                  border: "none",
-                  cursor: "pointer",
-                  fontFamily: "var(--font-body)",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-primary-hover)")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "var(--color-primary)")}
+                className="dashboard-button dashboard-button--primary"
               >
                 <Plus className="w-3.5 h-3.5" />
                 添加提示词
@@ -349,8 +311,8 @@ function PromptsContent() {
 
       {/* Shimmer effect while AI generating */}
       {generating && (
-        <div style={sectionCard}>
-          <div className="flex items-center gap-3 py-3 px-4 rounded-lg" style={{ background: "var(--bg-elevated)" }}>
+        <div className="dashboard-surface dashboard-surface--padded">
+          <div className="flex items-center gap-3 rounded-lg bg-card px-4 py-3">
             <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-primary)" }} />
             <div className="flex-1 space-y-2">
               <div className="h-4 w-3/4 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
@@ -365,10 +327,10 @@ function PromptsContent() {
 
       {/* Add prompt inline form */}
       {adding && (
-        <div style={sectionCard}>
+        <div className="dashboard-surface dashboard-surface--padded">
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              <label className="dashboard-field-label">
                 提示词内容
               </label>
               <textarea
@@ -376,52 +338,31 @@ function PromptsContent() {
                 onChange={(e) => setForm((f) => ({ ...f, text: e.target.value }))}
                 placeholder="输入提示词..."
                 rows={3}
-                className="w-full px-3 py-2 rounded-lg text-sm resize-none"
-                style={{
-                  background: "var(--bg-elevated)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-primary)",
-                  fontFamily: "var(--font-body)",
-                  outline: "none",
-                }}
+                className="dashboard-input px-3 py-2 text-sm resize-none"
                 autoFocus
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                <label className="dashboard-field-label">
                   平台
                 </label>
                 <input
                   value={form.platform}
                   onChange={(e) => setForm((f) => ({ ...f, platform: e.target.value }))}
                   placeholder="例如 ChatGPT、Perplexity"
-                  className="w-full px-3 py-2 rounded-lg text-sm"
-                  style={{
-                    background: "var(--bg-elevated)",
-                    border: "1px solid var(--border)",
-                    color: "var(--text-primary)",
-                    fontFamily: "var(--font-body)",
-                    outline: "none",
-                  }}
+                  className="dashboard-input px-3 py-2 text-sm"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                <label className="dashboard-field-label">
                   分类
                 </label>
                 <input
                   value={form.category}
                   onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                   placeholder="例如 品牌查询、产品对比"
-                  className="w-full px-3 py-2 rounded-lg text-sm"
-                  style={{
-                    background: "var(--bg-elevated)",
-                    border: "1px solid var(--border)",
-                    color: "var(--text-primary)",
-                    fontFamily: "var(--font-body)",
-                    outline: "none",
-                  }}
+                  className="dashboard-input px-3 py-2 text-sm"
                 />
               </div>
             </div>
@@ -429,29 +370,14 @@ function PromptsContent() {
               <button
                 onClick={handleAdd}
                 disabled={saving || !form.text.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                style={{
-                  background: "var(--color-primary)",
-                  color: "#0b0d14",
-                  border: "none",
-                  cursor: saving || !form.text.trim() ? "not-allowed" : "pointer",
-                  opacity: saving || !form.text.trim() ? 0.5 : 1,
-                  fontFamily: "var(--font-body)",
-                }}
+                className="dashboard-button dashboard-button--primary"
               >
                 {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                 保存
               </button>
               <button
                 onClick={() => setAdding(false)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                style={{
-                  background: "var(--bg-hover)",
-                  color: "var(--text-secondary)",
-                  border: "none",
-                  cursor: "pointer",
-                  fontFamily: "var(--font-body)",
-                }}
+                className="dashboard-button dashboard-button--secondary"
               >
                 取消
               </button>
@@ -462,7 +388,7 @@ function PromptsContent() {
 
       {/* Data table */}
       {prompts.error ? (
-        <div style={sectionCard}>
+        <div className="dashboard-surface">
           <ErrorState onRetry={prompts.refetch} />
         </div>
       ) : (
@@ -506,8 +432,8 @@ export default function PromptsPage() {
     <Suspense
       fallback={
         <div className="space-y-6">
-          <div className="h-10 w-48 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-          <div className="h-64 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+          <div className="dashboard-skeleton h-10 w-48 rounded animate-skeleton-pulse" />
+          <div className="dashboard-skeleton h-64 rounded-xl animate-skeleton-pulse" />
         </div>
       }
     >

@@ -533,7 +533,7 @@ function ContentTab({
     return (
       <div className="space-y-6">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-48 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+          <div key={i} className="dashboard-surface dashboard-surface--padded h-48 animate-skeleton-pulse" />
         ))}
       </div>
     );
@@ -716,7 +716,7 @@ function StrategicTab({
     return (
       <div className="space-y-6">
         {[1, 2].map((i) => (
-          <div key={i} className="h-48 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+          <div key={i} className="dashboard-surface dashboard-surface--padded h-48 animate-skeleton-pulse" />
         ))}
       </div>
     );
@@ -1016,15 +1016,15 @@ export default function AuditReportPage() {
   return (
     <Suspense
       fallback={
-        <div className="space-y-6">
-          <div className="h-6 w-48 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-          <div className="h-10 w-full rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+      <div className="space-y-6">
+          <div className="dashboard-surface dashboard-surface--padded h-6 w-48 animate-skeleton-pulse" />
+          <div className="dashboard-surface dashboard-surface--padded h-10 w-full animate-skeleton-pulse" />
           <div className="flex justify-center py-8">
-            <div className="h-48 w-48 rounded-full animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+            <div className="dashboard-surface h-48 w-48 rounded-full animate-skeleton-pulse" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-24 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+              <div key={i} className="dashboard-surface dashboard-surface--padded h-24 animate-skeleton-pulse" />
             ))}
           </div>
         </div>

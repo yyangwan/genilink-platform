@@ -20,13 +20,6 @@ interface DataTableProps<T> {
   loadingRows?: number;
 }
 
-const sectionCard: React.CSSProperties = {
-  background: "var(--bg-card)",
-  border: "1px solid var(--border)",
-  borderRadius: "12px",
-  overflow: "hidden",
-};
-
 export function DataTable<T>({
   columns,
   data,
@@ -38,24 +31,15 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
   if (loading) {
     return (
-      <div style={sectionCard}>
+      <div className="dashboard-surface overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full" style={{ borderCollapse: "collapse" }}>
+          <table className="dashboard-table">
             <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)" }}>
+              <tr>
                 {columns.map((col) => (
                   <th
                     key={col.key}
-                    className="text-left px-4 py-3"
-                    style={{
-                      fontFamily: "var(--font-display)",
-                      fontSize: 11,
-                      fontWeight: 500,
-                      textTransform: "uppercase" as const,
-                      letterSpacing: "0.05em",
-                      color: "var(--text-muted)",
-                      width: col.width,
-                    }}
+                    style={{ width: col.width }}
                   >
                     {col.header}
                   </th>
@@ -64,12 +48,11 @@ export function DataTable<T>({
             </thead>
             <tbody>
               {Array.from({ length: loadingRows }).map((_, i) => (
-                <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                <tr key={i}>
                   {columns.map((col) => (
-                    <td key={col.key} className="px-4 py-3">
+                    <td key={col.key}>
                       <div
-                        className="h-4 rounded animate-skeleton-pulse"
-                        style={{ background: "var(--bg-hover)", width: "60%" }}
+                        className="dashboard-skeleton h-4 w-3/5 rounded animate-skeleton-pulse"
                       />
                     </td>
                   ))}
@@ -83,28 +66,19 @@ export function DataTable<T>({
   }
 
   if (data.length === 0 && emptyContent) {
-    return <div style={sectionCard}>{emptyContent}</div>;
+    return <div className="dashboard-surface overflow-hidden">{emptyContent}</div>;
   }
 
   return (
-    <div style={sectionCard}>
+    <div className="dashboard-surface overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full" style={{ borderCollapse: "collapse" }}>
+        <table className="dashboard-table">
           <thead>
-            <tr style={{ borderBottom: "1px solid var(--border)" }}>
+            <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className="text-left px-4 py-3"
-                  style={{
-                    fontFamily: "var(--font-display)",
-                    fontSize: 11,
-                    fontWeight: 500,
-                    textTransform: "uppercase" as const,
-                    letterSpacing: "0.05em",
-                    color: "var(--text-muted)",
-                    width: col.width,
-                  }}
+                  style={{ width: col.width }}
                 >
                   {col.header}
                 </th>
@@ -112,30 +86,15 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {data.map((row, i) => (
+            {data.map((row) => (
               <tr
                 key={rowKey(row)}
                 className={cn(onRowClick && "cursor-pointer")}
-                style={{
-                  borderBottom: "1px solid var(--border)",
-                  background: i % 2 === 1 ? "var(--bg-elevated)" : "transparent",
-                  transition: "background var(--duration-short)",
-                }}
                 onClick={() => onRowClick?.(row)}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = i % 2 === 1 ? "var(--bg-elevated)" : "transparent")
-                }
               >
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className="px-4 py-3"
-                    style={{
-                      fontFamily: "var(--font-body)",
-                      fontSize: 13,
-                      color: "var(--text-primary)",
-                    }}
                   >
                     {col.render
                       ? col.render(row)

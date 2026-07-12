@@ -12,13 +12,6 @@ interface PlatformStatus {
   expiresAt?: string;
 }
 
-const card: React.CSSProperties = {
-  background: "var(--bg-card)",
-  border: "1px solid var(--border)",
-  borderRadius: "12px",
-  padding: "20px",
-};
-
 const PLATFORMS = [
   { id: "wechat", name: "微信公众号", desc: "连接微信公众号发布内容" },
   { id: "weibo", name: "微博", desc: "连接微博账号发布内容" },
@@ -114,15 +107,13 @@ function SettingsInner() {
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-20 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+          <div key={i} className="dashboard-skeleton h-20 rounded-xl animate-skeleton-pulse" />
           ))}
         </div>
       ) : error ? (
-        <div style={card} className="text-center py-8">
+        <div className="dashboard-surface dashboard-surface--padded text-center py-8">
           <p className="text-sm" style={{ color: "var(--color-error)", fontFamily: "var(--font-body)" }}>{error}</p>
-          <button onClick={fetchStatus} className="mt-3 text-sm font-medium px-4 py-2 rounded-lg"
-            style={{ background: "var(--color-primary)", color: "white", border: "none", cursor: "pointer", fontFamily: "var(--font-body)" }}
-          >
+          <button onClick={fetchStatus} className="dashboard-button dashboard-button--primary mt-3">
             重试
           </button>
         </div>
@@ -134,7 +125,7 @@ function SettingsInner() {
             const isConnecting = connecting === p.id;
 
             return (
-              <div key={p.id} style={card}>
+              <div key={p.id} className="dashboard-surface dashboard-surface--padded">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg flex items-center justify-center"
@@ -164,29 +155,16 @@ function SettingsInner() {
                     {isConnected ? (
                       <>
                         <button onClick={() => handleRefresh(p.id)} disabled={isConnecting}
-                          className="text-xs font-medium px-3 py-1.5 rounded-md"
-                          style={{
-                            background: "transparent",
-                            color: "var(--text-secondary)",
-                            border: "1px solid var(--border)",
-                            fontFamily: "var(--font-body)",
-                            cursor: isConnecting ? "wait" : "pointer",
-                          }}
+                        className="dashboard-button dashboard-button--secondary"
+                        style={{ minHeight: 30, padding: "6px 12px", cursor: isConnecting ? "wait" : "pointer" }}
                         >
                           {isConnecting ? <Loader2 size={12} className="animate-spin" /> : "刷新 Token"}
                         </button>
                       </>
                     ) : (
                       <button onClick={() => handleConnect(p.id)} disabled={isConnecting}
-                        className="text-xs font-medium px-3 py-1.5 rounded-md inline-flex items-center gap-1"
-                        style={{
-                          background: "color-mix(in srgb, var(--color-primary) 10%, transparent)",
-                          color: "var(--color-primary)",
-                          border: "1px solid var(--color-primary)",
-                          fontFamily: "var(--font-body)",
-                          cursor: isConnecting ? "wait" : "pointer",
-                          opacity: isConnecting ? 0.6 : 1,
-                        }}
+                        className="dashboard-button dashboard-button--secondary"
+                        style={{ minHeight: 30, padding: "6px 12px", color: "var(--color-primary)", background: "color-mix(in srgb, var(--color-primary) 10%, transparent)", border: "1px solid var(--color-primary)", cursor: isConnecting ? "wait" : "pointer", opacity: isConnecting ? 0.6 : 1 }}
                       >
                         {isConnecting ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
                         连接

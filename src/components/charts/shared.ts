@@ -65,6 +65,6 @@ export const BRAND_COLORS = [
 export const sectionCard: React.CSSProperties = {
   background: "var(--bg-card)",
   border: "1px solid var(--border)",
-  borderRadius: "12px",
+  borderRadius: "8px",
   padding: "24px",
 } as const;

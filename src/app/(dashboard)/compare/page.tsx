@@ -10,7 +10,7 @@ const CompareCharts = dynamic(
   { ssr: false },
 );
 
-import { BRAND_COLORS, sectionCard } from "@/components/charts/shared";
+import { BRAND_COLORS } from "@/components/charts/shared";
 import { useProject } from "@/components/project/project-context";
 import { PageHeader } from "@/components/ui/page-header";
 import { DiagnosticChecklist, type DiagnosticItem } from "@/components/ui/diagnostic-checklist";
@@ -288,10 +288,10 @@ function CompareContent() {
       <div className="space-y-6">
         <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
         <div className="grid grid-cols-2 gap-4">
-          <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-          <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+          <div className="dashboard-skeleton h-72 rounded-xl animate-skeleton-pulse" />
+          <div className="dashboard-skeleton h-72 rounded-xl animate-skeleton-pulse" />
         </div>
-        <div className="h-48 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+        <div className="dashboard-skeleton h-48 rounded-xl animate-skeleton-pulse" />
       </div>
     );
   }
@@ -300,7 +300,7 @@ function CompareContent() {
     return (
       <div className="space-y-6">
         <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
-        <div style={sectionCard}>
+        <div className="dashboard-surface">
           <EmptyState icon={GitCompare} title="需要升级后使用" description="竞品对比功能需要订阅智见专业版" />
         </div>
       </div>
@@ -311,7 +311,7 @@ function CompareContent() {
     return (
       <div className="space-y-6">
         <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
-        <div style={sectionCard}>
+        <div className="dashboard-surface">
           <EmptyState
             icon={GitCompare}
             title="加载失败"
@@ -328,7 +328,7 @@ function CompareContent() {
     return (
       <div className="space-y-6">
         <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
-        <div style={sectionCard}>
+        <div className="dashboard-surface">
           <EmptyState
             icon={GitCompare}
             title="暂无竞品对比数据"
@@ -350,14 +350,7 @@ function CompareContent() {
           <button
             onClick={loadData}
             disabled={dataLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
-            style={{
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border)",
-              color: "var(--text-secondary)",
-              cursor: dataLoading ? "not-allowed" : "pointer",
-              fontFamily: "var(--font-body)",
-            }}
+            className="dashboard-button dashboard-button--secondary"
           >
             <RefreshCw size={14} className={dataLoading ? "animate-spin" : ""} />
             刷新
@@ -369,7 +362,7 @@ function CompareContent() {
       <CompareCharts radarData={radarData} barData={barData} brandColumns={brandColumns} />
 
       {/* Detail pivot table */}
-      <div style={sectionCard}>
+      <div className="dashboard-surface dashboard-surface--padded">
         <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
           <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
             <span className="font-normal text-xs" style={{ color: "var(--text-muted)" }}>{groupedResults.length} 组查询</span>
@@ -377,28 +370,18 @@ function CompareContent() {
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex gap-1 flex-wrap">
               <button
-                className="px-3 py-1 rounded-full text-xs font-medium transition-colors"
+                className="dashboard-chip"
                 onClick={() => setFilterPlatform("all")}
-                style={{
-                  background: filterPlatform === "all" ? "var(--color-primary-dim)" : "transparent",
-                  border: filterPlatform === "all" ? "1px solid var(--color-primary)" : "1px solid var(--border)",
-                  color: filterPlatform === "all" ? "var(--color-primary)" : "var(--text-secondary)",
-                  cursor: "pointer",
-                }}
+                style={{ background: filterPlatform === "all" ? "var(--color-primary-dim)" : "transparent", border: filterPlatform === "all" ? "1px solid var(--color-primary)" : "1px solid var(--border)", color: filterPlatform === "all" ? "var(--color-primary)" : "var(--text-secondary)", cursor: "pointer" }}
               >
                 全部
               </button>
               {platformKeys.map((p) => (
                 <button
                   key={p}
-                  className="px-3 py-1 rounded-full text-xs font-medium transition-colors"
+                  className="dashboard-chip"
                   onClick={() => setFilterPlatform(p)}
-                  style={{
-                    background: filterPlatform === p ? "var(--color-primary-dim)" : "transparent",
-                    border: filterPlatform === p ? "1px solid var(--color-primary)" : "1px solid var(--border)",
-                    color: filterPlatform === p ? "var(--color-primary)" : "var(--text-secondary)",
-                    cursor: "pointer",
-                  }}
+                  style={{ background: filterPlatform === p ? "var(--color-primary-dim)" : "transparent", border: filterPlatform === p ? "1px solid var(--color-primary)" : "1px solid var(--border)", color: filterPlatform === p ? "var(--color-primary)" : "var(--text-secondary)", cursor: "pointer" }}
                 >
                   {platformNames[p]}
                 </button>
@@ -427,30 +410,21 @@ function CompareContent() {
           className="flex gap-4 flex-wrap mb-3 px-3 py-2 rounded-md text-xs"
           style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}
         >
-          <span><span style={{ color: "var(--color-success)" }}>?</span> 被提及</span>
+          <span><span style={{ color: "var(--color-success)" }}>●</span> 被提及</span>
           <span>#N 推荐排名</span>
           <span>N% 情感置信度</span>
           <span style={{ color: "var(--text-muted)" }}>—</span>
         </div>
 
         {/* Table */}
-        <div
-          className="overflow-auto rounded-md"
-          style={{ maxHeight: 520, border: "1px solid var(--border)" }}
-        >
-          <table className="w-full border-collapse" style={{ fontSize: 12 }}>
+        <div className="overflow-auto rounded-md dashboard-surface" style={{ maxHeight: 520 }}>
+          <table className="dashboard-table" style={{ fontSize: 12 }}>
             <thead>
               <tr style={{ position: "sticky", top: 0, zIndex: 1, background: "var(--bg-card)" }}>
-                <th
-                  className="text-left px-3 py-2.5 font-medium text-[10px] uppercase tracking-wider"
-                  style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)", width: 100 }}
-                >
+                <th style={{ width: 100 }}>
                   平台
                 </th>
-                <th
-                  className="text-left px-3 py-2.5 font-medium text-[10px] uppercase tracking-wider"
-                  style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)", minWidth: 180 }}
-                >
+                <th style={{ minWidth: 180 }}>
                   Prompt
                 </th>
                 {brandColumns.map((brand) => {
@@ -458,10 +432,9 @@ function CompareContent() {
                   return (
                     <th
                       key={brand}
-                      className="text-center px-3 py-2.5 font-medium text-[10px] uppercase tracking-wider"
+                      className="text-center"
                       style={{
                         color: isPrimary ? "var(--color-primary)" : "var(--text-muted)",
-                        borderBottom: "1px solid var(--border)",
                         minWidth: 90,
                         background: isPrimary ? "var(--color-primary-dim)" : undefined,
                       }}
@@ -481,11 +454,7 @@ function CompareContent() {
                   <td className="px-3 py-2" style={{ borderBottom: "1px solid var(--border)" }}>
                     {platformNames[row.platform] || row.platform}
                   </td>
-                  <td
-                    className="px-3 py-2 max-w-[260px] truncate"
-                    style={{ borderBottom: "1px solid var(--border)", color: "var(--text-secondary)" }}
-                    title={row.promptText}
-                  >
+                  <td className="max-w-[260px] truncate" style={{ color: "var(--text-secondary)" }} title={row.promptText}>
                     {row.promptText || "—"}
                   </td>
                   {brandColumns.map((brand) => {
@@ -500,15 +469,14 @@ function CompareContent() {
                     return (
                       <td
                         key={brand}
-                        className="text-center px-3 py-2 whitespace-nowrap"
+                        className="text-center whitespace-nowrap"
                         style={{
-                          borderBottom: "1px solid var(--border)",
                           background: isPrimary ? "var(--color-primary-dim)" : cellBg,
                         }}
                       >
                         {result?.mention_found ? (
                           <>
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: "rgba(0,212,170,0.12)", color: "var(--color-success)" }}>?</span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: "rgba(0,212,170,0.12)", color: "var(--color-success)" }}>提</span>
                             {result.recommendation_rank && (
                               <span className="text-[10px] font-semibold ml-1" style={{ color: "#4cc9f0" }}>
                                 #{result.recommendation_rank}

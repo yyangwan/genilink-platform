@@ -9,7 +9,6 @@ import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast-context";
-import { sectionCard } from "@/components/charts/shared";
 
 interface Brand {
   id: string;
@@ -156,14 +155,7 @@ function BrandsContent() {
           <input
             value={editForm.name}
             onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
-            className="w-full px-2 py-1 rounded text-sm"
-            style={{
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border)",
-              color: "var(--text-primary)",
-              fontFamily: "var(--font-body)",
-              outline: "none",
-            }}
+            className="dashboard-input px-2 py-1 text-sm"
             autoFocus
           />
         ) : (
@@ -179,14 +171,7 @@ function BrandsContent() {
           <input
             value={editForm.aliases}
             onChange={(e) => setEditForm((f) => ({ ...f, aliases: e.target.value }))}
-            className="w-full px-2 py-1 rounded text-sm"
-            style={{
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border)",
-              color: "var(--text-primary)",
-              fontFamily: "var(--font-body)",
-              outline: "none",
-            }}
+            className="dashboard-input px-2 py-1 text-sm"
           />
         ) : (
           <span style={{ color: "var(--text-secondary)" }}>{row.aliases?.length ? row.aliases.join(", ") : "暂无别名"}</span>
@@ -200,24 +185,13 @@ function BrandsContent() {
         editingId === row.id ? (
           <button
             onClick={() => setEditForm((f) => ({ ...f, isCompetitor: !f.isCompetitor }))}
-            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
-            style={{
-              background: editForm.isCompetitor ? "var(--color-warning)20" : "var(--color-success)20",
-              color: editForm.isCompetitor ? "var(--color-warning)" : "var(--color-success)",
-              border: "none",
-              cursor: "pointer",
-              fontFamily: "var(--font-body)",
-            }}
+            className={`dashboard-chip ${editForm.isCompetitor ? "dashboard-chip--warning" : "dashboard-chip--success"} cursor-pointer`}
           >
             {editForm.isCompetitor ? "竞品" : "自有"}
           </button>
         ) : (
           <span
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
-            style={{
-              background: row.isCompetitor ? "var(--color-warning)20" : "var(--color-success)20",
-              color: row.isCompetitor ? "var(--color-warning)" : "var(--color-success)",
-            }}
+            className={`dashboard-chip ${row.isCompetitor ? "dashboard-chip--warning" : "dashboard-chip--success"}`}
           >
             {row.isCompetitor ? "竞品" : "自有"}
           </span>
@@ -233,15 +207,15 @@ function BrandsContent() {
             <button
               onClick={handleEdit}
               disabled={saving}
-              className="p-1 rounded transition-colors"
-              style={{ color: "var(--color-success)", background: "none", border: "none", cursor: "pointer" }}
+              className="dashboard-icon-button dashboard-icon-button--success"
+              aria-label="保存品牌"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             </button>
             <button
               onClick={() => setEditingId(null)}
-              className="p-1 rounded transition-colors"
-              style={{ color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer" }}
+              className="dashboard-icon-button"
+              aria-label="取消编辑"
             >
               <X className="w-4 h-4" />
             </button>
@@ -250,19 +224,15 @@ function BrandsContent() {
           <div className="flex items-center gap-1">
             <button
               onClick={() => startEdit(row)}
-              className="p-1 rounded transition-colors"
-              style={{ color: "var(--text-secondary)", background: "none", border: "none", cursor: "pointer" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
+              className="dashboard-icon-button"
+              aria-label="编辑品牌"
             >
               <Pencil className="w-4 h-4" />
             </button>
             <button
               onClick={() => setDeleteTarget(row)}
-              className="p-1 rounded transition-colors"
-              style={{ color: "var(--text-secondary)", background: "none", border: "none", cursor: "pointer" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--color-error)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
+              className="dashboard-icon-button dashboard-icon-button--danger"
+              aria-label="删除品牌"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -282,16 +252,7 @@ function BrandsContent() {
               setAdding(true);
               setForm({ name: "", aliases: "", isCompetitor: false });
             }}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            style={{
-              background: "var(--color-primary)",
-              color: "#0b0d14",
-              border: "none",
-              cursor: "pointer",
-              fontFamily: "var(--font-body)",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-primary-hover)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "var(--color-primary)")}
+            className="dashboard-button dashboard-button--primary"
           >
             <Plus className="w-3.5 h-3.5" />
             添加品牌
@@ -301,59 +262,38 @@ function BrandsContent() {
 
       {/* Add brand inline form */}
       {adding && (
-        <div style={sectionCard}>
+        <div className="dashboard-surface dashboard-surface--padded">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              <label className="dashboard-field-label">
                 品牌名称
               </label>
               <input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="品牌名称"
-                className="w-full px-3 py-2 rounded-lg text-sm"
-                style={{
-                  background: "var(--bg-elevated)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-primary)",
-                  fontFamily: "var(--font-body)",
-                  outline: "none",
-                }}
+                className="dashboard-input px-3 py-2 text-sm"
                 autoFocus
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              <label className="dashboard-field-label">
                 别名
               </label>
               <input
                 value={form.aliases}
                 onChange={(e) => setForm((f) => ({ ...f, aliases: e.target.value }))}
                 placeholder="别名，逗号分隔"
-                className="w-full px-3 py-2 rounded-lg text-sm"
-                style={{
-                  background: "var(--bg-elevated)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-primary)",
-                  fontFamily: "var(--font-body)",
-                  outline: "none",
-                }}
+                className="dashboard-input px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              <label className="dashboard-field-label">
                 类型
               </label>
               <button
                 onClick={() => setForm((f) => ({ ...f, isCompetitor: !f.isCompetitor }))}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium"
-                style={{
-                  background: form.isCompetitor ? "var(--color-warning)20" : "var(--color-success)20",
-                  color: form.isCompetitor ? "var(--color-warning)" : "var(--color-success)",
-                  border: "none",
-                  cursor: "pointer",
-                  fontFamily: "var(--font-body)",
-                }}
+                className={`dashboard-button ${form.isCompetitor ? "dashboard-chip--warning" : "dashboard-chip--success"}`}
               >
                 {form.isCompetitor ? "竞品" : "自有"}
               </button>
@@ -362,29 +302,14 @@ function BrandsContent() {
               <button
                 onClick={handleAdd}
                 disabled={saving || !form.name.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                style={{
-                  background: "var(--color-primary)",
-                  color: "#0b0d14",
-                  border: "none",
-                  cursor: saving || !form.name.trim() ? "not-allowed" : "pointer",
-                  opacity: saving || !form.name.trim() ? 0.5 : 1,
-                  fontFamily: "var(--font-body)",
-                }}
+                className="dashboard-button dashboard-button--primary"
               >
                 {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                 保存
               </button>
               <button
                 onClick={() => setAdding(false)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                style={{
-                  background: "var(--bg-hover)",
-                  color: "var(--text-secondary)",
-                  border: "none",
-                  cursor: "pointer",
-                  fontFamily: "var(--font-body)",
-                }}
+                className="dashboard-button dashboard-button--secondary"
               >
                 取消
               </button>
@@ -395,7 +320,7 @@ function BrandsContent() {
 
       {/* Data table */}
       {error ? (
-        <div style={sectionCard}>
+        <div className="dashboard-surface">
           <ErrorState onRetry={fetchBrands} />
         </div>
       ) : (
@@ -439,8 +364,8 @@ export default function BrandsPage() {
     <Suspense
       fallback={
         <div className="space-y-6">
-          <div className="h-10 w-48 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-          <div className="h-64 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+          <div className="dashboard-skeleton h-10 w-48 rounded animate-skeleton-pulse" />
+          <div className="dashboard-skeleton h-64 rounded-xl animate-skeleton-pulse" />
         </div>
       }
     >

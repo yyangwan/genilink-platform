@@ -14,7 +14,6 @@ import {
   type DiagnosticItem,
 } from "@/components/ui/diagnostic-checklist";
 import type { Schedule } from "@/types/visibility";
-import { sectionCard } from "@/components/charts/shared";
 import { formatDateInTimeZone } from "@/lib/time";
 
 interface SchedulesResponse {
@@ -140,12 +139,8 @@ function SchedulesContent() {
       width: "100px",
       render: (row: Schedule) => (
         <span
-          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-          style={{
-            background: row.is_active ? "var(--color-success)20" : "var(--bg-hover)",
-            color: row.is_active ? "var(--color-success)" : "var(--text-muted)",
-            fontFamily: "var(--font-display)",
-          }}
+          className={`dashboard-chip ${row.is_active ? "dashboard-chip--success" : ""}`}
+          style={{ background: row.is_active ? "color-mix(in srgb, var(--color-success) 14%, transparent)" : "var(--bg-hover)", color: row.is_active ? "var(--color-success)" : "var(--text-muted)" }}
         >
           {row.is_active ? "运行中" : "已暂停"}
         </span>
@@ -178,14 +173,8 @@ function SchedulesContent() {
           <button
             onClick={(e) => { e.stopPropagation(); handleToggle(row); }}
             disabled={togglingId === row.id}
-            className="px-2.5 py-1 rounded text-xs font-medium transition-colors"
-            style={{
-              background: row.is_active ? "var(--color-warning)20" : "var(--color-success)20",
-              color: row.is_active ? "var(--color-warning)" : "var(--color-success)",
-              border: "none",
-              cursor: togglingId === row.id ? "not-allowed" : "pointer",
-              fontFamily: "var(--font-body)",
-            }}
+            className="dashboard-button"
+            style={{ minHeight: 28, padding: "4px 10px", background: row.is_active ? "color-mix(in srgb, var(--color-warning) 14%, transparent)" : "color-mix(in srgb, var(--color-success) 14%, transparent)", color: row.is_active ? "var(--color-warning)" : "var(--color-success)", cursor: togglingId === row.id ? "not-allowed" : "pointer" }}
           >
             {togglingId === row.id ? (
               <Loader2 className="w-3 h-3 animate-spin inline" />
@@ -193,14 +182,8 @@ function SchedulesContent() {
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); setDeleteTarget(row); }}
-            className="px-2.5 py-1 rounded text-xs font-medium transition-colors"
-            style={{
-              background: "var(--color-error)20",
-              color: "var(--color-error)",
-              border: "none",
-              cursor: "pointer",
-              fontFamily: "var(--font-body)",
-            }}
+            className="dashboard-button"
+            style={{ minHeight: 28, padding: "4px 10px", background: "color-mix(in srgb, var(--color-error) 14%, transparent)", color: "var(--color-error)", cursor: "pointer" }}
           >
             <Trash2 className="w-3 h-3 inline" />
           </button>
@@ -210,16 +193,10 @@ function SchedulesContent() {
   ];
 
   const inputStyle: React.CSSProperties = {
-    background: "var(--bg-elevated)",
-    border: "1px solid var(--border)",
-    borderRadius: "8px",
-    padding: "8px 12px",
-    color: "var(--text-primary)",
     fontFamily: "var(--font-mono)",
     fontSize: 13,
     outline: "none",
     width: "100%",
-    boxSizing: "border-box",
   };
 
   // No project selected state — show DiagnosticChecklist
@@ -255,16 +232,7 @@ function SchedulesContent() {
         actions={
           <button
             onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            style={{
-              background: "var(--color-primary)",
-              color: "#0b0d14",
-              border: "none",
-              cursor: "pointer",
-              fontFamily: "var(--font-body)",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-primary-hover)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "var(--color-primary)")}
+            className="dashboard-button dashboard-button--primary"
           >
             <Plus className="w-3.5 h-3.5" />
             创建定时任务
@@ -274,7 +242,7 @@ function SchedulesContent() {
 
       {/* Create form */}
       {showCreateForm && (
-        <div style={sectionCard}>
+        <div className="dashboard-surface dashboard-surface--padded">
           <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
             新建定时任务
           </h3>
@@ -284,14 +252,8 @@ function SchedulesContent() {
                 <button
                   key={preset.cron}
                   onClick={() => setNewCron(preset.cron)}
-                  className="px-3 py-1.5 rounded-lg text-sm transition-colors"
-                  style={{
-                    background: newCron === preset.cron ? "var(--color-primary)" : "var(--bg-elevated)",
-                    color: newCron === preset.cron ? "#0b0d14" : "var(--text-secondary)",
-                    border: newCron === preset.cron ? "none" : "1px solid var(--border)",
-                    cursor: "pointer",
-                    fontFamily: "var(--font-body)",
-                  }}
+                  className={`dashboard-chip ${newCron === preset.cron ? "dashboard-chip--success" : ""}`}
+                  style={{ background: newCron === preset.cron ? "var(--color-primary)" : "var(--bg-card)", color: newCron === preset.cron ? "#0b0d14" : "var(--text-secondary)", border: newCron === preset.cron ? "none" : "1px solid var(--border)", cursor: "pointer" }}
                 >
                   {preset.label}
                 </button>
@@ -302,34 +264,21 @@ function SchedulesContent() {
               value={newCron}
               onChange={(e) => setNewCron(e.target.value)}
               placeholder="Cron 表达式"
+              className="dashboard-input px-3 py-2 text-sm"
               style={inputStyle}
             />
             <div className="flex items-center gap-2">
               <button
                 onClick={handleCreate}
                 disabled={creating}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                style={{
-                  background: "var(--color-primary)",
-                  color: "#0b0d14",
-                  border: "none",
-                  cursor: creating ? "not-allowed" : "pointer",
-                  fontFamily: "var(--font-body)",
-                }}
+                className="dashboard-button dashboard-button--primary"
               >
                 {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                 创建
               </button>
               <button
                 onClick={() => { setShowCreateForm(false); setNewCron("0 9 * * *"); }}
-                className="px-4 py-2 rounded-lg text-sm transition-colors"
-                style={{
-                  background: "var(--bg-hover)",
-                  color: "var(--text-secondary)",
-                  border: "none",
-                  cursor: "pointer",
-                  fontFamily: "var(--font-body)",
-                }}
+                className="dashboard-button dashboard-button--secondary"
               >
                 取消
               </button>
@@ -340,7 +289,7 @@ function SchedulesContent() {
 
       {/* Table */}
       {schedulesError ? (
-        <div style={sectionCard}>
+        <div className="dashboard-surface">
           <ErrorState onRetry={fetchSchedules} />
         </div>
       ) : (

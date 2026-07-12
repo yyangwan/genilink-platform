@@ -1,9 +1,16 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect */
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { Moon, Sun } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { Sun, Moon } from "lucide-react";
+
+import { PageHeader } from "@/components/ui/page-header";
+
+type MessageState = {
+  type: "success" | "error";
+  text: string;
+} | null;
 
 export default function AccountSettingsPage() {
   const { data: session, update } = useSession();
@@ -14,10 +21,7 @@ export default function AccountSettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [message, setMessage] = useState<MessageState>(null);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
   useEffect(() => {
@@ -26,11 +30,10 @@ export default function AccountSettingsPage() {
       setEmail(session.user.email || "");
     }
 
-    // Read theme from cookie
-    const cookies = document.cookie.split("; ");
-    const themeCookie = cookies.find((c) =>
-      c.startsWith("genilink-theme=")
-    );
+    const themeCookie = document.cookie
+      .split("; ")
+      .find((cookie) => cookie.startsWith("genilink-theme="));
+
     if (themeCookie) {
       const val = themeCookie.split("=")[1];
       setTheme(val === "light" ? "light" : "dark");
@@ -64,12 +67,14 @@ export default function AccountSettingsPage() {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (newPassword !== confirmPassword) {
       setMessage({ type: "error", text: "两次密码输入不一致" });
       return;
     }
+
     if (newPassword.length < 8) {
-      setMessage({ type: "error", text: "密码至少需要8个字符" });
+      setMessage({ type: "error", text: "密码至少需要 8 个字符" });
       return;
     }
 
@@ -108,40 +113,20 @@ export default function AccountSettingsPage() {
   const handleThemeToggle = () => {
     const newTheme = theme === "dark" ? "light" : "dark";
     setTheme(newTheme);
-    document.cookie = `genilink-theme=${newTheme};path=/;max-age=${
-      365 * 24 * 60 * 60
-    }`;
-    // Apply theme class to document for CSS variable switching
+    document.cookie = `genilink-theme=${newTheme};path=/;max-age=${365 * 24 * 60 * 60}`;
     document.documentElement.setAttribute("data-theme", newTheme);
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "10px 14px",
-    borderRadius: "8px",
-    border: "1px solid var(--border)",
-    background: "var(--bg-elevated)",
-    color: "var(--text-primary)",
-    fontFamily: "var(--font-body)",
-    fontSize: "14px",
-    outline: "none",
-    transition: "border-color 0.15s",
-  };
-
-  const sectionCard: React.CSSProperties = {
-    background: "var(--bg-card)",
-    border: "1px solid var(--border)",
-    borderRadius: "12px",
-    padding: "24px",
   };
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="账号设置"
+        subtitle="管理个人信息、密码和外观。"
+      />
 
-      {/* Message */}
       {message && (
         <div
-          className="px-3 py-2 rounded-lg text-sm"
+          className="rounded-lg border px-3 py-2 text-sm"
           style={{
             background:
               message.type === "success"
@@ -151,10 +136,10 @@ export default function AccountSettingsPage() {
               message.type === "success"
                 ? "var(--color-success)"
                 : "var(--color-error)",
-            border:
+            borderColor:
               message.type === "success"
-                ? "1px solid var(--color-success)30"
-                : "1px solid var(--color-error)30",
+                ? "var(--color-success)30"
+                : "var(--color-error)30",
             fontFamily: "var(--font-body)",
           }}
         >
@@ -162,27 +147,11 @@ export default function AccountSettingsPage() {
         </div>
       )}
 
-      {/* Profile section */}
-      <div style={sectionCard}>
-        <h3
-          className="text-base font-semibold mb-4"
-          style={{
-            color: "var(--text-primary)",
-            fontFamily: "var(--font-display)",
-          }}
-        >
-          个人信息
-        </h3>
+      <section className="dashboard-surface dashboard-surface--padded">
+        <h2 className="dashboard-panel-title">个人信息</h2>
         <form onSubmit={handleSaveProfile} className="space-y-4">
-          <div>
-            <label
-              htmlFor="name"
-              className="block text-sm font-medium mb-1.5"
-              style={{
-                color: "var(--text-secondary)",
-                fontFamily: "var(--font-body)",
-              }}
-            >
+          <div className="space-y-1.5">
+            <label className="dashboard-field-label" htmlFor="name">
               姓名
             </label>
             <input
@@ -190,25 +159,12 @@ export default function AccountSettingsPage() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              style={inputStyle}
-              onFocus={(e) =>
-                (e.currentTarget.style.borderColor =
-                  "var(--color-primary)")
-              }
-              onBlur={(e) =>
-                (e.currentTarget.style.borderColor = "var(--border)")
-              }
+              className="dashboard-input"
             />
           </div>
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium mb-1.5"
-              style={{
-                color: "var(--text-secondary)",
-                fontFamily: "var(--font-body)",
-              }}
-            >
+
+          <div className="space-y-1.5">
+            <label className="dashboard-field-label" htmlFor="email">
               邮箱
             </label>
             <input
@@ -216,64 +172,31 @@ export default function AccountSettingsPage() {
               type="email"
               value={email}
               disabled
-              style={{
-                ...inputStyle,
-                opacity: 0.6,
-                cursor: "not-allowed",
-              }}
+              className="dashboard-input"
+              style={{ opacity: 0.7, cursor: "not-allowed" }}
             />
-            <p
-              className="mt-1 text-xs"
-              style={{
-                color: "var(--text-muted)",
-                fontFamily: "var(--font-body)",
-              }}
-            >
-              邮箱暂不支持修改
+            <p className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              邮箱当前不支持修改
             </p>
           </div>
-          <button
-            type="submit"
-            disabled={savingProfile}
-            className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-            style={{
-              background: savingProfile
-                ? "var(--bg-hover)"
-                : "var(--color-primary)",
-              color: savingProfile
-                ? "var(--text-muted)"
-                : "#0b0d14",
-              border: "none",
-              fontFamily: "var(--font-display)",
-              cursor: savingProfile ? "not-allowed" : "pointer",
-            }}
-          >
-            {savingProfile ? "保存中..." : "保存"}
-          </button>
-        </form>
-      </div>
 
-      {/* Password section */}
-      <div style={sectionCard}>
-        <h3
-          className="text-base font-semibold mb-4"
-          style={{
-            color: "var(--text-primary)",
-            fontFamily: "var(--font-display)",
-          }}
-        >
-          修改密码
-        </h3>
-        <form onSubmit={handleChangePassword} className="space-y-4">
-          <div>
-            <label
-              htmlFor="currentPassword"
-              className="block text-sm font-medium mb-1.5"
-              style={{
-                color: "var(--text-secondary)",
-                fontFamily: "var(--font-body)",
-              }}
+          <div className="flex items-center justify-end">
+            <button
+              type="submit"
+              disabled={savingProfile}
+              className="dashboard-button dashboard-button--primary"
             >
+              {savingProfile ? "保存中..." : "保存"}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section className="dashboard-surface dashboard-surface--padded">
+        <h2 className="dashboard-panel-title">修改密码</h2>
+        <form onSubmit={handleChangePassword} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="dashboard-field-label" htmlFor="currentPassword">
               当前密码
             </label>
             <input
@@ -282,25 +205,12 @@ export default function AccountSettingsPage() {
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               required
-              style={inputStyle}
-              onFocus={(e) =>
-                (e.currentTarget.style.borderColor =
-                  "var(--color-primary)")
-              }
-              onBlur={(e) =>
-                (e.currentTarget.style.borderColor = "var(--border)")
-              }
+              className="dashboard-input"
             />
           </div>
-          <div>
-            <label
-              htmlFor="newPassword"
-              className="block text-sm font-medium mb-1.5"
-              style={{
-                color: "var(--text-secondary)",
-                fontFamily: "var(--font-body)",
-              }}
-            >
+
+          <div className="space-y-1.5">
+            <label className="dashboard-field-label" htmlFor="newPassword">
               新密码
             </label>
             <input
@@ -308,28 +218,15 @@ export default function AccountSettingsPage() {
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="至少8个字符"
+              placeholder="至少 8 个字符"
               required
               minLength={8}
-              style={inputStyle}
-              onFocus={(e) =>
-                (e.currentTarget.style.borderColor =
-                  "var(--color-primary)")
-              }
-              onBlur={(e) =>
-                (e.currentTarget.style.borderColor = "var(--border)")
-              }
+              className="dashboard-input"
             />
           </div>
-          <div>
-            <label
-              htmlFor="confirmNewPassword"
-              className="block text-sm font-medium mb-1.5"
-              style={{
-                color: "var(--text-secondary)",
-                fontFamily: "var(--font-body)",
-              }}
-            >
+
+          <div className="space-y-1.5">
+            <label className="dashboard-field-label" htmlFor="confirmNewPassword">
               确认新密码
             </label>
             <input
@@ -339,94 +236,51 @@ export default function AccountSettingsPage() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               minLength={8}
-              style={inputStyle}
-              onFocus={(e) =>
-                (e.currentTarget.style.borderColor =
-                  "var(--color-primary)")
-              }
-              onBlur={(e) =>
-                (e.currentTarget.style.borderColor = "var(--border)")
-              }
+              className="dashboard-input"
             />
           </div>
-          <button
-            type="submit"
-            disabled={savingPassword}
-            className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-            style={{
-              background: savingPassword
-                ? "var(--bg-hover)"
-                : "var(--color-primary)",
-              color: savingPassword
-                ? "var(--text-muted)"
-                : "#0b0d14",
-              border: "none",
-              fontFamily: "var(--font-display)",
-              cursor: savingPassword ? "not-allowed" : "pointer",
-            }}
-          >
-            {savingPassword ? "修改中..." : "修改密码"}
-          </button>
-        </form>
-      </div>
 
-      {/* Theme toggle */}
-      <div style={sectionCard}>
-        <h3
-          className="text-base font-semibold mb-4"
-          style={{
-            color: "var(--text-primary)",
-            fontFamily: "var(--font-display)",
-          }}
-        >
-          外观
-        </h3>
-        <div className="flex items-center justify-between">
-          <div>
-            <p
-              className="text-sm font-medium"
-              style={{
-                color: "var(--text-primary)",
-                fontFamily: "var(--font-body)",
-              }}
+          <div className="flex items-center justify-end">
+            <button
+              type="submit"
+              disabled={savingPassword}
+              className="dashboard-button dashboard-button--primary"
             >
+              {savingPassword ? "修改中..." : "修改密码"}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section className="dashboard-surface dashboard-surface--padded">
+        <h2 className="dashboard-panel-title">外观</h2>
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
               主题模式
             </p>
-            <p
-              className="text-xs mt-0.5"
-              style={{
-                color: "var(--text-muted)",
-                fontFamily: "var(--font-body)",
-              }}
-            >
-              {theme === "dark" ? "当前：深色模式" : "当前：浅色模式"}
+            <p className="mt-1 text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              {theme === "dark" ? "当前为深色模式" : "当前为浅色模式"}
             </p>
           </div>
           <button
             onClick={handleThemeToggle}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-            style={{
-              background: "var(--bg-elevated)",
-              color: "var(--text-secondary)",
-              border: "1px solid var(--border)",
-              fontFamily: "var(--font-body)",
-              cursor: "pointer",
-            }}
+            className="dashboard-button dashboard-button--secondary"
           >
             {theme === "dark" ? (
               <>
-                <Sun className="w-4 h-4" />
+                <Sun className="h-4 w-4" />
                 浅色模式
               </>
             ) : (
               <>
-                <Moon className="w-4 h-4" />
+                <Moon className="h-4 w-4" />
                 深色模式
               </>
             )}
           </button>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

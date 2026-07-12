@@ -4,6 +4,7 @@ import React, { Suspense, useState } from "react";
 import { Sparkles, ArrowRight, Plus, FileText } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { PageHeader } from "@/components/ui/page-header";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { useProject } from "@/components/project/project-context";
 import {
@@ -16,13 +17,6 @@ import {
   contentBriefToSearchParams,
   type SuggestionForContentBrief,
 } from "@/lib/content/content-brief";
-
-const card: React.CSSProperties = {
-  background: "var(--bg-card)",
-  border: "1px solid var(--border)",
-  borderRadius: "12px",
-  padding: "24px",
-};
 
 const metricStyle: React.CSSProperties = {
   display: "flex",
@@ -40,7 +34,7 @@ function DataBridge({ projectId }: { projectId: string }) {
 
   if (bridge.loading) {
     return (
-      <div style={card}>
+      <div className="dashboard-surface dashboard-surface--padded">
         <div className="flex items-center gap-2 mb-4">
           <div className="h-5 w-40 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
         </div>
@@ -111,7 +105,7 @@ function DataBridge({ projectId }: { projectId: string }) {
   });
 
   return (
-    <div style={card}>
+    <div className="dashboard-surface dashboard-surface--padded">
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
           基于智见可见性分析的内容建议
@@ -174,7 +168,7 @@ function DataBridge({ projectId }: { projectId: string }) {
 
 function ColdStartCard() {
   return (
-    <div style={card}>
+    <div className="dashboard-surface dashboard-surface--padded">
       <div className="text-center py-6">
         <p
           className="text-base font-semibold mb-2"
@@ -191,26 +185,14 @@ function ColdStartCard() {
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <Link
             href="/visibility"
-            className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg"
-            style={{
-              background: "var(--color-primary)",
-              color: "white",
-              fontFamily: "var(--font-body)",
-              textDecoration: "none",
-            }}
+            className="dashboard-button dashboard-button--primary"
           >
             前往智见
             <ArrowRight size={14} />
           </Link>
           <Link
             href="/content/new"
-            className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg"
-            style={{
-              border: "1px solid var(--border)",
-              color: "var(--text-secondary)",
-              fontFamily: "var(--font-body)",
-              textDecoration: "none",
-            }}
+            className="dashboard-button dashboard-button--secondary"
           >
             <Plus size={14} />
             从头开始写
@@ -233,7 +215,7 @@ function KPIStrip({ content }: { content: { data: ContentSummary | null; loading
   ];
 
   return (
-    <div
+      <div
       className="flex items-center divide-x divide-[var(--border)]"
       style={{
         background: "var(--bg-card)",
@@ -271,7 +253,7 @@ function RecentContent({ content }: { content: { data: ContentSummary | null; lo
 
   if (content.loading) {
     return (
-      <div style={card}>
+      <div className="dashboard-surface dashboard-surface--padded">
         <div className="h-4 w-24 mb-4 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
         {[1, 2, 3].map((i) => (
           <div key={i} className="h-8 mb-2 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
@@ -285,7 +267,7 @@ function RecentContent({ content }: { content: { data: ContentSummary | null; lo
   }
 
   return (
-    <div style={card}>
+    <div className="dashboard-surface dashboard-surface--padded">
       <div className="flex items-center justify-between mb-3">
         <span
           className="text-sm font-medium"
@@ -357,62 +339,26 @@ function ContentContent() {
 
     return (
       <div className="space-y-6">
-        <div>
-          <h1
-            className="text-2xl font-semibold tracking-tight"
-            style={{
-              color: "var(--text-primary)",
-              fontFamily: "var(--font-display)",
-              fontSize: "var(--text-sectionHeading)",
-            }}
-          >
-            智创
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-            AI 驱动的内容创作与管理
-          </p>
-        </div>
-        <DiagnosticChecklist items={diagnosticItems} title="准备工作" />
+        <PageHeader title="智创" subtitle="AI 驱动的内容创作与管理" />
+        <section className="dashboard-surface dashboard-surface--padded">
+          <DiagnosticChecklist items={diagnosticItems} title="准备工作" />
+        </section>
       </div>
     );
   }
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1
-            className="text-2xl font-semibold tracking-tight"
-            style={{
-              color: "var(--text-primary)",
-              fontFamily: "var(--font-display)",
-              fontSize: "var(--text-sectionHeading)",
-            }}
-          >
-            智创
-          </h1>
-          <p className="mt-0.5 text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-            AI 驱动的内容创作与管理
-            {currentProject && (
-              <span style={{ color: "var(--text-muted)" }}> 路 {currentProject.name}</span>
-            )}
-          </p>
-        </div>
-        <Link
-          href="/content/new"
-          className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg"
-          style={{
-            background: "var(--color-primary)",
-            color: "white",
-            fontFamily: "var(--font-body)",
-            textDecoration: "none",
-          }}
-        >
-          <Plus size={14} />
-          新建内容
-        </Link>
-      </div>
+      <PageHeader
+        title="智创"
+        subtitle={`AI 驱动的内容创作与管理${currentProject ? ` · ${currentProject.name}` : ""}`}
+        actions={
+          <Link href="/content/new" className="dashboard-button dashboard-button--primary">
+            <Plus size={14} />
+            新建内容
+          </Link>
+        }
+      />
 
       {/* Data Bridge */}
       {currentProjectId && <DataBridge projectId={currentProjectId} />}
@@ -431,9 +377,9 @@ export default function ContentPage() {
     <Suspense
       fallback={
         <div className="space-y-6">
-          <div className="h-10 w-48 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-          <div className="h-48 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-          <div className="h-16 rounded-lg animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+          <div className="dashboard-surface dashboard-surface--padded h-10 w-48 animate-skeleton-pulse" />
+          <div className="dashboard-surface dashboard-surface--padded h-48 animate-skeleton-pulse" />
+          <div className="dashboard-surface dashboard-surface--padded h-16 animate-skeleton-pulse" />
         </div>
       }
     >

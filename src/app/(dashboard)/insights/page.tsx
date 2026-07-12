@@ -22,24 +22,6 @@ import AnswerStructureChart from "@/components/charts/AnswerStructureChart";
 
 import type { ContentIntelligence } from "@/types/visibility";
 
-const cardStyle: React.CSSProperties = {
-  background: "var(--bg-card)",
-  border: "1px solid var(--border)",
-  borderRadius: "12px",
-  padding: "20px 24px",
-};
-
-const sectionTitle: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 600,
-  color: "var(--text-primary)",
-  fontFamily: "var(--font-body)",
-  marginBottom: 16,
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-};
-
 const SENTIMENT_COLORS = {
   positive: "var(--color-success)",
   neutral: "var(--color-warning)",
@@ -67,7 +49,7 @@ function StatCards({ data }: { data: ContentIntelligence }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {stats.map((stat) => (
-        <div key={stat.label} style={cardStyle}>
+        <div key={stat.label} className="dashboard-stat-card">
           <div className="flex items-center gap-2 mb-2">
             <stat.icon style={{ width: 16, height: 16, color: stat.color }} />
             <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
@@ -200,12 +182,12 @@ function InsightsContent() {
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-20 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+              <div key={i} className="dashboard-skeleton h-20 rounded-xl animate-skeleton-pulse" />
             ))}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+              <div key={i} className="dashboard-skeleton h-72 rounded-xl animate-skeleton-pulse" />
             ))}
           </div>
         </div>
@@ -213,7 +195,7 @@ function InsightsContent() {
 
       {/* Error state */}
       {ci.error && !ci.loading && (
-        <div style={cardStyle}>
+        <div className="dashboard-surface dashboard-surface--padded">
           <ErrorState onRetry={ci.refetch} />
         </div>
       )}
@@ -226,8 +208,8 @@ function InsightsContent() {
 
           {/* Row 1: Topic radar + Sentiment pie */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div style={cardStyle}>
-              <div style={sectionTitle}>
+            <div className="dashboard-surface dashboard-surface--padded">
+              <div className="dashboard-panel-title">
                 <Hash style={{ width: 16, height: 16, color: "var(--color-primary)" }} />
                 话题分布
               </div>
@@ -242,8 +224,8 @@ function InsightsContent() {
               </div>
             </div>
 
-            <div style={cardStyle}>
-              <div style={sectionTitle}>
+            <div className="dashboard-surface dashboard-surface--padded">
+              <div className="dashboard-panel-title">
                 <MessageSquare style={{ width: 16, height: 16, color: "var(--color-primary)" }} />
                 情感分布
               </div>
@@ -261,8 +243,8 @@ function InsightsContent() {
 
           {/* Row 2: Answer structure + Source authority */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div style={cardStyle}>
-              <div style={sectionTitle}>
+            <div className="dashboard-surface dashboard-surface--padded">
+              <div className="dashboard-panel-title">
                 <BarChart3 style={{ width: 16, height: 16, color: "var(--color-primary)" }} />
                 回答结构分布
               </div>
@@ -277,8 +259,8 @@ function InsightsContent() {
               </div>
             </div>
 
-            <div style={cardStyle}>
-              <div style={sectionTitle}>
+            <div className="dashboard-surface dashboard-surface--padded">
+              <div className="dashboard-panel-title">
                 <ExternalLink style={{ width: 16, height: 16, color: "var(--color-primary)" }} />
                 来源权威度
               </div>
@@ -287,15 +269,7 @@ function InsightsContent() {
           </div>
 
           {/* Analysis status bar */}
-          <div
-            style={{
-              ...cardStyle,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "12px 24px",
-            }}
-          >
+          <div className="dashboard-surface flex items-center gap-2 px-6 py-3">
             <Brain style={{ width: 16, height: 16, color: "var(--color-primary)" }} />
             <span style={{ fontSize: 13, color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
               基于最新审计数据生成 · 分析覆盖 {data.topics.length} 个话题 · {data.sources.length} 个引用来源
@@ -306,7 +280,7 @@ function InsightsContent() {
 
       {/* Empty state — API returned no error but also no data */}
       {!ci.loading && !ci.error && !data && (
-        <div style={cardStyle}>
+        <div className="dashboard-surface dashboard-surface--padded">
           <EmptyState
             icon={Brain}
             title="暂无内容洞察"
@@ -325,10 +299,10 @@ export default function InsightsPage() {
     <Suspense
       fallback={
         <div className="space-y-6">
-          <div className="h-10 w-48 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+          <div className="dashboard-skeleton h-10 w-48 rounded animate-skeleton-pulse" />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-20 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+              <div key={i} className="dashboard-skeleton h-20 rounded-xl animate-skeleton-pulse" />
             ))}
           </div>
         </div>

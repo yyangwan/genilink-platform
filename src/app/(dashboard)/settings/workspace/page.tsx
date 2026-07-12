@@ -1,8 +1,10 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect */
 
-import React, { useState, useEffect, useCallback } from "react";
-import { UserPlus, Shield, Mail } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
+import { Mail, Shield, UserPlus } from "lucide-react";
+
+import { PageHeader } from "@/components/ui/page-header";
 
 interface Member {
   id: string;
@@ -37,31 +39,33 @@ export default function WorkspaceSettingsPage() {
 
   const fetchWorkspaceData = useCallback(async () => {
     try {
-      // Fetch workspaces and find current one
       const wsRes = await fetch("/api/workspaces");
-      if (wsRes.ok) {
-        const wsData = await wsRes.json();
-        // Read current workspace from cookie
-        const cookies = document.cookie.split("; ");
-        const wsCookie = cookies.find((c) => c.startsWith("genilink-workspace="));
-        const currentId = wsCookie?.split("=")[1];
-        const current = wsData.workspaces?.find(
-          (w: WorkspaceInfo & { id: string }) => w.id === currentId
-        ) || wsData.workspaces?.[0];
-        if (current) {
-          setWorkspace(current);
-          setEditName(current.name);
+      if (!wsRes.ok) {
+        return;
+      }
 
-          // Fetch members for this workspace
-          const membersRes = await fetch(`/api/workspaces/members?workspaceId=${current.id}`);
-          if (membersRes.ok) {
-            const membersData = await membersRes.json();
-            setMembers(membersData.members || []);
-          }
-        }
+      const wsData = await wsRes.json();
+      const cookies = document.cookie.split("; ");
+      const wsCookie = cookies.find((cookie) => cookie.startsWith("genilink-workspace="));
+      const currentId = wsCookie?.split("=")[1];
+      const current =
+        wsData.workspaces?.find((item: WorkspaceInfo & { id: string }) => item.id === currentId) ||
+        wsData.workspaces?.[0];
+
+      if (!current) {
+        return;
+      }
+
+      setWorkspace(current);
+      setEditName(current.name);
+
+      const membersRes = await fetch(`/api/workspaces/members?workspaceId=${current.id}`);
+      if (membersRes.ok) {
+        const membersData = await membersRes.json();
+        setMembers(membersData.members || []);
       }
     } catch {
-      // Silently fail
+      // Keep the page usable even if the workspace API is unavailable.
     } finally {
       setLoading(false);
     }
@@ -77,7 +81,7 @@ export default function WorkspaceSettingsPage() {
     setMessage(null);
 
     try {
-      const res = await fetch(`/api/workspaces`, {
+      const res = await fetch("/api/workspaces", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ workspaceId: workspace.id, name: editName }),
@@ -103,7 +107,7 @@ export default function WorkspaceSettingsPage() {
     setMessage(null);
 
     try {
-      const res = await fetch(`/api/workspaces/invite`, {
+      const res = await fetch("/api/workspaces/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -126,48 +130,34 @@ export default function WorkspaceSettingsPage() {
     }
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "10px 14px",
-    borderRadius: "8px",
-    border: "1px solid var(--border)",
-    background: "var(--bg-elevated)",
-    color: "var(--text-primary)",
-    fontFamily: "var(--font-body)",
-    fontSize: "14px",
-    outline: "none",
-    transition: "border-color 0.15s",
-  };
-
-  const sectionCard: React.CSSProperties = {
-    background: "var(--bg-card)",
-    border: "1px solid var(--border)",
-    borderRadius: "12px",
-    padding: "24px",
-  };
-
   if (loading) {
     return (
       <div className="space-y-6">
-        <div
-          className="animate-skeleton-pulse rounded-xl"
-          style={{ ...sectionCard, height: "120px" }}
-        />
-        <div
-          className="animate-skeleton-pulse rounded-xl"
-          style={{ ...sectionCard, height: "200px" }}
-        />
+        <div className="dashboard-surface dashboard-surface--padded">
+          <div className="dashboard-skeleton h-6 w-40" />
+          <div className="dashboard-skeleton mt-4 h-10 w-full" />
+        </div>
+        <div className="dashboard-surface dashboard-surface--padded">
+          <div className="dashboard-skeleton h-6 w-32" />
+          <div className="mt-4 space-y-2">
+            <div className="dashboard-skeleton h-12 w-full" />
+            <div className="dashboard-skeleton h-12 w-full" />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="工作区设置"
+        subtitle="管理工作区名称、成员和邀请。"
+      />
 
-      {/* Message */}
       {message && (
         <div
-          className="px-3 py-2 rounded-lg text-sm"
+          className="rounded-lg border px-3 py-2 text-sm"
           style={{
             background:
               message.type === "success"
@@ -177,10 +167,10 @@ export default function WorkspaceSettingsPage() {
               message.type === "success"
                 ? "var(--color-success)"
                 : "var(--color-error)",
-            border:
+            borderColor:
               message.type === "success"
-                ? "1px solid var(--color-success)30"
-                : "1px solid var(--color-error)30",
+                ? "var(--color-success)30"
+                : "var(--color-error)30",
             fontFamily: "var(--font-body)",
           }}
         >
@@ -188,75 +178,29 @@ export default function WorkspaceSettingsPage() {
         </div>
       )}
 
-      {/* Workspace name */}
-      <div style={sectionCard}>
-        <h3
-          className="text-base font-semibold mb-4"
-          style={{
-            color: "var(--text-primary)",
-            fontFamily: "var(--font-display)",
-          }}
-        >
-          工作区名称
-        </h3>
-        <div className="flex items-center gap-3">
+      <section className="dashboard-surface dashboard-surface--padded">
+        <h2 className="dashboard-panel-title">工作区名称</h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <input
             type="text"
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
-            style={inputStyle}
-            onFocus={(e) =>
-              (e.currentTarget.style.borderColor = "var(--color-primary)")
-            }
-            onBlur={(e) =>
-              (e.currentTarget.style.borderColor = "var(--border)")
-            }
+            className="dashboard-input"
           />
           <button
             onClick={handleSaveName}
             disabled={saving || editName === workspace?.name}
-            className="px-4 py-2.5 rounded-lg text-sm font-semibold shrink-0 transition-colors"
-            style={{
-              background:
-                saving || editName === workspace?.name
-                  ? "var(--bg-hover)"
-                  : "var(--color-primary)",
-              color:
-                saving || editName === workspace?.name
-                  ? "var(--text-muted)"
-                  : "#0b0d14",
-              border: "none",
-              fontFamily: "var(--font-display)",
-              cursor:
-                saving || editName === workspace?.name
-                  ? "not-allowed"
-                  : "pointer",
-            }}
+            className="dashboard-button dashboard-button--primary shrink-0"
           >
             {saving ? "保存中..." : "保存"}
           </button>
         </div>
-      </div>
+      </section>
 
-      {/* Members */}
-      <div style={sectionCard}>
-        <h3
-          className="text-base font-semibold mb-4"
-          style={{
-            color: "var(--text-primary)",
-            fontFamily: "var(--font-display)",
-          }}
-        >
-          成员
-        </h3>
+      <section className="dashboard-surface dashboard-surface--padded">
+        <h2 className="dashboard-panel-title">成员</h2>
         {members.length === 0 ? (
-          <p
-            className="text-sm"
-            style={{
-              color: "var(--text-muted)",
-              fontFamily: "var(--font-body)",
-            }}
-          >
+          <p className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
             暂无其他成员
           </p>
         ) : (
@@ -264,80 +208,63 @@ export default function WorkspaceSettingsPage() {
             {members.map((member) => (
               <div
                 key={member.id}
-                className="flex items-center justify-between py-2 px-3 rounded-lg"
-                style={{ background: "var(--bg-elevated)" }}
+                className="flex items-center justify-between gap-4 rounded-lg px-3 py-2"
+                style={{ background: "var(--bg-card)" }}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold"
                     style={{
                       background: "var(--color-primary-dim)",
                       color: "var(--color-primary)",
+                      fontFamily: "var(--font-display)",
                     }}
                   >
                     {member.user.name?.charAt(0) || "?"}
                   </div>
-                  <div>
-                    <p
-                      className="text-sm font-medium"
-                      style={{
-                        color: "var(--text-primary)",
-                        fontFamily: "var(--font-body)",
-                      }}
-                    >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
                       {member.user.name}
                     </p>
-                    <p
-                      className="text-xs"
-                      style={{
-                        color: "var(--text-muted)",
-                        fontFamily: "var(--font-mono)",
-                      }}
-                    >
+                    <p className="truncate text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
                       {member.user.email}
                     </p>
                   </div>
                 </div>
                 <span
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium"
+                  className="dashboard-chip"
                   style={{
                     background:
                       member.role === "owner"
                         ? "var(--color-primary-dim)"
-                        : "var(--bg-hover)",
+                        : "var(--bg-card)",
                     color:
                       member.role === "owner"
                         ? "var(--color-primary)"
                         : "var(--text-secondary)",
-                    fontFamily: "var(--font-display)",
                   }}
                 >
-                  {member.role === "owner" && (
-                    <Shield className="w-3 h-3" />
+                  {member.role === "owner" ? (
+                    <>
+                      <Shield className="h-3 w-3" />
+                      管理员
+                    </>
+                  ) : (
+                    "成员"
                   )}
-                  {member.role === "owner" ? "管理员" : "成员"}
                 </span>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </section>
 
-      {/* Invite section */}
-      <div style={sectionCard}>
-        <h3
-          className="text-base font-semibold mb-4"
-          style={{
-            color: "var(--text-primary)",
-            fontFamily: "var(--font-display)",
-          }}
-        >
-          邀请成员
-        </h3>
-        <form onSubmit={handleInvite} className="flex items-center gap-3">
-          <div className="flex-1 relative">
+      <section className="dashboard-surface dashboard-surface--padded">
+        <h2 className="dashboard-panel-title">邀请成员</h2>
+        <form onSubmit={handleInvite} className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
             <Mail
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
               style={{ color: "var(--text-muted)" }}
             />
             <input
@@ -346,40 +273,19 @@ export default function WorkspaceSettingsPage() {
               onChange={(e) => setInviteEmail(e.target.value)}
               placeholder="输入邮箱地址"
               required
-              style={{
-                ...inputStyle,
-                paddingLeft: "36px",
-              }}
-              onFocus={(e) =>
-                (e.currentTarget.style.borderColor =
-                  "var(--color-primary)")
-              }
-              onBlur={(e) =>
-                (e.currentTarget.style.borderColor = "var(--border)")
-              }
+              className="dashboard-input pl-9"
             />
           </div>
           <button
             type="submit"
             disabled={inviteLoading}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold shrink-0 transition-colors"
-            style={{
-              background: inviteLoading
-                ? "var(--bg-hover)"
-                : "var(--color-primary)",
-              color: inviteLoading
-                ? "var(--text-muted)"
-                : "#0b0d14",
-              border: "none",
-              fontFamily: "var(--font-display)",
-              cursor: inviteLoading ? "not-allowed" : "pointer",
-            }}
+            className="dashboard-button dashboard-button--primary shrink-0"
           >
-            <UserPlus className="w-4 h-4" />
+            <UserPlus className="h-4 w-4" />
             {inviteLoading ? "发送中..." : "邀请"}
           </button>
         </form>
-      </div>
+      </section>
     </div>
   );
 }

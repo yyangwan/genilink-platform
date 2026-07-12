@@ -15,7 +15,7 @@ export function ErrorState({
   onRetry,
 }: ErrorStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-12">
+    <div className="dashboard-empty-state">
       <AlertTriangle className="w-10 h-10 mb-3" style={{ color: "var(--color-error)" }} />
       <p className="text-sm font-medium mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
         {title}
@@ -26,16 +26,12 @@ export function ErrorState({
       {onRetry && (
         <button
           onClick={onRetry}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="dashboard-button dashboard-button--secondary"
           style={{
             color: "var(--color-primary)",
-            background: "var(--color-primary)15",
-            border: "1px solid var(--color-primary)30",
-            cursor: "pointer",
-            fontFamily: "var(--font-body)",
+            background: "color-mix(in srgb, var(--color-primary) 12%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--color-primary) 30%, transparent)",
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-primary)25")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "var(--color-primary)15")}
         >
           <RefreshCw className="w-3.5 h-3.5" />
           重新加载

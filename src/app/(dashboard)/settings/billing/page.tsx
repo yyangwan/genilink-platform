@@ -241,29 +241,14 @@ export default function BillingSettingsPage() {
           </p>
         </div>
 
-        <div
-          className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            color: "var(--text-secondary)",
-            fontFamily: "var(--font-body)",
-          }}
-        >
+        <div className="dashboard-surface inline-flex items-center gap-2 px-3 py-2 text-sm" style={{ color: "var(--text-secondary)" }}>
           <ShieldCheck className="h-4 w-4" />
           {summaryText}
         </div>
       </div>
 
       {checkoutState === "success" && (
-        <div
-          className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm"
-          style={{
-            background: "color-mix(in srgb, var(--color-success) 12%, transparent)",
-            border: "1px solid color-mix(in srgb, var(--color-success) 40%, transparent)",
-            color: "var(--text-primary)",
-          }}
-        >
+        <div className="dashboard-surface flex items-center gap-2 px-4 py-3 text-sm" style={{ background: "color-mix(in srgb, var(--color-success) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--color-success) 40%, transparent)", color: "var(--text-primary)" }}>
           <CheckCircle2 className="h-4 w-4" />
           订单已发起，若支付完成会自动开通。
           {checkoutOrderId ? `订单号：${checkoutOrderId}` : ""}
@@ -271,29 +256,14 @@ export default function BillingSettingsPage() {
       )}
 
       {checkoutState === "canceled" && (
-        <div
-          className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm"
-          style={{
-            background: "color-mix(in srgb, var(--color-warning) 10%, transparent)",
-            border: "1px solid color-mix(in srgb, var(--color-warning) 35%, transparent)",
-            color: "var(--text-primary)",
-          }}
-        >
+        <div className="dashboard-surface flex items-center gap-2 px-4 py-3 text-sm" style={{ background: "color-mix(in srgb, var(--color-warning) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--color-warning) 35%, transparent)", color: "var(--text-primary)" }}>
           <Sparkles className="h-4 w-4" />
           收款流程已取消。
         </div>
       )}
 
       {error && (
-        <div
-          className="rounded-lg px-4 py-3 text-sm"
-          style={{
-            background: "color-mix(in srgb, var(--color-danger) 10%, transparent)",
-            border: "1px solid color-mix(in srgb, var(--color-danger) 35%, transparent)",
-            color: "var(--text-primary)",
-            fontFamily: "var(--font-body)",
-          }}
-        >
+        <div className="dashboard-surface px-4 py-3 text-sm" style={{ background: "color-mix(in srgb, var(--color-error) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--color-error) 35%, transparent)", color: "var(--text-primary)" }}>
           {error}
         </div>
       )}
@@ -303,8 +273,7 @@ export default function BillingSettingsPage() {
           {[0, 1, 2, 3].map((index) => (
             <div
               key={index}
-              className="h-56 rounded-xl animate-skeleton-pulse"
-              style={{ background: "var(--bg-hover)" }}
+              className="dashboard-skeleton h-56 rounded-xl animate-skeleton-pulse"
             />
           ))}
         </div>
@@ -336,11 +305,8 @@ export default function BillingSettingsPage() {
             return (
               <section
                 key={plan.id}
-                className="rounded-xl p-6"
-                style={{
-                  background: "var(--bg-card)",
-                  border: active ? "1px solid var(--color-success)" : "1px solid var(--border)",
-                }}
+                className="dashboard-surface dashboard-surface--padded"
+                style={{ borderColor: active ? "var(--color-success)" : "var(--border)" }}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -356,11 +322,8 @@ export default function BillingSettingsPage() {
                       </h2>
                       {active && (
                         <span
-                          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
-                          style={{
-                            background: "color-mix(in srgb, var(--color-success) 14%, transparent)",
-                            color: "var(--color-success)",
-                          }}
+                          className="dashboard-chip dashboard-chip--success"
+                          style={{ background: "color-mix(in srgb, var(--color-success) 14%, transparent)" }}
                         >
                           <CheckCircle2 className="h-3 w-3" />
                           已开通
@@ -368,11 +331,8 @@ export default function BillingSettingsPage() {
                       )}
                       {!plan.configured && !overview?.billingDisabled && (
                         <span
-                          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
-                          style={{
-                            background: "var(--bg-hover)",
-                            color: "var(--text-muted)",
-                          }}
+                          className="dashboard-chip"
+                          style={{ background: "var(--bg-card)", color: "var(--text-muted)" }}
                         >
                           未配置
                         </span>
@@ -429,12 +389,8 @@ export default function BillingSettingsPage() {
                           <button
                             key={option.value}
                             type="button"
-                            className="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
-                            style={{
-                              background: selected ? "var(--color-primary)" : "var(--bg-hover)",
-                              color: selected ? "#0b0d14" : "var(--text-secondary)",
-                              fontFamily: "var(--font-body)",
-                            }}
+                            className={`dashboard-chip ${selected ? "dashboard-chip--success" : ""}`}
+                          style={{ background: selected ? "var(--color-primary)" : "var(--bg-card)", color: selected ? "#0b0d14" : "var(--text-secondary)" }}
                             onClick={() =>
                               setSelectedProviderByPlanKey((current) => ({
                                 ...current,
@@ -466,13 +422,8 @@ export default function BillingSettingsPage() {
 
                 <div className="mt-5 flex items-center gap-3">
                   <button
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors"
-                    style={{
-                      background: disabled ? "var(--bg-hover)" : "var(--color-primary)",
-                      color: disabled ? "var(--text-muted)" : "#0b0d14",
-                      cursor: disabled ? "not-allowed" : "pointer",
-                      fontFamily: "var(--font-body)",
-                    }}
+                    className="dashboard-button dashboard-button--primary"
+                    style={{ minHeight: 40, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.6 : 1 }}
                     disabled={disabled || checkoutPendingKey === plan.key}
                     onClick={() => handleCheckout(plan.key)}
                   >
@@ -521,11 +472,7 @@ export default function BillingSettingsPage() {
 
       {!loading && activeSubscriptions.length > 0 && (
         <section
-          className="rounded-xl p-6"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-          }}
+          className="dashboard-surface dashboard-surface--padded"
         >
           <h2
             className="text-base font-semibold"
@@ -541,11 +488,7 @@ export default function BillingSettingsPage() {
             {activeSubscriptions.map((sub) => (
               <div
                 key={sub.id}
-                className="flex flex-col gap-2 rounded-lg p-4 sm:flex-row sm:items-center sm:justify-between"
-                style={{
-                  background: "var(--bg-elevated)",
-                  border: "1px solid var(--border)",
-                }}
+                className="dashboard-surface flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
                   <div

@@ -20,8 +20,8 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, subtitle, breadcrumbs, actions, notifications }: PageHeaderProps) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <div>
+    <div className="dashboard-page-header">
+      <div className="min-w-0">
         {breadcrumbs && (
           <div className="mb-2">
             <Breadcrumb items={breadcrumbs} />
@@ -43,7 +43,7 @@ export function PageHeader({ title, subtitle, breadcrumbs, actions, notification
           </p>
         )}
       </div>
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="dashboard-page-header__actions">
         {notifications && (
           <NotificationDropdown
             notifications={notifications.items}

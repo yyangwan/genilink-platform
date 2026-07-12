@@ -160,6 +160,12 @@ The app consumes the generated CSS variables from `@genilink/design-tokens/dist/
 
 ## Component Language
 
+### Dashboard Utilities
+- Shared dashboard primitives live in [`src/app/globals.css`](/E:/workspace/genilink-platform/src/app/globals.css) under `Dashboard component utilities`.
+- Prefer `dashboard-surface`, `dashboard-button`, `dashboard-icon-button`, `dashboard-input`, `dashboard-chip`, `dashboard-empty-state`, and `dashboard-table` before adding page-local inline styles.
+- Keep page-local styles for one-off layout only. Repeated cards, controls, table states, skeletons, and status chips should move into these utilities or a shared component.
+- `PageHeader`, `EmptyState`, and `DataTable` are the reference implementation for spacing, mobile wrapping, borders, table density, and empty-state actions.
+
 ### Cards
 - Card background should usually be `var(--bg-card)`.
 - Prefer hairline borders and subtle elevation.

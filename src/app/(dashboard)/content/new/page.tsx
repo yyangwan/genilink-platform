@@ -31,11 +31,6 @@ interface BrandVoiceOption {
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "10px 14px",
-  borderRadius: "var(--radius-md)",
-  border: "1px solid var(--border)",
-  background: "var(--bg-primary)",
-  color: "var(--text-primary)",
   fontFamily: "var(--font-body)",
   fontSize: 14,
   outline: "none",
@@ -167,15 +162,8 @@ function NewContentInner() {
       <div className="flex items-center gap-3">
         <Link
           href="/content"
-          className="inline-flex items-center justify-center"
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: "var(--radius-md)",
-            border: "1px solid var(--border)",
-            color: "var(--text-secondary)",
-            textDecoration: "none",
-          }}
+          className="dashboard-icon-button"
+          style={{ textDecoration: "none" }}
         >
           <ArrowLeft size={16} />
         </Link>
@@ -190,8 +178,7 @@ function NewContentInner() {
       <div className="space-y-5">
         <div>
           <label
-            className="block text-sm font-medium mb-1.5"
-            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+            className="dashboard-field-label"
           >
             内容主题 <span style={{ color: "var(--color-primary)" }}>*</span>
           </label>
@@ -199,6 +186,7 @@ function NewContentInner() {
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             placeholder="例如：如何提升 AI 搜索推荐场景下的品牌可见性"
+            className="dashboard-input px-3 py-2 text-sm"
             style={inputStyle}
             onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
             onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
@@ -206,10 +194,7 @@ function NewContentInner() {
         </div>
 
         <div>
-          <label
-            className="block text-sm font-medium mb-1.5"
-            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-          >
+          <label className="dashboard-field-label">
             核心要点
           </label>
           <div className="space-y-2">
@@ -219,6 +204,7 @@ function NewContentInner() {
                   value={point}
                   onChange={(e) => updateKeyPoint(i, e.target.value)}
                   placeholder={`要点 ${i + 1}`}
+                  className="dashboard-input px-3 py-2 text-sm"
                   style={{ ...inputStyle, flex: 1 }}
                   onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
                   onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
@@ -226,16 +212,7 @@ function NewContentInner() {
                 {keyPoints.length > 1 && (
                   <button
                     onClick={() => removeKeyPoint(i)}
-                    className="shrink-0 inline-flex items-center justify-center"
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "var(--radius-md)",
-                      border: "1px solid var(--border)",
-                      background: "transparent",
-                      color: "var(--text-muted)",
-                      cursor: "pointer",
-                    }}
+                    className="dashboard-icon-button shrink-0"
                   >
                     <X size={14} />
                   </button>
@@ -245,15 +222,7 @@ function NewContentInner() {
           </div>
           <button
             onClick={addKeyPoint}
-            className="mt-2 inline-flex items-center gap-1 text-sm"
-            style={{
-              color: "var(--color-primary)",
-              background: "transparent",
-              border: "none",
-              fontFamily: "var(--font-body)",
-              cursor: "pointer",
-              padding: 0,
-            }}
+            className="dashboard-button dashboard-button--secondary mt-2"
           >
             <Plus size={14} />
             添加要点
@@ -261,10 +230,7 @@ function NewContentInner() {
         </div>
 
         <div>
-          <label
-            className="block text-sm font-medium mb-1.5"
-            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-          >
+          <label className="dashboard-field-label">
             目标平台
           </label>
           <div className="flex flex-wrap gap-2">
@@ -274,16 +240,8 @@ function NewContentInner() {
                 <button
                   key={p.id}
                   onClick={() => togglePlatform(p.id)}
-                  className="text-sm px-3 py-1.5 rounded-full"
-                  style={{
-                    background: active
-                      ? "color-mix(in srgb, var(--color-primary) 12%, transparent)"
-                      : "var(--bg-primary)",
-                    color: active ? "var(--color-primary)" : "var(--text-secondary)",
-                    border: `1px solid ${active ? "var(--color-primary)" : "var(--border)"}`,
-                    fontFamily: "var(--font-body)",
-                    cursor: "pointer",
-                  }}
+                  className="dashboard-chip"
+                  style={{ background: active ? "color-mix(in srgb, var(--color-primary) 12%, transparent)" : "var(--bg-card)", color: active ? "var(--color-primary)" : "var(--text-secondary)", border: `1px solid ${active ? "var(--color-primary)" : "var(--border)"}`, cursor: "pointer" }}
                 >
                   {p.label}
                 </button>
@@ -294,18 +252,16 @@ function NewContentInner() {
 
         {templates.length > 0 && (
           <div>
-            <label
-              className="block text-sm font-medium mb-1.5"
-              style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-            >
-              <LayoutTemplate size={13} className="inline mr-1" />
-              内容模板
-            </label>
-            <select
-              value={selectedTemplate}
-              onChange={(e) => setSelectedTemplate(e.target.value)}
-              style={{ ...inputStyle, appearance: "auto" }}
-            >
+          <label className="dashboard-field-label">
+            <LayoutTemplate size={13} className="inline mr-1" />
+            内容模板
+          </label>
+          <select
+            value={selectedTemplate}
+            onChange={(e) => setSelectedTemplate(e.target.value)}
+            className="dashboard-input px-3 py-2 text-sm"
+            style={{ ...inputStyle, appearance: "auto" }}
+          >
               <option value="">不使用模板</option>
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -318,18 +274,16 @@ function NewContentInner() {
 
         {voices.length > 0 && (
           <div>
-            <label
-              className="block text-sm font-medium mb-1.5"
-              style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-            >
-              <Mic size={13} className="inline mr-1" />
-              品牌声音
-            </label>
-            <select
-              value={selectedVoice}
-              onChange={(e) => setSelectedVoice(e.target.value)}
-              style={{ ...inputStyle, appearance: "auto" }}
-            >
+          <label className="dashboard-field-label">
+            <Mic size={13} className="inline mr-1" />
+            品牌声音
+          </label>
+          <select
+            value={selectedVoice}
+            onChange={(e) => setSelectedVoice(e.target.value)}
+            className="dashboard-input px-3 py-2 text-sm"
+            style={{ ...inputStyle, appearance: "auto" }}
+          >
               <option value="">默认声音</option>
               {voices.map((v) => (
                 <option key={v.id} value={v.id}>
@@ -342,26 +296,15 @@ function NewContentInner() {
 
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="text-xs font-medium"
-          style={{
-            color: "var(--text-muted)",
-            background: "none",
-            border: "none",
-            fontFamily: "var(--font-body)",
-            cursor: "pointer",
-            padding: 0,
-          }}
+          className="dashboard-button dashboard-button--secondary self-start"
         >
           {showAdvanced ? "收起高级选项" : "展开高级选项"}
         </button>
 
         {showAdvanced && (
-          <div className="space-y-4 p-4 rounded-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+          <div className="dashboard-surface dashboard-surface--padded space-y-4">
             <div>
-              <label
-                className="block text-sm font-medium mb-1.5"
-                style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-              >
+              <label className="dashboard-field-label">
                 参考资料
               </label>
               <textarea
@@ -369,16 +312,14 @@ function NewContentInner() {
                 onChange={(e) => setReferences(e.target.value)}
                 placeholder="粘贴参考文章、来源链接或素材摘要..."
                 rows={3}
+                className="dashboard-input px-3 py-2 text-sm"
                 style={{ ...inputStyle, resize: "vertical" }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
                 onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
               />
             </div>
             <div>
-              <label
-                className="block text-sm font-medium mb-1.5"
-                style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-              >
+              <label className="dashboard-field-label">
                 备注
               </label>
               <textarea
@@ -386,6 +327,7 @@ function NewContentInner() {
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="对 AI 生成内容的额外要求、审计依据或成功指标..."
                 rows={4}
+                className="dashboard-input px-3 py-2 text-sm"
                 style={{ ...inputStyle, resize: "vertical" }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
                 onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
@@ -399,29 +341,15 @@ function NewContentInner() {
         <button
           onClick={handleSubmit}
           disabled={submitting || !topic.trim()}
-          className="text-sm font-medium px-5 py-2.5 rounded-lg inline-flex items-center gap-2"
-          style={{
-            background: "var(--color-primary)",
-            color: "white",
-            border: "none",
-            fontFamily: "var(--font-body)",
-            cursor: submitting ? "wait" : "pointer",
-            opacity: submitting || !topic.trim() ? 0.6 : 1,
-          }}
+          className="dashboard-button dashboard-button--primary px-5 py-2.5"
         >
           {submitting ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
           {submitting ? "AI 生成中..." : "AI 生成内容"}
         </button>
         <Link
           href="/content"
-          className="text-sm font-medium px-4 py-2.5 rounded-lg"
-          style={{
-            background: "transparent",
-            color: "var(--text-secondary)",
-            border: "1px solid var(--border)",
-            fontFamily: "var(--font-body)",
-            textDecoration: "none",
-          }}
+          className="dashboard-button dashboard-button--secondary px-4 py-2.5"
+          style={{ textDecoration: "none" }}
         >
           取消
         </Link>
@@ -435,8 +363,8 @@ export default function NewContentPage() {
     <Suspense
       fallback={
         <div className="space-y-4 max-w-2xl">
-          <div className="h-10 w-48 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
-          <div className="h-64 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
+          <div className="dashboard-skeleton h-10 w-48 rounded animate-skeleton-pulse" />
+          <div className="dashboard-skeleton h-64 rounded-xl animate-skeleton-pulse" />
         </div>
       }
     >

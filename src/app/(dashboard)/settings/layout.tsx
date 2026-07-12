@@ -4,9 +4,11 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { PageHeader } from "@/components/ui/page-header";
+
 const tabs = [
   { label: "工作区", href: "/settings/workspace" },
-  { label: "账户", href: "/settings/account" },
+  { label: "账号", href: "/settings/account" },
   { label: "品牌", href: "/settings/brands" },
   { label: "提示词", href: "/settings/prompts" },
   { label: "订阅", href: "/settings/billing" },
@@ -20,46 +22,34 @@ export default function SettingsLayout({
   const pathname = usePathname();
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h1
-          className="text-2xl font-semibold tracking-tight"
-          style={{
-            color: "var(--text-primary)",
-            fontFamily: "var(--font-display)",
-            fontSize: "var(--text-sectionHeading)",
-          }}
-        >
-          设置
-        </h1>
-      </div>
+    <div className="max-w-3xl space-y-6">
+      <PageHeader
+        title="设置"
+        subtitle="管理工作区、账号、品牌和订阅。"
+      />
 
-      {/* Tabs */}
-      <div
-        className="flex gap-1 p-1 rounded-lg"
-        style={{ background: "var(--bg-elevated)" }}
-      >
-        {tabs.map((tab) => {
-          const active = pathname === tab.href;
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className="px-4 py-2 rounded-md text-sm font-medium transition-colors"
-              style={{
-                background: active ? "var(--bg-card)" : "transparent",
-                color: active
-                  ? "var(--text-primary)"
-                  : "var(--text-secondary)",
-                border: active ? "1px solid var(--border)" : "1px solid transparent",
-                fontFamily: "var(--font-body)",
-                textDecoration: "none",
-              }}
-            >
-              {tab.label}
-            </Link>
-          );
-        })}
+      <div className="dashboard-surface p-1">
+        <div className="flex flex-wrap gap-1">
+          {tabs.map((tab) => {
+            const active = pathname === tab.href;
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className="inline-flex items-center rounded-md px-4 py-2 text-sm font-medium transition-colors"
+                style={{
+                  background: active ? "var(--bg-card)" : "transparent",
+                  color: active ? "var(--text-primary)" : "var(--text-secondary)",
+                  border: active ? "1px solid var(--border)" : "1px solid transparent",
+                  fontFamily: "var(--font-body)",
+                  textDecoration: "none",
+                }}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
+        </div>
       </div>
 
       {children}

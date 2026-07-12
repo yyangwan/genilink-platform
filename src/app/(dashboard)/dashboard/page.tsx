@@ -2,6 +2,7 @@
 
 import React, { useMemo, Suspense } from "react";
 import Link from "next/link";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   DashboardCard,
   EmptyState,
@@ -46,7 +47,7 @@ function HealthBadge({
     <span
       className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs"
       style={{
-        background: "var(--bg-elevated)",
+        background: "var(--bg-card)",
         color: "var(--text-secondary)",
         fontFamily: "var(--font-display)",
       }}
@@ -444,48 +445,26 @@ function DashboardContent() {
 
   return (
     <div className="space-y-8">
-      {/* ─── Header ─────────────────────────────────────────── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1
-            className="text-2xl font-semibold tracking-tight"
-            style={{
-              color: "var(--text-primary)",
-              fontFamily: "var(--font-display)",
-              fontSize: "var(--text-sectionHeading)",
-            }}
-          >
-            工作台
-          </h1>
-          <p
-            className="mt-1 text-sm"
-            style={{
-              color: "var(--text-secondary)",
-              fontFamily: "var(--font-body)",
-            }}
-          >
-            {currentProjectId
-              ? `项目概览 — 实时数据监控`
-              : "全局概览 — 实时数据监控"}
-          </p>
-        </div>
-
-        {/* Service health indicators */}
-        <div className="flex items-center gap-2">
-          <HealthBadge label="智見" status={visibility.error ? "down" : visibility.loading ? "degraded" : visibility.data?.overallScore != null ? "ok" : "degraded"} />
-          <HealthBadge label="智創" status={content.data?._meta?.serviceAvailable ? "ok" : "degraded"} />
-        </div>
-      </div>
+      <PageHeader
+        title="工作台"
+        subtitle={currentProjectId ? "项目概览 — 实时数据监控" : "全局概览 — 实时数据监控"}
+        actions={
+          <div className="flex items-center gap-2">
+            <HealthBadge
+              label="智见"
+              status={visibility.error ? "down" : visibility.loading ? "degraded" : visibility.data?.overallScore != null ? "ok" : "degraded"}
+            />
+            <HealthBadge
+              label="智创"
+              status={content.data?._meta?.serviceAvailable ? "ok" : "degraded"}
+            />
+          </div>
+        }
+      />
 
       {/* ─── Welcome CTA (shown when no data) ──────────────── */}
       {!currentProjectId && !visibility.loading && !visibility.data?.overallScore && (
-        <div
-          className="rounded-xl p-6 flex items-center justify-between gap-4"
-          style={{
-            background: "linear-gradient(135deg, var(--color-primary-dim), var(--bg-elevated))",
-            border: "1px solid var(--border)",
-          }}
-        >
+        <div className="dashboard-surface dashboard-surface--padded flex items-center justify-between gap-4">
           <div>
             <h3
               className="text-base font-semibold mb-1"
@@ -508,13 +487,7 @@ function DashboardContent() {
           </div>
           <Link
             href="/projects"
-            className="shrink-0 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors"
-            style={{
-              background: "var(--color-primary)",
-              color: "#0b0d14",
-              fontFamily: "var(--font-display)",
-              textDecoration: "none",
-            }}
+            className="dashboard-button dashboard-button--primary shrink-0"
           >
             创建项目
           </Link>
@@ -620,7 +593,7 @@ function DashboardContent() {
                 <li
                   key={i}
                   className="flex items-start gap-3 py-2.5 px-3 rounded-lg"
-                  style={{ background: "var(--bg-elevated)" }}
+                  style={{ background: "var(--bg-card)" }}
                 >
                   <PriorityBadge priority={task.priority} />
                   <span
@@ -653,7 +626,7 @@ function DashboardContent() {
                 <li
                   key={item.id}
                   className="flex items-center justify-between py-2 px-3 rounded-lg transition-colors"
-                  style={{ background: "var(--bg-elevated)" }}
+                  style={{ background: "var(--bg-card)" }}
                 >
                   <span
                     className="text-sm truncate max-w-[70%]"

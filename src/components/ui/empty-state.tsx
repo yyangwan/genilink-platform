@@ -15,7 +15,7 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon: Icon, title, description, actionLabel, actionHref, onAction }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-12">
+    <div className="dashboard-empty-state">
       <Icon className="w-10 h-10 mb-3" style={{ color: "var(--text-muted)" }} />
       <p className="text-sm font-medium mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
         {title}
@@ -27,8 +27,8 @@ export function EmptyState({ icon: Icon, title, description, actionLabel, action
         actionHref ? (
           <Link
             href={actionHref}
-            className="flex items-center gap-1.5 text-sm font-medium"
-            style={{ color: "var(--color-primary)", fontFamily: "var(--font-body)", textDecoration: "none" }}
+            className="dashboard-button dashboard-button--secondary"
+            style={{ color: "var(--color-primary)", textDecoration: "none" }}
           >
             {actionLabel}
             <ArrowRight className="w-3.5 h-3.5" />
@@ -36,8 +36,8 @@ export function EmptyState({ icon: Icon, title, description, actionLabel, action
         ) : (
           <button
             onClick={onAction}
-            className="flex items-center gap-1.5 text-sm font-medium"
-            style={{ color: "var(--color-primary)", fontFamily: "var(--font-body)", background: "none", border: "none", cursor: "pointer" }}
+            className="dashboard-button dashboard-button--secondary"
+            style={{ color: "var(--color-primary)" }}
           >
             {actionLabel}
             <ArrowRight className="w-3.5 h-3.5" />

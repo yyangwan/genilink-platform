@@ -60,10 +60,8 @@ export function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
-        className="w-full max-w-sm mx-4 rounded-xl p-6"
+        className="w-full max-w-sm mx-4 rounded-xl p-6 dashboard-surface"
         style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border)",
           boxShadow: "0 20px 60px rgba(0, 0, 0, 0.4)",
         }}
       >
@@ -89,39 +87,17 @@ export function ConfirmDialog({
         <div className="flex items-center justify-end gap-3">
           <button
             onClick={onCancel}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            style={{
-              background: "var(--bg-hover)",
-              color: "var(--text-secondary)",
-              fontFamily: "var(--font-body)",
-              border: "none",
-              cursor: "pointer",
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.background = "var(--bg-elevated)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.background = "var(--bg-hover)")
-            }
+            className="dashboard-button dashboard-button--secondary"
           >
             {cancelLabel}
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="dashboard-button"
             style={{
               background: "var(--color-error)",
               color: "#fff",
-              fontFamily: "var(--font-body)",
-              border: "none",
-              cursor: "pointer",
             }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.opacity = "0.9")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.opacity = "1")
-            }
           >
             {confirmLabel}
           </button>
