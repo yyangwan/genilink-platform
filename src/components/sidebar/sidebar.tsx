@@ -285,7 +285,7 @@ export default function Sidebar() {
           style={{ color: "var(--text-muted)" }}
           onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-          aria-label="Close sidebar"
+          aria-label="关闭侧边栏"
         >
           <X className="w-5 h-5" />
         </button>
@@ -481,7 +481,7 @@ export default function Sidebar() {
           border: "1px solid var(--border)",
           color: "var(--text-secondary)",
         }}
-        aria-label="Open menu"
+        aria-label="打开菜单"
       >
         <Menu className="w-5 h-5" />
       </button>

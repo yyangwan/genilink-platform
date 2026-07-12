@@ -3,16 +3,91 @@ import { prisma } from '@/lib/db';
 import { getAccessToken } from '@/lib/wechat/token';
 import crypto from 'crypto';
 
+function isDevelopmentWechatFallbackEnabled(): boolean {
+  return process.env.NODE_ENV !== 'production';
+}
+
+function buildDevelopmentQrDataUrl(scene: string): string {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+      <rect width="400" height="400" rx="24" fill="#ffffff" />
+      <rect x="24" y="24" width="352" height="352" rx="20" fill="#f4f6fa" stroke="#d6dbe6" />
+      <rect x="56" y="56" width="88" height="88" rx="12" fill="#0b0d14" />
+      <rect x="256" y="56" width="88" height="88" rx="12" fill="#0b0d14" />
+      <rect x="56" y="256" width="88" height="88" rx="12" fill="#0b0d14" />
+      <text x="200" y="206" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" fill="#0b0d14">微信开发模式</text>
+      <text x="200" y="238" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#5b6477">scene: ${scene}</text>
+      <text x="200" y="280" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#5b6477">本地登录已启用</text>
+    </svg>
+  `.trim();
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+async function createDevelopmentLoginSession(scene: string, token: string) {
+  const devOpenid = 'wechat-dev-openid';
+  let user = await prisma.user.findUnique({ where: { wechatOpenid: devOpenid } });
+
+  if (!user) {
+    user = await prisma.user.create({
+      data: {
+        wechatOpenid: devOpenid,
+        name: 'WeChat Dev',
+        onboardingCompleted: false,
+        onboardingStep: 'welcome',
+      },
+    });
+
+    const workspace = await prisma.workspace.create({
+      data: {
+        name: "WeChat Dev's workspace",
+      },
+    });
+
+    await prisma.workspaceMember.create({
+      data: {
+        userId: user.id,
+        workspaceId: workspace.id,
+        role: 'owner',
+      },
+    });
+  }
+
+  await prisma.wechatLoginSession.create({
+    data: {
+      scene,
+      token,
+      status: 'confirmed',
+      openid: devOpenid,
+      userId: user.id,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+    },
+  });
+}
+
 export async function GET() {
   try {
     const APP_ID = process.env.WECHAT_MP_APPID;
     const APP_SECRET = process.env.WECHAT_MP_SECRET;
 
     if (!APP_ID || !APP_SECRET) {
-      return NextResponse.json(
-        { error: 'WeChat MP not configured' },
-        { status: 503 }
-      );
+      if (!isDevelopmentWechatFallbackEnabled()) {
+        return NextResponse.json(
+          { error: 'WeChat MP not configured' },
+          { status: 503 }
+        );
+      }
+
+      const scene = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
+      const token = crypto.randomBytes(32).toString('hex');
+      await createDevelopmentLoginSession(scene, token);
+
+      return NextResponse.json({
+        url: buildDevelopmentQrDataUrl(scene),
+        scene,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+        devMode: true,
+      });
     }
 
     // Generate unique scene string and one-time token

@@ -85,7 +85,7 @@ function BrandsContent() {
         setForm({ name: "", aliases: "", isCompetitor: false });
         fetchBrands();
         if (res.status === 207) {
-          addToast({ type: "info", title: "Brand created, syncing now" });
+          addToast({ type: "info", title: "品牌已创建，正在同步" });
         }
       } else {
         const data = await res.json().catch(() => ({}));
@@ -189,7 +189,7 @@ function BrandsContent() {
             }}
           />
         ) : (
-          <span style={{ color: "var(--text-secondary)" }}>{row.aliases?.length ? row.aliases.join(", ") : "None"}</span>
+          <span style={{ color: "var(--text-secondary)" }}>{row.aliases?.length ? row.aliases.join(", ") : "暂无别名"}</span>
         ),
     },
     {
@@ -275,7 +275,7 @@ function BrandsContent() {
     <div className="space-y-6">
       <PageHeader
         title="品牌管理"
-        subtitle="Manage brands and competitor labels"
+        subtitle="管理自有品牌、别名和竞品标签"
         actions={
           <button
             onClick={() => {
@@ -408,9 +408,9 @@ function BrandsContent() {
           emptyContent={
             <EmptyState
               icon={Tag}
-              title="No brands yet"
+              title="还没有品牌"
               description="添加品牌以追踪自有品牌和竞品"
-              actionLabel="Add first brand"
+              actionLabel="添加第一个品牌"
               onAction={() => {
                 setAdding(true);
                 setForm({ name: "", aliases: "", isCompetitor: false });
@@ -424,7 +424,7 @@ function BrandsContent() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="删除品牌"
-        message={`Are you sure you want to delete "${deleteTarget?.name}"? This cannot be undone.`}
+        message={`确定要删除「${deleteTarget?.name}」吗？此操作无法撤销。`}
         confirmLabel="删除"
         cancelLabel="取消"
         onConfirm={handleDelete}

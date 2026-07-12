@@ -1,9 +1,9 @@
 ﻿# GeniLink Platform 鈥?Design TODOs
 
 ## Design System
-- [ ] **Create DESIGN.md** 鈥?Run `/design-consultation` to document the CSS variable system, font choices, spacing scale, component patterns, and responsive breakpoints. The codebase already has consistent patterns that should be codified before more components are added.
-  - Why: Every new feature adds ad-hoc style decisions without a design system document.
-  - Depends on: None. Can run anytime.
+- [x] **Create DESIGN.md** - `DESIGN.md` now documents the active design system, token sources, typography, colors, layout rules, motion, component language, and accessibility baseline.
+  - Why: New UI work should align with the documented command-center design direction instead of adding ad-hoc styles.
+  - Done: 2026-07-11.
 
 ## Accessibility
 - [x] **Audit color contrast ratios** 鈥?Verified `var(--color-error)` and `var(--color-success)` against `var(--bg-base)` / tinted status surfaces. Updated the light-theme semantic tokens so both normal text and status badges meet WCAG AA.

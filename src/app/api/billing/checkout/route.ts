@@ -136,18 +136,9 @@ export async function POST(req: NextRequest) {
   const { successUrl, cancelUrl } = buildCheckoutUrls(baseUrl, order.id);
   void cancelUrl;
 
-  const checkoutResult = provider === 'wechatpay'
-    ? await createWechatNativeCheckout({
-      order,
-      plan: {
-        ...plan,
-        provider: provider,
-        createdAt: plan.createdAt.toISOString(),
-        updatedAt: plan.updatedAt.toISOString(),
-      },
-      requestOrigin: req.headers.get('origin') ?? undefined,
-    })
-    : await createAlipayCheckoutUrl({
+  try {
+    const checkoutResult = provider === 'wechatpay'
+      ? await createWechatNativeCheckout({
         order,
         plan: {
           ...plan,
@@ -156,38 +147,65 @@ export async function POST(req: NextRequest) {
           updatedAt: plan.updatedAt.toISOString(),
         },
         requestOrigin: req.headers.get('origin') ?? undefined,
-      });
+      })
+      : await createAlipayCheckoutUrl({
+          order,
+          plan: {
+            ...plan,
+            provider: provider,
+            createdAt: plan.createdAt.toISOString(),
+            updatedAt: plan.updatedAt.toISOString(),
+          },
+          requestOrigin: req.headers.get('origin') ?? undefined,
+        });
 
-  const updatedOrder = await prisma.paymentOrder.update({
-    where: { id: order.id },
-    data: {
-      providerSessionId: checkoutResult.providerSessionId,
-      checkoutUrl: checkoutResult.checkoutUrl,
-      successUrl,
-      cancelUrl,
-      status: 'opened',
-      metadata: {
-        planKey: plan.key,
-        module: plan.module,
-        billingCycle: plan.billingCycle,
-        workspaceId,
-        userId: session.user.id,
-        provider,
-        checkoutSessionId: checkoutResult.providerSessionId,
-        providerPayload: checkoutResult.providerPayload,
+    const updatedOrder = await prisma.paymentOrder.update({
+      where: { id: order.id },
+      data: {
+        providerSessionId: checkoutResult.providerSessionId,
+        checkoutUrl: checkoutResult.checkoutUrl,
+        successUrl,
+        cancelUrl,
+        status: 'opened',
+        metadata: {
+          planKey: plan.key,
+          module: plan.module,
+          billingCycle: plan.billingCycle,
+          workspaceId,
+          userId: session.user.id,
+          provider,
+          checkoutSessionId: checkoutResult.providerSessionId,
+          providerPayload: checkoutResult.providerPayload,
+        },
       },
-    },
-  });
+    });
 
-  return NextResponse.json({
-    order: {
-      id: updatedOrder.id,
-      status: updatedOrder.status,
+    return NextResponse.json({
+      order: {
+        id: updatedOrder.id,
+        status: updatedOrder.status,
+        checkoutUrl: updatedOrder.checkoutUrl,
+        providerSessionId: updatedOrder.providerSessionId,
+        provider: updatedOrder.provider,
+      },
       checkoutUrl: updatedOrder.checkoutUrl,
-      providerSessionId: updatedOrder.providerSessionId,
       provider: updatedOrder.provider,
-    },
-    checkoutUrl: updatedOrder.checkoutUrl,
-    provider: updatedOrder.provider,
-  });
+    });
+  } catch (error) {
+    console.error('Billing checkout failed', {
+      provider,
+      planKey: plan.key,
+      orderId: order.id,
+      error,
+    });
+    return NextResponse.json(
+      {
+        error: 'Billing checkout failed',
+        provider,
+        planKey: plan.key,
+        orderId: order.id,
+      },
+      { status: 500 },
+    );
+  }
 }

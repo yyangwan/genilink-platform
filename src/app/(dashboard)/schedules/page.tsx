@@ -87,7 +87,7 @@ function SchedulesContent() {
   const handleToggle = useCallback(async (schedule: Schedule) => {
     setTogglingId(schedule.id);
     try {
-      const res = await fetch(`/api/integration/schedules/${schedule.id}`, {
+      const res = await fetch(`/api/integration/schedules/${schedule.id}?projectId=${currentProjectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_active: !schedule.is_active }),
@@ -106,7 +106,7 @@ function SchedulesContent() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const res = await fetch(`/api/integration/schedules/${deleteTarget.id}`, {
+      const res = await fetch(`/api/integration/schedules/${deleteTarget.id}?projectId=${currentProjectId}`, {
         method: "DELETE",
       });
       if (res.ok) {

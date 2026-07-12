@@ -26,8 +26,8 @@ module.exports = {
         PORT: 3001,
         // Use custom dist dir to avoid permission issues
         NEXT_DIST_DIR: '.next-runtime',
-        // Billing disabled for testing
-        BILLING_DISABLED: 'true',
+        // Billing enabled in production
+        BILLING_DISABLED: 'false',
         // Remote visibility service
         VISIBILITY_SERVICE_URL: 'http://127.0.0.1:8000',
         // Content service on the production host

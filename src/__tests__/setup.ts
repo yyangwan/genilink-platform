@@ -56,6 +56,23 @@ vi.mock('@/lib/db', () => ({
     },
     subscription: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+    },
+    billingPlan: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+    },
+    paymentOrder: {
+      create: vi.fn(),
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      update: vi.fn(),
+    },
+    paymentEvent: {
+      upsert: vi.fn(),
+      update: vi.fn(),
     },
     workspaceMember: {
       findFirst: vi.fn(),

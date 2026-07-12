@@ -18,6 +18,8 @@ import {
   generateGenieContent,
   getCalendarEvents,
   publishContent,
+  publishToPlatform,
+  getPublishStatus,
 } from '@/lib/content/service';
 
 describe('content service', () => {
@@ -171,6 +173,31 @@ describe('content service', () => {
       path: '/api/publish/c1',
       method: 'POST',
       body,
+      timeoutMs: 30_000,
+    });
+  });
+
+  it('publishToPlatform calls proxyRequest with POST and body', async () => {
+    mockProxyRequest.mockResolvedValue({ status: 'published' });
+    const body = { platform: 'wechat', content: 'Ready to publish' };
+    await publishToPlatform(ctx, 'pc1', body);
+
+    expect(mockProxyRequest).toHaveBeenCalledWith({
+      ...baseArgs,
+      path: '/api/publish/pc1',
+      method: 'POST',
+      body,
+      timeoutMs: 180_000,
+    });
+  });
+
+  it('getPublishStatus calls proxyRequest with GET', async () => {
+    mockProxyRequest.mockResolvedValue({ status: 'published' });
+    await getPublishStatus(ctx, 'pc1');
+
+    expect(mockProxyRequest).toHaveBeenCalledWith({
+      ...baseArgs,
+      path: '/api/publish/pc1',
       timeoutMs: 30_000,
     });
   });

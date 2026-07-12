@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GeniLink Landing Product Loop</title>
+    <style>
+      :root {
+        --bg: #050505;
+        --panel: rgba(12, 14, 18, 0.74);
+        --panel-strong: rgba(14, 16, 21, 0.9);
+        --text: #f6f3ec;
+        --muted: rgba(246, 243, 236, 0.68);
+        --dim: rgba(246, 243, 236, 0.42);
+        --gold: #ff9f2d;
+        --green: #52e29e;
+        --blue: #72a7ff;
+        --red: #ff7777;
+        --line: rgba(255, 255, 255, 0.14);
+      }
+
+      @font-face {
+        font-family: "Microsoft YaHei UI";
+        src: local("Microsoft YaHei UI");
+      }
+
+      @font-face {
+        font-family: "Microsoft YaHei";
+        src: local("Microsoft YaHei");
+      }
+
+      @font-face {
+        font-family: "PingFang SC";
+        src: local("PingFang SC");
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+      }
+
+      #rootComp {
+        position: relative;
+        width: 1280px;
+        height: 800px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 18% 16%, rgba(255, 159, 45, 0.18), transparent 24%),
+          radial-gradient(circle at 82% 74%, rgba(82, 226, 158, 0.16), transparent 26%),
+          linear-gradient(135deg, #151514 0%, #050505 52%, #10100f 100%);
+      }
+
+      .grain {
+        position: absolute;
+        inset: 0;
+        opacity: 0.12;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.032) 1px, transparent 1px);
+        background-size: 34px 34px;
+        mask-image: radial-gradient(circle at 50% 48%, black, transparent 78%);
+        pointer-events: none;
+      }
+
+      .screenShell {
+        position: absolute;
+        inset: 34px 38px 32px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.17);
+        border-radius: 30px;
+        background: #f4f6fb;
+        box-shadow:
+          0 38px 120px rgba(0, 0, 0, 0.58),
+          0 0 72px rgba(255, 159, 45, 0.1);
+        transform-origin: center;
+      }
+
+      .screen {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: var(--image-x, 50%) var(--image-y, 36%);
+        filter: saturate(1.02) contrast(1.035);
+        transform-origin: var(--origin-x, 50%) var(--origin-y, 45%);
+      }
+
+      .shade {
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(90deg, rgba(0, 0, 0, 0.38), transparent 18%, transparent 78%, rgba(0, 0, 0, 0.24)),
+          linear-gradient(180deg, rgba(0, 0, 0, 0.12), transparent 46%, rgba(0, 0, 0, 0.3));
+        pointer-events: none;
+      }
+
+      .brand {
+        position: absolute;
+        top: 48px;
+        left: 58px;
+        z-index: 8;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 9px 12px 9px 9px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 999px;
+        background: rgba(5, 5, 5, 0.52);
+        backdrop-filter: blur(16px);
+      }
+
+      .mark {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border-radius: 999px;
+        background: rgba(255, 159, 45, 0.16);
+        color: var(--gold);
+        font-size: 18px;
+        font-weight: 900;
+      }
+
+      .brandText strong,
+      .brandText span {
+        display: block;
+        line-height: 1.05;
+      }
+
+      .brandText strong {
+        font-size: 16px;
+        font-weight: 850;
+      }
+
+      .brandText span {
+        margin-top: 3px;
+        color: var(--muted);
+        font-family: Consolas, ui-monospace, monospace;
+        font-size: 10px;
+      }
+
+      .copyCard {
+        position: absolute;
+        left: 58px;
+        bottom: 56px;
+        z-index: 10;
+        width: 405px;
+        padding: 22px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 24px;
+        background: var(--panel-strong);
+        box-shadow: 0 28px 78px rgba(0, 0, 0, 0.46);
+        backdrop-filter: blur(18px);
+      }
+
+      .label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--gold);
+        font-family: Consolas, ui-monospace, monospace;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .label::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--gold);
+        box-shadow: 0 0 18px rgba(255, 159, 45, 0.8);
+      }
+
+      .title {
+        margin: 14px 0 16px;
+        color: var(--text);
+        font-size: 31px;
+        font-weight: 900;
+        letter-spacing: -0.04em;
+        line-height: 1.18;
+      }
+
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .step {
+        min-height: 52px;
+        padding: 9px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.055);
+        color: var(--muted);
+        font-family: Consolas, ui-monospace, monospace;
+        font-size: 11px;
+        line-height: 1.25;
+      }
+
+      .step b {
+        display: block;
+        width: 18px;
+        height: 3px;
+        margin-bottom: 9px;
+        border-radius: 999px;
+        background: var(--gold);
+      }
+
+      .metricCard {
+        position: absolute;
+        right: 64px;
+        bottom: 58px;
+        z-index: 10;
+        display: grid;
+        grid-template-columns: 114px minmax(0, 1fr);
+        gap: 14px;
+        align-items: center;
+        width: 365px;
+        padding: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 24px;
+        background: rgba(5, 5, 5, 0.72);
+        box-shadow: 0 28px 78px rgba(0, 0, 0, 0.38);
+        backdrop-filter: blur(18px);
+      }
+
+      .metricRing {
+        display: grid;
+        width: 104px;
+        height: 104px;
+        place-items: center;
+        border: 9px solid rgba(255, 255, 255, 0.16);
+        border-top-color: var(--gold);
+        border-right-color: var(--green);
+        border-radius: 999px;
+      }
+
+      .metricRing strong {
+        font-family: Consolas, ui-monospace, monospace;
+        font-size: 31px;
+        font-weight: 900;
+      }
+
+      .metricCard small {
+        display: block;
+        color: var(--green);
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .bars {
+        display: grid;
+        gap: 9px;
+      }
+
+      .barRow {
+        display: grid;
+        grid-template-columns: 82px minmax(0, 1fr);
+        gap: 10px;
+        align-items: center;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .barTrack {
+        height: 8px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .barTrack i {
+        display: block;
+        width: var(--bar-width);
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--gold), var(--green));
+        transform-origin: left;
+      }
+
+      .scanRail,
+      .splitLine,
+      .calendarSweep,
+      .cursorBeam {
+        position: absolute;
+        z-index: 9;
+        pointer-events: none;
+      }
+
+      .scanRail {
+        left: -8%;
+        right: -8%;
+        top: 0;
+        height: 150px;
+        background:
+          linear-gradient(180deg, transparent, rgba(82, 226, 158, 0.34), transparent),
+          linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.42), transparent);
+        mix-blend-mode: multiply;
+      }
+
+      .splitLine {
+        top: 80px;
+        bottom: 80px;
+        left: 50%;
+        width: 3px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, transparent, var(--gold), transparent);
+        box-shadow: 0 0 30px rgba(255, 159, 45, 0.7);
+      }
+
+      .calendarSweep {
+        left: 220px;
+        top: 252px;
+        width: 0;
+        height: 4px;
+        border-radius: 999px;
+        background: var(--green);
+        box-shadow: 0 0 24px rgba(82, 226, 158, 0.65);
+      }
+
+      .cursorBeam {
+        left: 52%;
+        top: 110px;
+        width: 3px;
+        height: 560px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, transparent, var(--green), transparent);
+      }
+
+      .floatingCards {
+        position: absolute;
+        z-index: 11;
+        right: 70px;
+        top: 92px;
+        display: grid;
+        gap: 12px;
+        width: 300px;
+      }
+
+      .floatCard {
+        min-height: 76px;
+        padding: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 18px;
+        background: rgba(5, 5, 5, 0.7);
+        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.38);
+        backdrop-filter: blur(18px);
+      }
+
+      .floatCard b {
+        display: block;
+        width: 34px;
+        height: 4px;
+        margin-bottom: 10px;
+        border-radius: 999px;
+        background: var(--green);
+      }
+
+      .floatCard span {
+        color: var(--text);
+        font-size: 15px;
+        font-weight: 800;
+      }
+
+      .routeSvg {
+        position: absolute;
+        inset: 0;
+        z-index: 9;
+        pointer-events: none;
+      }
+
+      .routePath {
+        fill: none;
+        stroke: rgba(255, 159, 45, 0.84);
+        stroke-width: 3;
+        stroke-linecap: round;
+        stroke-dasharray: 10 12;
+      }
+
+      .stamp {
+        position: absolute;
+        right: 102px;
+        top: 112px;
+        z-index: 12;
+        display: grid;
+        width: 148px;
+        height: 148px;
+        place-items: center;
+        border: 5px solid rgba(255, 159, 45, 0.92);
+        border-radius: 999px;
+        color: var(--gold);
+        font-size: 25px;
+        font-weight: 900;
+        transform: rotate(-12deg);
+        background: rgba(5, 5, 5, 0.38);
+        backdrop-filter: blur(8px);
+      }
+
+      .loopCover {
+        position: absolute;
+        inset: 0;
+        z-index: 30;
+        opacity: 0;
+        pointer-events: none;
+        background: var(--bg);
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      data-composition-id="root"
+      id="rootComp"
+      data-start="0"
+      data-width="1280"
+      data-height="800"
+      data-duration="5.8"
+      data-composition-variables='[{"id":"slug","type":"string","default":"website-analysis"},{"id":"image","type":"image","default":"assets/images/website-analysis.png"},{"id":"label","type":"string","default":"Website Analysis"},{"id":"title","type":"string","default":"输入官网后，诊断结果开始生成"},{"id":"domain","type":"string","default":"genilink.cn"},{"id":"metric","type":"string","default":"82"},{"id":"metricLabel","type":"string","default":"官网可理解度"},{"id":"step1","type":"string","default":"Scan site"},{"id":"step2","type":"string","default":"Parse content"},{"id":"step3","type":"string","default":"Build diagnosis"},{"id":"chip1","type":"string","default":"Schema"},{"id":"chip2","type":"string","default":"Content"},{"id":"chip3","type":"string","default":"AI-ready"},{"id":"card1","type":"string","default":"结构清晰度"},{"id":"card2","type":"string","default":"语义覆盖"},{"id":"card3","type":"string","default":"引用准备度"}]'
+    >
+      <div class="grain" data-layout-ignore></div>
+      <section class="screenShell">
+        <img class="screen" data-var-src="image" src="assets/images/website-analysis.png" alt="" data-layout-allow-overflow />
+        <div class="shade"></div>
+      </section>
+
+      <div class="brand">
+        <div class="mark">智</div>
+        <div class="brandText">
+          <strong>智链</strong>
+          <span>GeniLink</span>
+        </div>
+      </div>
+
+      <section class="copyCard">
+        <div class="label" data-var="label">Website Analysis</div>
+        <h1 class="title" data-var="title">输入官网后，诊断结果开始生成</h1>
+        <div class="steps">
+          <div class="step"><b></b><span data-var="step1">Scan site</span></div>
+          <div class="step"><b></b><span data-var="step2">Parse content</span></div>
+          <div class="step"><b></b><span data-var="step3">Build diagnosis</span></div>
+        </div>
+      </section>
+
+      <section class="metricCard">
+        <div>
+          <div class="metricRing"><strong data-var="metric">82</strong></div>
+          <small data-var="metricLabel">官网可理解度</small>
+        </div>
+        <div class="bars">
+          <div class="barRow"><span data-var="chip1">Schema</span><div class="barTrack"><i style="--bar-width: 82%"></i></div></div>
+          <div class="barRow"><span data-var="chip2">Content</span><div class="barTrack"><i style="--bar-width: 68%"></i></div></div>
+          <div class="barRow"><span data-var="chip3">AI-ready</span><div class="barTrack"><i style="--bar-width: 76%"></i></div></div>
+        </div>
+      </section>
+
+      <div class="scanRail"></div>
+      <div class="splitLine"></div>
+      <div class="calendarSweep"></div>
+      <div class="cursorBeam"></div>
+      <div class="stamp">已归档</div>
+
+      <section class="floatingCards">
+        <div class="floatCard"><b></b><span data-var="card1">结构清晰度</span></div>
+        <div class="floatCard"><b></b><span data-var="card2">语义覆盖</span></div>
+        <div class="floatCard"><b></b><span data-var="card3">引用准备度</span></div>
+      </section>
+
+      <svg class="routeSvg" viewBox="0 0 1280 800" aria-hidden="true">
+        <path class="routePath" d="M 230 642 C 380 520, 520 464, 690 490 S 940 545, 1082 418" />
+      </svg>
+
+      <div class="loopCover"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      const defaults = {
+        slug: "website-analysis",
+        image: "assets/images/website-analysis.png",
+        label: "Website Analysis",
+        title: "输入官网后，诊断结果开始生成",
+        domain: "genilink.cn",
+        metric: "82",
+        metricLabel: "官网可理解度",
+        step1: "Scan site",
+        step2: "Parse content",
+        step3: "Build diagnosis",
+        chip1: "Schema",
+        chip2: "Content",
+        chip3: "AI-ready",
+        card1: "结构清晰度",
+        card2: "语义覆盖",
+        card3: "引用准备度"
+      };
+
+      const vars = Object.assign(
+        {},
+        defaults,
+        window.__hyperframes && typeof window.__hyperframes.getVariables === "function"
+          ? window.__hyperframes.getVariables()
+          : {}
+      );
+
+      document.querySelectorAll("[data-var]").forEach((node) => {
+        const key = node.getAttribute("data-var");
+        node.textContent = vars[key] || "";
+      });
+      document.querySelectorAll("[data-var-src]").forEach((node) => {
+        const key = node.getAttribute("data-var-src");
+        node.setAttribute("src", vars[key]);
+      });
+
+      const root = document.getElementById("rootComp");
+      root.classList.add(`variant-${vars.slug}`);
+
+      const tl = gsap.timeline({ paused: true, defaults: { ease: "power3.out" } });
+      window.__timelines = window.__timelines || {};
+      window.__timelines.root = tl;
+
+      const hidden = [".brand", ".copyCard", ".metricCard", ".floatingCards", ".routeSvg", ".scanRail", ".splitLine", ".calendarSweep", ".cursorBeam", ".stamp"];
+
+      function baseIntro() {
+        tl.set(".loopCover", { autoAlpha: 0 }, 0)
+          .set(hidden, { autoAlpha: 0 }, 0)
+          .set(".screenShell", { autoAlpha: 0, scale: 0.94 }, 0)
+          .set(".screen", { scale: 1.08, x: 0, y: 0, rotation: 0 }, 0)
+          .fromTo(".screenShell", { autoAlpha: 0, scale: 0.94 }, { autoAlpha: 1, scale: 1, duration: 0.72, ease: "expo.out" }, 0.1)
+          .fromTo(".brand", { y: -16, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.42 }, 0.22)
+          .fromTo(".copyCard", { x: -34, y: 18, scale: 0.96, autoAlpha: 0 }, { x: 0, y: 0, scale: 1, autoAlpha: 1, duration: 0.58, ease: "back.out(1.18)" }, 0.62)
+          .fromTo(".title", { clipPath: "inset(0 0 100% 0)" }, { clipPath: "inset(0 0 0% 0)", duration: 0.52, ease: "expo.out" }, 0.78)
+          .fromTo(".step", { y: 16, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.34, stagger: 0.1 }, 1.16);
+      }
+
+      function proofAt(time) {
+        tl.fromTo(".metricCard", { y: 28, scale: 0.96, autoAlpha: 0 }, { y: 0, scale: 1, autoAlpha: 1, duration: 0.46, ease: "back.out(1.2)" }, time)
+          .fromTo(".metricRing", { rotation: -38, scale: 0.82 }, { rotation: 0, scale: 1, duration: 0.58, ease: "back.out(1.45)" }, time + 0.1)
+          .fromTo(".barTrack i", { scaleX: 0.04, autoAlpha: 0 }, { scaleX: 1, autoAlpha: 1, duration: 0.5, stagger: 0.1 }, time + 0.16);
+      }
+
+      function closeLoop() {
+        tl.to(".loopCover", { autoAlpha: 1, duration: 0.42, ease: "sine.inOut" }, 5.28);
+      }
+
+      baseIntro();
+
+      switch (vars.slug) {
+        case "visibility-audit":
+          root.style.setProperty("--image-x", "58%");
+          root.style.setProperty("--image-y", "42%");
+          root.style.setProperty("--origin-x", "72%");
+          root.style.setProperty("--origin-y", "46%");
+          tl.to(".screen", { scale: 1.18, x: -64, duration: 4.6, ease: "none", overwrite: "auto" }, 0.4)
+            .fromTo(".floatingCards", { x: 48, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.44, overwrite: "auto" }, 1.68)
+            .fromTo(".floatCard", { x: 36, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.36, stagger: 0.18, overwrite: "auto" }, 1.76)
+            .to(".floatCard", { borderColor: "rgba(82,226,158,.7)", boxShadow: "0 0 34px rgba(82,226,158,.24)", duration: 0.22, stagger: 0.18, yoyo: true, repeat: 1 }, 2.34);
+          proofAt(3.08);
+          break;
+        case "audit-report":
+          root.style.setProperty("--image-x", "50%");
+          root.style.setProperty("--image-y", "28%");
+          root.style.setProperty("--origin-x", "48%");
+          root.style.setProperty("--origin-y", "32%");
+          tl.fromTo(".screen", { scale: 1.2, y: 46, rotation: 1.2 }, { scale: 1.08, y: -18, rotation: 0, duration: 4.4, ease: "power1.out", overwrite: "auto" }, 0.28)
+            .fromTo(".stamp", { autoAlpha: 0, scale: 1.65, rotation: -26 }, { autoAlpha: 1, scale: 1, rotation: -12, duration: 0.34, ease: "back.out(1.8)" }, 2.22)
+            .to(".stamp", { scale: 1.08, duration: 0.12, yoyo: true, repeat: 1 }, 2.58);
+          proofAt(3.02);
+          break;
+        case "content-insights":
+          root.style.setProperty("--image-x", "58%");
+          root.style.setProperty("--image-y", "38%");
+          root.style.setProperty("--origin-x", "68%");
+          root.style.setProperty("--origin-y", "42%");
+          tl.to(".screen", { scale: 1.16, x: -42, y: -16, duration: 4.5, ease: "none", overwrite: "auto" }, 0.42)
+            .fromTo(".floatingCards", { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.18 }, 1.64)
+            .fromTo(".floatCard", { x: 130, y: 30, rotate: 6, autoAlpha: 0 }, { x: 0, y: 0, rotate: 0, autoAlpha: 1, duration: 0.54, stagger: 0.16, ease: "back.out(1.2)" }, 1.7)
+            .to(".floatCard", { x: -18, duration: 0.36, stagger: 0.08, yoyo: true, repeat: 1 }, 2.72);
+          proofAt(3.18);
+          break;
+        case "competitor-analysis":
+          root.style.setProperty("--image-x", "54%");
+          root.style.setProperty("--image-y", "44%");
+          root.style.setProperty("--origin-x", "50%");
+          root.style.setProperty("--origin-y", "48%");
+          tl.to(".screen", { scale: 1.14, x: 40, duration: 1.8, ease: "power1.inOut", overwrite: "auto" }, 0.5)
+            .to(".screen", { x: -56, duration: 1.8, ease: "power1.inOut", overwrite: "auto" }, 2.32)
+            .fromTo(".splitLine", { scaleY: 0, autoAlpha: 0 }, { scaleY: 1, autoAlpha: 1, duration: 0.5 }, 1.42)
+            .to(".splitLine", { x: -150, duration: 0.58, ease: "power2.inOut" }, 2.02)
+            .to(".splitLine", { x: 160, duration: 0.58, ease: "power2.inOut" }, 3.0);
+          proofAt(3.48);
+          break;
+        case "ai-content-creation":
+          root.style.setProperty("--image-x", "52%");
+          root.style.setProperty("--image-y", "50%");
+          root.style.setProperty("--origin-x", "56%");
+          root.style.setProperty("--origin-y", "56%");
+          tl.to(".screen", { scale: 1.17, y: -48, duration: 4.5, ease: "none", overwrite: "auto" }, 0.36)
+            .fromTo(".cursorBeam", { autoAlpha: 0, scaleY: 0.2, x: -160 }, { autoAlpha: 1, scaleY: 1, x: 0, duration: 0.48 }, 1.62)
+            .to(".cursorBeam", { x: 210, duration: 1.1, ease: "power2.inOut" }, 2.16)
+            .fromTo(".floatingCards", { y: 40, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.42 }, 2.5)
+            .fromTo(".floatCard", { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.36, stagger: 0.13 }, 2.66);
+          proofAt(3.56);
+          break;
+        case "content-calendar":
+          root.style.setProperty("--image-x", "54%");
+          root.style.setProperty("--image-y", "38%");
+          root.style.setProperty("--origin-x", "56%");
+          root.style.setProperty("--origin-y", "42%");
+          tl.to(".screen", { scale: 1.13, x: -22, y: -10, duration: 4.5, ease: "none", overwrite: "auto" }, 0.38)
+            .fromTo(".calendarSweep", { autoAlpha: 0, width: 0 }, { autoAlpha: 1, width: 820, duration: 0.95, ease: "power2.inOut" }, 1.54)
+            .to(".calendarSweep", { y: 106, duration: 0.42, ease: "power2.inOut" }, 2.28)
+            .to(".calendarSweep", { y: 212, duration: 0.42, ease: "power2.inOut" }, 2.76)
+            .fromTo(".floatingCards", { y: -28, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.42 }, 3.02)
+            .fromTo(".floatCard", { scale: 0.92, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.3, stagger: 0.1 }, 3.16);
+          proofAt(3.74);
+          break;
+        case "website-analysis":
+        default:
+          root.style.setProperty("--image-x", "54%");
+          root.style.setProperty("--image-y", "36%");
+          root.style.setProperty("--origin-x", "55%");
+          root.style.setProperty("--origin-y", "36%");
+          tl.to(".screen", { scale: 1.17, y: -36, duration: 4.5, ease: "none", overwrite: "auto" }, 0.36)
+            .fromTo(".scanRail", { y: -170, autoAlpha: 0 }, { y: 805, autoAlpha: 1, duration: 1.22, ease: "sine.inOut" }, 1.52)
+            .fromTo(".routeSvg", { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.18 }, 1.78)
+            .fromTo(".routePath", { strokeDashoffset: 520 }, { strokeDashoffset: 0, duration: 0.92, ease: "sine.inOut" }, 1.84);
+          proofAt(3.0);
+          break;
+      }
+
+      tl.to(".step b", { backgroundColor: "#52e29e", boxShadow: "0 0 18px rgba(82,226,158,.72)", duration: 0.2, stagger: 0.14 }, 2.0)
+        .to(".metricRing", { boxShadow: "0 0 34px rgba(255,159,45,.28)", duration: 0.62, yoyo: true, repeat: 1 }, 4.18);
+
+      closeLoop();
+    </script>
+  </body>
+</html>

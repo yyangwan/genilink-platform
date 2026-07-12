@@ -1,0 +1,18 @@
+{
+  "slug": "ai-content-creation",
+  "image": "assets/images/dashboard-overview.png",
+  "label": "AI Content Creation",
+  "title": "从选题 brief 生成可编辑内容初稿",
+  "domain": "brief / draft / polish",
+  "metric": "3",
+  "metricLabel": "创作步骤",
+  "step1": "Read brief",
+  "step2": "Generate draft",
+  "step3": "Polish content",
+  "chip1": "Brief",
+  "chip2": "Draft",
+  "chip3": "Review",
+  "card1": "选题 brief",
+  "card2": "AI 初稿",
+  "card3": "人工润色"
+}

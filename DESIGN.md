@@ -19,6 +19,13 @@ The app consumes the generated CSS variables from `@genilink/design-tokens/dist/
 - AI signal: violet accent is reserved for AI/analysis states and should stay targeted, not become a general brand wash.
 - Tone: confident, restrained, technical.
 
+### Marketing Page Exception
+- Scope: public acquisition pages such as `src/components/landing/landing-page.tsx`.
+- Purpose: marketing pages may use a warmer campaign palette to create first-viewport energy, while product and authenticated app screens remain on the teal/violet command-center system.
+- Current campaign palette: warm black `#151514`, amber primary `#ff9f2d`, mint support `#52e29e`, cream CTA `#f4f0e8`.
+- Guardrails: keep the brand mark, typography families, icon style, and product screenshots aligned with the product UI; do not let the warm palette leak into dashboard, auth, billing, reports, or settings screens.
+- Text rule: public pages are Chinese-first. English is allowed only for brand/product names, technical acronyms, URLs, model names, and short console-style labels when intentionally part of a product screenshot.
+
 ## Typography
 - Display font: `Sora`
 - Body font: `Plus Jakarta Sans`

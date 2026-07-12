@@ -1,0 +1,183 @@
+{
+  "version": 1,
+  "style_lock": {
+    "background": "#050505",
+    "foreground": "#f5f2eb",
+    "muted": "#8c8c8c",
+    "accent": "#c8a45d",
+    "stroke_width_px": 2,
+    "corner_radius_px": 8,
+    "letter_spacing": 0
+  },
+  "templates": [
+    {
+      "id": "command_card",
+      "purpose": "Terminal, API, or workflow command as a concrete product surface.",
+      "slots": {
+        "command": { "required": true, "max_lines": 1, "max_chars": 54 },
+        "highlight": { "required": false, "max_chars": 14 },
+        "label": { "required": false, "max_chars": 16 }
+      },
+      "layout": {
+        "default_intent": "product proof card",
+        "text_axis": "center axis",
+        "textRect": { "x": 120, "y": 700, "w": 840, "h": 210 },
+        "subjectRect": { "x": 110, "y": 640, "w": 860, "h": 260 },
+        "safeBottomY": 1632,
+        "title_tier": "compact",
+        "vertical_center_tolerance_px": 24
+      },
+      "svg_parts": [".command-window", ".prompt-dots", ".cursor", ".command-highlight"],
+      "allowed_primitives": ["maskReveal", "staggerText", "pathDraw", "clipWipe"],
+      "rejection_tests": [
+        "command_text_too_small",
+        "command_card_is_generic_filler",
+        "command_does_not_route_to_output"
+      ]
+    },
+    {
+      "id": "proof_card",
+      "purpose": "A row or card that combines one mark, one product claim, and one proof note.",
+      "slots": {
+        "mark": { "required": true, "allowed_roles": ["write", "polish", "image", "check", "export"] },
+        "title": { "required": true, "max_lines": 1, "max_chinese_chars": 12 },
+        "support": { "required": true, "max_lines": 1, "max_chinese_chars": 24 }
+      },
+      "layout": {
+        "default_intent": "product proof list",
+        "text_axis": "left axis",
+        "textRect": { "x": 160, "y": 620, "w": 760, "h": 470 },
+        "subjectRect": { "x": 132, "y": 590, "w": 816, "h": 540 },
+        "safeBottomY": 1632,
+        "title_tier": "compact",
+        "vertical_center_tolerance_px": 24
+      },
+      "svg_parts": [".proof-card", ".proof-mark", ".proof-border"],
+      "allowed_primitives": ["staggerText", "maskReveal", "pathDraw"],
+      "rejection_tests": [
+        "proof_card_has_no_product_specific_claim",
+        "mark_is_unrelated_decoration",
+        "support_text_is_too_dense"
+      ]
+    },
+    {
+      "id": "quote_card",
+      "purpose": "Huge claim, quote, or hook where text is the main image.",
+      "slots": {
+        "title": { "required": true, "max_lines": 2, "max_chinese_chars": 14 },
+        "support": { "required": false, "max_lines": 1, "max_chinese_chars": 20 },
+        "accent_path": { "required": true, "role": "anchored underline / scan rail / transition bridge" },
+        "icon": { "required": false, "allowed_roles": ["seal", "cursor", "scan-mark"] }
+      },
+      "layout": {
+        "default_intent": "center impact type",
+        "text_axis": "center axis",
+        "textRect": { "x": 120, "y": 520, "w": 840, "h": 520 },
+        "subjectRect": "none",
+        "safeBottomY": 1632,
+        "title_tier": "hero",
+        "vertical_center_tolerance_px": 24
+      },
+      "svg_parts": [".accent-path", ".mask-window", ".scan-rail"],
+      "allowed_primitives": ["maskReveal", "pathDraw", "staggerText", "clipWipe"],
+      "rejection_tests": [
+        "title_more_than_two_lines",
+        "title_outside_textRect",
+        "accent_path_not_connected_to_keyword",
+        "accent_path_floats_without_anchor",
+        "all_motion_is_opacity_y"
+      ]
+    },
+    {
+      "id": "data_point",
+      "purpose": "One number, proof statement, or result that needs a crisp lock.",
+      "slots": {
+        "data": { "required": true, "max_chars": 8 },
+        "title": { "required": true, "max_lines": 1, "max_chinese_chars": 10 },
+        "support": { "required": false, "max_lines": 1, "max_chinese_chars": 18 },
+        "proof_label": { "required": false, "max_lines": 1, "max_chinese_chars": 8 }
+      },
+      "layout": {
+        "default_intent": "center symbol hold",
+        "text_axis": "center axis",
+        "textRect": { "x": 110, "y": 460, "w": 860, "h": 620 },
+        "subjectRect": { "x": 180, "y": 600, "w": 720, "h": 360 },
+        "safeBottomY": 1632,
+        "title_tier": "large",
+        "vertical_center_tolerance_px": 28
+      },
+      "svg_parts": [".number-frame", ".proof-tick", ".meter-path"],
+      "allowed_primitives": ["numberCount", "maskReveal", "pathDraw", "clipWipe"],
+      "rejection_tests": [
+        "data_not_largest_visual",
+        "number_count_without_proof_lock",
+        "proof_label_below_safeBottomY",
+        "mixed_ratio_evidence_panels"
+      ]
+    },
+    {
+      "id": "comparison",
+      "purpose": "Before/after, tension/resolution, old/new, or problem/answer scenes.",
+      "slots": {
+        "left_title": { "required": true, "max_lines": 2, "max_chinese_chars": 10 },
+        "right_title": { "required": true, "max_lines": 2, "max_chinese_chars": 10 },
+        "bridge_label": { "required": false, "max_lines": 1, "max_chinese_chars": 8 },
+        "accent_path": { "required": true, "role": "anchored shared rail / divider / handoff" }
+      },
+      "layout": {
+        "default_intent": "split product / claim",
+        "text_axis": "split axis",
+        "leftTextRect": { "x": 96, "y": 520, "w": 390, "h": 520 },
+        "rightTextRect": { "x": 594, "y": 520, "w": 390, "h": 520 },
+        "subjectRect": "split halves",
+        "safeBottomY": 1632,
+        "title_tier": "main",
+        "vertical_center_tolerance_px": 30
+      },
+      "svg_parts": [".divider-path", ".left-mask", ".right-mask", ".handoff-rail"],
+      "allowed_primitives": ["clipWipe", "pathDraw", "maskReveal", "staggerText"],
+      "rejection_tests": [
+        "left_right_text_not_aligned",
+        "divider_path_is_decorative_only",
+        "divider_path_has_no_visible_anchors",
+        "transition_midpoint_blank",
+        "same_side_repeats_without_handoff"
+      ]
+    }
+  ],
+  "icon_and_decoration_rules": {
+    "max_functional_mark_types": 6,
+    "mandatory_for_product_promos": true,
+    "allowed_roles": ["scan-rail", "seal", "proof-tick", "cursor", "frame-corner", "route-node", "prompt-dot", "module-chip", "provider-chip", "draft-stamp", "upload-arrow", "save-mark"],
+    "forbidden_roles": ["random sparkle", "generic rocket", "per-line icon", "decorative badge cluster"],
+    "removal_test": "Deleting the mark must reduce comprehension, attention direction, proof, or memory."
+  },
+  "visual_component_policy": {
+    "mandatory_for_product_promos": true,
+    "minimum_components_for_15s_premium_promo": 4,
+    "allowed_components": ["command_card", "output_card", "proof_card", "stat_block", "module_chip_group", "provider_chip_group", "theme_stack", "anchored_signal", "route_node_sequence", "product_frame", "cta_badge"],
+    "required_contract_fields": ["role", "source", "content_slots", "motion_interaction", "safe_zones", "deletion_trigger"],
+    "rejection_tests": [
+      "product_promo_has_only_background_and_title",
+      "component_has_no_product_proof_role",
+      "component_motion_is_only_fade_or_y",
+      "route_line_floats_without_component_anchors",
+      "component_library_uses_inconsistent_visual_language"
+    ]
+  },
+  "support_asset_policy": {
+    "allowed_decisions": ["none", "generated", "supplied", "code-generated", "mixed"],
+    "allowed_roles": ["symbol", "texture", "anchor", "transition plate", "semantic glyph", "motion accent", "product fragment"],
+    "preferred_code_generated_roles": ["scan rail", "mask", "path", "bracket", "glyph", "frame corner", "motion accent"],
+    "preferred_bitmap_roles": ["background texture", "material surface", "product crop", "proof-safe UI crop", "atmosphere plate"],
+    "style_lock_fields": ["palette", "lighting direction", "texture language", "perspective", "contrast level", "negative-space discipline"],
+    "required_contract_fields": ["decision", "roles", "source", "style_lock", "safe_zones", "motion_purpose", "entrance_exit_timing", "deletion_trigger"],
+    "rejection_tests": [
+      "support_asset_has_no_motion_purpose",
+      "support_asset_competes_with_title_or_cta",
+      "support_asset_breaks_shared_style_lock",
+      "support_asset_enters_textRect_without_being_a_mask",
+      "generated_asset_sheet_contains_unassigned_elements"
+    ]
+  }
+}

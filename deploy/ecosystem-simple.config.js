@@ -12,7 +12,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3001,
-        BILLING_DISABLED: 'true',
+        BILLING_DISABLED: 'false',
         VISIBILITY_SERVICE_URL: 'http://127.0.0.1:8000',
         CONTENT_SERVICE_URL: 'http://127.0.0.1:4002',
         CONTENT_BRIEF_LLM_API_KEY: 'deepseek',

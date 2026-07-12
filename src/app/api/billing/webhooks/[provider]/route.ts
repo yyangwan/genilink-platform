@@ -11,7 +11,6 @@ import {
   type PaymentProvider,
 } from '@/lib/billing/gateways';
 import { activateSubscriptionFromPayment } from '@/lib/billing/reconcile';
-import { syncBillingPlans } from '@/lib/billing/service';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -55,8 +54,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ provider: 
   if (provider !== 'wechatpay' && provider !== 'alipay') {
     return NextResponse.json({ error: 'Unsupported provider' }, { status: 404 });
   }
-
-  await syncBillingPlans();
 
   try {
     if (provider === 'wechatpay') {

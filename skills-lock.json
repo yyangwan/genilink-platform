@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "hyperframes-motion-director": {
+      "source": "geekjourneyx/hyperframes-motion-director",
+      "sourceType": "github",
+      "skillPath": "skills/hyperframes-motion-director/SKILL.md",
+      "computedHash": "dd808e39a729ab87cfef9837a37b033a9a669e69da0033e9caa37b836f281243"
+    }
+  }
+}

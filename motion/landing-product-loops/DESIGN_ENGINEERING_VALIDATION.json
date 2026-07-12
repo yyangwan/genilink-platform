@@ -1,0 +1,9 @@
+{
+  "valid": true,
+  "checked_files": [
+    "SCENE_SCHEMA.json",
+    "VECTOR_TEMPLATES.json",
+    "MOTION_PRIMITIVES.json"
+  ],
+  "errors": []
+}

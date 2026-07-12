@@ -1,7 +1,6 @@
 "use client";
-/* eslint-disable @next/next/no-assign-module-variable */
 
-import React, { Suspense } from "react";
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import UpgradePrompt from "@/components/billing/upgrade-prompt";
 
@@ -9,7 +8,10 @@ export default function UpgradePage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen" style={{ backgroundColor: "var(--bg-base)" }} />
+        <div
+          className="min-h-screen"
+          style={{ backgroundColor: "var(--bg-base)" }}
+        />
       }
     >
       <UpgradeContent />
@@ -19,22 +21,20 @@ export default function UpgradePage() {
 
 function UpgradeContent() {
   const searchParams = useSearchParams();
-  const module = searchParams.get("module") as "visibility" | "content" | null;
-
-  // Default to visibility if no module specified
-  const targetModule = module === "content" ? "content" : "visibility";
+  const moduleParam = searchParams.get("module") as "visibility" | "content" | null;
+  const targetModule = moduleParam === "content" ? "content" : "visibility";
 
   return (
     <div className="py-8">
-      <div className="max-w-md mx-auto mb-6 text-center">
+      <div className="mx-auto mb-6 max-w-md text-center">
         <h1
-          className="text-2xl font-semibold tracking-tight mb-2"
+          className="mb-2 text-2xl font-semibold tracking-tight"
           style={{
             color: "var(--text-primary)",
             fontFamily: "var(--font-display)",
           }}
         >
-          升级订阅
+          订阅升级
         </h1>
         <p
           className="text-sm"
@@ -43,7 +43,7 @@ function UpgradeContent() {
             fontFamily: "var(--font-body)",
           }}
         >
-          解锁更多功能，提升你的AI搜索可见性
+          开通对应模块后，可以继续使用被拦截的功能。
         </p>
       </div>
 

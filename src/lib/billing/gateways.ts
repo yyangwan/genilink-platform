@@ -69,18 +69,73 @@ function normalizePemKey(pem: string): string {
   return pem.includes('BEGIN') ? pem : pem.replace(/\\n/g, '\n');
 }
 
+function getPemCandidates(pem: string, type: 'private' | 'public'): string[] {
+  const normalized = normalizePemKey(pem).trim();
+  const candidates = new Set<string>([normalized]);
+
+  if (type === 'private') {
+    candidates.add(
+      normalized
+        .replace('BEGIN PRIVATE KEY', 'BEGIN RSA PRIVATE KEY')
+        .replace('END PRIVATE KEY', 'END RSA PRIVATE KEY'),
+    );
+    candidates.add(
+      normalized
+        .replace('BEGIN RSA PRIVATE KEY', 'BEGIN PRIVATE KEY')
+        .replace('END RSA PRIVATE KEY', 'END PRIVATE KEY'),
+    );
+  } else {
+    candidates.add(
+      normalized
+        .replace('BEGIN PUBLIC KEY', 'BEGIN RSA PUBLIC KEY')
+        .replace('END PUBLIC KEY', 'END RSA PUBLIC KEY'),
+    );
+    candidates.add(
+      normalized
+        .replace('BEGIN RSA PUBLIC KEY', 'BEGIN PUBLIC KEY')
+        .replace('END RSA PUBLIC KEY', 'END PUBLIC KEY'),
+    );
+  }
+
+  return [...candidates].filter(Boolean);
+}
+
+function createPrivateKeyObject(pem: string): crypto.KeyObject {
+  let lastError: unknown = null;
+  for (const candidate of getPemCandidates(pem, 'private')) {
+    try {
+      return crypto.createPrivateKey(candidate);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Unable to parse private key');
+}
+
+function createPublicKeyObject(pem: string): crypto.KeyObject {
+  let lastError: unknown = null;
+  for (const candidate of getPemCandidates(pem, 'public')) {
+    try {
+      return crypto.createPublicKey(candidate);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Unable to parse public key');
+}
+
 function signWithRsaSha256(message: string, privateKeyPem: string): string {
   const signer = crypto.createSign('RSA-SHA256');
   signer.update(message);
   signer.end();
-  return signer.sign(normalizePemKey(privateKeyPem), 'base64');
+  return signer.sign(createPrivateKeyObject(privateKeyPem), 'base64');
 }
 
 function verifyWithRsaSha256(message: string, signature: string, publicKeyPem: string): boolean {
   const verifier = crypto.createVerify('RSA-SHA256');
   verifier.update(message);
   verifier.end();
-  return verifier.verify(normalizePemKey(publicKeyPem), signature, 'base64');
+  return verifier.verify(createPublicKeyObject(publicKeyPem), signature, 'base64');
 }
 
 export function buildWechatAuthorizationHeader(params: {

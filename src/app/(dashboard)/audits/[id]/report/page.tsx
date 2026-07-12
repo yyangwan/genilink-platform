@@ -12,6 +12,18 @@ import {
   CheckCircle2,
   XCircle,
   MessageSquare,
+  Award,
+  FileText,
+  Gauge,
+  Layers3,
+  Lightbulb,
+  Network,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  Trophy,
+  type LucideIcon,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -31,7 +43,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import type {
   ReportData,
   ContentIntelligence,
-  StrategicData,
 } from "@/types/visibility";
 import { sectionCard } from "@/components/charts/shared";
 import { formatDateInTimeZone } from "@/lib/time";
@@ -51,6 +62,166 @@ function priorityConfig(priority: string): { color: string; bg: string; label: s
     default:
       return { color: "var(--color-success)", bg: "var(--color-success)20", label: "低" };
   }
+}
+
+function compactCard(padding = "16px"): React.CSSProperties {
+  return {
+    ...sectionCard,
+    padding,
+  };
+}
+
+function IconBadge({
+  icon: Icon,
+  tone = "primary",
+}: {
+  icon: LucideIcon;
+  tone?: "primary" | "success" | "warning" | "error" | "muted";
+}) {
+  const color =
+    tone === "success"
+      ? "var(--color-success)"
+      : tone === "warning"
+        ? "var(--color-warning)"
+        : tone === "error"
+          ? "var(--color-error)"
+          : tone === "muted"
+            ? "var(--text-muted)"
+            : "var(--color-primary)";
+
+  return (
+    <span
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+      style={{ background: `${color}18`, color }}
+    >
+      <Icon className="h-4 w-4" />
+    </span>
+  );
+}
+
+function SectionTitle({
+  icon,
+  title,
+  meta,
+  tone,
+}: {
+  icon: LucideIcon;
+  title: string;
+  meta?: string;
+  tone?: "primary" | "success" | "warning" | "error" | "muted";
+}) {
+  return (
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <IconBadge icon={icon} tone={tone} />
+        <h3
+          className="text-base font-semibold"
+          style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
+        >
+          {title}
+        </h3>
+      </div>
+      {meta && (
+        <span
+          className="text-xs"
+          style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+        >
+          {meta}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function MiniStat({
+  icon,
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string | number;
+  hint?: string;
+  tone?: "primary" | "success" | "warning" | "error" | "muted";
+}) {
+  return (
+    <div
+      className="rounded-lg p-3"
+      style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+    >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span
+          className="text-xs"
+          style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}
+        >
+          {label}
+        </span>
+        <IconBadge icon={icon} tone={tone} />
+      </div>
+      <div
+        className="text-2xl font-bold leading-none"
+        style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}
+      >
+        {value}
+      </div>
+      {hint && (
+        <div className="mt-2 text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+          {hint}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MeterRow({
+  label,
+  value,
+  maxValue = 100,
+  suffix = "",
+  color,
+  meta,
+}: {
+  label: string;
+  value: number;
+  maxValue?: number;
+  suffix?: string;
+  color?: string;
+  meta?: string;
+}) {
+  const width = maxValue > 0 ? Math.max(0, Math.min(100, (value / maxValue) * 100)) : 0;
+
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        className="w-28 shrink-0 truncate text-sm"
+        style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+      >
+        {label}
+      </span>
+      <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: "var(--bg-hover)" }}>
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${width}%`, background: color ?? scoreColor(value) }}
+        />
+      </div>
+      <span
+        className="w-14 shrink-0 text-right text-xs font-medium"
+        style={{ color: color ?? scoreColor(value), fontFamily: "var(--font-mono)" }}
+      >
+        {value}{suffix}
+      </span>
+      {meta && (
+        <span
+          className="w-12 shrink-0 text-right text-xs"
+          style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+        >
+          {meta}
+        </span>
+      )}
+    </div>
+  );
 }
 
 /** Transform structure_distribution (keyed by type) into per-audit stacked bar data */
@@ -107,89 +278,114 @@ function insightTypeIcon(type: string) {
 
 // ── Overview Tab ──
 function OverviewTab({ report }: { report: ReportData }) {
-  return (
-    <div className="space-y-6">
-      {/* Score hero */}
-      <div className="flex flex-col items-center py-6" style={sectionCard}>
-        <ScoreGauge
-          score={report.overall_score}
-          size={180}
-          label={report.score_label}
-          showPercentile
-          percentile={report.percentile}
-        />
-      </div>
+  const platformCount = report.platforms?.length ?? 0;
+  const promptCount = report.prompts?.length ?? 0;
+  const mentionedPrompts = report.prompts?.filter((q) => q.mentioned).length ?? 0;
+  const ownBrand = report.brands?.find((brand) => brand.is_own);
+  const topBrand = report.brands
+    ?.slice()
+    .sort((a, b) => b.mention_count - a.mention_count)[0];
+  const highPriorityCount = report.insights?.filter((insight) => insight.priority === "high").length ?? 0;
+  const maxBrandMentions = Math.max(...(report.brands ?? []).map((b) => b.mention_count), 1);
 
-      {/* Platform breakdown */}
-      {report.platforms && report.platforms.length > 0 && (
-        <div style={sectionCard}>
-          <h3
-            className="text-base font-semibold mb-4"
-            style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
-          >
-            平台得分
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {report.platforms.map((p) => (
-              <div
-                key={p.platform}
-                className="flex flex-col gap-2 p-4 rounded-lg"
-                style={{ background: "var(--bg-elevated)" }}
-              >
-                <div className="flex items-center justify-between">
-                  <span
-                    className="text-sm font-medium"
-                    style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-                  >
-                    {p.platform}
-                  </span>
-                  <span
-                    className="text-lg font-bold"
-                    style={{ color: scoreColor(p.score), fontFamily: "var(--font-mono)" }}
-                  >
-                    {p.score}
-                  </span>
-                </div>
-                <div
-                  className="h-2 rounded-full overflow-hidden"
-                  style={{ background: "var(--bg-hover)" }}
-                >
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${Math.max(p.score, 0)}%`,
-                      background: scoreColor(p.score),
-                    }}
-                  />
-                </div>
-                {p.change != null && (
-                  <span
-                    className="text-xs"
-                    style={{
-                      color: p.change >= 0 ? "var(--color-success)" : "var(--color-error)",
-                      fontFamily: "var(--font-mono)",
-                    }}
-                  >
-                    {p.change >= 0 ? "+" : ""}{p.change}
-                  </span>
-                )}
-              </div>
-            ))}
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[320px_1fr]">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[240px_1fr] xl:grid-cols-1">
+          <div className="flex items-center justify-center py-4" style={compactCard("16px")}>
+            <ScoreGauge
+              score={report.overall_score}
+              size={154}
+              label={report.score_label}
+              showPercentile
+              percentile={report.percentile}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <MiniStat icon={Globe} label="覆盖平台" value={platformCount} hint="本次审计样本" />
+            <MiniStat
+              icon={MessageSquare}
+              label="命中查询"
+              value={`${mentionedPrompts}/${promptCount || 0}`}
+              hint="提及 / 查询"
+              tone="success"
+            />
+            <MiniStat
+              icon={Trophy}
+              label="首位品牌"
+              value={topBrand?.brand ?? "--"}
+              hint={topBrand ? `${topBrand.mention_count} 次提及` : "暂无品牌"}
+              tone="warning"
+            />
+            <MiniStat
+              icon={AlertCircle}
+              label="高优先级"
+              value={highPriorityCount}
+              hint="待处理发现"
+              tone={highPriorityCount > 0 ? "error" : "success"}
+            />
           </div>
         </div>
-      )}
 
-      {/* Key insights */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {report.platforms && report.platforms.length > 0 && (
+            <div style={compactCard()}>
+              <SectionTitle icon={BarChart3} title="平台得分" meta={`${report.platforms.length} 个平台`} />
+              <div className="space-y-3">
+                {report.platforms
+                  .slice()
+                  .sort((a, b) => b.score - a.score)
+                  .map((p) => (
+                    <MeterRow
+                      key={p.platform}
+                      label={p.platform}
+                      value={p.score}
+                      suffix=""
+                      color={scoreColor(p.score)}
+                      meta={p.change != null ? `${p.change >= 0 ? "+" : ""}${p.change}` : undefined}
+                    />
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {report.brands && report.brands.length > 0 && (
+            <div style={compactCard()}>
+              <SectionTitle
+                icon={Award}
+                title="品牌提及"
+                meta={ownBrand ? `本品牌 ${ownBrand.visibility_score}` : undefined}
+                tone="success"
+              />
+              <div className="space-y-3">
+                {report.brands
+                  .slice()
+                  .sort((a, b) => b.mention_count - a.mention_count)
+                  .slice(0, 8)
+                  .map((brand) => (
+                    <MeterRow
+                      key={brand.brand}
+                      label={brand.brand}
+                      value={brand.mention_count}
+                      maxValue={maxBrandMentions}
+                      suffix="次"
+                      color={brand.is_own ? "var(--color-primary)" : "var(--text-muted)"}
+                      meta={String(brand.visibility_score)}
+                    />
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {report.insights && report.insights.length > 0 && (
-        <div style={sectionCard}>
-          <h3
-            className="text-base font-semibold mb-4"
-            style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
-          >
-            关键发现
-          </h3>
-          <ul className="space-y-2">
+        <div style={compactCard()}>
+          <SectionTitle icon={Lightbulb} title="关键发现" meta={`${report.insights.length} 条`} tone="warning" />
+          <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
             {report.insights
+              .slice()
               .sort((a, b) => {
                 const order = { high: 0, medium: 1, low: 2 };
                 return (order[a.priority] ?? 3) - (order[b.priority] ?? 3);
@@ -198,104 +394,47 @@ function OverviewTab({ report }: { report: ReportData }) {
                 const pCfg = priorityConfig(insight.priority);
                 const tCfg = insightTypeIcon(insight.type);
                 return (
-                  <li
+                  <div
                     key={insight.id}
-                    className="flex items-start gap-3 py-2 px-3 rounded-lg"
+                    className="flex items-start gap-3 rounded-lg p-3"
                     style={{ background: "var(--bg-elevated)" }}
                   >
                     <span
-                      className="inline-flex items-center justify-center shrink-0 px-1.5 py-0.5 rounded text-xs font-medium"
-                      style={{
-                        background: pCfg.bg,
-                        color: pCfg.color,
-                        fontFamily: "var(--font-display)",
-                      }}
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                      style={{ background: `${tCfg.color}18`, color: tCfg.color }}
                     >
-                      {pCfg.label}
+                      {insight.type === "strength" ? (
+                        <ShieldCheck className="h-4 w-4" />
+                      ) : insight.type === "weakness" ? (
+                        <AlertCircle className="h-4 w-4" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
                     </span>
-                    <span
-                      className="inline-flex items-center justify-center shrink-0 px-1.5 py-0.5 rounded text-xs font-medium"
-                      style={{
-                        background: `${tCfg.color}20`,
-                        color: tCfg.color,
-                        fontFamily: "var(--font-display)",
-                      }}
-                    >
-                      {tCfg.label}
-                    </span>
-                    <span
-                      className="text-sm pt-0.5"
-                      style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
-                    >
-                      {insight.text}
-                    </span>
-                    {insight.platform && (
-                      <span
-                        className="shrink-0 text-xs pt-1"
-                        style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
-                      >
-                        {insight.platform}
-                      </span>
-                    )}
-                  </li>
-                );
-              })}
-          </ul>
-        </div>
-      )}
-
-      {/* Brand mentions */}
-      {report.brands && report.brands.length > 0 && (
-        <div style={sectionCard}>
-          <h3
-            className="text-base font-semibold mb-4"
-            style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
-          >
-            品牌提及
-          </h3>
-          <div className="space-y-3">
-            {report.brands
-              .sort((a, b) => b.mention_count - a.mention_count)
-              .map((brand) => {
-                const maxCount = Math.max(...report.brands.map((b) => b.mention_count), 1);
-                return (
-                  <div key={brand.brand} className="flex items-center gap-3">
-                    <span
-                      className="text-sm w-24 shrink-0 truncate"
-                      style={{
-                        color: brand.is_own ? "var(--color-primary)" : "var(--text-secondary)",
-                        fontFamily: "var(--font-body)",
-                        fontWeight: brand.is_own ? 600 : 400,
-                      }}
-                    >
-                      {brand.brand}
-                    </span>
-                    <div
-                      className="flex-1 h-2 rounded-full overflow-hidden"
-                      style={{ background: "var(--bg-hover)" }}
-                    >
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{
-                          width: `${(brand.mention_count / maxCount) * 100}%`,
-                          background: brand.is_own
-                            ? "var(--color-primary)"
-                            : "var(--text-muted)",
-                        }}
-                      />
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
+                        <span
+                          className="rounded px-1.5 py-0.5 text-xs font-medium"
+                          style={{ background: pCfg.bg, color: pCfg.color, fontFamily: "var(--font-display)" }}
+                        >
+                          {pCfg.label}
+                        </span>
+                        <span
+                          className="rounded px-1.5 py-0.5 text-xs font-medium"
+                          style={{ background: `${tCfg.color}20`, color: tCfg.color, fontFamily: "var(--font-display)" }}
+                        >
+                          {tCfg.label}
+                        </span>
+                        {insight.platform && (
+                          <span className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                            {insight.platform}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+                        {insight.text}
+                      </p>
                     </div>
-                    <span
-                      className="text-xs font-medium w-16 text-right"
-                      style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-                    >
-                      {brand.mention_count} 次
-                    </span>
-                    <span
-                      className="text-xs font-medium w-10 text-right"
-                      style={{ color: scoreColor(brand.visibility_score), fontFamily: "var(--font-mono)" }}
-                    >
-                      {brand.visibility_score}
-                    </span>
                   </div>
                 );
               })}
@@ -303,15 +442,9 @@ function OverviewTab({ report }: { report: ReportData }) {
         </div>
       )}
 
-      {/* Query detail: which prompts triggered brand mentions */}
       {report.prompts && report.prompts.length > 0 && (
-        <div style={sectionCard}>
-          <h3
-            className="text-base font-semibold mb-4"
-            style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
-          >
-            查询详情
-          </h3>
+        <div style={compactCard()}>
+          <SectionTitle icon={Search} title="查询详情" meta={`展示 ${Math.min(report.prompts.length, 50)} 条`} tone="muted" />
           <div className="space-y-2">
             {report.prompts.map((q, i) => (
               <div
@@ -425,140 +558,139 @@ function ContentTab({
     { name: "中性", value: content.sentiment.neutral, fill: "var(--color-warning)" },
     { name: "负面", value: content.sentiment.negative, fill: "var(--color-error)" },
   ].filter((d) => d.value > 0);
+  const positiveRate = Math.round((content.sentiment.positive / sentimentTotal) * 100);
+  const negativeRate = Math.round((content.sentiment.negative / sentimentTotal) * 100);
+  const topTopic = content.topics?.slice().sort((a, b) => b.count - a.count)[0];
+  const topSource = content.sources?.slice().sort((a, b) => b.authority_score - a.authority_score)[0];
+  const maxTopicCount = Math.max(...(content.topics ?? []).map((t) => t.count), 1);
+  const maxStructureCount = Math.max(...(content.answerStructure ?? []).map((s) => s.count), 1);
 
   return (
-    <div className="space-y-6">
-      {/* Sentiment breakdown */}
-      <div style={sectionCard}>
-        <h3
-          className="text-base font-semibold mb-4"
-          style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
-        >
-          情感分析
-        </h3>
-        <div className="flex items-center gap-4">
-          <div style={{ width: 200, height: 200 }}>
-            <SentimentPieChart data={sentimentData} />
-          </div>
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ background: "var(--color-success)" }} />
-              <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-                正面 {content.sentiment.positive} ({Math.round((content.sentiment.positive / sentimentTotal) * 100)}%)
-              </span>
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[360px_1fr]">
+        <div style={compactCard()}>
+          <SectionTitle icon={Gauge} title="情绪概览" meta={`${sentimentTotal} 条样本`} tone="success" />
+          <div className="flex items-center gap-4">
+            <div className="h-[168px] w-[168px] shrink-0">
+              <SentimentPieChart data={sentimentData} />
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ background: "var(--color-warning)" }} />
-              <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-                中性 {content.sentiment.neutral} ({Math.round((content.sentiment.neutral / sentimentTotal) * 100)}%)
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ background: "var(--color-error)" }} />
-              <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-                负面 {content.sentiment.negative} ({Math.round((content.sentiment.negative / sentimentTotal) * 100)}%)
-              </span>
+            <div className="grid flex-1 grid-cols-1 gap-2">
+              <MiniStat icon={ShieldCheck} label="正面占比" value={`${positiveRate}%`} tone="success" />
+              <MiniStat icon={AlertCircle} label="负面占比" value={`${negativeRate}%`} tone={negativeRate > 20 ? "error" : "muted"} />
             </div>
           </div>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {sentimentData.map((item) => (
+              <div key={item.name} className="rounded-lg px-3 py-2" style={{ background: "var(--bg-elevated)" }}>
+                <div className="mb-1 flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: item.fill }} />
+                  <span className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    {item.name}
+                  </span>
+                </div>
+                <div className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
+                  {item.value}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <MiniStat icon={Target} label="热门话题" value={topTopic?.topic ?? "--"} hint={topTopic ? `${topTopic.count} 次出现` : "暂无话题"} />
+          <MiniStat icon={Globe} label="最高权威来源" value={topSource?.domain ?? "--"} hint={topSource ? `权威 ${topSource.authority_score}` : "暂无来源"} tone="success" />
+          <MiniStat icon={Layers3} label="回答结构" value={content.answerStructure?.length ?? 0} hint="已识别类型" tone="warning" />
         </div>
       </div>
 
-      {/* Topics */}
       {content.topics && content.topics.length > 0 && (
-        <div style={sectionCard}>
-          <h3
-            className="text-base font-semibold mb-4"
-            style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
-          >
-            热门话题
-          </h3>
+        <div style={compactCard()}>
+          <SectionTitle icon={Target} title="热门话题" meta={`Top ${Math.min(content.topics.length, 10)}`} />
           <div className="space-y-3">
             {content.topics
               .sort((a, b) => b.count - a.count)
               .slice(0, 10)
-              .map((topic) => {
-                const maxCount = Math.max(...content.topics.map((t) => t.count), 1);
-                return (
-                  <div key={topic.topic} className="flex items-center gap-3">
-                    <span
-                      className="text-sm w-32 shrink-0 truncate"
-                      style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-                    >
-                      {topic.topic}
-                    </span>
-                    <div
-                      className="flex-1 h-2 rounded-full overflow-hidden"
-                      style={{ background: "var(--bg-hover)" }}
-                    >
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{
-                          width: `${(topic.count / maxCount) * 100}%`,
-                          background: "var(--color-primary)",
-                        }}
-                      />
-                    </div>
-                    <span
-                      className="text-xs w-8 text-right"
-                      style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-                    >
-                      {topic.count}
-                    </span>
-                  </div>
-                );
-              })}
+              .map((topic) => (
+                <MeterRow
+                  key={topic.topic}
+                  label={topic.topic}
+                  value={topic.count}
+                  maxValue={maxTopicCount}
+                  color={topic.sentiment >= 60 ? "var(--color-success)" : topic.sentiment >= 35 ? "var(--color-warning)" : "var(--color-error)"}
+                  meta={`${topic.sentiment}`}
+                />
+              ))}
           </div>
         </div>
       )}
 
-      {/* Sources */}
-      {content.sources && content.sources.length > 0 && (
-        <div style={sectionCard}>
-          <h3
-            className="text-base font-semibold mb-4"
-            style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
-          >
-            来源权威度
-          </h3>
-          <div className="space-y-3">
-            {content.sources
-              .sort((a, b) => b.authority_score - a.authority_score)
-              .slice(0, 10)
-              .map((source) => (
-                <div key={source.domain} className="flex items-center gap-3">
-                  <Globe className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--text-muted)" }} />
-                  <span
-                    className="text-sm w-40 shrink-0 truncate"
-                    style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
-                  >
-                    {source.source || source.domain}
-                  </span>
-                  <div
-                    className="flex-1 h-2 rounded-full overflow-hidden"
-                    style={{ background: "var(--bg-hover)" }}
-                  >
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${Math.max(source.authority_score, 0)}%`,
-                        background: scoreColor(source.authority_score),
-                      }}
-                    />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {content.sources && content.sources.length > 0 && (
+          <div style={compactCard()}>
+            <SectionTitle icon={Globe} title="来源权威度" meta={`Top ${Math.min(content.sources.length, 10)}`} tone="success" />
+            <div className="space-y-3">
+              {content.sources
+                .slice()
+                .sort((a, b) => b.authority_score - a.authority_score)
+                .slice(0, 10)
+                .map((source) => (
+                  <MeterRow
+                    key={source.domain}
+                    label={source.source || source.domain}
+                    value={source.authority_score}
+                    color={scoreColor(source.authority_score)}
+                    meta={`${source.mention_count}次`}
+                  />
+                ))}
+            </div>
+          </div>
+        )}
+
+        {content.answerStructure && content.answerStructure.length > 0 && (
+          <div style={compactCard()}>
+            <SectionTitle icon={Layers3} title="回答结构" meta={`${content.answerStructure.length} 类`} tone="warning" />
+            <div className="space-y-3">
+              {content.answerStructure
+                .slice()
+                .sort((a, b) => b.count - a.count)
+                .map((item) => (
+                  <MeterRow
+                    key={item.type}
+                    label={item.type}
+                    value={item.count}
+                    maxValue={maxStructureCount}
+                    color="var(--color-primary)"
+                    meta={`${Math.round(item.percentage)}%`}
+                  />
+                ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {content.heatmap && content.heatmap.length > 0 && (
+        <div style={compactCard()}>
+          <SectionTitle icon={Sparkles} title="平台 × 类目热区" meta={`${content.heatmap.length} 个信号`} />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {content.heatmap.map((cell) => (
+              <div
+                key={`${cell.platform}-${cell.category}`}
+                className="flex items-center justify-between gap-3 rounded-lg px-3 py-2"
+                style={{ background: "var(--bg-elevated)" }}
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-sm" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+                    {cell.platform}
                   </div>
-                  <span
-                    className="text-xs w-12 text-right"
-                    style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-                  >
-                    {source.mention_count} 次
-                  </span>
-                  <span
-                    className="text-xs w-8 text-right font-medium"
-                    style={{ color: scoreColor(source.authority_score), fontFamily: "var(--font-mono)" }}
-                  >
-                    {source.authority_score}
-                  </span>
+                  <div className="truncate text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    {cell.category}
+                  </div>
                 </div>
-              ))}
+                <span className="text-sm font-bold" style={{ color: scoreColor(cell.score), fontFamily: "var(--font-mono)" }}>
+                  {cell.score}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -602,61 +734,99 @@ function StrategicTab({
     );
   }
 
+  const sortedCompetitors = competitor?.brands
+    ?.slice()
+    .sort((a, b) => b.mention_frequency - a.mention_frequency) ?? [];
+  const ownPosition = sortedCompetitors.find((brand) => !brand.is_competitor);
+  const leader = sortedCompetitors[0];
+  const maxMentionFrequency = Math.max(...sortedCompetitors.map((brand) => brand.mention_frequency), 0.01);
+  const domainRows = sourceAuthority?.domain_trends
+    ?.slice()
+    .sort((a, b) => {
+      const aTotal = a.data.reduce((s, d) => s + d.count, 0);
+      const bTotal = b.data.reduce((s, d) => s + d.count, 0);
+      return bTotal - aTotal;
+    }) ?? [];
+  const topDomain = domainRows[0];
+  const maxDomainMentions = Math.max(...domainRows.map((d) => d.data.reduce((s, x) => s + x.count, 0)), 1);
+  const structureData = structureEvolution?.structure_distribution
+    ? buildStructureChartData(structureEvolution)
+    : [];
+  const latestStructure = structureData[structureData.length - 1];
+  const latestStructured = Number(latestStructure?.structured ?? 0);
+
   return (
-    <div className="space-y-6">
-      {/* Competitor positioning */}
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <MiniStat
+          icon={Trophy}
+          label="竞争领先者"
+          value={leader?.name ?? "--"}
+          hint={leader ? `${Math.round(leader.mention_frequency * 100)}% 提及率` : "暂无竞品数据"}
+          tone="warning"
+        />
+        <MiniStat
+          icon={Award}
+          label="本品牌位置"
+          value={ownPosition ? `${Math.round(ownPosition.mention_frequency * 100)}%` : "--"}
+          hint={ownPosition ? `${ownPosition.mention_count} 次提及` : "未识别本品牌"}
+          tone="primary"
+        />
+        <MiniStat
+          icon={Network}
+          label="核心来源"
+          value={topDomain?.domain ?? "--"}
+          hint={topDomain ? `${topDomain.data.reduce((s, d) => s + d.count, 0)} 次引用` : "暂无来源趋势"}
+          tone="success"
+        />
+      </div>
+
       {competitor?.brands && competitor.brands.length > 0 && (
-        <div style={sectionCard}>
-          <div className="flex items-center gap-2 mb-4">
-            <Users className="w-4 h-4" style={{ color: "var(--color-primary)" }} />
-            <h3
-              className="text-base font-semibold"
-              style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
-            >
-              竞品定位
-            </h3>
-          </div>
-          <div className="space-y-3">
-            {competitor.brands
-              .sort((a, b) => b.mention_frequency - a.mention_frequency)
-              .map((comp) => {
+        <div style={compactCard()}>
+          <SectionTitle icon={Users} title="竞品定位" meta={`${competitor.brands.length} 个品牌`} />
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+            {sortedCompetitors.map((comp) => {
                 const score = Math.round(comp.mention_frequency * 100);
+                const relativeWidth = Math.max(2, (comp.mention_frequency / maxMentionFrequency) * 100);
                 return (
-                  <div key={comp.name} className="flex items-center gap-3">
-                    <span
-                      className="text-sm w-24 shrink-0 truncate"
-                      style={{
-                        color: !comp.is_competitor ? "var(--color-primary)" : "var(--text-secondary)",
-                        fontFamily: "var(--font-body)",
-                        fontWeight: !comp.is_competitor ? 600 : 400,
-                      }}
-                    >
-                      {comp.name}
-                    </span>
-                    <div
-                      className="flex-1 h-2 rounded-full overflow-hidden"
-                      style={{ background: "var(--bg-hover)" }}
-                    >
+                  <div
+                    key={comp.name}
+                    className="rounded-lg p-3"
+                    style={{ background: "var(--bg-elevated)" }}
+                  >
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div
+                          className="truncate text-sm font-medium"
+                          style={{
+                            color: !comp.is_competitor ? "var(--color-primary)" : "var(--text-primary)",
+                            fontFamily: "var(--font-body)",
+                          }}
+                        >
+                          {comp.name}
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-2 text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                          <span>{comp.mention_count} 次提及</span>
+                          <span>正向 {Math.round(comp.sentiment_positive_rate * 100)}%</span>
+                          <span>权威 {Math.round(comp.avg_authority)}</span>
+                        </div>
+                      </div>
+                      <span
+                        className="shrink-0 text-lg font-bold"
+                        style={{ color: !comp.is_competitor ? "var(--color-primary)" : scoreColor(score), fontFamily: "var(--font-mono)" }}
+                      >
+                        {score}%
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full" style={{ background: "var(--bg-hover)" }}>
                       <div
-                        className="h-full rounded-full transition-all duration-500"
+                        className="h-full rounded-full"
                         style={{
-                          width: `${Math.max(score, 0)}%`,
+                          width: `${relativeWidth}%`,
                           background: !comp.is_competitor ? "var(--color-primary)" : scoreColor(score),
                         }}
                       />
                     </div>
-                    <span
-                      className="text-xs font-medium w-10 text-right"
-                      style={{ color: scoreColor(score), fontFamily: "var(--font-mono)" }}
-                    >
-                      {score}%
-                    </span>
-                    <span
-                      className="text-xs w-16 text-right"
-                      style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-                    >
-                      {comp.mention_count} 次
-                    </span>
                   </div>
                 );
               })}
@@ -664,77 +834,59 @@ function StrategicTab({
         </div>
       )}
 
-      {/* Source authority over time */}
       {sourceAuthority?.domain_trends && sourceAuthority.domain_trends.length > 0 && (
-        <div style={sectionCard}>
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="w-4 h-4" style={{ color: "var(--color-primary)" }} />
-            <h3
-              className="text-base font-semibold"
-              style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
-            >
-              来源权威趋势
-            </h3>
-          </div>
+        <div style={compactCard()}>
+          <SectionTitle icon={TrendingUp} title="来源权威趋势" meta={`${sourceAuthority.audits?.length ?? 0} 次审计`} tone="success" />
           <div className="space-y-3">
-            {sourceAuthority.domain_trends
-              .sort((a, b) => {
-                const aTotal = a.data.reduce((s, d) => s + d.count, 0);
-                const bTotal = b.data.reduce((s, d) => s + d.count, 0);
-                return bTotal - aTotal;
-              })
+            {domainRows
               .slice(0, 10)
               .map((domain) => {
                 const totalCount = domain.data.reduce((s, d) => s + d.count, 0);
-                const maxCount = Math.max(...sourceAuthority.domain_trends.map((d) => d.data.reduce((s, x) => s + x.count, 0)), 1);
+                const avgAuthority = domain.data.length
+                  ? Math.round(domain.data.reduce((s, d) => s + d.authority_avg, 0) / domain.data.length)
+                  : 0;
                 return (
-                  <div key={domain.domain} className="flex items-center gap-3">
-                    <Globe className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--text-muted)" }} />
-                    <span
-                      className="text-sm w-40 shrink-0 truncate"
-                      style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
-                    >
-                      {domain.domain}
-                    </span>
-                    <div
-                      className="flex-1 h-2 rounded-full overflow-hidden"
-                      style={{ background: "var(--bg-hover)" }}
-                    >
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${(totalCount / maxCount) * 100}%`,
-                          background: "var(--color-primary)",
-                        }}
-                      />
-                    </div>
-                    <span
-                      className="text-xs w-8 text-right"
-                      style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-                    >
-                      {totalCount}
-                    </span>
-                  </div>
+                  <MeterRow
+                    key={domain.domain}
+                    label={domain.domain}
+                    value={totalCount}
+                    maxValue={maxDomainMentions}
+                    color={scoreColor(avgAuthority)}
+                    meta={`${avgAuthority}`}
+                  />
                 );
               })}
           </div>
         </div>
       )}
 
-      {/* Structure evolution */}
       {structureEvolution?.structure_distribution && (
-        <div style={sectionCard}>
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart3 className="w-4 h-4" style={{ color: "var(--color-primary)" }} />
-            <h3
-              className="text-base font-semibold"
-              style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
-            >
-              结构化演变
-            </h3>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_280px]">
+          <div style={compactCard()}>
+            <SectionTitle icon={BarChart3} title="结构化演变" meta={`${structureData.length} 个周期`} tone="warning" />
+            <div style={{ height: 240 }}>
+              <StructureBarChart data={structureData} />
+            </div>
           </div>
-          <div style={{ height: 240 }}>
-            <StructureBarChart data={buildStructureChartData(structureEvolution)} />
+          <div style={compactCard()}>
+            <SectionTitle icon={FileText} title="最新结构分布" tone="muted" />
+            <div className="space-y-3">
+              <MiniStat icon={Layers3} label="结构化" value={`${latestStructured}%`} hint="列表型回答占比" tone="primary" />
+              <MiniStat
+                icon={Network}
+                label="半结构化"
+                value={`${Number(latestStructure?.semi_structured ?? 0)}%`}
+                hint="对比型回答占比"
+                tone="warning"
+              />
+              <MiniStat
+                icon={MessageSquare}
+                label="叙述型"
+                value={`${Number(latestStructure?.unstructured ?? 0)}%`}
+                hint="长文本回答占比"
+                tone="muted"
+              />
+            </div>
           </div>
         </div>
       )}

@@ -109,7 +109,7 @@ export function ContentEditor({
 
     const currentContent = editor.getHTML();
     if (initialContent !== currentContent) {
-      editor.commands.setContent(initialContent, false);
+      editor.commands.setContent(initialContent, { emitUpdate: false });
     }
   }, [editor, initialContent]);
 

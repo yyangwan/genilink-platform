@@ -1,0 +1,159 @@
+{
+  "skill_name": "hyperframes-motion-director",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Turn this article theme into a 12 second HyperFrames motion video: 'AI is not replacing workers all at once; it is quietly erasing the parts of their work that made them visible.' Use the strict black cinematic metaphor style. Do not make a literal robot office scene.",
+      "expected_output": "A complete HyperFrames motion-video production plan or project output that first extracts the core viewpoint, conflict, emotion, amplified keyword, and visual metaphor, then builds a black-background cinematic short with sparse typography, generated-image planning, storyboard, motion map, validation plan, snapshots, and review report.",
+      "files": [],
+      "assertions": [
+        "Output includes a BRIEF_DESIGN_PROPOSAL or equivalent approval artifact.",
+        "Output extracts core viewpoint, largest conflict, emotional center, amplified keyword, and visual metaphor.",
+        "Output avoids literal surface illustration and proposes a restrained metaphor such as an erased silhouette or vanishing trace.",
+        "Output includes a design system with typography, color, layout, and motion direction.",
+        "Output locks the black-background cinematic style with white/gray/warm gold palette and minimal composition.",
+        "Output includes generated image or visual asset planning when bitmap key visuals are useful.",
+        "Output includes a beat-by-beat storyboard with timing and hero frame timestamps.",
+        "Output explicitly uses layout before animation or static hero frame review before GSAP.",
+        "Output declares the first eye target and does not automatically demote hook text to the lower half.",
+        "Output includes kinetic typography or text transition planning beyond opacity plus y movement.",
+        "Output includes HyperFrames validation/snapshot/render checks.",
+        "Output includes deterministic GSAP or render-stability guidance."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Turn this SaaS homepage idea into a 15 second YouTube motion video: 'Atlas turns messy support tickets into clean product insights.' Make it cinematic and metaphor-led, not a dashboard montage. Use HyperFrames and GSAP.",
+      "expected_output": "A structured production workflow for a 15 second HyperFrames motion video with essence extraction, concise copy, beat-by-beat storyboard, strict cinematic visual language, motion vocabulary, transition plan, generated asset plan, and validation checklist.",
+      "files": [],
+      "assertions": [
+        "Output includes a concise motion-video structure with hook, reveal, proof, and CTA.",
+        "Output includes a metaphor-led visual direction rather than generic technical dashboard imagery.",
+        "Output forbids noisy icon piles, ecommerce banner composition, neon tech clutter, or multicolor palettes.",
+        "Output includes beat timing for a 15 second video.",
+        "Output includes GSAP motion choreography with explicit timing or easing guidance.",
+        "Output includes CSS3 or SVG structure such as masks, paths, clip reveals, scan lines, frames, or connectors.",
+        "Output includes a transition plan.",
+        "Output includes an anti-PPT check or explains how the film avoids static slide sequencing.",
+        "Output includes validation and snapshot review steps."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "把这段产品介绍做成一个 12 秒宣传片：'Mimir 可以把零散会议记录整理成清晰的产品决策。' 没有特别要求平台，你自己按默认方式规划。",
+      "expected_output": "A Phase 1 brief/design proposal that treats the task as a Simplified Chinese vertical promotional film by default, using 9:16 1080x1920, vertical safe margins, sparse Chinese screen copy, cinematic black metaphor style, background image planning, and confirmation before production.",
+      "files": [],
+      "assertions": [
+        "Output defaults to Simplified Chinese promotional screen copy.",
+        "Output defaults to vertical 9:16.",
+        "Output specifies 1080x1920 or equivalent vertical dimensions.",
+        "Output includes vertical platform safe margins or bottom overlay risk handling.",
+        "Output identifies whether the hook text should occupy center/upper-center attention or a lower-safe zone.",
+        "Output keeps Chinese copy sparse with deliberate line breaks or low character count per beat.",
+        "Output asks for confirmation before image generation or HyperFrames implementation."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I already have a HyperFrames motion project. The client says the title feels cheap and the proof beat is too fast. Explain exactly what you would inspect and change without rewriting the whole composition.",
+      "expected_output": "A targeted edit protocol that reads existing files first, maps feedback to DESIGN/SCRIPT/STORYBOARD/timeline changes, preserves unrelated timing, and reruns relevant validation and snapshots.",
+      "files": [],
+      "assertions": [
+        "Output says to inspect existing project files before changing anything.",
+        "Output maps the cheap title feedback to typography/design/layout changes.",
+        "Output considers first eye target, center-impact typography, and whether important text was placed too low.",
+        "Output maps the fast proof beat feedback to script/storyboard/beat map/timeline changes.",
+        "Output diagnoses whether motion feels PPT-like because of repeated fades or weak text transitions.",
+        "Output explicitly avoids rewriting unrelated composition sections.",
+        "Output includes validation and snapshots after the targeted edit.",
+        "Output reports what changed and what stayed unchanged."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Start an actual HyperFrames motion project scaffold in ./forge-launch for a 10 second black-background cinematic metaphor launch film. I do not need a finished render yet, but I want the real production files, artifact templates, folders for generated images/assets/compositions/snapshots/renders, beat map, motion map, and a review pack plan.",
+      "expected_output": "A real project scaffold with production artifacts and folders, not just prose. It should include BRIEF_DESIGN_PROPOSAL.md, DESIGN.md, STORYBOARD.md, REVIEW_REPORT.md, asset/composition/snapshot/render folders, and instructions for next validation steps. BEAT_MAP.json and MOTION_MAP.json should be optional rather than default.",
+      "files": [],
+      "assertions": [
+        "Output creates or instructs creation of a real project scaffold rather than only a written plan.",
+        "Output treats BEAT_MAP.json and MOTION_MAP.json as optional files for exact timing or complex GSAP choreography.",
+        "Output includes assets, compositions, snapshots, renders, and review folders.",
+        "Output includes review pack or review handoff plan.",
+        "Output includes local deterministic checks such as asset check or artifact score.",
+        "Output states that final render is deferred until composition/assets/HyperFrames CLI are available."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "这个 20 秒 HyperFrames 宣传片看起来像 PPT：文字都在下半区，Hook 没视觉冲击，动画只有淡入淡出。请批判性诊断，并升级成更有传播感的 CSS3/SVG/GSAP 文字动效方案。",
+      "expected_output": "A critical improvement plan that identifies attention-map failures, moves hook or amplified keywords toward center/upper-center impact when appropriate, adds kinetic typography, SVG/CSS structural transitions, a labeled GSAP timeline plan, and anti-PPT review gates before render.",
+      "files": [],
+      "assertions": [
+        "Output explicitly criticizes lower-half default placement when it weakens the hook.",
+        "Output declares the first eye target for the hook and at least one later beat.",
+        "Output proposes center or upper-center visual impact for hook or amplified keyword text unless a subject owns that zone.",
+        "Output includes text transition planning with entry, lock, emphasis, exit, and bridge.",
+        "Output includes CSS3 or SVG devices such as clip-path, mask, path, scan line, frame, underline, or connector.",
+        "Output includes GSAP choreography using a labeled or master timeline with explicit timing.",
+        "Output includes a keyword chain for the kinetic text sequence.",
+        "Output includes an action-object chain where icons or small objects actively push, scan, mask, type, crop, or hand off text.",
+        "Output includes a direction map with left/right/up/down push, wipe, scan, type-on, compression, expansion, or equivalent structural transitions.",
+        "Output requires transition midpoint snapshots, not only hero-frame snapshots.",
+        "Output includes a 100-point kinetic relay score or equivalent anti-PPT scoring rubric.",
+        "Output includes an anti-PPT review gate based on whether the video loses meaning when reduced to screenshots.",
+        "Output preserves readable hold time rather than making all text move continuously."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "我想做一个 15 秒产品宣传片，参考那种黑底大字、图标介入、左右推出、上下推出、扫描、打字、淡出都很炫酷的文字动效。产品叫 FlowForge，能力是生成脚本、剪辑片段、自动配音、放大画质、一键发布。请先给 Phase 1 方案，不要开始写代码。",
+      "expected_output": "A Phase 1 brief/design proposal for a kinetic text relay promo, not a static cinematic slide sequence. It should define keyword chain, action-object chain, directional transition map, relay handoffs, readable holds, midpoint snapshots, and a 100-point kinetic relay target before asking for confirmation.",
+      "files": [],
+      "assertions": [
+        "Output identifies this as a kinetic text relay promo or equivalent text/icon transition mode.",
+        "Output compresses the product story into a keyword chain.",
+        "Output maps each major capability to an action object such as cursor, timeline, waveform, scan line, frame, product tile, upload mark, or equivalent.",
+        "Output includes a direction map with push, wipe, scan, type-on, compression, expansion, or hard-cut handoffs.",
+        "Output explains how old words exit and new words enter through visible relay objects or directions.",
+        "Output treats fade as support rather than the main transition language unless deliberate stillness is justified.",
+        "Output includes readable holds and transition midpoint snapshot planning.",
+        "Output includes a kinetic relay score target of 100 and a no-final-delivery threshold below 90.",
+        "Output asks for confirmation before implementation."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "请给一个 15 秒视频号产品宣传片 Phase 1 方案。产品叫 DraftPilot，是一个把会议纪要变成产品决策文档的 CLI。我要参考顶级黑金产品宣传片的质感：必须有图标、装饰元素、图片资源/截图、命令卡、证明卡和动效交互，不要只给大字和背景。",
+      "expected_output": "A Phase 1 brief/design proposal that treats this as a premium product promo. It must include product proof inventory, mandatory visual component library, icon/decorative system, asset library plan, copy ladder, component interactions, and a premium product promo score target before asking for confirmation.",
+      "files": [],
+      "assertions": [
+        "Output identifies this as a premium product promo or equivalent.",
+        "Output includes a product proof inventory with commands, output examples, numbers, screenshots or generated product-safe mockups.",
+        "Output requires a mandatory visual component library rather than only a background and big text.",
+        "Output names at least four concrete components such as command card, output card, proof card, stat block, anchored signal, route-node sequence, chip group, screenshot surface, or CTA badge.",
+        "Output includes an icon or mark system and explains what the icons/marks prove.",
+        "Output includes decorative elements as a named system rather than filler.",
+        "Output includes an asset library plan covering existing assets, generated assets, screenshots or code-native components.",
+        "Output maps each major component to a motion interaction or state change.",
+        "Output includes copy strategy using pain, mechanism, proof, confidence, and CTA.",
+        "Output blocks final delivery below a premium product promo score of 90 or equivalent."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "这个 HyperFrames 视频里的线条和弧线路径位置有问题，真的必要吗？请按第一性原理复盘，优化成片，并把经验沉淀到当前 SKILL。",
+      "expected_output": "A targeted postmortem and edit workflow that treats lines, arcs, rails, underlines, and connector paths as support objects rather than automatic premium decoration. It should name anchors, semantic job, safe zone, deletion test, component-attached alternatives, update production artifacts or skill rules, then rerun snapshots/render validation.",
+      "files": [],
+      "assertions": [
+        "Output identifies lines, arcs, rails, underlines, or connector paths as support objects rather than default premium decoration.",
+        "Output requires visible start and end anchors when a connector is kept.",
+        "Output requires a semantic job such as workflow order, input-output transformation, state handoff, scan boundary, or CTA focus.",
+        "Output includes a deletion test asking whether the viewer still understands the beat without the connector.",
+        "Output prefers component-attached alternatives such as card-edge highlights, route nodes, status dots, progress strips, cursor highlights, screenshot checks, or CTA border lighting when a line floats.",
+        "Output removes or replaces free-floating decorative lines instead of merely repositioning them.",
+        "Output updates the relevant storyboard, design, review report, schema, or SKILL guidance when optimizing the production system.",
+        "Output reruns relevant snapshot, render, or validation checks before claiming completion."
+      ]
+    }
+  ]
+}

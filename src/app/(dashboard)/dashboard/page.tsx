@@ -3,9 +3,6 @@
 import React, { useMemo, Suspense } from "react";
 import Link from "next/link";
 import {
-  KPIScorecard,
-} from "@/components/dashboard/kpi-scorecard";
-import {
   DashboardCard,
   EmptyState,
   ErrorState,
@@ -251,6 +248,69 @@ function PriorityBadge({ priority }: { priority: string }) {
   );
 }
 
+function CompactMetric({
+  label,
+  value,
+  loading,
+  empty,
+  error,
+  locked,
+}: {
+  label: string;
+  value?: string | number;
+  loading?: boolean;
+  empty?: boolean;
+  error?: boolean;
+  locked?: boolean;
+}) {
+  const valueContent = (() => {
+    if (loading) {
+      return (
+        <div
+          className="h-7 w-16 rounded animate-skeleton-pulse"
+          style={{ background: "var(--bg-hover)" }}
+        />
+      );
+    }
+
+    if (locked) return "升级解锁";
+    if (error) return "不可用";
+    if (empty || value === undefined) return "—";
+
+    return value;
+  })();
+
+  return (
+    <div
+      className="rounded-lg px-3 py-3 min-h-[86px] flex flex-col justify-between"
+      style={{
+        background: "var(--bg-elevated)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <span
+        className="text-xs font-medium"
+        style={{
+          color: "var(--text-muted)",
+          fontFamily: "var(--font-display)",
+          fontSize: "var(--text-overline)",
+        }}
+      >
+        {label}
+      </span>
+      <span
+        className="text-2xl font-bold leading-none"
+        style={{
+          color: locked || error || empty ? "var(--text-muted)" : "var(--text-primary)",
+          fontFamily: locked || error ? "var(--font-body)" : "var(--font-mono)",
+        }}
+      >
+        {valueContent}
+      </span>
+    </div>
+  );
+}
+
 function VisibilityTrendChart({
   points,
 }: {
@@ -461,68 +521,67 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* ─── Hero Composition: Gauge + 3 KPI Cards ─────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6">
-        {/* Radial Score Gauge */}
-        <DashboardCard title="" className="flex items-center justify-center">
-          <RadialGauge
-            score={visibility.data?.overallScore ?? null}
-            loading={visibility.loading}
-            locked={visibility.locked}
-            error={visibility.error}
-          />
-        </DashboardCard>
+      {/* ─── Overview: Gauge + compact KPIs + visibility trend ─────────── */}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(360px,0.9fr)_minmax(520px,1.35fr)] gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] xl:grid-cols-1 2xl:grid-cols-[220px_1fr] gap-4">
+          <DashboardCard title="" className="flex items-center justify-center min-h-[236px]">
+            <RadialGauge
+              score={visibility.data?.overallScore ?? null}
+              loading={visibility.loading}
+              locked={visibility.locked}
+              error={visibility.error}
+            />
+          </DashboardCard>
 
-        {/* 3 KPI Cards stacked */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <KPIScorecard
-            label="品牌提及次数"
-            value={visibility.data?.mentionCount}
-            loading={visibility.loading}
-            locked={visibility.locked}
-            error={visibility.error}
-            empty={visibility.data?.mentionCount === undefined && !visibility.loading}
-          />
-          <KPIScorecard
-            label="内容发布量"
-            value={content.data?.publishedCount}
-            loading={content.loading}
-            locked={content.locked}
-            error={content.error}
-            empty={content.data?.publishedCount === undefined && !content.loading}
-          />
-          <KPIScorecard
-            label="竞品对比排名"
-            value={
-              visibility.data?.competitorRank
-                ? `#${visibility.data.competitorRank}`
-                : undefined
-            }
-            loading={visibility.loading}
-            locked={visibility.locked}
-            error={visibility.error}
-            empty={visibility.data?.competitorRank === null && !visibility.loading}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3 2xl:grid-cols-1 gap-3">
+            <CompactMetric
+              label="品牌提及次数"
+              value={visibility.data?.mentionCount}
+              loading={visibility.loading}
+              locked={visibility.locked}
+              error={visibility.error}
+              empty={visibility.data?.mentionCount === undefined && !visibility.loading}
+            />
+            <CompactMetric
+              label="内容发布量"
+              value={content.data?.publishedCount}
+              loading={content.loading}
+              locked={content.locked}
+              error={content.error}
+              empty={content.data?.publishedCount === undefined && !content.loading}
+            />
+            <CompactMetric
+              label="竞品对比排名"
+              value={
+                visibility.data?.competitorRank
+                  ? `#${visibility.data.competitorRank}`
+                  : undefined
+              }
+              loading={visibility.loading}
+              locked={visibility.locked}
+              error={visibility.error}
+              empty={visibility.data?.competitorRank === null && !visibility.loading}
+            />
+          </div>
         </div>
+
+        <DashboardCard title="品牌可见性趋势">
+          {visibility.loading ? (
+            <LoadingSkeleton rows={4} />
+          ) : visibility.error ? (
+            <ErrorState onRetry={visibility.refetch} />
+          ) : visibility.locked ? (
+            <EmptyState message="升级解锁品牌可见性趋势图表" actionLabel="联系销售" />
+          ) : visibility.data?.trend && visibility.data.trend.length > 0 ? (
+            <VisibilityTrendChart points={visibility.data.trend} />
+          ) : (
+            <EmptyState message="暂无趋势数据，请先完成一次品牌可见性分析" />
+          )}
+        </DashboardCard>
       </div>
 
-      {/* ─── 品牌可见性趋势 ──────────────────────── */}
-      <DashboardCard title="品牌可见性趋势">
-        {visibility.loading ? (
-          <LoadingSkeleton rows={4} />
-        ) : visibility.error ? (
-          <ErrorState onRetry={visibility.refetch} />
-        ) : visibility.locked ? (
-          <EmptyState message="升级解锁品牌可见性趋势图表" actionLabel="联系销售" />
-        ) : visibility.data?.trend && visibility.data.trend.length > 0 ? (
-          <VisibilityTrendChart points={visibility.data.trend} />
-        ) : (
-          <EmptyState message="暂无趋势数据，请先完成一次品牌可见性分析" />
-        )}
-      </DashboardCard>
-
-      {/* ─── Two-column section: AI平台覆盖 + 最新发布内容 ──── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* ─── Analysis, suggestions, execution ───────────────────── */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* AI Platform Coverage */}
         <DashboardCard title="AI平台覆盖" accent="ai">
           {visibility.loading ? (
@@ -544,6 +603,40 @@ function DashboardContent() {
             </div>
           ) : (
             <EmptyState message="暂无平台覆盖数据" />
+          )}
+        </DashboardCard>
+
+        {/* AI Optimization Suggestions */}
+        <DashboardCard title="AI优化建议" accent="ai">
+          {(geo.loading || visibility.loading) && optimizationTasks.length === 0 ? (
+            <LoadingSkeleton rows={4} />
+          ) : geo.error && optimizationTasks.length === 0 ? (
+            <ErrorState onRetry={geo.refetch} />
+          ) : geo.locked && optimizationTasks.length === 0 ? (
+            <EmptyState message="升级解锁AI优化建议" actionLabel="联系销售" />
+          ) : optimizationTasks.length > 0 ? (
+            <ul className="space-y-2">
+              {optimizationTasks.map((task: OptimizationTask, i: number) => (
+                <li
+                  key={i}
+                  className="flex items-start gap-3 py-2.5 px-3 rounded-lg"
+                  style={{ background: "var(--bg-elevated)" }}
+                >
+                  <PriorityBadge priority={task.priority} />
+                  <span
+                    className="text-sm pt-0.5"
+                    style={{
+                      color: "var(--text-primary)",
+                      fontFamily: "var(--font-body)",
+                    }}
+                  >
+                    {task.text}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState message="暂无优化建议 — 数据采集中" />
           )}
         </DashboardCard>
 
@@ -588,40 +681,6 @@ function DashboardContent() {
           )}
         </DashboardCard>
       </div>
-
-      {/* ─── AI Optimization Suggestions ───────────────────── */}
-      <DashboardCard title="AI优化建议" accent="ai">
-        {(geo.loading || visibility.loading) && optimizationTasks.length === 0 ? (
-          <LoadingSkeleton rows={4} />
-        ) : geo.error && optimizationTasks.length === 0 ? (
-          <ErrorState onRetry={geo.refetch} />
-        ) : geo.locked && optimizationTasks.length === 0 ? (
-          <EmptyState message="升级解锁AI优化建议" actionLabel="联系销售" />
-        ) : optimizationTasks.length > 0 ? (
-          <ul className="space-y-2">
-            {optimizationTasks.map((task: OptimizationTask, i: number) => (
-              <li
-                key={i}
-                className="flex items-start gap-3 py-2.5 px-3 rounded-lg"
-                style={{ background: "var(--bg-elevated)" }}
-              >
-                <PriorityBadge priority={task.priority} />
-                <span
-                  className="text-sm pt-0.5"
-                  style={{
-                    color: "var(--text-primary)",
-                    fontFamily: "var(--font-body)",
-                  }}
-                >
-                  {task.text}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState message="暂无优化建议 — 数据采集中" />
-        )}
-      </DashboardCard>
     </div>
   );
 }

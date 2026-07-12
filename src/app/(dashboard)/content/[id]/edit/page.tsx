@@ -164,7 +164,7 @@ function EditContentInner({ id }: { id: string }) {
     });
     if (!res.ok) {
       const data = await res.json();
-      setError(data.error || "Save failed");
+      setError(data.error || "保存失败");
       return false;
     }
 
@@ -218,7 +218,7 @@ function EditContentInner({ id }: { id: string }) {
     if (!currentProjectId || saving) return;
     const currentPlatformContent = platformContents.find((pc) => pc.platform === activePlatform);
     if (!currentPlatformContent) {
-      setError("No platform content selected");
+      setError("请先选择要发布的平台内容");
       return;
     }
     setSaving(true);
