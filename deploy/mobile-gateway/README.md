@@ -37,6 +37,11 @@ The agent uses the installed Node.js runtime for outbound HTTPS. This avoids a
 known TLS interoperability problem in Windows PowerShell 5.1 while keeping
 certificate verification enabled.
 
+`genilink.cn` currently has no public A record. Until DNS is corrected, the
+gateway hosts file maps it to `8.147.56.119`; the original hosts file is backed
+up at `C:\ProgramData\MobileGateway\backups\hosts.pre-genilink-dns`. Remove the
+manual mapping after public DNS resolves the domain to the production server.
+
 ## Verification
 
 Run these commands on the gateway:
