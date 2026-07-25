@@ -35,6 +35,7 @@
 | `deploy/ecosystem.config.js` | PM2 配置模板 |
 | `deploy/nginx-http.conf` | 80 端口 Nginx 配置 |
 | `deploy/nginx-genilink.conf` | HTTPS Nginx 配置 |
+| `deploy/nginx-visibility-api.conf` | 智见 API 的独立 Nginx location snippet |
 | `start-all.sh` | 本地工作区启动脚本 |
 | `start-all.ps1` | Windows PowerShell 包装器 |
 
