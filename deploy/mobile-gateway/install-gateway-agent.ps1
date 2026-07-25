@@ -18,8 +18,12 @@ $httpClientPath = Join-Path $root "gateway-http-client.mjs"
 $sourceHttpClient = Join-Path $PSScriptRoot "gateway-http-client.mjs"
 
 New-Item -ItemType Directory -Path $configDirectory, $handlerRoot -Force | Out-Null
-Copy-Item -LiteralPath $sourceAgent -Destination $agentPath -Force
-Copy-Item -LiteralPath $sourceHttpClient -Destination $httpClientPath -Force
+if ([IO.Path]::GetFullPath($sourceAgent) -ne [IO.Path]::GetFullPath($agentPath)) {
+    Copy-Item -LiteralPath $sourceAgent -Destination $agentPath -Force
+}
+if ([IO.Path]::GetFullPath($sourceHttpClient) -ne [IO.Path]::GetFullPath($httpClientPath)) {
+    Copy-Item -LiteralPath $sourceHttpClient -Destination $httpClientPath -Force
+}
 
 @{
     baseUrl = $BaseUrl.TrimEnd("/")
