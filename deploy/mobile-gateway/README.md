@@ -14,10 +14,24 @@ Windows gateway host:
 - `MobileGateway-Appium`: starts Appium as `SYSTEM` at boot.
 - `MobileGateway-Health`: checks ADB, Appium, attached devices, disk space,
   and uptime every minute.
+- `MobileGateway-Agent`: opens an outbound HTTPS connection to the visibility
+  service, reports health, and claims leased tasks.
 
 Appium deliberately listens on loopback only. Cloud workers should reach the
 gateway through an authenticated outbound agent or an SSH tunnel rather than
 exposing port 4723 to the LAN or internet.
+
+Install the outbound agent after provisioning its server-side token:
+
+```powershell
+.\install-gateway-agent.ps1 `
+  -BaseUrl "https://genilink.cn/visibility" `
+  -GatewayId "CHAO" `
+  -Token "<provisioned-token>"
+```
+
+The token is stored in `config\gateway-agent.json`. The installer replaces its
+ACL so only `SYSTEM` and local administrators can read it.
 
 ## Verification
 
