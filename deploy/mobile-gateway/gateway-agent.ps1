@@ -26,22 +26,20 @@ function Invoke-GatewayApi {
         [object]$Body
     )
 
-    $uri = $script:config.baseUrl.TrimEnd("/") + $Path
-    $headers = @{
-        Authorization = "Bearer $($script:config.token)"
-        "X-Gateway-Id" = $script:config.gatewayId
+    $request = @{
+        url = $script:config.baseUrl.TrimEnd("/") + $Path
+        method = $Method
+        gatewayId = $script:config.gatewayId
+        token = $script:config.token
+        body = $Body
     }
-    $params = @{
-        Uri = $uri
-        Method = $Method
-        Headers = $headers
-        TimeoutSec = 30
-        ContentType = "application/json; charset=utf-8"
+    $requestJson = $request | ConvertTo-Json -Depth 30 -Compress
+    $output = $requestJson |
+        & $script:config.nodePath $script:config.httpClientPath 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Gateway API request failed: $($output -join [Environment]::NewLine)"
     }
-    if ($null -ne $Body) {
-        $params.Body = $Body | ConvertTo-Json -Depth 30 -Compress
-    }
-    Invoke-RestMethod @params
+    ($output -join [Environment]::NewLine) | ConvertFrom-Json
 }
 
 function Get-DeviceSnapshot {
@@ -175,7 +173,16 @@ try {
         throw "Gateway agent config not found: $ConfigPath"
     }
     $script:config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
-    foreach ($required in @("baseUrl", "gatewayId", "token", "capabilities", "handlerRoot")) {
+    $requiredValues = @(
+        "baseUrl",
+        "gatewayId",
+        "token",
+        "capabilities",
+        "handlerRoot",
+        "nodePath",
+        "httpClientPath"
+    )
+    foreach ($required in $requiredValues) {
         if ($null -eq $script:config.$required) {
             throw "Missing gateway agent config value: $required"
         }

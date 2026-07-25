@@ -33,6 +33,10 @@ Install the outbound agent after provisioning its server-side token:
 The token is stored in `config\gateway-agent.json`. The installer replaces its
 ACL so only `SYSTEM` and local administrators can read it.
 
+The agent uses the installed Node.js runtime for outbound HTTPS. This avoids a
+known TLS interoperability problem in Windows PowerShell 5.1 while keeping
+certificate verification enabled.
+
 ## Verification
 
 Run these commands on the gateway:
