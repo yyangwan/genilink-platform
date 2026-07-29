@@ -34,12 +34,35 @@ function Invoke-GatewayApi {
         body = $Body
     }
     $requestJson = $request | ConvertTo-Json -Depth 30 -Compress
-    $output = $requestJson |
-        & $script:config.nodePath $script:config.httpClientPath 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "Gateway API request failed: $($output -join [Environment]::NewLine)"
+    $requestId = [guid]::NewGuid().ToString("N")
+    $tempDirectory = Join-Path $root "temp"
+    $requestPath = Join-Path $tempDirectory "$requestId-request.json"
+    $responsePath = Join-Path $tempDirectory "$requestId-response.json"
+    New-Item -ItemType Directory -Path $tempDirectory -Force | Out-Null
+    try {
+        [IO.File]::WriteAllText(
+            $requestPath,
+            $requestJson,
+            [Text.UTF8Encoding]::new($false)
+        )
+        $output = & $script:config.nodePath `
+            $script:config.httpClientPath `
+            $requestPath `
+            $responsePath 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Gateway API request failed: $($output -join [Environment]::NewLine)"
+        }
+        if (-not (Test-Path -LiteralPath $responsePath)) {
+            throw "Gateway API response file was not created"
+        }
+        $responseJson = [IO.File]::ReadAllText(
+            $responsePath,
+            [Text.Encoding]::UTF8
+        )
+        $responseJson | ConvertFrom-Json
+    } finally {
+        Remove-Item -LiteralPath $requestPath, $responsePath -Force -ErrorAction SilentlyContinue
     }
-    ($output -join [Environment]::NewLine) | ConvertFrom-Json
 }
 
 function Get-DeviceSnapshot {
@@ -73,7 +96,7 @@ function Send-Heartbeat {
         status = if ($degraded) { "degraded" } else { "online" }
         capabilities = @{ taskTypes = @($script:config.capabilities) }
         device_snapshot = $snapshot
-        agent_version = "0.1.0"
+        agent_version = "0.2.0"
     } | Out-Null
     $script:lastHeartbeat = Get-Date
 }
@@ -112,7 +135,19 @@ function Invoke-AppiumTask {
             throw "Handler failed with state $($job.State)"
         }
         if ($output.Count -eq 1) {
-            return $output[0]
+            $cleanResult = [ordered]@{}
+            foreach ($property in $output[0].PSObject.Properties) {
+                if (
+                    $property.Name -notin @(
+                        "PSComputerName",
+                        "RunspaceId",
+                        "PSShowComputerName"
+                    )
+                ) {
+                    $cleanResult[$property.Name] = $property.Value
+                }
+            }
+            return $cleanResult
         }
         return @{ output = $output }
     } finally {

@@ -1,11 +1,14 @@
+import { readFile, writeFile } from "node:fs/promises";
 import process from "node:process";
 
-let input = "";
-for await (const chunk of process.stdin) {
-  input += chunk;
+const [, , requestPath, responsePath] = process.argv;
+if (!requestPath || !responsePath) {
+  process.stderr.write("Usage: gateway-http-client.mjs <request-path> <response-path>\n");
+  process.exit(2);
 }
 
 try {
+  const input = await readFile(requestPath, "utf8");
   const request = JSON.parse(input);
   const response = await fetch(request.url, {
     method: request.method,
@@ -21,7 +24,7 @@ try {
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${text.slice(0, 2000)}`);
   }
-  process.stdout.write(text || "null");
+  await writeFile(responsePath, text || "null", "utf8");
 } catch (error) {
   process.stderr.write(`${error instanceof Error ? error.message : error}\n`);
   process.exit(1);

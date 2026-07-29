@@ -16,6 +16,7 @@ $agentPath = Join-Path $root "gateway-agent.ps1"
 $sourceAgent = Join-Path $PSScriptRoot "gateway-agent.ps1"
 $httpClientPath = Join-Path $root "gateway-http-client.mjs"
 $sourceHttpClient = Join-Path $PSScriptRoot "gateway-http-client.mjs"
+$sourceHandlerRoot = Join-Path $PSScriptRoot "handlers"
 
 New-Item -ItemType Directory -Path $configDirectory, $handlerRoot -Force | Out-Null
 if ([IO.Path]::GetFullPath($sourceAgent) -ne [IO.Path]::GetFullPath($agentPath)) {
@@ -24,12 +25,18 @@ if ([IO.Path]::GetFullPath($sourceAgent) -ne [IO.Path]::GetFullPath($agentPath))
 if ([IO.Path]::GetFullPath($sourceHttpClient) -ne [IO.Path]::GetFullPath($httpClientPath)) {
     Copy-Item -LiteralPath $sourceHttpClient -Destination $httpClientPath -Force
 }
+if (Test-Path -LiteralPath $sourceHandlerRoot) {
+    Copy-Item `
+        -Path (Join-Path $sourceHandlerRoot "*.ps1") `
+        -Destination $handlerRoot `
+        -Force
+}
 
 @{
     baseUrl = $BaseUrl.TrimEnd("/")
     gatewayId = $GatewayId
     token = $Token
-    capabilities = @("gateway.healthcheck")
+    capabilities = @("gateway.healthcheck", "appium.prompt")
     handlerRoot = $handlerRoot
     nodePath = "C:\Program Files\nodejs\node.exe"
     httpClientPath = $httpClientPath

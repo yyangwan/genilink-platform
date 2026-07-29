@@ -33,9 +33,37 @@ Install the outbound agent after provisioning its server-side token:
 The token is stored in `config\gateway-agent.json`. The installer replaces its
 ACL so only `SYSTEM` and local administrators can read it.
 
-The agent uses the installed Node.js runtime for outbound HTTPS. This avoids a
-known TLS interoperability problem in Windows PowerShell 5.1 while keeping
-certificate verification enabled.
+The agent uses the installed Node.js runtime for outbound HTTPS. Requests and
+responses cross the PowerShell/Node boundary through explicit UTF-8 files,
+not process standard streams. This avoids both a known TLS interoperability
+problem and Windows PowerShell 5.1 console-code-page corruption for Chinese
+prompts and answers.
+
+## Platform Handlers
+
+The gateway currently supports:
+
+- `doubao` + `app`: starts an isolated Doubao conversation, submits
+  `payload.prompt`, waits for the completed response, expands every cited
+  reference, and collects each source title and real URL through Doubao's
+  Copy Link action. It also stores a screenshot and final Appium page source
+  under `C:\ProgramData\MobileGateway\results`.
+
+Doubao task results include `reference_count`, `search_keyword_count`, and a
+`sources` array. Every expected reference keeps its list index. A source that
+cannot be opened or copied is returned with `status: failed` and an
+`error_message` rather than being silently omitted.
+
+The Doubao handler accepts these optional payload values:
+
+- `timeout_seconds`: response timeout from 15 to 600 seconds; defaults to 180.
+- `new_conversation`: starts an isolated conversation by default.
+- `device_serial`: targets a specific authorized ADB device.
+
+Huawei devices intercept normal ADB APK installation. UiAutomator2's test APK
+must be pushed to the device and installed with `pm install -r -t -g`. Once the
+Appium helper packages are installed, handlers use `skipDeviceInitialization`
+and `skipServerInstallation` to avoid repeated installation prompts.
 
 `genilink.cn` currently has no public A record. Until DNS is corrected, the
 gateway hosts file maps it to `8.147.56.119`; the original hosts file is backed
