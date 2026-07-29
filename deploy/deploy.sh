@@ -16,6 +16,7 @@ SERVER="root@8.147.56.119"
 DOMAIN="genilink.cn"
 FRONTEND_DIR="/opt/genilink-platform"
 CONTENT_DIR="/opt/genilink-platform/content"
+FRONTEND_DIST_DIR="${FRONTEND_DIST_DIR:-.next-runtime}"
 FRONTEND_CONTENT_SERVICE_URL="${FRONTEND_CONTENT_SERVICE_URL:-http://127.0.0.1:4002}"
 CONTENT_GENILINK_JWKS_URL="${CONTENT_GENILINK_JWKS_URL:-http://127.0.0.1:3001/.well-known/jwks.json}"
 CONTENT_GENILINK_ISSUER="${CONTENT_GENILINK_ISSUER:-https://app.genilink.cn}"
@@ -250,7 +251,7 @@ if [ "${1:-}" = "local" ]; then
     log_info "Building frontend..."
     cd "$FRONTEND_DIR"
     npm ci --production=false
-    NODE_OPTIONS="--max-old-space-size=4096" npm run build
+    NEXT_DIST_DIR="$FRONTEND_DIST_DIR" NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
     # Build content
     log_info "Building content..."
@@ -319,11 +320,12 @@ else
 
         FRONTEND_DIR="/opt/genilink-platform"
         CONTENT_DIR="/opt/genilink-platform/content"
+        FRONTEND_DIST_DIR=".next-runtime"
 
         echo "Building frontend..."
         cd "$FRONTEND_DIR"
         npm ci --production=false
-        NODE_OPTIONS="--max-old-space-size=4096" npm run build
+        NEXT_DIST_DIR="$FRONTEND_DIST_DIR" NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
         echo "Building content..."
         cd "$CONTENT_DIR"
