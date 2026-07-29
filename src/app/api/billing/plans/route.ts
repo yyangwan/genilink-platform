@@ -14,6 +14,7 @@ export async function GET() {
     wechatpay: isPaymentProviderConfigured('wechatpay'),
     alipay: isPaymentProviderConfigured('alipay'),
   };
+  const hasConfiguredProvider = Object.values(providerAvailability).some(Boolean);
 
   const session = await auth();
   if (!session?.user?.id) {
@@ -34,6 +35,7 @@ export async function GET() {
         checkoutUrl: seed.checkoutUrl ?? null,
         isActive: seed.isActive,
         sortOrder: seed.sortOrder,
+        configured: seed.priceCents > 0 && hasConfiguredProvider,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })),
@@ -50,6 +52,7 @@ export async function GET() {
 
   const serializePlans = plans.map((plan) => ({
     ...plan,
+    configured: plan.priceCents > 0 && hasConfiguredProvider,
     createdAt: plan.createdAt.toISOString(),
     updatedAt: plan.updatedAt.toISOString(),
   }));
