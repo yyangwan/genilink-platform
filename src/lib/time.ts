@@ -17,7 +17,13 @@ type DateFormatOptions = {
 };
 
 function toDate(value: DateInput): Date | null {
-  const date = value instanceof Date ? value : new Date(value);
+  const normalizedValue =
+    typeof value === "string" &&
+    /[T ]\d{2}:\d{2}/.test(value) &&
+    !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)
+      ? `${value}Z`
+      : value;
+  const date = value instanceof Date ? value : new Date(normalizedValue);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
@@ -73,4 +79,17 @@ export function formatDateInTimeZone(value: DateInput, options: DateFormatOption
   }
 
   return `${dateText} ${parts.hour}:${parts.minute}`;
+}
+
+export function formatShanghaiDateTimeInput(value: DateInput): string {
+  const date = toDate(value);
+  if (!date) return "";
+  const parts = getParts(date, DEFAULT_TIME_ZONE);
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
+export function parseShanghaiDateTimeInput(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}:00+08:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
 }

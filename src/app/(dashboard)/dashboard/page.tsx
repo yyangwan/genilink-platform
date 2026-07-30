@@ -399,7 +399,11 @@ function VisibilityTrendChart({
               fill="var(--text-muted)"
               fontFamily="var(--font-body)"
             >
-              {new Date(point.date).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" })}
+              {new Date(point.date).toLocaleDateString("zh-CN", {
+                timeZone: "Asia/Shanghai",
+                month: "2-digit",
+                day: "2-digit",
+              })}
             </text>
           </g>
         ))}

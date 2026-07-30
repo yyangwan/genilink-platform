@@ -8,7 +8,7 @@ import { useParams } from "next/navigation";
 import { useProject } from "@/components/project/project-context";
 import { ContentEditor } from "@/components/content/content-editor";
 import { ContentAnalysisPanel } from "@/components/content/content-analysis-panel";
-import { formatDateInTimeZone } from "@/lib/time";
+import { formatDateInTimeZone, parseShanghaiDateTimeInput } from "@/lib/time";
 
 const AIPanel = dynamic(
   () => import("@/components/content/ai-panel").then((mod) => ({ default: mod.AIPanel })),
@@ -262,6 +262,11 @@ function EditContentInner({ id }: { id: string }) {
 
   const handleSchedule = useCallback(async () => {
     if (!currentProjectId || !scheduleDate) return;
+    const scheduleInstant = parseShanghaiDateTimeInput(scheduleDate);
+    if (!scheduleInstant) {
+      setError("排期时间格式无效");
+      return;
+    }
     setSaving(true);
     try {
       const saved = await saveCurrentContent();
@@ -269,14 +274,17 @@ function EditContentInner({ id }: { id: string }) {
       const res = await fetch(`/api/content/${id}/schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: currentProjectId, scheduledAt: scheduleDate }),
+        body: JSON.stringify({
+          projectId: currentProjectId,
+          scheduledAt: scheduleInstant.toISOString(),
+        }),
       });
       if (!res.ok) {
         const data = await res.json();
         setError(data.error || "排期失败");
       } else {
         setContentStatus("scheduled");
-        setScheduledAt(scheduleDate);
+        setScheduledAt(scheduleInstant.toISOString());
         setShowSchedule(false);
       }
     } catch {

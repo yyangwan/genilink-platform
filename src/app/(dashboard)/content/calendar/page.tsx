@@ -5,7 +5,12 @@ import React, { Suspense, useCallback, useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, ExternalLink, GripVertical, Loader2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useProject } from "@/components/project/project-context";
-import { formatDateInTimeZone, getDatePartsInTimeZone } from "@/lib/time";
+import {
+  formatDateInTimeZone,
+  formatShanghaiDateTimeInput,
+  getDatePartsInTimeZone,
+  parseShanghaiDateTimeInput,
+} from "@/lib/time";
 
 interface RawCalendarEvent {
   id: string;
@@ -71,15 +76,11 @@ function formatDateParam(date: Date) {
 }
 
 function toDateTimeLocal(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const offset = date.getTimezoneOffset();
-  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
+  return formatShanghaiDateTimeInput(value);
 }
 
 function localDateTimeToIso(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  return parseShanghaiDateTimeInput(value)?.toISOString() ?? null;
 }
 
 function defaultLocalTimeForDay(year: number, month: number, day: number) {
