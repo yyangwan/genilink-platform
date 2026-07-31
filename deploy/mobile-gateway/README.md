@@ -48,17 +48,34 @@ The gateway currently supports:
   reference, and collects each source title and real URL through Doubao's
   Copy Link action. It also stores a screenshot and final Appium page source
   under `C:\ProgramData\MobileGateway\results`.
+- `deepseek` + `app`: collects every search-result record and resolves the
+  exact destination URL through Android's outbound browser intent.
+- `yuanbao` + `app`: collects every source name and title from the reference
+  panel. Exact paths remain unavailable when Yuanbao does not expose them;
+  URLs printed in the answer are retained separately in `answer_urls`.
+- `qwen` or `qianwen` + `app`: collects every source name, title, and exposed
+  domain. Its generated URL is explicitly labeled `site_root`, not an exact
+  article path.
+- `kimi` + `app`: collects inline source chips from the final answer
+  container and retains URLs printed directly in the answer. Search-plan
+  chips and generation status controls are excluded.
 
-Doubao task results include `reference_count`, `search_keyword_count`, and a
+Task results include `reference_count`, `source_count`, `answer_urls`, and a
 `sources` array. Every expected reference keeps its list index. A source that
 cannot be opened or copied is returned with `status: failed` and an
-`error_message` rather than being silently omitted.
+`error_message` rather than being silently omitted. Source records use
+`url_resolution` to distinguish `exact`, `site_root`, and `unavailable`
+destinations.
 
-The Doubao handler accepts these optional payload values:
+App handlers accept these optional payload values:
 
-- `timeout_seconds`: response timeout from 15 to 600 seconds; defaults to 180.
+- `timeout_seconds`: response timeout up to 600 seconds.
 - `new_conversation`: starts an isolated conversation by default.
 - `device_serial`: targets a specific authorized ADB device.
+
+All handlers share a device-wide mutex. Only one Appium task may control the
+attached Android device at a time, even when cloud workers lease tasks for
+different platforms concurrently.
 
 Huawei devices intercept normal ADB APK installation. UiAutomator2's test APK
 must be pushed to the device and installed with `pm install -r -t -g`. Once the

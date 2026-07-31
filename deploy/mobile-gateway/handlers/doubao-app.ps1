@@ -13,10 +13,10 @@ $doubaoRetryMessage = [Text.Encoding]::UTF8.GetString(
         "5Ye65LqG54K56Zeu6aKY77yM6K+356iN5ZCO6YeN6K+V44CC"
     )
 )
-$mutex = [Threading.Mutex]::new($false, "Global\MobileGateway-Doubao-App")
+$mutex = [Threading.Mutex]::new($false, "Global\MobileGateway-Android-Device")
 
 if (-not $mutex.WaitOne(0)) {
-    throw "Another Doubao task is already running"
+    throw "Another Android device task is already running"
 }
 
 function Invoke-AppiumRequest {

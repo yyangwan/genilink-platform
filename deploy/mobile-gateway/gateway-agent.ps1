@@ -119,7 +119,11 @@ function Invoke-AppiumTask {
     }
 
     $taskJson = $Task | ConvertTo-Json -Depth 30 -Compress
-    $job = Start-Job -FilePath $handler -ArgumentList $taskJson
+    $job = Start-Job -ScriptBlock {
+        param([string]$HandlerPath, [string]$SerializedTask)
+
+        & $HandlerPath -TaskJson $SerializedTask
+    } -ArgumentList $handler, $taskJson
     try {
         while ($job.State -in @("NotStarted", "Running")) {
             Wait-Job -Job $job -Timeout 30 | Out-Null
@@ -135,8 +139,16 @@ function Invoke-AppiumTask {
             throw "Handler failed with state $($job.State)"
         }
         if ($output.Count -eq 1) {
+            $singleOutput = $output[0]
+            if ($singleOutput -is [string]) {
+                try {
+                    $singleOutput = $singleOutput | ConvertFrom-Json
+                } catch {
+                    return @{ output = $singleOutput }
+                }
+            }
             $cleanResult = [ordered]@{}
-            foreach ($property in $output[0].PSObject.Properties) {
+            foreach ($property in $singleOutput.PSObject.Properties) {
                 if (
                     $property.Name -notin @(
                         "PSComputerName",
