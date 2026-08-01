@@ -35,6 +35,16 @@ if (-not $mutex.WaitOne(0)) {
     throw "Another Android device task is already running"
 }
 
+function Write-GatewayTrace {
+    param([Parameter(Mandatory)][string]$Message)
+
+    if ($script:tracePath) {
+        Add-Content -LiteralPath $script:tracePath `
+            -Value "$(Get-Date -Format o) $Message" `
+            -Encoding UTF8
+    }
+}
+
 function Invoke-AppiumRequest {
     param(
         [Parameter(Mandatory)][string]$Method,
@@ -53,6 +63,47 @@ function Invoke-AppiumRequest {
         $request.Body = $Body | ConvertTo-Json -Depth 30 -Compress
     }
     Invoke-RestMethod @request
+}
+
+function Copy-AdbFile {
+    param(
+        [Parameter(Mandatory)][string]$DevicePath,
+        [Parameter(Mandatory)][string]$LocalPath,
+        [int]$TimeoutSeconds = 15
+    )
+
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = "adb"
+    $startInfo.Arguments = "-s $script:deviceSerial exec-out cat $DevicePath"
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    $stream = $null
+    try {
+        if (-not $process.Start()) {
+            throw "Could not start adb file transfer"
+        }
+        $errorTask = $process.StandardError.ReadToEndAsync()
+        $stream = [IO.File]::Create($LocalPath)
+        $process.StandardOutput.BaseStream.CopyTo($stream)
+        $stream.Dispose()
+        $stream = $null
+        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+            $process.Kill()
+            throw "ADB file transfer timed out"
+        }
+        if ($process.ExitCode -ne 0) {
+            throw "ADB file transfer failed: $($errorTask.Result.Trim())"
+        }
+    } finally {
+        if ($stream) {
+            $stream.Dispose()
+        }
+        $process.Dispose()
+    }
 }
 
 function Find-Element {
@@ -138,6 +189,31 @@ function Click-Point {
         } | Out-Null
 }
 
+function Tap-Point {
+    param(
+        [Parameter(Mandatory)][string]$SessionId,
+        [Parameter(Mandatory)][int]$X,
+        [Parameter(Mandatory)][int]$Y
+    )
+
+    Invoke-AppiumRequest `
+        -Method Post `
+        -Path "/session/$SessionId/actions" `
+        -Body @{
+            actions = @(@{
+                type = "pointer"
+                id = "finger"
+                parameters = @{ pointerType = "touch" }
+                actions = @(
+                    @{ type = "pointerMove"; duration = 0; x = $X; y = $Y; origin = "viewport" }
+                    @{ type = "pointerDown"; button = 0 }
+                    @{ type = "pause"; duration = 100 }
+                    @{ type = "pointerUp"; button = 0 }
+                )
+            })
+        } | Out-Null
+}
+
 function Scroll-Region {
     param(
         [Parameter(Mandatory)][string]$SessionId,
@@ -167,6 +243,13 @@ function Scroll-Region {
 function Press-Back {
     param([Parameter(Mandatory)][string]$SessionId)
 
+    if ($script:deviceSerial) {
+        & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "ADB failed to send the Android back key"
+        }
+        return
+    }
     Invoke-AppiumRequest `
         -Method Post `
         -Path "/session/$SessionId/back" `
@@ -176,11 +259,101 @@ function Press-Back {
 function Get-PageSource {
     param([Parameter(Mandatory)][string]$SessionId)
 
+    if ($Platform -eq "yuanbao" -and $script:deviceSerial) {
+        # Appium's source endpoint wedges on Yuanbao's Compose answer view.
+        # Android's native dumper returns the same accessibility hierarchy.
+        $name = "yuanbao-$PID-$([guid]::NewGuid().ToString('N')).xml"
+        $devicePath = "/sdcard/$name"
+        $localPath = Join-Path $env:TEMP $name
+        try {
+            Write-GatewayTrace "ui_dump start"
+            $dumpExitCode = 1
+            for ($attempt = 0; $attempt -lt 3; $attempt++) {
+                $savedPreference = $ErrorActionPreference
+                $ErrorActionPreference = "Continue"
+                try {
+                    & adb -s $script:deviceSerial shell timeout 15 `
+                        uiautomator dump $devicePath 2>&1 | Out-Null
+                    $dumpExitCode = $LASTEXITCODE
+                } finally {
+                    $ErrorActionPreference = $savedPreference
+                }
+                if ($dumpExitCode -eq 0) {
+                    break
+                }
+                Start-Sleep -Seconds 1
+            }
+            if ($dumpExitCode -ne 0) {
+                throw "Android UI hierarchy dump failed"
+            }
+            Copy-AdbFile -DevicePath $devicePath -LocalPath $localPath
+            Write-GatewayTrace "ui_dump complete"
+            return [IO.File]::ReadAllText($localPath, [Text.Encoding]::UTF8)
+        } finally {
+            Remove-Item -LiteralPath $localPath -Force -ErrorAction SilentlyContinue
+            & adb -s $script:deviceSerial shell rm -f $devicePath | Out-Null
+        }
+    }
     [string](Invoke-AppiumRequest `
         -Method Get `
         -Path "/session/$SessionId/source" `
         -Body $null `
         -TimeoutSeconds 45).value
+}
+
+function Get-ClipboardText {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    if ($Platform -eq "yuanbao" -and $script:deviceSerial) {
+        $previousIme = (
+            & adb -s $script:deviceSerial shell settings get secure default_input_method
+        ).Trim()
+        try {
+            & adb -s $script:deviceSerial shell ime set io.appium.settings/.AppiumIME | Out-Null
+            Start-Sleep -Milliseconds 500
+            $output = & adb -s $script:deviceSerial shell am broadcast `
+                -n io.appium.settings/.receivers.ClipboardReceiver `
+                -a io.appium.settings.clipboard.get 2>&1 | Out-String
+            if ($output -notmatch 'data="([A-Za-z0-9+/=]+)"') {
+                throw "Appium Settings did not return clipboard content"
+            }
+            $text = [Text.Encoding]::UTF8.GetString(
+                [Convert]::FromBase64String($Matches[1])
+            ).Trim()
+            if ($text -notmatch '^https?://' -and $text -match '^([A-Za-z0-9+/]{20,}={0,2})') {
+                try {
+                    $nested = [Text.Encoding]::UTF8.GetString(
+                        [Convert]::FromBase64String($Matches[1])
+                    ).Trim()
+                    if ($nested -match '^https?://') {
+                        $text = $nested
+                    }
+                } catch {}
+            }
+            return $text
+        } finally {
+            if ($previousIme -and $previousIme -ne "null") {
+                & adb -s $script:deviceSerial shell ime set $previousIme | Out-Null
+            }
+        }
+    }
+    $response = Invoke-AppiumRequest `
+        -Method Post `
+        -Path "/session/$SessionId/execute/sync" `
+        -Body @{
+            script = "mobile: getClipboard"
+            args = @(@{})
+        }
+    if (-not $response.value) {
+        return $null
+    }
+    try {
+        [Text.Encoding]::UTF8.GetString(
+            [Convert]::FromBase64String([string]$response.value)
+        ).Trim()
+    } catch {
+        throw "Appium returned invalid clipboard content"
+    }
 }
 
 function ConvertTo-Xml {
@@ -191,6 +364,25 @@ function ConvertTo-Xml {
     } catch {
         $null
     }
+}
+
+function ConvertTo-ImapUtf7 {
+    param([Parameter(Mandatory)][string]$Text)
+
+    $escaped = $Text.Replace("&", "&-")
+    [regex]::Replace($escaped, '[^\x20-\x7e]+', {
+        param($Match)
+
+        $chunk = $Match.Value
+        $bytes = [byte[]]::new($chunk.Length * 2)
+        for ($index = 0; $index -lt $chunk.Length; $index++) {
+            $code = [int][char]$chunk[$index]
+            $bytes[$index * 2] = [byte]($code -shr 8)
+            $bytes[$index * 2 + 1] = [byte]($code -band 0xff)
+        }
+        $encoded = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('/', ',')
+        "&$encoded-"
+    })
 }
 
 function Get-Bounds {
@@ -309,6 +501,7 @@ function Get-AppVersion {
 function Start-NewConversation {
     param([Parameter(Mandatory)][string]$SessionId)
 
+    $script:readyInputElement = $null
     switch ($Platform) {
         "deepseek" {
             for ($attempt = 0; $attempt -lt 5; $attempt++) {
@@ -330,21 +523,26 @@ function Start-NewConversation {
             }
         }
         "yuanbao" {
-            for ($attempt = 0; $attempt -lt 5; $attempt++) {
-                $button = Find-Element `
-                    -SessionId $SessionId `
-                    -Using "xpath" `
-                    -Value "//*[@content-desc='新建对话']" `
-                    -TimeoutSeconds 2 `
-                    -Optional
-                if ($button) {
-                    Click-Element -SessionId $SessionId -ElementId $button
+            # Huawei's share sheet blocks page-source requests and ignores the
+            # Android back key. This is the observed Yuanbao Cancel button.
+            & adb -s $script:deviceSerial shell input tap 1068 1648 | Out-Null
+            Start-Sleep -Milliseconds 700
+            # Always create an empty conversation through Yuanbao's drawer.
+            & adb -s $script:deviceSerial shell input tap 100 190 | Out-Null
+            Start-Sleep -Milliseconds 700
+            & adb -s $script:deviceSerial shell input tap 440 400 | Out-Null
+            Start-Sleep -Seconds 1
+            $conversationReady = $false
+            for ($attempt = 0; $attempt -lt 3; $attempt++) {
+                $source = Get-PageSource -SessionId $SessionId
+                if ($source -match 'resource-id="[^"]*:id/edConversationInput"') {
+                    $script:readyInputElement = "adb"
+                    $conversationReady = $true
                     break
                 }
-                Press-Back -SessionId $SessionId
                 Start-Sleep -Seconds 1
             }
-            if (-not $button) {
+            if (-not $conversationReady) {
                 throw "Could not return Yuanbao to a conversation screen"
             }
         }
@@ -396,10 +594,7 @@ function Submit-Prompt {
                 -Value "android.widget.EditText"
         }
         "yuanbao" {
-            $input = Find-Element `
-                -SessionId $SessionId `
-                -Using "id" `
-                -Value "$packageName`:id/edConversationInput"
+            $input = "adb"
         }
         { $_ -in @("qwen", "kimi") } {
             $input = Find-Element `
@@ -419,15 +614,61 @@ function Submit-Prompt {
         }
     }
 
-    Invoke-AppiumRequest `
-        -Method Post `
-        -Path "/session/$SessionId/element/$input/clear" `
-        -Body @{} | Out-Null
-    Invoke-AppiumRequest `
-        -Method Post `
-        -Path "/session/$SessionId/element/$input/value" `
-        -Body @{ text = $Prompt; value = @($Prompt) } | Out-Null
+    # Yuanbao's Compose-backed input can hang UiAutomator2 on clear. A newly
+    # created conversation is already empty, so only clear the other apps.
+    if ($Platform -ne "yuanbao") {
+        Invoke-AppiumRequest `
+            -Method Post `
+            -Path "/session/$SessionId/element/$input/clear" `
+            -Body @{} | Out-Null
+    }
+    if ($Platform -eq "yuanbao") {
+        # Yuanbao's input sits near the bottom of this 1152x2376 device. ADB
+        # touch avoids a UiAutomator2 deadlock inside the Compose input view.
+        & adb -s $script:deviceSerial shell input tap 300 2100 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "ADB failed to focus the Yuanbao prompt input"
+        }
+        Start-Sleep -Milliseconds 500
+        $previousIme = (
+            & adb -s $script:deviceSerial shell settings get secure default_input_method
+        ).Trim()
+        try {
+            & adb -s $script:deviceSerial shell ime set io.appium.settings/.UnicodeIME | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "Could not activate Appium UnicodeIME"
+            }
+            Start-Sleep -Seconds 1
+            $encodedPrompt = ConvertTo-ImapUtf7 -Text $Prompt
+            $quotedPrompt = "'$encodedPrompt'"
+            & adb -s $script:deviceSerial shell input text $quotedPrompt | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "Could not type the Yuanbao prompt"
+            }
+        } finally {
+            if ($previousIme -and $previousIme -ne "null") {
+                & adb -s $script:deviceSerial shell ime set $previousIme | Out-Null
+                Start-Sleep -Milliseconds 500
+            }
+        }
+    } else {
+        Invoke-AppiumRequest `
+            -Method Post `
+            -Path "/session/$SessionId/element/$input/value" `
+            -Body @{ text = $Prompt; value = @($Prompt) } | Out-Null
+    }
     Start-Sleep -Seconds 1
+
+    if ($Platform -eq "yuanbao") {
+        # Restore the full-height layout before tapping the send control.
+        & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
+        Start-Sleep -Milliseconds 500
+        & adb -s $script:deviceSerial shell input tap 1025 2102 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "ADB failed to tap the Yuanbao send button"
+        }
+        return
+    }
 
     switch ($Platform) {
         "deepseek" {
@@ -435,12 +676,6 @@ function Submit-Prompt {
                 -SessionId $SessionId `
                 -Using "xpath" `
                 -Value "//*[@content-desc='发送']"
-        }
-        "yuanbao" {
-            $send = Find-Element `
-                -SessionId $SessionId `
-                -Using "id" `
-                -Value "$packageName`:id/fl_slot_send_stop"
         }
         "kimi" {
             $send = Find-Element `
@@ -735,6 +970,173 @@ function Return-ToDeepSeekSourcePanel {
     throw "Could not return to the DeepSeek source panel"
 }
 
+function Return-ToYuanbaoSourcePanel {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    for ($attempt = 0; $attempt -lt 6; $attempt++) {
+        $source = Get-PageSource -SessionId $SessionId
+        if ($source -match 'text="引用来源') {
+            return
+        }
+        Press-Back -SessionId $SessionId
+        Start-Sleep -Milliseconds 700
+    }
+    throw "Could not return to the Yuanbao source panel"
+}
+
+function Get-ForegroundPackage {
+    $output = (
+        & adb -s $script:deviceSerial shell timeout 5 dumpsys window windows
+    ) -join "`n"
+    if ($output -match 'mCurrentFocus=Window\{[^\r\n]*?\s([a-zA-Z0-9._]+)/') {
+        return $Matches[1]
+    }
+    $null
+}
+
+function Invoke-YuanbaoCopyLink {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    for ($attempt = 0; $attempt -lt 8; $attempt++) {
+        $document = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+        if (-not $document.SelectSingleNode(
+            "//*[@content-desc='复制链接' or @text='复制链接']"
+        )) {
+            throw "Yuanbao share sheet did not expose Copy Link"
+        }
+        $focused = $document.SelectSingleNode("//*[@focused='true']")
+        if ($focused) {
+            $copyNode = $focused.SelectSingleNode(
+                ".//*[@content-desc='复制链接' or @text='复制链接']"
+            )
+            if (
+                $copyNode -or
+                $focused.GetAttribute("content-desc") -eq "复制链接" -or
+                $focused.GetAttribute("text") -eq "复制链接"
+            ) {
+                & adb -s $script:deviceSerial shell input keyevent 66 | Out-Null
+                Start-Sleep -Milliseconds 500
+                return
+            }
+        }
+        & adb -s $script:deviceSerial shell input keyevent 61 | Out-Null
+        Start-Sleep -Milliseconds 250
+    }
+    throw "Could not focus Yuanbao's Copy Link share action"
+}
+
+function Close-YuanbaoShareSheet {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    & adb -s $script:deviceSerial shell input tap 1068 1648 | Out-Null
+    Start-Sleep -Milliseconds 700
+}
+
+function Resolve-YuanbaoSourceUrl {
+    param(
+        [Parameter(Mandatory)][string]$SessionId,
+        [Parameter(Mandatory)]$Record,
+        [Parameter(Mandatory)]$Bounds
+    )
+
+    $disabledPackage = $null
+    try {
+        Write-GatewayTrace "source $($Record.index) open"
+        & adb -s $script:deviceSerial shell input tap `
+            $Bounds.center_x $Bounds.center_y | Out-Null
+        Start-Sleep -Seconds 2
+
+        $foregroundPackage = Get-ForegroundPackage
+        if ($foregroundPackage -and $foregroundPackage -ne $packageName) {
+            Write-GatewayTrace "source $($Record.index) external $foregroundPackage"
+            # Installed apps may claim a source's App Link. Disable only the
+            # matched package for this retry so Android falls back to the web.
+            Press-Back -SessionId $SessionId
+            Start-Sleep -Milliseconds 700
+            Return-ToYuanbaoSourcePanel -SessionId $SessionId
+            & adb -s $script:deviceSerial shell pm disable-user `
+                --user 0 $foregroundPackage | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "Could not temporarily disable source app $foregroundPackage"
+            }
+            $disabledPackage = $foregroundPackage
+            & adb -s $script:deviceSerial shell input tap `
+                $Bounds.center_x $Bounds.center_y | Out-Null
+            Start-Sleep -Seconds 2
+            $foregroundPackage = Get-ForegroundPackage
+            if ($foregroundPackage -and $foregroundPackage -ne $packageName) {
+                throw "Yuanbao source opened unsupported external app $foregroundPackage"
+            }
+        }
+
+        $detailDocument = ConvertTo-Xml -Source (
+            Get-PageSource -SessionId $SessionId
+        )
+        Write-GatewayTrace "source $($Record.index) detail"
+        $menuBounds = $null
+        foreach ($node in @($detailDocument.SelectNodes("//*[@clickable='true']"))) {
+            $candidate = Get-Bounds -Node $node
+            if (
+                $candidate -and
+                $candidate.left -ge 850 -and
+                $candidate.top -ge 100 -and
+                $candidate.bottom -le 350 -and
+                ($candidate.right - $candidate.left) -ge 60 -and
+                ($candidate.bottom - $candidate.top) -ge 60 -and
+                (-not $menuBounds -or $candidate.left -gt $menuBounds.left)
+            ) {
+                $menuBounds = $candidate
+            }
+        }
+        if (-not $menuBounds) {
+            throw "Yuanbao source detail menu was not found"
+        }
+        & adb -s $script:deviceSerial shell input tap `
+            $menuBounds.center_x $menuBounds.center_y | Out-Null
+        Start-Sleep -Seconds 1
+
+        # Huawei blocks shell touch events on its share sheet. Hardware focus
+        # navigation remains available and is verified against native bounds.
+        Invoke-YuanbaoCopyLink -SessionId $SessionId
+
+        $postCopyState = Get-PageSource -SessionId $SessionId
+        if ($postCopyState -match '复制链接|Close sheet') {
+            throw "Yuanbao Copy Link action did not close the share sheet"
+        }
+
+        $rawUrl = Get-ClipboardText -SessionId $SessionId
+        Write-GatewayTrace "source $($Record.index) clipboard $rawUrl"
+        if ($rawUrl -notmatch '^https?://') {
+            throw "Yuanbao copied an invalid source URL"
+        }
+        $url = ConvertTo-CanonicalUrl -Url $rawUrl
+        $Record.raw_url = $rawUrl
+        $Record.url = $url
+        $Record.domain = Get-Host -Url $url
+        $Record.url_resolution = "exact"
+    } catch {
+        $Record.status = "failed"
+        $Record.error_message = $_.Exception.Message
+        Write-GatewayTrace "source $($Record.index) failed $($Record.error_message)"
+    } finally {
+        try {
+            $state = Get-PageSource -SessionId $SessionId
+            if ($state -match '复制链接|Close sheet') {
+                Close-YuanbaoShareSheet -SessionId $SessionId
+            }
+            Return-ToYuanbaoSourcePanel -SessionId $SessionId
+        } catch {
+            if ($Record.status -ne "failed") {
+                $Record.status = "failed"
+                $Record.error_message = $_.Exception.Message
+            }
+        }
+        if ($disabledPackage) {
+            & adb -s $script:deviceSerial shell pm enable $disabledPackage | Out-Null
+        }
+    }
+}
+
 function Get-DeepSeekSources {
     param(
         [Parameter(Mandatory)][string]$SessionId,
@@ -868,11 +1270,18 @@ function Get-PanelSources {
         return @()
     }
     if ($Platform -eq "yuanbao") {
-        $marker = Find-Element `
-            -SessionId $SessionId `
-            -Using "xpath" `
-            -Value "//*[@text='源']"
-        Click-Element -SessionId $SessionId -ElementId $marker
+        Write-GatewayTrace "source marker lookup"
+        $answerDocument = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+        $markerNode = $answerDocument.SelectSingleNode(
+            "//*[@text='源' or @content-desc='源']"
+        )
+        $markerBounds = if ($markerNode) { Get-Bounds -Node $markerNode } else { $null }
+        if (-not $markerBounds) {
+            throw "Yuanbao source marker was not found"
+        }
+        & adb -s $script:deviceSerial shell input tap `
+            $markerBounds.center_x $markerBounds.center_y | Out-Null
+        Write-GatewayTrace "source panel opened"
     } else {
         $marker = Find-Element `
             -SessionId $SessionId `
@@ -940,25 +1349,38 @@ function Get-PanelSources {
             ) {
                 continue
             }
+            $bounds = Get-Bounds -Node $item
+            if (-not $bounds) {
+                continue
+            }
             $url = if ($domain) { "https://$domain/" } else { $null }
             $resolution = if ($url) { "site_root" } else { "unavailable" }
-            $collected[[string]$index] = New-SourceRecord `
+            $record = New-SourceRecord `
                 -Index $index `
                 -Title $title `
                 -SiteName $siteName `
                 -Domain $domain `
                 -Url $url `
                 -Resolution $resolution
+            if ($Platform -eq "yuanbao") {
+                Resolve-YuanbaoSourceUrl `
+                    -SessionId $SessionId `
+                    -Record $record `
+                    -Bounds $bounds
+            }
+            $collected[[string]$index] = $record
             $foundNew = $true
         }
         if ($collected.Count -ge $ReferenceCount) {
             break
         }
-        if (-not $foundNew -and -not (Scroll-Region `
-            -SessionId $SessionId `
-            -Top 850 `
-            -Height 1450
-        )) {
+        $didScroll = if ($Platform -eq "yuanbao") {
+            & adb -s $script:deviceSerial shell input swipe 576 1900 576 900 500 | Out-Null
+            $LASTEXITCODE -eq 0
+        } else {
+            Scroll-Region -SessionId $SessionId -Top 850 -Height 1450
+        }
+        if (-not $foundNew -and -not $didScroll) {
             $stalls++
         } else {
             Start-Sleep -Milliseconds 700
@@ -1021,11 +1443,15 @@ function Get-KimiSources {
 }
 
 $sessionId = $null
+$appiumSessionClosed = $false
 try {
     $task = $TaskJson | ConvertFrom-Json
     if (-not $task.id) {
         throw "Task JSON must include id"
     }
+    $traceTaskId = ([string]$task.id) -replace "[^a-zA-Z0-9_-]", "_"
+    $script:tracePath = Join-Path $resultRoot "$traceTaskId-trace.log"
+    Write-GatewayTrace "task start"
     $prompt = [string]$task.payload.prompt
     if ([string]::IsNullOrWhiteSpace($prompt)) {
         throw "Task payload.prompt must be non-empty"
@@ -1053,38 +1479,46 @@ try {
     $script:deviceSerial = $serial
 
     $startedAt = Get-Date
-    $capabilities = @{
-        capabilities = @{
-            alwaysMatch = @{
-                platformName = "Android"
-                "appium:automationName" = "UiAutomator2"
-                "appium:deviceName" = $serial
-                "appium:udid" = $serial
-                "appium:noReset" = $true
-                "appium:newCommandTimeout" = $timeoutSeconds + 180
-                "appium:skipDeviceInitialization" = $true
-                "appium:skipServerInstallation" = $true
-            }
-            firstMatch = @(@{})
+    if ($Platform -eq "yuanbao") {
+        $sessionId = "adb"
+        & adb -s $serial shell am start `
+            -n "$packageName/.biz.login.v2.HYLoginMainActivity" | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not activate Yuanbao"
         }
+    } else {
+        $capabilities = @{
+            capabilities = @{
+                alwaysMatch = @{
+                    platformName = "Android"
+                    "appium:automationName" = "UiAutomator2"
+                    "appium:deviceName" = $serial
+                    "appium:udid" = $serial
+                    "appium:noReset" = $true
+                    "appium:newCommandTimeout" = $timeoutSeconds + 180
+                    "appium:skipDeviceInitialization" = $true
+                    "appium:skipServerInstallation" = $true
+                }
+                firstMatch = @(@{})
+            }
+        }
+        $session = Invoke-AppiumRequest `
+            -Method Post `
+            -Path "/session" `
+            -Body $capabilities `
+            -TimeoutSeconds 60
+        $sessionId = [string]$session.value.sessionId
+        if (-not $sessionId) {
+            throw "Appium did not return a session ID"
+        }
+        Invoke-AppiumRequest `
+            -Method Post `
+            -Path "/session/$sessionId/execute/sync" `
+            -Body @{
+                script = "mobile: activateApp"
+                args = @(@{ appId = $packageName })
+            } | Out-Null
     }
-    $session = Invoke-AppiumRequest `
-        -Method Post `
-        -Path "/session" `
-        -Body $capabilities `
-        -TimeoutSeconds 60
-    $sessionId = [string]$session.value.sessionId
-    if (-not $sessionId) {
-        throw "Appium did not return a session ID"
-    }
-
-    Invoke-AppiumRequest `
-        -Method Post `
-        -Path "/session/$sessionId/execute/sync" `
-        -Body @{
-            script = "mobile: activateApp"
-            args = @(@{ appId = $packageName })
-        } | Out-Null
     Start-Sleep -Seconds 2
 
     $newConversation = $true
@@ -1094,13 +1528,21 @@ try {
     if ($newConversation) {
         Start-NewConversation -SessionId $sessionId
     }
+    Write-GatewayTrace "conversation ready"
 
     Submit-Prompt -SessionId $sessionId -Prompt $prompt
+    Write-GatewayTrace "prompt submitted"
     $sentAt = Get-Date
+    if ($Platform -eq "yuanbao") {
+        # Native hierarchy dumps are reliable after Yuanbao's streaming
+        # animations settle; no Appium instrumentation is active for this app.
+        Start-Sleep -Seconds 20
+    }
     $answerInfo = Wait-ForAnswer `
         -SessionId $sessionId `
         -Prompt $prompt `
         -TimeoutSeconds $timeoutSeconds
+    Write-GatewayTrace "answer complete references=$($answerInfo.reference_count)"
     $answerCompletedAt = Get-Date
 
     $sourceCollectionStartedAt = Get-Date
@@ -1122,6 +1564,7 @@ try {
         }
     }
     $sourceCollectionCompletedAt = Get-Date
+    Write-GatewayTrace "sources complete count=$(@($sources).Count)"
     if ($Platform -eq "yuanbao" -and $answerInfo.reference_count -lt 1) {
         $answerInfo.reference_count = @($sources).Count
     }
@@ -1146,15 +1589,27 @@ try {
         [string]$answerInfo.source,
         [Text.UTF8Encoding]::new($true)
     )
-    $screenshotResponse = Invoke-AppiumRequest `
-        -Method Get `
-        -Path "/session/$sessionId/screenshot" `
-        -Body $null
     $screenshotPath = Join-Path $taskResultDirectory "screenshot.png"
-    [IO.File]::WriteAllBytes(
-        $screenshotPath,
-        [Convert]::FromBase64String([string]$screenshotResponse.value)
-    )
+    if ($Platform -eq "yuanbao") {
+        $deviceScreenshot = "/sdcard/$safeTaskId-screenshot.png"
+        try {
+            & adb -s $script:deviceSerial shell screencap -p $deviceScreenshot | Out-Null
+            Copy-AdbFile `
+                -DevicePath $deviceScreenshot `
+                -LocalPath $screenshotPath
+        } finally {
+            & adb -s $script:deviceSerial shell rm -f $deviceScreenshot | Out-Null
+        }
+    } else {
+        $screenshotResponse = Invoke-AppiumRequest `
+            -Method Get `
+            -Path "/session/$sessionId/screenshot" `
+            -Body $null
+        [IO.File]::WriteAllBytes(
+            $screenshotPath,
+            [Convert]::FromBase64String([string]$screenshotResponse.value)
+        )
+    }
 
     $completedAt = Get-Date
     [pscustomobject][ordered]@{
@@ -1192,7 +1647,7 @@ try {
         screenshot_path = $screenshotPath
     } | ConvertTo-Json -Depth 30 -Compress
 } finally {
-    if ($sessionId) {
+    if ($sessionId -and $sessionId -ne "adb" -and -not $appiumSessionClosed) {
         try {
             Invoke-AppiumRequest `
                 -Method Delete `

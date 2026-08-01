@@ -51,8 +51,9 @@ The gateway currently supports:
 - `deepseek` + `app`: collects every search-result record and resolves the
   exact destination URL through Android's outbound browser intent.
 - `yuanbao` + `app`: collects every source name and title from the reference
-  panel. Exact paths remain unavailable when Yuanbao does not expose them;
-  URLs printed in the answer are retained separately in `answer_urls`.
+  panel, opens each source, uses the detail page's Copy Link action, and reads
+  the exact source URL from the Android clipboard. URLs printed in the answer
+  are retained separately in `answer_urls`.
 - `qwen` or `qianwen` + `app`: collects every source name, title, and exposed
   domain. Its generated URL is explicitly labeled `site_root`, not an exact
   article path.
