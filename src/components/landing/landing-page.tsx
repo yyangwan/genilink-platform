@@ -1,21 +1,28 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Activity,
   ArrowRight,
+  ArrowUpRight,
   BarChart3,
   ChevronRight,
+  CheckCircle2,
   FileSearch,
   FileText,
   Globe2,
   LineChart,
-  Mail,
+  Menu,
+  Pause,
+  Play,
   Radar,
   ShieldCheck,
   Sparkles,
   Target,
+  X,
 } from "lucide-react";
 
 import styles from "./landing-page.module.css";
@@ -39,6 +46,8 @@ const productModules = [
       ["语义结构", "84", "健康"],
       ["AI 引用准备", "63", "需补强"],
     ],
+    demoMode: "chart",
+    demoSteps: ["扫描页面", "解析信号", "生成评分"],
   },
   {
     id: "visibility",
@@ -55,6 +64,8 @@ const productModules = [
       ["Kimi", "68", "需要补充案例页"],
       ["通义千问", "84", "表现稳定"],
     ],
+    demoMode: "chart",
+    demoSteps: ["发起提问", "检测提及", "对比平台"],
   },
   {
     id: "report",
@@ -71,6 +82,8 @@ const productModules = [
       ["关键发现", "10", "已排序"],
       ["行动项", "7", "可转 brief"],
     ],
+    demoMode: "report",
+    demoSteps: ["聚合结果", "提炼发现", "生成报告"],
   },
   {
     id: "content",
@@ -87,6 +100,8 @@ const productModules = [
       ["FAQ", "中", "回答采购问题"],
       ["案例", "高", "强化可信信号"],
     ],
+    demoMode: "content",
+    demoSteps: ["识别缺口", "生成选题", "输出 brief"],
   },
   {
     id: "creation",
@@ -103,6 +118,8 @@ const productModules = [
       ["AI 初稿", "2", "可编辑"],
       ["人工润色", "3", "可审核"],
     ],
+    demoMode: "content",
+    demoSteps: ["读取品牌", "撰写初稿", "准备编辑"],
   },
   {
     id: "calendar",
@@ -119,6 +136,8 @@ const productModules = [
       ["协作状态", "4", "待审核"],
       ["发布排期", "8", "已安排"],
     ],
+    demoMode: "calendar",
+    demoSteps: ["整理选题", "匹配排期", "同步团队"],
   },
   {
     id: "compare",
@@ -135,6 +154,8 @@ const productModules = [
       ["竞品 A", "67", "平台覆盖领先"],
       ["竞品 B", "55", "案例引用更多"],
     ],
+    demoMode: "chart",
+    demoSteps: ["统一问题", "计算差距", "定位机会"],
   },
 ];
 
@@ -161,6 +182,8 @@ export function LandingPage() {
   const [pricingOverview, setPricingOverview] = useState<PricingOverview | null>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [activeModuleId, setActiveModuleId] = useState(productModules[0].id);
+  const [heroModuleIndex, setHeroModuleIndex] = useState(0);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const encodedUrl = useMemo(() => encodeURIComponent(normalizeUrl(url)), [url]);
   const registerHref = encodedUrl
@@ -188,6 +211,19 @@ export function LandingPage() {
       });
 
     return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (prefersReducedMotion.matches) return;
+
+    const intervalId = window.setInterval(() => {
+      if (!document.hidden) {
+        setHeroModuleIndex((index) => (index + 1) % productModules.length);
+      }
+    }, 4200);
+
+    return () => window.clearInterval(intervalId);
   }, []);
 
   useEffect(() => {
@@ -238,26 +274,36 @@ export function LandingPage() {
   return (
     <main id="main-content" className={styles.page}>
       <header className={styles.nav}>
-        <Link href="/" className={styles.brand} aria-label="智链首页">
-          <span className={styles.brandMark}>智</span>
-          <span>
-            <strong>智链</strong>
-            <small>GeniLink</small>
-          </span>
-        </Link>
-        <nav className={styles.navLinks} aria-label="主导航">
-          <a href="#product">核心功能</a>
-          <a href="#pricing">订阅方案</a>
-          <a href="#questions">常见问题</a>
-          <Link href="/blog">知识普及</Link>
-        </nav>
-        <div className={styles.navActions}>
-          <Link href={loginHref} className={styles.ghostButton}>
-            登录
-          </Link>
-          <Link href={registerHref} className={styles.navButton}>
-            免费诊断官网
-          </Link>
+        <div className={styles.navInner}>
+          <BrandLockup />
+          <nav className={styles.navLinks} aria-label="主导航" data-open={mobileNavOpen}>
+            <a href="#product" onClick={() => setMobileNavOpen(false)}>核心功能</a>
+            <a href="#pricing" onClick={() => setMobileNavOpen(false)}>订阅方案</a>
+            <a href="#questions" onClick={() => setMobileNavOpen(false)}>常见问题</a>
+            <Link href="/blog" onClick={() => setMobileNavOpen(false)}>知识普及</Link>
+            <Link href={loginHref} className={styles.mobileLogin} onClick={() => setMobileNavOpen(false)}>
+              登录平台
+            </Link>
+          </nav>
+          <div className={styles.navActions}>
+            <span className={styles.navStatus}><i />AI 搜索增长工作台</span>
+            <Link href={loginHref} className={styles.ghostButton}>
+              登录
+            </Link>
+            <Link href={registerHref} className={styles.navButton}>
+              免费诊断官网
+              <ArrowUpRight size={14} />
+            </Link>
+            <button
+              type="button"
+              className={styles.mobileMenuButton}
+              aria-label={mobileNavOpen ? "关闭导航菜单" : "打开导航菜单"}
+              aria-expanded={mobileNavOpen}
+              onClick={() => setMobileNavOpen((open) => !open)}
+            >
+              {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -314,7 +360,7 @@ export function LandingPage() {
           </div>
         </div>
 
-        <AnimatedConsole active={productModules[0]} />
+        <AnimatedConsole active={productModules[heroModuleIndex]} activeIndex={heroModuleIndex} />
       </section>
 
       <section id="product" className={styles.productBand}>
@@ -336,6 +382,7 @@ export function LandingPage() {
                   className={activeModuleId === item.id ? styles.moduleTabActive : styles.moduleTab}
                   href={`#module-${item.id}`}
                   aria-current={activeModuleId === item.id ? "true" : undefined}
+                  onClick={() => setActiveModuleId(item.id)}
                 >
                   <Icon size={18} />
                   <span>{item.label}</span>
@@ -349,7 +396,11 @@ export function LandingPage() {
             {productModules.map((item) => {
               const Icon = item.icon;
               return (
-                <article key={item.id} id={`module-${item.id}`} className={styles.moduleDetail}>
+                <article
+                  key={item.id}
+                  id={`module-${item.id}`}
+                  className={`${styles.moduleDetail} ${activeModuleId === item.id ? styles.moduleDetailActive : ""}`}
+                >
                   <div className={styles.moduleCopy}>
                     <span>
                       <Icon size={16} />
@@ -358,7 +409,7 @@ export function LandingPage() {
                     <h3>{item.title}</h3>
                     <p>{item.body}</p>
                   </div>
-                  <ProductShot active={item} />
+                  <ProductShot active={item} isActive={activeModuleId === item.id} />
                 </article>
               );
             })}
@@ -383,35 +434,38 @@ export function LandingPage() {
         </div>
       </section>
 
-      <footer className={styles.footer}>
-        <div id="questions" className={styles.footerQuestionArea}>
-          <div className={styles.footerQuestionHeader}>
-            <span>FAQ</span>
-            <Link href="/faq">常见业务问题</Link>
-            <p>当客户开始用 AI 找方案，市场团队需要知道自己有没有被推荐。</p>
-          </div>
-          <Link href="/faq" className={styles.footerFaqCta}>
-            查看 FAQ
-            <ArrowRight size={14} />
+      <footer id="questions" className={styles.footer}>
+        <div className={styles.footerLead}>
+          <BrandLockup />
+          <p>让中国 B2B 品牌在 AI 答案里被理解、被引用、被选择。</p>
+          <Link href={registerHref} className={styles.footerPrimaryLink}>
+            开始免费诊断
+            <ArrowRight size={15} />
           </Link>
         </div>
-        <div className={styles.brand}>
-          <span className={styles.brandMark}>智</span>
-          <span>
-            <strong>智链</strong>
-            <small>GeniLink</small>
-          </span>
+        <div className={styles.footerNav} aria-label="页脚导航">
+          <div>
+            <strong>平台</strong>
+            <a href="#product">核心功能</a>
+            <a href="#pricing">订阅方案</a>
+            <Link href="/faq">常见问题</Link>
+          </div>
+          <div>
+            <strong>资源</strong>
+            <Link href="/blog">知识文章</Link>
+            <Link href="/support">帮助支持</Link>
+            <a href="mailto:support@genilink.cn">联系我们</a>
+          </div>
+          <div>
+            <strong>条款</strong>
+            <Link href="/terms">服务条款</Link>
+            <Link href="/privacy">隐私政策</Link>
+          </div>
         </div>
-        <div className={styles.footerLinks}>
-          <Link href="/support">帮助支持</Link>
-          <Link href="/faq">FAQ</Link>
-          <Link href="/blog">知识文章</Link>
-          <Link href="/terms">服务条款</Link>
-          <Link href="/privacy">隐私政策</Link>
-          <a href="mailto:support@genilink.cn">
-            <Mail size={13} />
-            联系我们
-          </a>
+        <div className={styles.footerBottom}>
+          <span>© 2026 GeniLink 智链</span>
+          <span className={styles.serviceStatus}><i />平台服务正常</span>
+          <span>为中国 B2B 增长团队打造</span>
         </div>
       </footer>
     </main>
@@ -420,8 +474,10 @@ export function LandingPage() {
 
 function AnimatedConsole({
   active,
+  activeIndex,
 }: {
   active: (typeof productModules)[number];
+  activeIndex: number;
 }) {
   return (
     <div className={styles.heroScene} aria-label="智链分析工作台预览">
@@ -433,7 +489,7 @@ function AnimatedConsole({
           <i />
         </div>
       </div>
-      <div className={styles.scorePanel}>
+      <div key={active.id} className={styles.scorePanel}>
         <div className={styles.scoreRing}>
           <span>{active.metric}</span>
           <small>{active.metricLabel}</small>
@@ -455,17 +511,25 @@ function AnimatedConsole({
           </div>
         ))}
       </div>
+      <div className={styles.sceneProgress} aria-hidden="true">
+        {productModules.map((item, index) => (
+          <i key={item.id} data-active={index === activeIndex} />
+        ))}
+      </div>
     </div>
   );
 }
 
 function ProductShot({
   active,
+  isActive,
 }: {
   active: (typeof productModules)[number];
+  isActive: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [mediaError, setMediaError] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     if (mediaError) return;
@@ -473,55 +537,57 @@ function ProductShot({
     if (!video) return;
     const videoElement = video;
 
-    function isFullyVisible(element: HTMLElement) {
-      const rect = element.getBoundingClientRect();
-      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-      const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+    const observer = new IntersectionObserver(syncPlayback, {
+      root: null,
+      rootMargin: "120px 0px",
+      threshold: [0, 0.28, 0.55],
+    });
 
-      return rect.top >= 0 && rect.left >= 0 && rect.bottom <= viewportHeight && rect.right <= viewportWidth;
-    }
-
-    function syncPlayback() {
-      if (isFullyVisible(videoElement)) {
-        void videoElement.play().catch(() => {
-          // Keep the poster visible if the browser blocks autoplay.
-        });
+    function syncPlayback(entries: IntersectionObserverEntry[]) {
+      const entry = entries[0];
+      if (entry?.isIntersecting && entry.intersectionRatio >= 0.28 && !document.hidden) {
+        if (videoElement.readyState === 0) videoElement.load();
+        void videoElement.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
       } else {
         videoElement.pause();
+        setIsPlaying(false);
       }
     }
 
-    const observer = new IntersectionObserver(syncPlayback, {
-      root: null,
-      threshold: [0, 0.5, 0.9, 1],
-    });
-
     observer.observe(videoElement);
-    syncPlayback();
-    const intervalId = window.setInterval(syncPlayback, 250);
-    window.addEventListener("scroll", syncPlayback, { passive: true });
-    window.addEventListener("resize", syncPlayback);
-    window.addEventListener("orientationchange", syncPlayback);
 
     return () => {
       observer.disconnect();
-      window.clearInterval(intervalId);
-      window.removeEventListener("scroll", syncPlayback);
-      window.removeEventListener("resize", syncPlayback);
-      window.removeEventListener("orientationchange", syncPlayback);
       video.pause();
     };
   }, [active.video, mediaError]);
 
+  function togglePlayback() {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      void video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    } else {
+      video.pause();
+      setIsPlaying(false);
+    }
+  }
+
   return (
-    <div className={styles.productShot} aria-label={`${active.label}界面预览`}>
+    <div className={styles.productShot} data-active={isActive} aria-label={`${active.label}界面预览`}>
       <div className={styles.productShotTop}>
-        <span>{active.label}</span>
-        <small>真实产品界面</small>
+        <span><Activity size={13} />{active.label}</span>
+        <small>真实产品动态演示</small>
       </div>
       <div className={styles.productMedia}>
         {mediaError ? (
-          <img className={styles.productFallbackImage} src={active.image} alt={`${active.label}功能页面截图`} />
+          <Image
+            className={styles.productFallbackImage}
+            src={active.image}
+            alt={`${active.label}功能页面截图`}
+            fill
+            sizes="(max-width: 760px) 100vw, (max-width: 1100px) 88vw, 62vw"
+          />
         ) : (
           <video
             ref={videoRef}
@@ -530,14 +596,59 @@ function ProductShot({
             muted
             loop
             playsInline
-            preload="metadata"
+            preload="none"
             aria-label={`${active.label}功能页面动态演示`}
             onError={() => setMediaError(true)}
           >
             <source src={active.video} type="video/webm" />
           </video>
         )}
+        {!mediaError ? (
+          <button
+            type="button"
+            className={styles.mediaControl}
+            aria-label={isPlaying ? `暂停${active.label}演示` : `播放${active.label}演示`}
+            aria-pressed={isPlaying}
+            onClick={togglePlayback}
+          >
+            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+          </button>
+        ) : null}
+        <div className={styles.demoHud} data-mode={active.demoMode} aria-hidden="true">
+          <div className={styles.demoHudHeader}>
+            <span><i />实时处理</span>
+            <strong>{active.metric}</strong>
+          </div>
+          <div className={styles.demoVisual}>
+            <i /><i /><i /><i />
+          </div>
+          <div className={styles.demoSteps}>
+            {active.demoSteps.map((step, index) => (
+              <span key={step}><CheckCircle2 size={11} />{step}<b>{index + 1}</b></span>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
+  );
+}
+
+function BrandLockup() {
+  return (
+    <Link href="/" className={styles.brand} aria-label="智链首页">
+      <span className={styles.brandMark} aria-hidden="true">
+        <svg viewBox="0 0 44 44" role="img">
+          <path d="M12 14.5h12.5c4.2 0 7.5 3.3 7.5 7.5s-3.3 7.5-7.5 7.5H20" />
+          <path d="M23.5 10.5 12 22l11.5 11.5" />
+          <circle cx="12" cy="14.5" r="2.2" />
+          <circle cx="12" cy="29.5" r="2.2" />
+          <circle cx="32" cy="22" r="2.2" />
+        </svg>
+      </span>
+      <span className={styles.brandType}>
+        <strong>智链</strong>
+        <small>GENILINK · AI SEARCH</small>
+      </span>
+    </Link>
   );
 }
