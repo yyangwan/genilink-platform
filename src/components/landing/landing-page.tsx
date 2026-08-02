@@ -3,14 +3,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import {
-  Activity,
   ArrowRight,
   ArrowUpRight,
   BarChart3,
   ChevronRight,
-  CheckCircle2,
   FileSearch,
   FileText,
   Globe2,
@@ -34,7 +33,6 @@ const productModules = [
   {
     id: "website",
     image: "/landing/screens/website-analysis.png",
-    video: "/landing/videos/landing-website-analysis.webm",
     icon: Globe2,
     label: "网站分析",
     title: "先看清官网是否适合被 AI 抓取和理解",
@@ -47,12 +45,11 @@ const productModules = [
       ["AI 引用准备", "63", "需补强"],
     ],
     demoMode: "chart",
-    demoSteps: ["扫描页面", "解析信号", "生成评分"],
+    focus: { x: "20%", y: "16%", width: "76%", height: "34%" },
   },
   {
     id: "visibility",
     image: "/landing/screens/visibility-audit.png",
-    video: "/landing/videos/landing-visibility-audit.webm",
     icon: Radar,
     label: "AI 可见性审计",
     title: "看清品牌在主流 AI 回答里有没有出现",
@@ -65,12 +62,11 @@ const productModules = [
       ["通义千问", "84", "表现稳定"],
     ],
     demoMode: "chart",
-    demoSteps: ["发起提问", "检测提及", "对比平台"],
+    focus: { x: "19%", y: "15%", width: "78%", height: "49%" },
   },
   {
     id: "report",
     image: "/landing/screens/audit-reports.png",
-    video: "/landing/videos/landing-audit-report.webm",
     icon: FileText,
     label: "审计报告",
     title: "把审计结果整理成能直接汇报的报告",
@@ -83,12 +79,11 @@ const productModules = [
       ["行动项", "7", "可转 brief"],
     ],
     demoMode: "report",
-    demoSteps: ["聚合结果", "提炼发现", "生成报告"],
+    focus: { x: "19%", y: "22%", width: "78%", height: "51%" },
   },
   {
     id: "content",
     image: "/landing/screens/content-insights.png",
-    video: "/landing/videos/landing-content-insights.webm",
     icon: Sparkles,
     label: "内容洞察",
     title: "把 AI 可见性缺口变成下一批内容选题",
@@ -101,12 +96,11 @@ const productModules = [
       ["案例", "高", "强化可信信号"],
     ],
     demoMode: "content",
-    demoSteps: ["识别缺口", "生成选题", "输出 brief"],
+    focus: { x: "19%", y: "16%", width: "78%", height: "49%" },
   },
   {
     id: "creation",
     image: "/landing/screens/dashboard-overview.png",
-    video: "/landing/videos/landing-ai-content-creation.webm",
     icon: Target,
     label: "智创内容生成",
     title: "从选题 brief 生成可编辑的内容初稿",
@@ -119,12 +113,11 @@ const productModules = [
       ["人工润色", "3", "可审核"],
     ],
     demoMode: "content",
-    demoSteps: ["读取品牌", "撰写初稿", "准备编辑"],
+    focus: { x: "19%", y: "40%", width: "78%", height: "49%" },
   },
   {
     id: "calendar",
-    image: "/landing/screens/dashboard-overview.png",
-    video: "/landing/videos/landing-content-calendar.webm",
+    image: "/landing/screens/content-calendar.png",
     icon: LineChart,
     label: "智创内容日历",
     title: "把内容计划排进日历，持续跟踪进度",
@@ -137,12 +130,11 @@ const productModules = [
       ["发布排期", "8", "已安排"],
     ],
     demoMode: "calendar",
-    demoSteps: ["整理选题", "匹配排期", "同步团队"],
+    focus: { x: "19%", y: "16%", width: "78%", height: "63%" },
   },
   {
     id: "compare",
     image: "/landing/screens/competitor-analysis.png",
-    video: "/landing/videos/landing-competitor-analysis.webm",
     icon: BarChart3,
     label: "竞品分析",
     title: "用同一套问题比较你和竞品的 AI 表现",
@@ -155,7 +147,7 @@ const productModules = [
       ["竞品 B", "55", "案例引用更多"],
     ],
     demoMode: "chart",
-    demoSteps: ["统一问题", "计算差距", "定位机会"],
+    focus: { x: "19%", y: "16%", width: "78%", height: "39%" },
   },
 ];
 
@@ -527,107 +519,60 @@ function ProductShot({
   active: (typeof productModules)[number];
   isActive: boolean;
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [mediaError, setMediaError] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-
-  useEffect(() => {
-    if (mediaError) return;
-    const video = videoRef.current;
-    if (!video) return;
-    const videoElement = video;
-
-    const observer = new IntersectionObserver(syncPlayback, {
-      root: null,
-      rootMargin: "120px 0px",
-      threshold: [0, 0.28, 0.55],
-    });
-
-    function syncPlayback(entries: IntersectionObserverEntry[]) {
-      const entry = entries[0];
-      if (entry?.isIntersecting && entry.intersectionRatio >= 0.28 && !document.hidden) {
-        if (videoElement.readyState === 0) videoElement.load();
-        void videoElement.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-      } else {
-        videoElement.pause();
-        setIsPlaying(false);
-      }
-    }
-
-    observer.observe(videoElement);
-
-    return () => {
-      observer.disconnect();
-      video.pause();
-    };
-  }, [active.video, mediaError]);
+  const [isPaused, setIsPaused] = useState(false);
+  const isPlaying = !isPaused;
 
   function togglePlayback() {
-    const video = videoRef.current;
-    if (!video) return;
-    if (video.paused) {
-      void video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-    } else {
-      video.pause();
-      setIsPlaying(false);
-    }
+    setIsPaused((paused) => !paused);
   }
 
+  const motionStyle = {
+    "--focus-x": active.focus.x,
+    "--focus-y": active.focus.y,
+    "--focus-width": active.focus.width,
+    "--focus-height": active.focus.height,
+  } as CSSProperties;
+
   return (
-    <div className={styles.productShot} data-active={isActive} aria-label={`${active.label}界面预览`}>
-      <div className={styles.productShotTop}>
-        <span><Activity size={13} />{active.label}</span>
-        <small>真实产品动态演示</small>
-      </div>
-      <div className={styles.productMedia}>
-        {mediaError ? (
-          <Image
-            className={styles.productFallbackImage}
-            src={active.image}
-            alt={`${active.label}功能页面截图`}
-            fill
-            sizes="(max-width: 760px) 100vw, (max-width: 1100px) 88vw, 62vw"
-          />
-        ) : (
-          <video
-            ref={videoRef}
-            className={styles.productVideo}
-            poster={active.image}
-            muted
-            loop
-            playsInline
-            preload="none"
-            aria-label={`${active.label}功能页面动态演示`}
-            onError={() => setMediaError(true)}
-          >
-            <source src={active.video} type="video/webm" />
-          </video>
-        )}
-        {!mediaError ? (
-          <button
-            type="button"
-            className={styles.mediaControl}
-            aria-label={isPlaying ? `暂停${active.label}演示` : `播放${active.label}演示`}
-            aria-pressed={isPlaying}
-            onClick={togglePlayback}
-          >
-            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-          </button>
-        ) : null}
-        <div className={styles.demoHud} data-mode={active.demoMode} aria-hidden="true">
-          <div className={styles.demoHudHeader}>
-            <span><i />实时处理</span>
-            <strong>{active.metric}</strong>
+    <div
+      className={styles.productShot}
+      data-active={isActive}
+      data-playing={isPlaying}
+      data-motion={active.demoMode}
+      aria-label={`${active.label}界面动态预览`}
+    >
+      <div className={styles.productMedia} style={motionStyle}>
+        <Image
+          className={styles.productScreenshot}
+          src={active.image}
+          alt={`${active.label}真实产品界面截图`}
+          fill
+          unoptimized
+          sizes="(max-width: 760px) 100vw, (max-width: 1100px) 88vw, 62vw"
+        />
+        <div className={styles.nativeMotion} aria-hidden="true">
+          <div className={styles.motionRest} />
+          <div className={styles.motionReveal}>
+            <Image
+              className={styles.motionScreenshot}
+              src={active.image}
+              alt=""
+              fill
+              unoptimized
+              sizes="(max-width: 760px) 100vw, (max-width: 1100px) 88vw, 62vw"
+            />
           </div>
-          <div className={styles.demoVisual}>
-            <i /><i /><i /><i />
-          </div>
-          <div className={styles.demoSteps}>
-            {active.demoSteps.map((step, index) => (
-              <span key={step}><CheckCircle2 size={11} />{step}<b>{index + 1}</b></span>
-            ))}
-          </div>
+          <i className={styles.motionSweep} />
         </div>
+        <button
+          type="button"
+          className={styles.mediaControl}
+          aria-label={isPlaying ? `暂停${active.label}演示` : `播放${active.label}演示`}
+          aria-pressed={isPlaying}
+          onClick={togglePlayback}
+        >
+          {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+        </button>
       </div>
     </div>
   );
