@@ -19,7 +19,8 @@ import {
 } from "lucide-react";
 
 import styles from "./landing-page.module.css";
-import { SubscriptionPlans, type SubscriptionPlanView } from "@/components/billing/subscription-plans";
+import { LandingSubscriptionPlans } from "@/components/billing/subscription-plans";
+import type { SubscriptionPlanView } from "@/components/billing/subscription-plan-content";
 import type { BillingCycle } from "@/types/billing";
 
 const productModules = [
@@ -367,7 +368,7 @@ export function LandingPage() {
 
       <section id="pricing" className={styles.pricingBand}>
         <div className={styles.pricingMatrix}>
-          <SubscriptionPlans
+          <LandingSubscriptionPlans
             plans={pricingOverview?.plans ?? []}
             billingCycle={billingCycle}
             onBillingCycleChange={setBillingCycle}

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react';
-import { SubscriptionPlans, type SubscriptionPlanView } from '@/components/billing/subscription-plans';
+import { AccountSubscriptionPlans } from '@/components/billing/account-subscription-plans';
+import type { SubscriptionPlanView } from '@/components/billing/subscription-plan-content';
 import { formatDateInTimeZone } from '@/lib/time';
 import { getTierDefinition, highestTier } from '@/lib/billing/tiers';
 import type { BillingCycle, BillingProvider, SubscriptionTier } from '@/types/billing';
@@ -135,7 +136,7 @@ export default function BillingSettingsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>订阅与升级</h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>套餐样式、功能口径和额度与官网保持一致。</p>
+          <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>查看当前套餐、订阅状态和可升级版本。</p>
         </div>
         <div className="dashboard-surface inline-flex items-center gap-2 px-3 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
           <ShieldCheck className="h-4 w-4" />
@@ -160,7 +161,7 @@ export default function BillingSettingsPage() {
           {[0, 1, 2].map((index) => <div key={index} className="dashboard-skeleton h-[520px] rounded-xl animate-skeleton-pulse" />)}
         </div>
       ) : (
-        <SubscriptionPlans
+        <AccountSubscriptionPlans
           plans={overview?.plans ?? []}
           billingCycle={billingCycle}
           onBillingCycleChange={setBillingCycle}
