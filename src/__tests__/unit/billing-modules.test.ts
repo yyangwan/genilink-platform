@@ -17,21 +17,23 @@ describe('getActiveModules', () => {
 
   it('includes trialing subscriptions when building the access cookie', async () => {
     (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { module: 'visibility' },
-      { module: 'content' },
+      { module: 'suite', billingPlan: { key: 'suite-pro-monthly' } },
     ]);
 
     const modules = await getActiveModules('user-1', 'workspace-1');
 
     expect(prisma.subscription.findMany).toHaveBeenCalledWith({
       where: {
-        userId: 'user-1',
         workspaceId: 'workspace-1',
         status: {
           in: ['active', 'trialing'],
         },
+        currentPeriodEnd: { gt: expect.any(Date) },
       },
-      select: { module: true },
+      select: {
+        module: true,
+        billingPlan: { select: { key: true } },
+      },
     });
     expect(modules).toEqual(['visibility', 'content']);
   });

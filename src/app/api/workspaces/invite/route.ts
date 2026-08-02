@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
+import { hasMemberCapacity } from '@/lib/billing/access';
 
 // POST /api/workspaces/invite — invite a member by email
 export async function POST(req: NextRequest) {
@@ -28,6 +29,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: 'You do not have permission to invite members' },
       { status: 403 }
+    );
+  }
+
+  if (!(await hasMemberCapacity(session.user.id, workspaceId))) {
+    return NextResponse.json(
+      { error: '当前订阅的成员额度已用完', code: 'PLAN_LIMIT_REACHED', limit: 'members' },
+      { status: 403 },
     );
   }
 

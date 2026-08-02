@@ -43,7 +43,7 @@ function UpgradeContent() {
             fontFamily: "var(--font-body)",
           }}
         >
-          开通对应模块后，可以继续使用被拦截的功能。
+          选择包含该能力的版本后，可以继续使用；已有订阅仅支持向上升级。
         </p>
       </div>
 

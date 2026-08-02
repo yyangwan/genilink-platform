@@ -6,7 +6,7 @@ import { prisma } from '@/lib/db';
 vi.mock('@/lib/db', () => ({
   prisma: {
     subscription: {
-      findUnique: vi.fn(),
+      findMany: vi.fn(),
     },
   },
 }));
@@ -21,7 +21,7 @@ describe('requireBilling', () => {
   });
 
   it('should throw BillingError when no subscription exists', async () => {
-    (prisma.subscription.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
     await expect(requireBilling(userId, workspaceId, module)).rejects.toThrow(BillingError);
     await expect(requireBilling(userId, workspaceId, module)).rejects.toThrow(
@@ -30,63 +30,56 @@ describe('requireBilling', () => {
   });
 
   it('should throw BillingError when subscription is inactive', async () => {
-    (prisma.subscription.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: 'sub-1',
-      status: 'inactive',
-    });
+    (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
     await expect(requireBilling(userId, workspaceId, module)).rejects.toThrow(BillingError);
   });
 
   it('should not throw when subscription is active', async () => {
-    (prisma.subscription.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: 'sub-1',
-      status: 'active',
-    });
+    (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { module: 'suite', billingPlan: { key: 'suite-lite-monthly' } },
+    ]);
 
     // Should resolve without throwing
     await expect(requireBilling(userId, workspaceId, module)).resolves.toBeUndefined();
   });
 
   it('should not throw when subscription is trialing', async () => {
-    (prisma.subscription.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: 'sub-1',
-      status: 'trialing',
-    });
+    (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { module: 'suite', billingPlan: { key: 'suite-lite-monthly' } },
+    ]);
 
     await expect(requireBilling(userId, workspaceId, module)).resolves.toBeUndefined();
   });
 
   it('should throw BillingError when subscription is past_due', async () => {
-    (prisma.subscription.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: 'sub-1',
-      status: 'past_due',
-    });
+    (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
     await expect(requireBilling(userId, workspaceId, module)).rejects.toThrow(BillingError);
   });
 
   it('should query with correct composite key', async () => {
-    (prisma.subscription.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: 'sub-1',
-      status: 'active',
-    });
+    (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { module: 'suite', billingPlan: { key: 'suite-lite-monthly' } },
+    ]);
 
     await requireBilling(userId, workspaceId, module);
 
-    expect(prisma.subscription.findUnique).toHaveBeenCalledWith({
+    expect(prisma.subscription.findMany).toHaveBeenCalledWith({
       where: {
-        userId_workspaceId_module: {
-          userId,
-          workspaceId,
-          module,
-        },
+        workspaceId,
+        status: { in: ['active', 'trialing'] },
+        currentPeriodEnd: { gt: expect.any(Date) },
+      },
+      select: {
+        module: true,
+        billingPlan: { select: { key: true } },
       },
     });
   });
 
   it('should include module and statusCode on BillingError', async () => {
-    (prisma.subscription.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
     try {
       await requireBilling(userId, workspaceId, 'content');

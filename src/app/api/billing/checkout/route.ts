@@ -12,6 +12,10 @@ import {
   isPaymentProviderConfigured,
   type PaymentProvider,
 } from '@/lib/billing/gateways';
+import { getWorkspaceBillingAccess } from '@/lib/billing/access';
+import { getTierFromPlanKey, isUpgrade } from '@/lib/billing/tiers';
+import type { BillingPlanRecord } from '@/lib/billing/catalog';
+import type { PaymentOrder } from '@/types/billing';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,7 +79,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const activeSubscription = await prisma.subscription.findFirst({
+  const targetTier = getTierFromPlanKey(plan.key);
+  const currentAccess = targetTier
+    ? await getWorkspaceBillingAccess(session.user.id, workspaceId)
+    : null;
+
+  if (targetTier && !isUpgrade(currentAccess?.tier ?? null, targetTier)) {
+    return NextResponse.json(
+      {
+        error: 'The selected plan is not an upgrade',
+        code: 'PLAN_NOT_AN_UPGRADE',
+        currentTier: currentAccess?.tier ?? null,
+        targetTier,
+      },
+      { status: 409 },
+    );
+  }
+
+  const activeSubscription = targetTier ? null : await prisma.subscription.findFirst({
     where: {
       userId: session.user.id,
       workspaceId,
@@ -139,23 +160,23 @@ export async function POST(req: NextRequest) {
   try {
     const checkoutResult = provider === 'wechatpay'
       ? await createWechatNativeCheckout({
-        order,
+        order: order as unknown as PaymentOrder,
         plan: {
           ...plan,
           provider: provider,
           createdAt: plan.createdAt.toISOString(),
           updatedAt: plan.updatedAt.toISOString(),
-        },
+        } as BillingPlanRecord,
         requestOrigin: req.headers.get('origin') ?? undefined,
       })
       : await createAlipayCheckoutUrl({
-          order,
+          order: order as unknown as PaymentOrder,
           plan: {
             ...plan,
             provider: provider,
             createdAt: plan.createdAt.toISOString(),
             updatedAt: plan.updatedAt.toISOString(),
-          },
+          } as BillingPlanRecord,
           requestOrigin: req.headers.get('origin') ?? undefined,
         });
 

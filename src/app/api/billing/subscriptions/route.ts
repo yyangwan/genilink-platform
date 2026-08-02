@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
+import { getTierFromPlanKey } from '@/lib/billing/tiers';
 
-// GET /api/billing/subscriptions — list subscriptions for current user + workspace
+// GET /api/billing/subscriptions — list subscriptions for the current workspace
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -18,7 +19,6 @@ export async function GET() {
 
   const subscriptions = await prisma.subscription.findMany({
     where: {
-      userId: session.user.id,
       workspaceId,
     },
     select: {
@@ -30,6 +30,7 @@ export async function GET() {
       providerCustomerId: true,
       providerSubscriptionId: true,
       billingPlanId: true,
+      billingPlan: { select: { key: true } },
       paymentOrderId: true,
       createdAt: true,
       currentPeriodStart: true,
@@ -39,5 +40,10 @@ export async function GET() {
     orderBy: { createdAt: 'asc' },
   });
 
-  return NextResponse.json({ subscriptions });
+  return NextResponse.json({
+    subscriptions: subscriptions.map((subscription) => ({
+      ...subscription,
+      tier: getTierFromPlanKey(subscription.billingPlan?.key),
+    })),
+  });
 }

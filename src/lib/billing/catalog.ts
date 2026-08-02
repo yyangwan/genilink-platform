@@ -1,10 +1,12 @@
-import type { BillingCycle, ModuleType } from '@/types/billing';
+import type { BillingCycle, BillingProductType, SubscriptionTier } from '@/types/billing';
+import { getTierDefinition, getTierFromPlanKey } from '@/lib/billing/tiers';
 
 export type PaymentProvider = 'wechatpay' | 'alipay';
 
 export interface BillingPlanSeed {
   key: string;
-  module: ModuleType;
+  module: BillingProductType;
+  tier?: SubscriptionTier | null;
   billingCycle: BillingCycle;
   name: string;
   description: string;
@@ -37,60 +39,35 @@ const envInt = (key: string): number | null => {
 
 const defaultCurrency = envString('BILLING_CURRENCY') ?? 'CNY';
 
-const visibilityMonthly = envInt('BILLING_VISIBILITY_MONTHLY_CENTS') ?? 0;
-const visibilityYearly = envInt('BILLING_VISIBILITY_YEARLY_CENTS') ?? 0;
-const contentMonthly = envInt('BILLING_CONTENT_MONTHLY_CENTS') ?? 0;
-const contentYearly = envInt('BILLING_CONTENT_YEARLY_CENTS') ?? 0;
+const tierPlan = (
+  tier: SubscriptionTier,
+  billingCycle: BillingCycle,
+  priceCents: number,
+  sortOrder: number,
+): BillingPlanSeed => {
+  const definition = getTierDefinition(tier);
+  return {
+    key: `suite-${tier}-${billingCycle}`,
+    module: 'suite',
+    tier,
+    billingCycle,
+    name: `${definition.name}${billingCycle === 'monthly' ? '月付' : '年付'}`,
+    description: definition.description,
+    priceCents,
+    currency: defaultCurrency,
+    provider: 'wechatpay',
+    sortOrder,
+    isActive: true,
+  };
+};
 
 export const BILLING_PLAN_SEEDS: BillingPlanSeed[] = [
-  {
-    key: 'visibility-monthly',
-    module: 'visibility',
-    billingCycle: 'monthly',
-    name: '可见性月订阅',
-    description: '解锁 AI 搜索可见性分析、审计和建议生成。',
-    priceCents: visibilityMonthly,
-    currency: defaultCurrency,
-    provider: 'wechatpay',
-    sortOrder: 10,
-    isActive: true,
-  },
-  {
-    key: 'visibility-yearly',
-    module: 'visibility',
-    billingCycle: 'yearly',
-    name: '可见性年订阅',
-    description: '按年订阅可见性模块，适合长期使用。',
-    priceCents: visibilityYearly,
-    currency: defaultCurrency,
-    provider: 'wechatpay',
-    sortOrder: 20,
-    isActive: true,
-  },
-  {
-    key: 'content-monthly',
-    module: 'content',
-    billingCycle: 'monthly',
-    name: '创作月订阅',
-    description: '解锁 AI 内容创作与分发能力。',
-    priceCents: contentMonthly,
-    currency: defaultCurrency,
-    provider: 'alipay',
-    sortOrder: 30,
-    isActive: true,
-  },
-  {
-    key: 'content-yearly',
-    module: 'content',
-    billingCycle: 'yearly',
-    name: '创作年订阅',
-    description: '按年订阅创作模块，适合团队持续使用。',
-    priceCents: contentYearly,
-    currency: defaultCurrency,
-    provider: 'alipay',
-    sortOrder: 40,
-    isActive: true,
-  },
+  tierPlan('lite', 'monthly', envInt('BILLING_LITE_MONTHLY_CENTS') ?? 0, 10),
+  tierPlan('lite', 'yearly', envInt('BILLING_LITE_YEARLY_CENTS') ?? 0, 20),
+  tierPlan('pro', 'monthly', envInt('BILLING_PRO_MONTHLY_CENTS') ?? 0, 30),
+  tierPlan('pro', 'yearly', envInt('BILLING_PRO_YEARLY_CENTS') ?? 0, 40),
+  tierPlan('max', 'monthly', envInt('BILLING_MAX_MONTHLY_CENTS') ?? 0, 50),
+  tierPlan('max', 'yearly', envInt('BILLING_MAX_YEARLY_CENTS') ?? 0, 60),
 ];
 
 export function isBillingPlanConfigured(plan: BillingPlanSeed): boolean {
@@ -101,10 +78,10 @@ export function planLabel(plan: Pick<BillingPlanSeed, 'module' | 'billingCycle'>
   return `${plan.module}-${plan.billingCycle}`;
 }
 
-export function getDefaultPlanKey(module: ModuleType, billingCycle: BillingCycle): string {
-  return `${module}-${billingCycle}`;
-}
-
 export function getBillingPlanSeed(key: string): BillingPlanSeed | undefined {
   return BILLING_PLAN_SEEDS.find((plan) => plan.key === key);
+}
+
+export function getPlanTier(plan: Pick<BillingPlanSeed, 'key' | 'tier'>): SubscriptionTier | null {
+  return plan.tier ?? getTierFromPlanKey(plan.key);
 }

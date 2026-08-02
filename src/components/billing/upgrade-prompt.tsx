@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Lock, ArrowRight } from "lucide-react";
+import { getTierDefinition } from "@/lib/billing/tiers";
 
 interface UpgradePromptProps {
   module: "visibility" | "content";
@@ -33,6 +34,7 @@ const MODULE_INFO: Record<
 
 export default function UpgradePrompt({ module }: UpgradePromptProps) {
   const info = MODULE_INFO[module];
+  const recommendedTier = module === "content" ? getTierDefinition("pro") : getTierDefinition("lite");
 
   return (
     <div
@@ -66,7 +68,7 @@ export default function UpgradePrompt({ module }: UpgradePromptProps) {
               fontFamily: "var(--font-body)",
             }}
           >
-            需要订阅后才能继续使用
+            需要{recommendedTier.name}或更高版本
           </p>
         </div>
       </div>
@@ -93,17 +95,16 @@ export default function UpgradePrompt({ module }: UpgradePromptProps) {
 
       <Link
         className="inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold transition-colors"
-        href={`/settings/billing?module=${module}`}
+        href={`/settings/billing?tier=${recommendedTier.key}`}
         style={{
           background: "var(--color-primary)",
           color: "#0b0d14",
           fontFamily: "var(--font-display)",
         }}
       >
-        去开通订阅
+        查看{recommendedTier.name}
         <ArrowRight className="h-4 w-4" />
       </Link>
     </div>
   );
 }
-

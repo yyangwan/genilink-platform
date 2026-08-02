@@ -1,534 +1,198 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import {
-  ArrowRight,
-  CheckCircle2,
-  CreditCard,
-  Clock3,
-  Loader2,
-  ShieldCheck,
-  Sparkles,
-} from "lucide-react";
-import { formatDateInTimeZone } from "@/lib/time";
-
-type BillingCycle = "monthly" | "yearly";
-type ModuleType = "visibility" | "content";
-type PaymentProvider = "wechatpay" | "alipay";
-
-type BillingPlan = {
-  id: string;
-  key: string;
-  module: ModuleType;
-  billingCycle: BillingCycle;
-  name: string;
-  description: string | null;
-  priceCents: number;
-  currency: string;
-  provider: PaymentProvider;
-  checkoutUrl: string | null;
-  isActive: boolean;
-  sortOrder: number;
-  configured?: boolean;
-};
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react';
+import { SubscriptionPlans, type SubscriptionPlanView } from '@/components/billing/subscription-plans';
+import { formatDateInTimeZone } from '@/lib/time';
+import { getTierDefinition, highestTier } from '@/lib/billing/tiers';
+import type { BillingCycle, BillingProvider, SubscriptionTier } from '@/types/billing';
 
 type Subscription = {
   id: string;
-  module: ModuleType;
+  module: string;
+  tier?: SubscriptionTier | null;
   status: string;
   billingCycle: BillingCycle;
-  createdAt: string;
-  currentPeriodStart: string;
   currentPeriodEnd: string;
-  trialEnd: string | null;
-  billingPlanId: string | null;
   provider: string | null;
-  providerSubscriptionId: string | null;
 };
 
 type BillingOverview = {
-  plans: BillingPlan[];
+  workspaceId: string | null;
+  plans: SubscriptionPlanView[];
   subscriptions: Subscription[];
   billingDisabled: boolean;
-  providerAvailability?: {
-    wechatpay?: boolean;
-    alipay?: boolean;
-  };
+  providerAvailability?: Partial<Record<BillingProvider, boolean>>;
 };
 
-type CheckoutProvider = PaymentProvider;
-
-const MODULE_LABELS: Record<ModuleType, string> = {
-  visibility: "可见性",
-  content: "创作",
+const MODULE_LABELS: Record<string, string> = {
+  suite: '统一订阅',
+  visibility: '智见',
+  content: '智创',
+  api_access: 'API',
 };
-
-const CYCLE_LABELS: Record<BillingCycle, string> = {
-  monthly: "月付",
-  yearly: "年付",
-};
-
-const PROVIDER_LABELS: Record<PaymentProvider, string> = {
-  wechatpay: "微信支付",
-  alipay: "支付宝",
-};
-
-function formatPrice(priceCents: number, currency: string) {
-  if (priceCents <= 0) {
-    return "待配置";
-  }
-  const value = priceCents / 100;
-  if (currency.toUpperCase() === "CNY") {
-    return `¥${value.toFixed(2)}`;
-  }
-  return `${currency.toUpperCase()} ${value.toFixed(2)}`;
-}
 
 export default function BillingSettingsPage() {
   const searchParams = useSearchParams();
   const [overview, setOverview] = useState<BillingOverview | null>(null);
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [checkoutPendingKey, setCheckoutPendingKey] = useState<string | null>(null);
-  const [selectedProviderByPlanKey, setSelectedProviderByPlanKey] = useState<Record<string, CheckoutProvider>>({});
+  const [selectedProviders, setSelectedProviders] = useState<Record<string, BillingProvider>>({});
   const accessSyncAttemptedRef = useRef(false);
 
-  useEffect(() => {
+  const loadOverview = useCallback(() => {
     const controller = new AbortController();
-
-    fetch("/api/billing/plans", { signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-        return res.json();
+    fetch('/api/billing/plans', { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json() as Promise<BillingOverview>;
       })
-      .then((data: BillingOverview) => {
+      .then((data) => {
         setOverview(data);
         setError(null);
+        setSelectedProviders((current) => {
+          const next = { ...current };
+          for (const plan of data.plans) {
+            if (next[plan.key]) continue;
+            next[plan.key] = data.providerAvailability?.[plan.provider]
+              ? plan.provider
+              : data.providerAvailability?.wechatpay
+                ? 'wechatpay'
+                : data.providerAvailability?.alipay
+                  ? 'alipay'
+                  : plan.provider;
+          }
+          return next;
+        });
       })
-      .catch((err) => {
-        if ((err as Error).name !== "AbortError") {
-          setError("订阅数据加载失败");
-        }
+      .catch((fetchError: Error) => {
+        if (fetchError.name !== 'AbortError') setError('订阅数据加载失败');
       })
       .finally(() => setLoading(false));
-
-    return () => controller.abort();
+    return controller;
   }, []);
 
   useEffect(() => {
-    if (!overview?.plans?.length) return;
+    const controller = loadOverview();
+    return () => controller.abort();
+  }, [loadOverview]);
 
-    setSelectedProviderByPlanKey((current) => {
-      const next = { ...current };
-      let changed = false;
+  const activeSubscriptions = useMemo(
+    () => (overview?.subscriptions ?? []).filter((subscription) =>
+      subscription.status === 'active' || subscription.status === 'trialing'),
+    [overview],
+  );
+  const currentTier = useMemo(() => highestTier([
+    ...activeSubscriptions.map((subscription) => subscription.tier),
+  ]), [activeSubscriptions]);
 
-      for (const plan of overview.plans) {
-        if (next[plan.key]) continue;
-
-        const wechatAvailable = overview.providerAvailability?.wechatpay ?? false;
-        const alipayAvailable = overview.providerAvailability?.alipay ?? false;
-        const defaultProvider = plan.provider;
-        const chosen =
-          defaultProvider === "wechatpay" && wechatAvailable
-            ? "wechatpay"
-            : defaultProvider === "alipay" && alipayAvailable
-              ? "alipay"
-              : wechatAvailable
-                ? "wechatpay"
-                : alipayAvailable
-                  ? "alipay"
-                  : defaultProvider;
-
-        next[plan.key] = chosen;
-        changed = true;
-      }
-
-      return changed ? next : current;
-    });
-  }, [overview]);
-
-  const activeSubscriptions = useMemo(() => {
-    return (overview?.subscriptions ?? []).filter(
-      (sub) => sub.status === "active" || sub.status === "trialing",
-    );
-  }, [overview]);
-
-  const checkoutState = searchParams.get("checkout");
-  const checkoutOrderId = searchParams.get("orderId");
+  const checkoutState = searchParams.get('checkout');
+  const checkoutOrderId = searchParams.get('orderId');
 
   useEffect(() => {
-    if (checkoutState !== "success" || !overview?.workspaceId || accessSyncAttemptedRef.current) {
-      return;
-    }
-
+    if (checkoutState !== 'success' || !overview?.workspaceId || accessSyncAttemptedRef.current) return;
     accessSyncAttemptedRef.current = true;
-
-    fetch("/api/billing/access", {
-      method: "POST",
-    }).catch(() => {
-      accessSyncAttemptedRef.current = false;
-    });
-  }, [checkoutState, overview?.workspaceId]);
+    fetch('/api/billing/access', { method: 'POST' })
+      .then(() => loadOverview())
+      .catch(() => { accessSyncAttemptedRef.current = false; });
+  }, [checkoutState, overview?.workspaceId, loadOverview]);
 
   const handleCheckout = async (planKey: string) => {
     setCheckoutPendingKey(planKey);
     setError(null);
-
-    const provider = selectedProviderByPlanKey[planKey];
-
     try {
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planKey, provider }),
+      const response = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planKey, provider: selectedProviders[planKey] }),
       });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        if (res.status === 409 && data?.code === "ACTIVE_SUBSCRIPTION_EXISTS") {
-          setError("该模块已有有效订阅，无需重复购买。");
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (data?.code === 'PLAN_NOT_AN_UPGRADE') {
+          setError('只能选择高于当前版本的订阅方案。');
           return;
         }
-        if (res.status === 503) {
-          setError("收款配置尚未完成，请先补齐支付环境变量。");
+        if (response.status === 503) {
+          setError('价格或收款配置尚未完成。');
           return;
         }
-        throw new Error(data?.error || "checkout failed");
+        throw new Error(data?.error ?? 'checkout failed');
       }
-
-      const checkoutUrl = data?.checkoutUrl as string | undefined;
-      if (!checkoutUrl) {
-        throw new Error("missing checkout url");
-      }
-
-      window.location.assign(checkoutUrl);
+      if (!data?.checkoutUrl) throw new Error('missing checkout url');
+      window.location.assign(data.checkoutUrl);
     } catch {
-      setError("创建收款链接失败");
+      setError('创建收款链接失败');
     } finally {
       setCheckoutPendingKey(null);
     }
   };
 
-  const summaryText = overview?.billingDisabled
-    ? "当前处于订阅关闭模式"
-    : `已开通 ${activeSubscriptions.length} 个订阅`;
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1
-            className="text-xl font-semibold"
-            style={{
-              color: "var(--text-primary)",
-              fontFamily: "var(--font-display)",
-            }}
-          >
-            订阅收款
-          </h1>
-          <p
-            className="mt-1 text-sm"
-            style={{
-              color: "var(--text-secondary)",
-              fontFamily: "var(--font-body)",
-            }}
-          >
-            在这里选择模块订阅、支付方式和当前有效期。
-          </p>
+          <h1 className="text-xl font-semibold" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>订阅与升级</h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>套餐样式、功能口径和额度与官网保持一致。</p>
         </div>
-
-        <div className="dashboard-surface inline-flex items-center gap-2 px-3 py-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+        <div className="dashboard-surface inline-flex items-center gap-2 px-3 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
           <ShieldCheck className="h-4 w-4" />
-          {summaryText}
+          {overview?.billingDisabled ? '当前处于订阅关闭模式' : currentTier ? `当前：${getTierDefinition(currentTier).name}` : '尚未开通统一订阅'}
         </div>
       </div>
 
-      {checkoutState === "success" && (
-        <div className="dashboard-surface flex items-center gap-2 px-4 py-3 text-sm" style={{ background: "color-mix(in srgb, var(--color-success) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--color-success) 40%, transparent)", color: "var(--text-primary)" }}>
-          <CheckCircle2 className="h-4 w-4" />
-          订单已发起，若支付完成会自动开通。
-          {checkoutOrderId ? `订单号：${checkoutOrderId}` : ""}
+      {checkoutState === 'success' ? (
+        <div className="dashboard-surface flex items-center gap-2 px-4 py-3 text-sm" style={{ color: 'var(--text-primary)' }}>
+          <CheckCircle2 className="h-4 w-4" />支付完成后会自动刷新订阅权益。{checkoutOrderId ? `订单号：${checkoutOrderId}` : ''}
         </div>
-      )}
-
-      {checkoutState === "canceled" && (
-        <div className="dashboard-surface flex items-center gap-2 px-4 py-3 text-sm" style={{ background: "color-mix(in srgb, var(--color-warning) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--color-warning) 35%, transparent)", color: "var(--text-primary)" }}>
-          <Sparkles className="h-4 w-4" />
-          收款流程已取消。
+      ) : null}
+      {checkoutState === 'canceled' ? (
+        <div className="dashboard-surface flex items-center gap-2 px-4 py-3 text-sm" style={{ color: 'var(--text-primary)' }}>
+          <Sparkles className="h-4 w-4" />收款流程已取消。
         </div>
-      )}
-
-      {error && (
-        <div className="dashboard-surface px-4 py-3 text-sm" style={{ background: "color-mix(in srgb, var(--color-error) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--color-error) 35%, transparent)", color: "var(--text-primary)" }}>
-          {error}
-        </div>
-      )}
+      ) : null}
+      {error ? <div className="dashboard-surface px-4 py-3 text-sm" style={{ color: 'var(--color-error)' }}>{error}</div> : null}
 
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {[0, 1, 2, 3].map((index) => (
-            <div
-              key={index}
-              className="dashboard-skeleton h-56 rounded-xl animate-skeleton-pulse"
-            />
-          ))}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          {[0, 1, 2].map((index) => <div key={index} className="dashboard-skeleton h-[520px] rounded-xl animate-skeleton-pulse" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {(overview?.plans ?? []).map((plan) => {
-            const active = activeSubscriptions.some(
-              (sub) =>
-                sub.billingPlanId === plan.id ||
-                (sub.module === plan.module && sub.billingCycle === plan.billingCycle),
-            );
-            const currentSub = activeSubscriptions.find(
-              (sub) =>
-                sub.billingPlanId === plan.id ||
-                (sub.module === plan.module && sub.billingCycle === plan.billingCycle),
-            );
-            const disabled = active || !plan.configured || overview?.billingDisabled;
-            const providerOptions = [
-              overview?.providerAvailability?.wechatpay && {
-                value: "wechatpay" as const,
-                label: PROVIDER_LABELS.wechatpay,
-              },
-              overview?.providerAvailability?.alipay && {
-                value: "alipay" as const,
-                label: PROVIDER_LABELS.alipay,
-              },
-            ].filter(Boolean) as Array<{ value: CheckoutProvider; label: string }>;
-
-            return (
-              <section
-                key={plan.id}
-                className="dashboard-surface dashboard-surface--padded"
-                style={{ borderColor: active ? "var(--color-success)" : "var(--border)" }}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2
-                        className="text-base font-semibold"
-                        style={{
-                          color: "var(--text-primary)",
-                          fontFamily: "var(--font-display)",
-                        }}
-                      >
-                        {plan.name}
-                      </h2>
-                      {active && (
-                        <span
-                          className="dashboard-chip dashboard-chip--success"
-                          style={{ background: "color-mix(in srgb, var(--color-success) 14%, transparent)" }}
-                        >
-                          <CheckCircle2 className="h-3 w-3" />
-                          已开通
-                        </span>
-                      )}
-                      {!plan.configured && !overview?.billingDisabled && (
-                        <span
-                          className="dashboard-chip"
-                          style={{ background: "var(--bg-card)", color: "var(--text-muted)" }}
-                        >
-                          未配置
-                        </span>
-                      )}
-                    </div>
-
-                    <p
-                      className="mt-1 text-sm"
-                      style={{
-                        color: "var(--text-secondary)",
-                        fontFamily: "var(--font-body)",
-                      }}
-                    >
-                      {plan.description}
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    <div
-                      className="text-lg font-semibold"
-                      style={{
-                        color: "var(--text-primary)",
-                        fontFamily: "var(--font-display)",
-                      }}
-                    >
-                      {formatPrice(plan.priceCents, plan.currency)}
-                    </div>
-                    <div
-                      className="text-xs"
-                      style={{
-                        color: "var(--text-muted)",
-                        fontFamily: "var(--font-body)",
-                      }}
-                    >
-                      {MODULE_LABELS[plan.module]} · {CYCLE_LABELS[plan.billingCycle]}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-3 text-sm">
-                  <div
-                    className="flex items-center gap-2"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    <CreditCard className="h-4 w-4" />
-                    默认支付方式：{PROVIDER_LABELS[plan.provider]}
-                  </div>
-
-                  {providerOptions.length > 1 && (
-                    <div className="flex flex-wrap gap-2">
-                      {providerOptions.map((option) => {
-                        const selected = selectedProviderByPlanKey[plan.key] === option.value;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            className={`dashboard-chip ${selected ? "dashboard-chip--success" : ""}`}
-                          style={{ background: selected ? "var(--color-primary)" : "var(--bg-card)", color: selected ? "#0b0d14" : "var(--text-secondary)" }}
-                            onClick={() =>
-                              setSelectedProviderByPlanKey((current) => ({
-                                ...current,
-                                [plan.key]: option.value,
-                              }))
-                            }
-                          >
-                            {option.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {currentSub && (
-                    <div
-                      className="flex items-center gap-2"
-                      style={{ color: "var(--text-secondary)" }}
-                    >
-                      <Clock3 className="h-4 w-4" />
-                      有效期至{" "}
-                      {formatDateInTimeZone(currentSub.currentPeriodEnd, {
-                        includeTime: false,
-                        includeYear: true,
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-5 flex items-center gap-3">
-                  <button
-                    className="dashboard-button dashboard-button--primary"
-                    style={{ minHeight: 40, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.6 : 1 }}
-                    disabled={disabled || checkoutPendingKey === plan.key}
-                    onClick={() => handleCheckout(plan.key)}
-                  >
-                    {checkoutPendingKey === plan.key ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        跳转中
-                      </>
-                    ) : active ? (
-                      <>
-                        <CheckCircle2 className="h-4 w-4" />
-                        当前生效
-                      </>
-                    ) : !plan.configured || overview?.billingDisabled ? (
-                      <>
-                        <ShieldCheck className="h-4 w-4" />
-                        待配置
-                      </>
-                    ) : (
-                      <>
-                        立即开通
-                        <ArrowRight className="h-4 w-4" />
-                      </>
-                    )}
-                  </button>
-
-                  <span
-                    className="text-xs"
-                    style={{
-                      color: "var(--text-muted)",
-                      fontFamily: "var(--font-body)",
-                    }}
-                  >
-                    {active
-                      ? "订阅已生效，支付入口已锁定。"
-                      : providerOptions.length > 1
-                        ? "可先切换支付方式，再创建订单。"
-                        : `点击后将跳转到 ${PROVIDER_LABELS[plan.provider]} 收银台。`}
-                  </span>
-                </div>
-              </section>
-            );
-          })}
-        </div>
+        <SubscriptionPlans
+          plans={overview?.plans ?? []}
+          billingCycle={billingCycle}
+          onBillingCycleChange={setBillingCycle}
+          currentTier={currentTier}
+          billingDisabled={overview?.billingDisabled}
+          pendingPlanKey={checkoutPendingKey}
+          providerAvailability={overview?.providerAvailability}
+          selectedProviders={selectedProviders}
+          onProviderChange={(planKey, provider) => setSelectedProviders((current) => ({ ...current, [planKey]: provider }))}
+          onCheckout={handleCheckout}
+        />
       )}
 
-      {!loading && activeSubscriptions.length > 0 && (
-        <section
-          className="dashboard-surface dashboard-surface--padded"
-        >
-          <h2
-            className="text-base font-semibold"
-            style={{
-              color: "var(--text-primary)",
-              fontFamily: "var(--font-display)",
-            }}
-          >
-            当前有效订阅
-          </h2>
-
+      {!loading && activeSubscriptions.length > 0 ? (
+        <section className="dashboard-surface dashboard-surface--padded">
+          <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>当前有效订阅</h2>
           <div className="mt-4 grid gap-3">
-            {activeSubscriptions.map((sub) => (
-              <div
-                key={sub.id}
-                className="dashboard-surface flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <div
-                    className="text-sm font-medium"
-                    style={{
-                      color: "var(--text-primary)",
-                      fontFamily: "var(--font-body)",
-                    }}
-                  >
-                    {MODULE_LABELS[sub.module]} · {sub.billingCycle === "monthly" ? "月付" : "年付"}
-                  </div>
-                  <div
-                    className="mt-1 text-xs"
-                    style={{
-                      color: "var(--text-muted)",
-                      fontFamily: "var(--font-body)",
-                    }}
-                  >
-                    生效至{" "}
-                    {formatDateInTimeZone(sub.currentPeriodEnd, {
-                      includeTime: false,
-                      includeYear: true,
-                    })}
-                  </div>
+            {activeSubscriptions.map((subscription) => (
+              <div key={subscription.id} className="dashboard-surface flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
+                  {subscription.tier ? getTierDefinition(subscription.tier).name : MODULE_LABELS[subscription.module] ?? subscription.module}
+                  {' · '}{subscription.billingCycle === 'monthly' ? '月付' : '年付'}
                 </div>
-
-                <div
-                  className="text-xs"
-                  style={{
-                    color: "var(--text-muted)",
-                    fontFamily: "var(--font-body)",
-                  }}
-                >
-                  状态：{sub.status} · provider：{sub.provider ?? "unknown"}
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  有效至 {formatDateInTimeZone(subscription.currentPeriodEnd, { includeTime: false, includeYear: true })}
+                  {' · '}{subscription.provider ?? 'unknown'}
                 </div>
               </div>
             ))}
           </div>
         </section>
-      )}
+      ) : null}
     </div>
   );
 }

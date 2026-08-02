@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
 import { createBrandForProject } from '@/lib/brand-helpers';
+import { hasProjectCapacity } from '@/lib/billing/access';
 
 // GET /api/projects — list projects for current workspace
 export async function GET() {
@@ -72,6 +73,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: 'Project with this name already exists in workspace' },
       { status: 409 }
+    );
+  }
+
+  if (!(await hasProjectCapacity(session.user.id, workspaceId))) {
+    return NextResponse.json(
+      { error: '当前订阅的项目额度已用完', code: 'PLAN_LIMIT_REACHED', limit: 'projects' },
+      { status: 403 },
     );
   }
 

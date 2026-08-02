@@ -63,6 +63,7 @@ vi.mock('@/lib/db', () => ({
       findUnique: vi.fn(),
       findMany: vi.fn(),
       upsert: vi.fn(),
+      updateMany: vi.fn(),
     },
     paymentOrder: {
       create: vi.fn(),
@@ -77,6 +78,7 @@ vi.mock('@/lib/db', () => ({
     workspaceMember: {
       findFirst: vi.fn(),
       create: vi.fn(),
+      count: vi.fn(),
     },
     workspace: {
       create: vi.fn(),
@@ -87,6 +89,7 @@ vi.mock('@/lib/db', () => ({
       create: vi.fn(),
       findFirst: vi.fn(),
       findUnique: vi.fn(),
+      count: vi.fn(),
     },
     $transaction: vi.fn((fn) => fn()),
   },

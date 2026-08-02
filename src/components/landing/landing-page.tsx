@@ -6,7 +6,6 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   BarChart3,
-  CheckCircle2,
   ChevronRight,
   FileSearch,
   FileText,
@@ -20,6 +19,8 @@ import {
 } from "lucide-react";
 
 import styles from "./landing-page.module.css";
+import { SubscriptionPlans, type SubscriptionPlanView } from "@/components/billing/subscription-plans";
+import type { BillingCycle } from "@/types/billing";
 
 const productModules = [
   {
@@ -136,27 +137,8 @@ const productModules = [
   },
 ];
 
-type BillingCycle = "monthly" | "yearly";
-type PaymentProvider = "wechatpay" | "alipay";
-
-type PricingPlanRecord = {
-  id: string;
-  key: string;
-  module: "visibility" | "content" | "api_access";
-  billingCycle: BillingCycle;
-  name: string;
-  description: string | null;
-  priceCents: number;
-  currency: string;
-  provider: PaymentProvider;
-  checkoutUrl: string | null;
-  isActive: boolean;
-  sortOrder: number;
-  configured?: boolean;
-};
-
 type PricingOverview = {
-  plans: PricingPlanRecord[];
+  plans: SubscriptionPlanView[];
   billingDisabled: boolean;
   providerAvailability?: {
     wechatpay?: boolean;
@@ -164,62 +146,11 @@ type PricingOverview = {
   };
 };
 
-const PRICING_CARDS = [
-  {
-    key: "visibility",
-    title: "可视性分析",
-    eyebrow: "入门方案",
-    description: "先把官网诊断、AI 可见性审计和报告跑通。",
-    features: ["官网诊断", "AI 可见性审计", "审计报告", "竞品对比"],
-    badge: "最快上手",
-    cta: "开通可视性",
-    accent: "var(--color-primary)",
-    module: "visibility" as const,
-    highlight: false,
-  },
-  {
-    key: "content",
-    title: "内容增长",
-    eyebrow: "推荐",
-    description: "持续做内容洞察、创作和排期的主力方案。",
-    features: ["内容洞察", "创作草稿", "内容日历", "优先支持"],
-    badge: "最受欢迎",
-    cta: "开通内容版",
-    accent: "var(--color-ai-accent)",
-    module: "content" as const,
-    highlight: true,
-  },
-  {
-    key: "team",
-    title: "团队定制",
-    eyebrow: "企业版",
-    description: "适合多品牌、多 workspace 和更深度协作。",
-    features: ["全部模块", "专属对接", "自定义集成", "团队权限"],
-    badge: "定制方案",
-    cta: "联系顾问",
-    accent: "var(--color-warning)",
-    module: null,
-    highlight: false,
-  },
-] as const;
-
 function normalizeUrl(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return "";
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
-}
-
-function formatPlanPrice(priceCents: number, currency: string) {
-  if (priceCents <= 0) {
-    return "未定价";
-  }
-
-  const value = priceCents / 100;
-  if (currency.toUpperCase() === "CNY") {
-    return `¥${value.toFixed(2)}`;
-  }
-  return `${currency.toUpperCase()} ${value.toFixed(2)}`;
 }
 
 export function LandingPage() {
@@ -287,8 +218,6 @@ export function LandingPage() {
     return () => observer.disconnect();
   }, []);
 
-  const pricingPlansByKey = new Map((pricingOverview?.plans ?? []).map((plan) => [plan.key, plan]));
-
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalized = normalizeUrl(url);
@@ -319,7 +248,7 @@ export function LandingPage() {
           <a href="#product">核心功能</a>
           <a href="#pricing">订阅方案</a>
           <a href="#questions">常见问题</a>
-          <a href="/blog">知识普及</a>
+          <Link href="/blog">知识普及</Link>
         </nav>
         <div className={styles.navActions}>
           <Link href={loginHref} className={styles.ghostButton}>
@@ -437,99 +366,19 @@ export function LandingPage() {
       </section>
 
       <section id="pricing" className={styles.pricingBand}>
-        <div className={styles.pricingInner}>
-          <div className={styles.pricingHero}>
-            <div>
-              <span className={styles.pricingHeroEyebrow}>订阅方案</span>
-              <h2>选择适合当前阶段的增长方案</h2>
-              <p>先用诊断和审计确认机会，再按需扩展到内容生产、排期和团队协作。微信支付与支付宝会根据可用配置自动启用。</p>
-            </div>
-            <div className={styles.pricingHeroTrust}>
-              <span>微信支付</span>
-              <span>支付宝</span>
-              <span>按月试用</span>
-              <span>按年放大</span>
-            </div>
-          </div>
-        </div>
-
         <div className={styles.pricingMatrix}>
-          <div className={styles.pricingControls} role="tablist" aria-label="订阅周期切换">
-            <button
-              type="button"
-              className={billingCycle === "monthly" ? styles.pricingToggleActive : styles.pricingToggle}
-              aria-pressed={billingCycle === "monthly"}
-              onClick={() => setBillingCycle("monthly")}
-            >
-              月付
-            </button>
-            <button
-              type="button"
-              className={billingCycle === "yearly" ? styles.pricingToggleActive : styles.pricingToggle}
-              aria-pressed={billingCycle === "yearly"}
-              onClick={() => setBillingCycle("yearly")}
-            >
-              年付
-            </button>
-          </div>
-
-          <div className={styles.pricingGrid}>
-            {PRICING_CARDS.map((card) => {
-              const planKey = card.module ? `${card.module}-${billingCycle}` : null;
-              const plan = planKey ? pricingPlansByKey.get(planKey) : null;
-              const priceLabel = plan ? formatPlanPrice(plan.priceCents, plan.currency) : "联系销售";
-              const cycleLabel = plan ? (billingCycle === "monthly" ? "/月" : "/年") : "";
-              const ctaHref = card.module
-                ? `${registerHref}&planKey=${encodeURIComponent(plan?.key ?? planKey ?? "")}`
-                : "/support";
-
-              return (
-                <article
-                  key={card.key}
-                  className={card.highlight ? styles.pricingCardFeatured : styles.pricingCard}
-                >
-                  <div className={styles.pricingCardTop}>
-                    <div>
-                      <span className={styles.pricingEyebrow}>{card.eyebrow}</span>
-                      <h3>{card.title}</h3>
-                      <p>{card.description}</p>
-                    </div>
-                    <span className={styles.pricingBadge} style={{ color: card.accent }}>
-                      {card.badge}
-                    </span>
-                  </div>
-
-                  <div className={styles.pricingPriceRow}>
-                    <div className={styles.pricingPrice}>{priceLabel}</div>
-                    <div className={styles.pricingCycle}>{cycleLabel || " / 定制"}</div>
-                  </div>
-
-                  <ul className={styles.pricingFeatures}>
-                    {card.features.map((feature) => (
-                      <li key={feature}>
-                        <CheckCircle2 size={16} />
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <Link
-                    href={ctaHref}
-                    className={card.highlight ? styles.pricingCtaPrimary : styles.pricingCta}
-                  >
-                    {card.cta}
-                    <ArrowRight size={16} />
-                  </Link>
-                </article>
-              );
-            })}
-          </div>
+          <SubscriptionPlans
+            plans={pricingOverview?.plans ?? []}
+            billingCycle={billingCycle}
+            onBillingCycleChange={setBillingCycle}
+            billingDisabled={pricingOverview?.billingDisabled}
+            getPlanHref={(planKey) => `${registerHref}&planKey=${encodeURIComponent(planKey)}`}
+          />
         </div>
-
         <div className={styles.pricingNote}>
           {pricingOverview?.billingDisabled
             ? "当前处于订阅关闭模式，页面仅展示方案结构。"
-            : "开通后可直接进入对应模块，支付方式会根据可用配置自动选择。"}
+            : "登录后可选择微信支付或支付宝；未完成价格或收款配置的方案会保持不可点击。"}
         </div>
       </section>
 
@@ -618,13 +467,10 @@ function ProductShot({
   const [mediaError, setMediaError] = useState(false);
 
   useEffect(() => {
-    setMediaError(false);
-  }, [active.video]);
-
-  useEffect(() => {
     if (mediaError) return;
     const video = videoRef.current;
     if (!video) return;
+    const videoElement = video;
 
     function isFullyVisible(element: HTMLElement) {
       const rect = element.getBoundingClientRect();
@@ -635,12 +481,12 @@ function ProductShot({
     }
 
     function syncPlayback() {
-      if (isFullyVisible(video)) {
-        void video.play().catch(() => {
+      if (isFullyVisible(videoElement)) {
+        void videoElement.play().catch(() => {
           // Keep the poster visible if the browser blocks autoplay.
         });
       } else {
-        video.pause();
+        videoElement.pause();
       }
     }
 
@@ -649,7 +495,7 @@ function ProductShot({
       threshold: [0, 0.5, 0.9, 1],
     });
 
-    observer.observe(video);
+    observer.observe(videoElement);
     syncPlayback();
     const intervalId = window.setInterval(syncPlayback, 250);
     window.addEventListener("scroll", syncPlayback, { passive: true });

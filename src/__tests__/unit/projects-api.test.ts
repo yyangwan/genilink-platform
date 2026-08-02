@@ -35,6 +35,8 @@ describe('POST /api/projects', () => {
       workspaceId: 'ws-1',
     });
     (prisma.project.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (prisma.project.count as ReturnType<typeof vi.fn>).mockResolvedValue(0);
+    (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     (prisma.project.create as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: 'proj-1',
       name: 'Alpha',
@@ -78,5 +80,16 @@ describe('POST /api/projects', () => {
       },
     });
     expect(createBrandForProject).toHaveBeenCalledWith('Alpha Brand', 'proj-1', 'ws-1');
+  });
+
+  it('blocks project creation after the current tier reaches its project limit', async () => {
+    (prisma.project.count as ReturnType<typeof vi.fn>).mockResolvedValue(1);
+
+    const res = await POST(mockRequest({ name: 'Beta' }) as any);
+    const data = await res.json();
+
+    expect(res.status).toBe(403);
+    expect(data).toMatchObject({ code: 'PLAN_LIMIT_REACHED', limit: 'projects' });
+    expect(prisma.project.create).not.toHaveBeenCalled();
   });
 });

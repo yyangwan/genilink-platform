@@ -8,8 +8,8 @@ vi.mock('@/lib/auth/config', () => ({
 vi.mock('@/lib/billing/catalog', () => ({
   BILLING_PLAN_SEEDS: [
     {
-      key: 'visibility-monthly',
-      module: 'visibility',
+      key: 'suite-lite-monthly',
+      module: 'suite',
       billingCycle: 'monthly',
       name: 'Visibility Monthly',
       description: 'Configured test plan',
@@ -21,8 +21,8 @@ vi.mock('@/lib/billing/catalog', () => ({
       sortOrder: 10,
     },
     {
-      key: 'content-monthly',
-      module: 'content',
+      key: 'suite-pro-monthly',
+      module: 'suite',
       billingCycle: 'monthly',
       name: 'Content Monthly',
       description: 'Unpriced test plan',
@@ -60,11 +60,13 @@ describe('GET /api/billing/plans', () => {
     });
     expect(body.plans).toEqual([
       expect.objectContaining({
-        key: 'visibility-monthly',
+        key: 'suite-lite-monthly',
+        tier: 'lite',
         configured: true,
       }),
       expect.objectContaining({
-        key: 'content-monthly',
+        key: 'suite-pro-monthly',
+        tier: 'pro',
         configured: false,
       }),
     ]);

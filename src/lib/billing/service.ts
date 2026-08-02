@@ -1,11 +1,16 @@
 import { prisma } from '@/lib/db';
 import { BILLING_PLAN_SEEDS } from '@/lib/billing/catalog';
+import { getTierFromPlanKey } from '@/lib/billing/tiers';
 import { isPaymentProviderConfigured, type PaymentProvider } from '@/lib/billing/gateways';
 
 export async function syncBillingPlans() {
   try {
-    await Promise.all(
-      BILLING_PLAN_SEEDS.map((seed) =>
+    await Promise.all([
+      prisma.billingPlan.updateMany({
+        where: { module: { not: 'suite' }, isActive: true },
+        data: { isActive: false },
+      }),
+      ...BILLING_PLAN_SEEDS.map((seed) =>
         prisma.billingPlan.upsert({
           where: { key: seed.key },
           create: {
@@ -35,13 +40,13 @@ export async function syncBillingPlans() {
           },
         }),
       ),
-    );
+    ]);
   } catch (error) {
     console.warn('Billing plan sync skipped', error);
   }
 }
 
-export async function listBillingOverview(userId: string, workspaceId: string) {
+export async function listBillingOverview(_userId: string, workspaceId: string) {
   await syncBillingPlans();
 
   const [plans, subscriptions] = await Promise.all([
@@ -51,7 +56,6 @@ export async function listBillingOverview(userId: string, workspaceId: string) {
     }),
     prisma.subscription.findMany({
       where: {
-        userId,
         workspaceId,
       },
       select: {
@@ -77,6 +81,7 @@ export async function listBillingOverview(userId: string, workspaceId: string) {
   return {
     plans: plans.map((plan) => ({
       ...plan,
+      tier: getTierFromPlanKey(plan.key),
       configured: plan.priceCents > 0 && isPaymentProviderConfigured(plan.provider as PaymentProvider),
     })),
     subscriptions,

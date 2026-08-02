@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/db';
+import { getWorkspaceBillingAccess } from '@/lib/billing/access';
 import type { ModuleType } from '@/types/billing';
 
 export class BillingError extends Error {
@@ -26,17 +26,8 @@ export async function requireBilling(
 ): Promise<void> {
   if (process.env.NODE_ENV === 'development' || process.env.BILLING_DISABLED === 'true') return;
 
-  const sub = await prisma.subscription.findUnique({
-    where: {
-      userId_workspaceId_module: {
-        userId,
-        workspaceId,
-        module,
-      },
-    },
-  });
-
-  if (!sub || !isEntitledSubscriptionStatus(sub.status)) {
+  const access = await getWorkspaceBillingAccess(userId, workspaceId);
+  if (!access.modules.includes(module)) {
     throw new BillingError(module);
   }
 }

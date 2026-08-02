@@ -1,4 +1,6 @@
 export type ModuleType = 'visibility' | 'content' | 'api_access';
+export type BillingProductType = 'suite';
+export type SubscriptionTier = 'lite' | 'pro' | 'max';
 export type SubscriptionStatus = 'active' | 'inactive' | 'trialing' | 'past_due' | 'canceled';
 export type BillingCycle = 'monthly' | 'yearly';
 export type BillingProvider = 'wechatpay' | 'alipay';
@@ -9,7 +11,8 @@ export interface Subscription {
   id: string;
   userId: string;
   workspaceId: string;
-  module: ModuleType;
+  module: BillingProductType;
+  tier?: SubscriptionTier | null;
   status: SubscriptionStatus;
   billingCycle: BillingCycle;
   currentPeriodStart: string;
@@ -25,7 +28,8 @@ export interface Subscription {
 export interface BillingPlan {
   id: string;
   key: string;
-  module: ModuleType;
+  module: BillingProductType;
+  tier?: SubscriptionTier | null;
   billingCycle: BillingCycle;
   name: string;
   description?: string | null;
@@ -43,7 +47,7 @@ export interface PaymentOrder {
   userId: string;
   workspaceId: string;
   billingPlanId: string;
-  module: ModuleType;
+  module: BillingProductType;
   billingCycle: BillingCycle;
   provider: BillingProvider;
   providerSessionId?: string | null;

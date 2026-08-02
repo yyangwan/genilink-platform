@@ -275,7 +275,7 @@ export async function createWechatNativeCheckout(params: {
 function sortObjectEntries(value: Record<string, string | number | boolean | undefined | null>): [string, string][] {
   return Object.entries(value)
     .filter(([, raw]) => raw !== undefined && raw !== null && raw !== '')
-    .map(([key, raw]) => [key, String(raw)])
+    .map(([key, raw]): [string, string] => [key, String(raw)])
     .sort(([a], [b]) => a.localeCompare(b));
 }
 

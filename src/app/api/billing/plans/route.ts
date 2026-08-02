@@ -5,6 +5,7 @@ import { BILLING_PLAN_SEEDS } from '@/lib/billing/catalog';
 import { isPaymentProviderConfigured } from '@/lib/billing/gateways';
 import { syncBillingPlans } from '@/lib/billing/service';
 import { prisma } from '@/lib/db';
+import { getTierFromPlanKey } from '@/lib/billing/tiers';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,10 +23,11 @@ export async function GET() {
       workspaceId: null,
       billingDisabled: process.env.BILLING_DISABLED === 'true',
       providerAvailability,
-      plans: BILLING_PLAN_SEEDS.map((seed) => ({
+      plans: BILLING_PLAN_SEEDS.filter((seed) => seed.isActive).map((seed) => ({
         id: seed.key,
         key: seed.key,
         module: seed.module,
+        tier: getTierFromPlanKey(seed.key),
         billingCycle: seed.billingCycle,
         name: seed.name,
         description: seed.description,
@@ -52,6 +54,7 @@ export async function GET() {
 
   const serializePlans = plans.map((plan) => ({
     ...plan,
+    tier: getTierFromPlanKey(plan.key),
     configured: plan.priceCents > 0 && hasConfiguredProvider,
     createdAt: plan.createdAt.toISOString(),
     updatedAt: plan.updatedAt.toISOString(),
@@ -70,7 +73,6 @@ export async function GET() {
 
   const subscriptions = await prisma.subscription.findMany({
     where: {
-      userId: session.user.id,
       workspaceId,
     },
     select: {
@@ -86,6 +88,7 @@ export async function GET() {
       providerCustomerId: true,
       providerSubscriptionId: true,
       billingPlanId: true,
+      billingPlan: { select: { key: true } },
       paymentOrderId: true,
       updatedAt: true,
     },
@@ -99,6 +102,7 @@ export async function GET() {
     plans: serializePlans,
     subscriptions: subscriptions.map((subscription) => ({
       ...subscription,
+      tier: getTierFromPlanKey(subscription.billingPlan?.key),
       createdAt: subscription.createdAt.toISOString(),
       currentPeriodStart: subscription.currentPeriodStart.toISOString(),
       currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
