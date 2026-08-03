@@ -586,12 +586,15 @@ function Submit-Prompt {
 
     switch ($Platform) {
         "deepseek" {
-            Click-Point -SessionId $SessionId -X 550 -Y 2100
+            # DeepSeek's Compose input can leave UiAutomator2 blocked forever
+            # while resolving android.widget.EditText. Use ADB for the input
+            # path so a stuck lookup cannot poison the next app session.
+            & adb -s $script:deviceSerial shell input tap 550 2100 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "ADB failed to focus the DeepSeek prompt input"
+            }
             Start-Sleep -Seconds 1
-            $input = Find-Element `
-                -SessionId $SessionId `
-                -Using "class name" `
-                -Value "android.widget.EditText"
+            $input = "adb"
         }
         "yuanbao" {
             $input = "adb"
@@ -614,20 +617,21 @@ function Submit-Prompt {
         }
     }
 
-    # Yuanbao's Compose-backed input can hang UiAutomator2 on clear. A newly
-    # created conversation is already empty, so only clear the other apps.
-    if ($Platform -ne "yuanbao") {
+    # Compose-backed inputs can hang UiAutomator2 on clear. A newly created
+    # conversation is already empty, so ADB-backed inputs do not need clearing.
+    if ($input -ne "adb") {
         Invoke-AppiumRequest `
             -Method Post `
             -Path "/session/$SessionId/element/$input/clear" `
             -Body @{} | Out-Null
     }
-    if ($Platform -eq "yuanbao") {
-        # Yuanbao's input sits near the bottom of this 1152x2376 device. ADB
-        # touch avoids a UiAutomator2 deadlock inside the Compose input view.
-        & adb -s $script:deviceSerial shell input tap 300 2100 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "ADB failed to focus the Yuanbao prompt input"
+    if ($input -eq "adb") {
+        if ($Platform -eq "yuanbao") {
+            # Yuanbao's input sits near the bottom of this 1152x2376 device.
+            & adb -s $script:deviceSerial shell input tap 300 2100 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "ADB failed to focus the Yuanbao prompt input"
+            }
         }
         Start-Sleep -Milliseconds 500
         $previousIme = (
@@ -659,10 +663,12 @@ function Submit-Prompt {
     }
     Start-Sleep -Seconds 1
 
-    if ($Platform -eq "yuanbao") {
-        # Restore the full-height layout before tapping the send control.
+    if ($input -eq "adb") {
+        # Restore the full-height layout before locating the send control.
         & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
         Start-Sleep -Milliseconds 500
+    }
+    if ($Platform -eq "yuanbao") {
         & adb -s $script:deviceSerial shell input tap 1025 2102 | Out-Null
         if ($LASTEXITCODE -ne 0) {
             throw "ADB failed to tap the Yuanbao send button"
@@ -1266,7 +1272,7 @@ function Get-PanelSources {
         [Parameter(Mandatory)][int]$ReferenceCount
     )
 
-    if ($Platform -eq "qwen" -and $ReferenceCount -lt 1) {
+    if ($ReferenceCount -lt 1 -and $Platform -in @("qwen", "yuanbao")) {
         return @()
     }
     if ($Platform -eq "yuanbao") {
