@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useState, useCallback } from "react";
+import React, { Suspense, useState, useCallback, useMemo } from "react";
 import { Plus, Pencil, Trash2, X, Check, Loader2, Sparkles, MessageSquare } from "lucide-react";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { useProject } from "@/components/project/project-context";
@@ -9,19 +9,31 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  DEFAULT_PROMPT_CATEGORY,
+  PROMPT_CATEGORY_LABELS,
+  PROMPT_CATEGORY_OPTIONS,
+  type PromptCategory,
+} from "@/lib/prompts/prompt-options";
 
 interface Prompt {
   id: string | number;
   text: string;
-  platform: string;
-  category: string;
+  category: PromptCategory;
 }
 
 interface PromptFormData {
   text: string;
-  platform: string;
-  category: string;
+  category: PromptCategory;
 }
+
+interface PlatformInfo {
+  key: string;
+  label: string;
+  configured: boolean;
+}
+
+const EMPTY_FORM: PromptFormData = { text: "", category: DEFAULT_PROMPT_CATEGORY };
 
 function PromptsContent() {
   const { currentProjectId, projects, loading, openWizard } = useProject();
@@ -31,15 +43,17 @@ function PromptsContent() {
     : null;
 
   const prompts = useSectionFetch<Prompt[]>(promptsUrl, { notFoundValue: [] });
+  const platforms = useSectionFetch<PlatformInfo[]>("/api/integration/platforms", { notFoundValue: [] });
 
   // Inline form state
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState<PromptFormData>({ text: "", platform: "", category: "" });
+  const [form, setForm] = useState<PromptFormData>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   // Inline edit state
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<PromptFormData>({ text: "", platform: "", category: "" });
+  const [editForm, setEditForm] = useState<PromptFormData>(EMPTY_FORM);
 
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<Prompt | null>(null);
@@ -52,24 +66,26 @@ function PromptsContent() {
   const handleAdd = useCallback(async () => {
     if (!currentProjectId || !form.text.trim()) return;
     setSaving(true);
+    setSaveError("");
     try {
       const res = await fetch(`/api/integration/prompts?projectId=${currentProjectId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: form.text.trim(),
-          platform: form.platform.trim(),
-          category: form.category.trim(),
+          category: form.category,
         }),
       });
-      if (res.ok) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        await refetch();
-        setAdding(false);
-        setForm({ text: "", platform: "", category: "" });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        const detail = payload?.detail?.detail ?? payload?.detail ?? payload?.error;
+        throw new Error(typeof detail === "string" ? detail : "添加失败，请稍后重试");
       }
-    } catch {
-      // silent
+      await refetch();
+      setAdding(false);
+      setForm(EMPTY_FORM);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "添加失败，请稍后重试");
     } finally {
       setSaving(false);
     }
@@ -78,23 +94,25 @@ function PromptsContent() {
   const handleEdit = useCallback(async () => {
     if (!currentProjectId || !editingId || !editForm.text.trim()) return;
     setSaving(true);
+    setSaveError("");
     try {
       const res = await fetch(`/api/integration/prompts/${editingId}?projectId=${currentProjectId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: editForm.text.trim(),
-          platform: editForm.platform.trim(),
-          category: editForm.category.trim(),
+          category: editForm.category,
         }),
       });
-      if (res.ok) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        await refetch();
-        setEditingId(null);
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        const detail = payload?.detail?.detail ?? payload?.detail ?? payload?.error;
+        throw new Error(typeof detail === "string" ? detail : "保存失败，请稍后重试");
       }
-    } catch {
-      // silent
+      await refetch();
+      setEditingId(null);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "保存失败，请稍后重试");
     } finally {
       setSaving(false);
     }
@@ -148,10 +166,16 @@ function PromptsContent() {
 
   const startEdit = (prompt: Prompt) => {
     setEditingId(String(prompt.id));
-    setEditForm({ text: prompt.text, platform: prompt.platform || "", category: prompt.category || "" });
+    setSaveError("");
+    setEditForm({ text: prompt.text, category: prompt.category || DEFAULT_PROMPT_CATEGORY });
   };
 
   const data = prompts.data ?? [];
+  const activePlatformLabels = useMemo(() => {
+    const items = platforms.data ?? [];
+    const configured = items.filter((platform) => platform.configured);
+    return (configured.length > 0 ? configured : items).map((platform) => platform.label);
+  }, [platforms.data]);
 
   const columns = [
     {
@@ -177,41 +201,30 @@ function PromptsContent() {
         ),
     },
     {
-      key: "platform",
-      header: "平台",
-      width: "15%",
-      render: (row: Prompt) =>
-        editingId === String(row.id) ? (
-          <input
-            value={editForm.platform}
-            onChange={(e) => setEditForm((f) => ({ ...f, platform: e.target.value }))}
-            placeholder="平台"
-            className="dashboard-input px-2 py-1 text-sm"
-          />
-        ) : (
-          <span style={{ color: "var(--text-secondary)" }}>{row.platform || "—"}</span>
-        ),
-    },
-    {
       key: "category",
       header: "分类",
-      width: "15%",
+      width: "25%",
       render: (row: Prompt) =>
         editingId === String(row.id) ? (
-          <input
+          <select
             value={editForm.category}
-            onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value }))}
-            placeholder="分类"
+            onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value as PromptCategory }))}
             className="dashboard-input px-2 py-1 text-sm"
-          />
+          >
+            {PROMPT_CATEGORY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
         ) : (
-          <span style={{ color: "var(--text-secondary)" }}>{row.category || "—"}</span>
+          <span style={{ color: "var(--text-secondary)" }}>
+            {PROMPT_CATEGORY_LABELS[row.category] ?? row.category ?? "—"}
+          </span>
         ),
     },
     {
       key: "actions",
       header: "操作",
-      width: "25%",
+      width: "30%",
       render: (row: Prompt) =>
         editingId === String(row.id) ? (
           <div className="flex items-center gap-1">
@@ -224,7 +237,10 @@ function PromptsContent() {
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             </button>
             <button
-              onClick={() => setEditingId(null)}
+              onClick={() => {
+                setEditingId(null);
+                setSaveError("");
+              }}
               className="p-1 rounded transition-colors"
               style={{ color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer" }}
             >
@@ -297,7 +313,8 @@ function PromptsContent() {
               <button
                 onClick={() => {
                   setAdding(true);
-                  setForm({ text: "", platform: "", category: "" });
+                  setSaveError("");
+                  setForm(EMPTY_FORM);
                 }}
                 className="dashboard-button dashboard-button--primary"
               >
@@ -345,27 +362,39 @@ function PromptsContent() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="dashboard-field-label">
-                  平台
+                  应用平台
                 </label>
-                <input
-                  value={form.platform}
-                  onChange={(e) => setForm((f) => ({ ...f, platform: e.target.value }))}
-                  placeholder="例如 ChatGPT、Perplexity"
-                  className="dashboard-input px-3 py-2 text-sm"
-                />
+                <div className="dashboard-input px-3 py-2 text-sm" style={{ color: "var(--text-secondary)", minHeight: 38 }}>
+                  所有审计平台
+                </div>
+                <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                  提示词不绑定单个平台；发起审计时，会应用到当次选择的平台
+                  {activePlatformLabels.length > 0 ? `（${activePlatformLabels.join("、")}）` : ""}。
+                </p>
               </div>
               <div>
                 <label className="dashboard-field-label">
-                  分类
+                  意图分类
                 </label>
-                <input
+                <select
                   value={form.category}
-                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                  placeholder="例如 品牌查询、产品对比"
+                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as PromptCategory }))}
                   className="dashboard-input px-3 py-2 text-sm"
-                />
+                >
+                  {PROMPT_CATEGORY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                  用于区分用户提问意图，并检查提示词覆盖是否均衡。
+                </p>
               </div>
             </div>
+            {saveError && (
+              <div role="alert" className="rounded-md px-3 py-2 text-sm" style={{ color: "var(--color-error)", background: "color-mix(in srgb, var(--color-error) 10%, transparent)" }}>
+                {saveError}
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <button
                 onClick={handleAdd}
@@ -376,13 +405,22 @@ function PromptsContent() {
                 保存
               </button>
               <button
-                onClick={() => setAdding(false)}
+                onClick={() => {
+                  setAdding(false);
+                  setSaveError("");
+                }}
                 className="dashboard-button dashboard-button--secondary"
               >
                 取消
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {!adding && saveError && (
+        <div role="alert" className="rounded-md px-3 py-2 text-sm" style={{ color: "var(--color-error)", background: "color-mix(in srgb, var(--color-error) 10%, transparent)" }}>
+          {saveError}
         </div>
       )}
 
@@ -406,7 +444,8 @@ function PromptsContent() {
               actionLabel="添加提示词"
               onAction={() => {
                 setAdding(true);
-                setForm({ text: "", platform: "", category: "" });
+                setSaveError("");
+                setForm(EMPTY_FORM);
               }}
             />
           }

@@ -59,6 +59,7 @@ describe('GET /api/integration/prompts', () => {
         projectId: 'project-1',
         text: 'test prompt',
         category: 'recommend',
+        platform: 'ChatGPT',
       }),
       headers: { 'Content-Type': 'application/json' },
     });
@@ -75,8 +76,41 @@ describe('GET /api/integration/prompts', () => {
           text: 'test prompt',
           category: 'recommend',
           project_id: 'project-1',
+          is_auto_generated: false,
         },
       }),
     );
+  });
+
+  it('uses the supported default category for a manual prompt', async () => {
+    vi.mocked(fetchUpstream).mockResolvedValue({ data: [] });
+    const req = new NextRequest('http://localhost/api/integration/prompts?projectId=project-1', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'manual prompt' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    await POST(req);
+
+    expect(fetchUpstream).toHaveBeenCalledWith(
+      expect.any(Object),
+      '/api/prompts?project_id=project-1',
+      expect.objectContaining({
+        body: expect.objectContaining({ category: 'recommend', is_auto_generated: false }),
+      }),
+    );
+  });
+
+  it('rejects unsupported prompt categories before calling upstream', async () => {
+    const req = new NextRequest('http://localhost/api/integration/prompts?projectId=project-1', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'manual prompt', category: 'brand' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(400);
+    expect(fetchUpstream).not.toHaveBeenCalled();
   });
 });

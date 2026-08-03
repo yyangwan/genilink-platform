@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
+import { DEFAULT_PROMPT_CATEGORY, isPromptCategory } from '@/lib/prompts/prompt-options';
 
 type PromptRecord = Record<string, unknown> & {
   id?: string | number;
@@ -37,13 +38,25 @@ export async function POST(req: NextRequest) {
   const result = await resolveGuard(req);
   if (!result.ok) return result.response;
 
-  // Body was parsed by resolveGuard to get projectId — re-read remaining fields
   const body = await req.json().catch(() => ({}));
-  const { projectId: _pid, ...rest } = body;
+  const text = typeof body.text === 'string' ? body.text.trim() : '';
+  if (!text) {
+    return NextResponse.json({ error: 'Prompt text is required' }, { status: 400 });
+  }
+
+  const category = body.category || DEFAULT_PROMPT_CATEGORY;
+  if (!isPromptCategory(category)) {
+    return NextResponse.json({ error: 'Invalid prompt category' }, { status: 400 });
+  }
 
   const upstream = await fetchUpstream(result.ctx, `/api/prompts?project_id=${result.ctx.projectId}`, {
     method: 'POST',
-    body: { ...rest, project_id: result.ctx.projectId },
+    body: {
+      project_id: result.ctx.projectId,
+      text,
+      category,
+      is_auto_generated: false,
+    },
     timeoutMs: 30_000,
     errorMessage: 'Failed to create prompt',
   });
