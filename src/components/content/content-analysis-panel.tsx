@@ -144,6 +144,20 @@ export function buildContentAnalysisUrl(
   return `/api/content/${contentPieceId}/${endpoint}?${search.toString()}`;
 }
 
+async function requestLocalAnalysis(
+  contentPieceId: string,
+  projectId: string,
+  platform: string,
+  signal?: AbortSignal,
+) {
+  const res = await fetch(buildContentAnalysisUrl(contentPieceId, "quality/local", projectId, { platform }), { signal });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(json?.error || "加载质量分析失败");
+  }
+  return (json?.data ?? json) as LocalQualityAnalysis;
+}
+
 export function ContentAnalysisPanel({
   contentPieceId,
   projectId,
@@ -155,7 +169,7 @@ export function ContentAnalysisPanel({
   const [activeTab, setActiveTab] = useState<TabType>("quality");
   const [keyword, setKeyword] = useState("");
   const [localAnalysis, setLocalAnalysis] = useState<LocalQualityAnalysis | null>(null);
-  const [localLoading, setLocalLoading] = useState(false);
+  const [localLoading, setLocalLoading] = useState(Boolean(projectId));
   const [aiQuality, setAiQuality] = useState<AIQualityAnalysis | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [qualityLoading, setQualityLoading] = useState(false);
@@ -163,14 +177,6 @@ export function ContentAnalysisPanel({
   const [qualityOptimization, setQualityOptimization] = useState<OptimizationResult | null>(null);
   const [seoOptimization, setSeoOptimization] = useState<OptimizationResult | null>(null);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-
-  useEffect(() => {
-    setLocalAnalysis(null);
-    setAiQuality(null);
-    setQualityOptimization(null);
-    setSeoOptimization(null);
-    setFeedback(null);
-  }, [contentPieceId, platform, projectId]);
 
   const seoAnalysis = useMemo(() => analyzeSeoContent(content, keyword), [content, keyword]);
   const combinedQualityScore = aiQuality?.score ?? aiQuality?.qualityScore ?? aiQuality?.quality ?? localAnalysis?.overallScore ?? null;
@@ -185,17 +191,36 @@ export function ContentAnalysisPanel({
     }
     setLocalLoading(true);
     try {
-      const res = await fetch(buildContentAnalysisUrl(contentPieceId, "quality/local", projectId, { platform }));
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(json?.error || "加载质量分析失败");
-      }
-      setLocalAnalysis((json?.data ?? json) as LocalQualityAnalysis);
+      setLocalAnalysis(await requestLocalAnalysis(contentPieceId, projectId, platform));
     } catch (error) {
       setFeedback({ tone: "error", text: error instanceof Error ? error.message : "加载质量分析失败" });
     } finally {
       setLocalLoading(false);
     }
+  }, [contentPieceId, platform, projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+
+    const selectedProjectId = projectId;
+    const controller = new AbortController();
+    async function loadInitialAnalysis() {
+      try {
+        const analysis = await requestLocalAnalysis(contentPieceId, selectedProjectId, platform, controller.signal);
+        setLocalAnalysis(analysis);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setFeedback({ tone: "error", text: error instanceof Error ? error.message : "加载质量分析失败" });
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLocalLoading(false);
+        }
+      }
+    }
+
+    void loadInitialAnalysis();
+    return () => controller.abort();
   }, [contentPieceId, platform, projectId]);
 
   const loadAiQuality = useCallback(async () => {
@@ -315,12 +340,6 @@ export function ContentAnalysisPanel({
       setFeedback({ tone: "success", text: "SEO 优化结果已应用到编辑器" });
     }
   }, [onContentUpdate, seoOptimization]);
-
-  useEffect(() => {
-    if (isOpen && !localAnalysis && !localLoading) {
-      void loadLocalAnalysis();
-    }
-  }, [isOpen, localAnalysis, localLoading, loadLocalAnalysis]);
 
   return (
     <section className={cx(styles.panel, "overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm ring-1 ring-black/5")}>

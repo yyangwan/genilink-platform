@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { ContentAnalysisPanel } from "@/components/content/content-analysis-panel";
 
 afterEach(() => {
@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 describe("ContentAnalysisPanel", () => {
-  it("renders without referencing derived values before initialization", () => {
+  it("renders and automatically requests local analysis for the active identity", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(
       () => new Promise<Response>(() => {}),
     );
@@ -24,5 +24,11 @@ describe("ContentAnalysisPanel", () => {
     );
 
     expect(screen.getByText("内容分析")).toBeTruthy();
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/content/content-1/quality/local?projectId=project-1&platform=xiaohongshu",
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+    });
   });
 });

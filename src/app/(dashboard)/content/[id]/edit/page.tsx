@@ -91,13 +91,6 @@ function EditContentInner({ id }: { id: string }) {
   useEffect(() => {
     if (!id) return;
     if (!canLoadEditContent(projectLoading, currentProjectId)) {
-      if (!projectLoading) {
-        const projectError = getEditContentProjectError(projectLoading, currentProjectId);
-        if (projectError) {
-          setError(projectError);
-          setLoading(false);
-        }
-      }
       return;
     }
 
@@ -312,8 +305,10 @@ function EditContentInner({ id }: { id: string }) {
   }, [id, currentProjectId]);
 
   const statusCfg = STATUS_CONFIG[contentStatus] ?? STATUS_CONFIG.draft;
+  const projectError = getEditContentProjectError(projectLoading, currentProjectId);
+  const displayError = projectError ?? (error && !title ? error : null);
 
-  if (loading) {
+  if (loading && !displayError) {
     return (
       <div className="space-y-4 max-w-4xl">
         <div className="h-10 w-48 rounded animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
@@ -322,7 +317,7 @@ function EditContentInner({ id }: { id: string }) {
     );
   }
 
-  if (error && !title) {
+  if (displayError) {
     return (
       <div className="space-y-4 max-w-4xl">
         <div className="flex items-center gap-3">
@@ -334,7 +329,7 @@ function EditContentInner({ id }: { id: string }) {
             <ArrowLeft size={16} />
           </Link>
           <h1 className="text-xl font-semibold" style={{ color: "var(--color-error)", fontFamily: "var(--font-display)" }}>
-            {error}
+            {displayError}
           </h1>
         </div>
       </div>
@@ -455,6 +450,7 @@ function EditContentInner({ id }: { id: string }) {
       />
 
       <ContentAnalysisPanel
+        key={`${id}:${currentProjectId}:${activePlatform}`}
         contentPieceId={id}
         projectId={currentProjectId}
         content={content}
