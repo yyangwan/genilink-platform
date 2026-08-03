@@ -668,10 +668,10 @@ function Submit-Prompt {
         & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
         Start-Sleep -Milliseconds 500
     }
-    if ($Platform -eq "yuanbao") {
+    if ($Platform -in @("deepseek", "yuanbao")) {
         & adb -s $script:deviceSerial shell input tap 1025 2102 | Out-Null
         if ($LASTEXITCODE -ne 0) {
-            throw "ADB failed to tap the Yuanbao send button"
+            throw "ADB failed to tap the $Platform send button"
         }
         return
     }
@@ -1539,9 +1539,9 @@ try {
     Submit-Prompt -SessionId $sessionId -Prompt $prompt
     Write-GatewayTrace "prompt submitted"
     $sentAt = Get-Date
-    if ($Platform -eq "yuanbao") {
-        # Native hierarchy dumps are reliable after Yuanbao's streaming
-        # animations settle; no Appium instrumentation is active for this app.
+    if ($Platform -in @("deepseek", "yuanbao")) {
+        # Compose hierarchy reads are reliable after streaming animations
+        # settle. Reading during input or early generation can block UIA2.
         Start-Sleep -Seconds 20
     }
     $answerInfo = Wait-ForAnswer `
