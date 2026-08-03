@@ -15,7 +15,7 @@ if (VISIBILITY_URL.startsWith('https://') && process.env.NODE_TLS_REJECT_UNAUTHO
       rejectUnauthorized: false,
       minVersion: 'TLSv1.2',
     });
-    // @ts-ignore
+    // @ts-expect-error Node's HTTPS agent is intentionally stored on globalThis for proxied requests.
     globalThis.__httpsAgent = agent;
   })();
 }
