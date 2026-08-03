@@ -94,7 +94,7 @@ export default function UpgradePrompt({ module }: UpgradePromptProps) {
       </ul>
 
       <Link
-        className="inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold transition-colors"
+        className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold transition-colors"
         href={`/settings/billing?tier=${recommendedTier.key}`}
         style={{
           background: "var(--color-primary)",

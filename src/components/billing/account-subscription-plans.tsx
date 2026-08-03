@@ -55,7 +55,7 @@ export function AccountSubscriptionPlans({
               key={cycle}
               type="button"
               aria-pressed={billingCycle === cycle}
-              className="min-w-20 rounded-full px-4 py-2 text-xs font-semibold transition-colors"
+              className="min-w-20 cursor-pointer rounded-full px-4 py-2 text-xs font-semibold transition-colors"
               style={billingCycle === cycle
                 ? { color: '#0b0d14', background: 'var(--color-primary)' }
                 : { color: 'var(--text-secondary)' }}
@@ -140,7 +140,7 @@ export function AccountSubscriptionPlans({
                     <button
                       key={provider}
                       type="button"
-                      className="rounded-lg border px-2 py-2 text-xs font-semibold"
+                      className="cursor-pointer rounded-lg border px-2 py-2 text-xs font-semibold"
                       style={selectedProviders[plan.key] === provider
                         ? { borderColor: 'var(--color-primary)', color: 'var(--text-primary)', background: 'color-mix(in srgb, var(--color-primary) 9%, transparent)' }
                         : { borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
@@ -154,7 +154,7 @@ export function AccountSubscriptionPlans({
 
               <button
                 type="button"
-                className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-5 inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
                 style={tier.recommended && !disabled
                   ? { borderColor: 'var(--color-primary)', color: '#0b0d14', background: 'var(--color-primary)' }
                   : { borderColor: 'var(--border)', color: 'var(--text-primary)' }}

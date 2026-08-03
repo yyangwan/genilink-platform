@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ShieldCheck, Sparkles } from 'lucide-react';
 import { AccountSubscriptionPlans } from '@/components/billing/account-subscription-plans';
 import type { SubscriptionPlanView } from '@/components/billing/subscription-plan-content';
 import { formatDateInTimeZone } from '@/lib/time';
@@ -35,6 +35,7 @@ const MODULE_LABELS: Record<string, string> = {
 };
 
 export default function BillingSettingsPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [overview, setOverview] = useState<BillingOverview | null>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
@@ -91,15 +92,18 @@ export default function BillingSettingsPage() {
   ]), [activeSubscriptions]);
 
   const checkoutState = searchParams.get('checkout');
-  const checkoutOrderId = searchParams.get('orderId');
 
   useEffect(() => {
     if (checkoutState !== 'success' || !overview?.workspaceId || accessSyncAttemptedRef.current) return;
     accessSyncAttemptedRef.current = true;
     fetch('/api/billing/access', { method: 'POST' })
-      .then(() => loadOverview())
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        loadOverview();
+        router.replace('/settings/billing');
+      })
       .catch(() => { accessSyncAttemptedRef.current = false; });
-  }, [checkoutState, overview?.workspaceId, loadOverview]);
+  }, [checkoutState, overview?.workspaceId, loadOverview, router]);
 
   const handleCheckout = async (planKey: string) => {
     setCheckoutPendingKey(planKey);
@@ -144,11 +148,6 @@ export default function BillingSettingsPage() {
         </div>
       </div>
 
-      {checkoutState === 'success' ? (
-        <div className="dashboard-surface flex items-center gap-2 px-4 py-3 text-sm" style={{ color: 'var(--text-primary)' }}>
-          <CheckCircle2 className="h-4 w-4" />支付完成后会自动刷新订阅权益。{checkoutOrderId ? `订单号：${checkoutOrderId}` : ''}
-        </div>
-      ) : null}
       {checkoutState === 'canceled' ? (
         <div className="dashboard-surface flex items-center gap-2 px-4 py-3 text-sm" style={{ color: 'var(--text-primary)' }}>
           <Sparkles className="h-4 w-4" />收款流程已取消。
