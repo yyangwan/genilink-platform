@@ -403,10 +403,19 @@ function ConvertTo-CanonicalSourceUrl {
 function Return-ToDoubaoChat {
     param([Parameter(Mandatory)][string]$SessionId)
 
-    # Copy Link closes the system share sheet and leaves the source detail in
-    # Doubao. One Back returns to the preserved reference panel. Foreground
-    # package detection is racy here because Android briefly reports the share
-    # sheet process after it has visually disappeared.
+    # Some source schemes launch a separate app task. Stopping that task
+    # reveals Doubao's preserved WebActivity; one Back then returns to the
+    # reference panel without relaunching Doubao at its home screen.
+    $foregroundPackage = Get-ForegroundPackage
+    if (
+        $foregroundPackage -and
+        $foregroundPackage -ne $packageName -and
+        $foregroundPackage -notmatch '^com\.huawei\.android\.launcher$'
+    ) {
+        & adb -s $script:deviceSerial shell am force-stop `
+            $foregroundPackage | Out-Null
+        Start-Sleep -Milliseconds 500
+    }
     & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
     Start-Sleep -Seconds 1
     return $false
