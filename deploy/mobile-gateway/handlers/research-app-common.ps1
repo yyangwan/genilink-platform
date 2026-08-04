@@ -1768,6 +1768,14 @@ try {
                 script = "mobile: activateApp"
                 args = @(@{ appId = $packageName })
             } | Out-Null
+        if ($Platform -eq "deepseek") {
+            # DeepSeek may restore its embedded source-browser activity from
+            # the previous task. Rebuild only the activity stack; no app data
+            # or authenticated state is cleared.
+            & adb -s $serial shell am force-stop $packageName | Out-Null
+            & adb -s $serial shell monkey -p $packageName 1 | Out-Null
+            Start-Sleep -Seconds 1
+        }
     }
     Start-Sleep -Seconds 2
 
