@@ -1719,10 +1719,20 @@ try {
         # Native hierarchy dumps conflict with UiAutomator2's accessibility
         # instrumentation on DeepSeek Compose views. Appium is only needed to
         # enter the conversation and is released before capture begins.
-        Invoke-AppiumRequest `
-            -Method Delete `
-            -Path "/session/$sessionId" `
-            -Body $null | Out-Null
+        $deepSeekAppiumSession = $sessionId
+        & adb -s $serial shell am force-stop `
+            io.appium.uiautomator2.server.test | Out-Null
+        & adb -s $serial shell am force-stop `
+            io.appium.uiautomator2.server | Out-Null
+        try {
+            Invoke-AppiumRequest `
+                -Method Delete `
+                -Path "/session/$deepSeekAppiumSession" `
+                -Body $null `
+                -TimeoutSeconds 8 | Out-Null
+        } catch {
+            Write-GatewayTrace "Appium session cleanup skipped: $($_.Exception.Message)"
+        }
         $appiumSessionClosed = $true
         $sessionId = "adb"
         Start-Sleep -Seconds 20
