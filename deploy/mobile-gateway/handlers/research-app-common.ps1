@@ -358,8 +358,7 @@ function Get-ClipboardText {
                 & adb -s $script:deviceSerial shell ime set $previousIme | Out-Null
             }
             if ($Platform -eq "deepseek") {
-                & adb -s $script:deviceSerial shell monkey `
-                    -p $packageName 1 | Out-Null
+                & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
                 Start-Sleep -Milliseconds 400
             }
         }
