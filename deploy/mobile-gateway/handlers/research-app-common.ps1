@@ -259,10 +259,10 @@ function Press-Back {
 function Get-PageSource {
     param([Parameter(Mandatory)][string]$SessionId)
 
-    if ($Platform -eq "yuanbao" -and $script:deviceSerial) {
-        # Appium's source endpoint wedges on Yuanbao's Compose answer view.
+    if ($Platform -in @("deepseek", "yuanbao") -and $script:deviceSerial) {
+        # Appium's source endpoint wedges on Compose answer views.
         # Android's native dumper returns the same accessibility hierarchy.
-        $name = "yuanbao-$PID-$([guid]::NewGuid().ToString('N')).xml"
+        $name = "$Platform-$PID-$([guid]::NewGuid().ToString('N')).xml"
         $devicePath = "/sdcard/$name"
         $localPath = Join-Path $env:TEMP $name
         try {
@@ -1149,11 +1149,19 @@ function Get-DeepSeekSources {
         [Parameter(Mandatory)][int]$ReferenceCount
     )
 
-    $marker = Find-Element `
-        -SessionId $SessionId `
-        -Using "xpath" `
-        -Value "//*[@text='已阅读 $ReferenceCount 个网页']"
-    Click-Element -SessionId $SessionId -ElementId $marker
+    $answerDocument = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+    $markerNode = $answerDocument.SelectSingleNode(
+        "//*[@text='已阅读 $ReferenceCount 个网页']"
+    )
+    $markerBounds = if ($markerNode) { Get-Bounds -Node $markerNode } else { $null }
+    if (-not $markerBounds) {
+        throw "DeepSeek source marker was not found"
+    }
+    & adb -s $script:deviceSerial shell input tap `
+        $markerBounds.center_x $markerBounds.center_y | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "ADB failed to open the DeepSeek source panel"
+    }
     Start-Sleep -Seconds 1
     $collected = @{}
     $stalls = 0
