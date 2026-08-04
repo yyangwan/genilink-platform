@@ -320,6 +320,13 @@ function Get-ClipboardText {
     param([Parameter(Mandatory)][string]$SessionId)
 
     if ($Platform -in @("deepseek", "yuanbao") -and $script:deviceSerial) {
+        if ($Platform -eq "deepseek") {
+            # Appium session cleanup leaves the Settings helper stopped, so
+            # its explicit clipboard receiver otherwise returns result=0.
+            & adb -s $script:deviceSerial shell am start -n `
+                io.appium.settings/.Settings | Out-Null
+            Start-Sleep -Milliseconds 400
+        }
         $previousIme = (
             & adb -s $script:deviceSerial shell settings get secure default_input_method
         ).Trim()
@@ -349,6 +356,11 @@ function Get-ClipboardText {
         } finally {
             if ($previousIme -and $previousIme -ne "null") {
                 & adb -s $script:deviceSerial shell ime set $previousIme | Out-Null
+            }
+            if ($Platform -eq "deepseek") {
+                & adb -s $script:deviceSerial shell monkey `
+                    -p $packageName 1 | Out-Null
+                Start-Sleep -Milliseconds 400
             }
         }
     }
