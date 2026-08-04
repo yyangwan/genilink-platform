@@ -13,6 +13,9 @@ $doubaoRetryMessage = [Text.Encoding]::UTF8.GetString(
         "5Ye65LqG54K56Zeu6aKY77yM6K+356iN5ZCO6YeN6K+V44CC"
     )
 )
+$copyLinkLabel = [Text.Encoding]::UTF8.GetString(
+    [Convert]::FromBase64String("5aSN5Yi26ZO+5o6l")
+)
 $mutex = [Threading.Mutex]::new($false, "Global\MobileGateway-Android-Device")
 
 if (-not $mutex.WaitOne(0)) {
@@ -404,9 +407,13 @@ function Return-ToDoubaoChat {
     # app's onboarding dialog, so explicitly foreground Doubao's preserved
     # chat activity instead of probing the external hierarchy with Appium.
     $foregroundPackage = Get-ForegroundPackage
+    if ($foregroundPackage -eq $packageName) {
+        & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
+        Start-Sleep -Seconds 1
+        return $false
+    }
     if (
         $foregroundPackage -and
-        $foregroundPackage -ne $packageName -and
         $foregroundPackage -notmatch '^com\.huawei\.android\.launcher$'
     ) {
         & adb -s $script:deviceSerial shell am force-stop `
@@ -421,6 +428,32 @@ function Return-ToDoubaoChat {
         throw "ADB failed to return to the Doubao chat"
     }
     Start-Sleep -Seconds 1
+    return $true
+}
+
+function New-DoubaoAppiumSession {
+    param([switch]$ActivateApp)
+
+    $session = Invoke-AppiumRequest `
+        -Method Post `
+        -Path "/session" `
+        -Body $script:appiumCapabilities `
+        -TimeoutSeconds 60
+    $newSessionId = [string]$session.value.sessionId
+    if (-not $newSessionId) {
+        throw "Appium did not return a source-collection session ID"
+    }
+    if ($ActivateApp) {
+        Invoke-AppiumRequest `
+            -Method Post `
+            -Path "/session/$newSessionId/execute/sync" `
+            -Body @{
+                script = "mobile: activateApp"
+                args = @(@{ appId = $packageName })
+            } | Out-Null
+    }
+    Start-Sleep -Seconds 1
+    $newSessionId
 }
 
 function Expand-ReferenceList {
@@ -454,6 +487,7 @@ function Get-DoubaoSources {
     $summary = Get-ReferenceSummary -Source $AnswerSource
     if ($summary.reference_count -le 0) {
         return @{
+            session_id = $SessionId
             search_keyword_count = $summary.search_keyword_count
             reference_count = 0
             sources = @()
@@ -525,16 +559,27 @@ function Get-DoubaoSources {
                     $clipboardMarker = $null
                 }
                 Invoke-ElementClick -SessionId $SessionId -ElementId $shareButton
-                $shareItems = @(Wait-AppiumElements `
-                    -SessionId $SessionId `
-                    -ResourceId "$packageName`:id/tv_app_name" `
-                    -TimeoutSeconds 8)
-                if ($shareItems.Count -eq 0) {
-                    throw "Doubao share sheet does not expose Copy Link"
+                Start-Sleep -Milliseconds 750
+                [xml]$shareDocument = Get-PageSource -SessionId $SessionId
+                $copyLinkNode = @(
+                    $shareDocument.SelectNodes(
+                        "//*[@resource-id='$packageName`:id/tv_app_name']"
+                    ) | Where-Object {
+                        ([string]$_.GetAttribute("text")).Contains($copyLinkLabel)
+                    }
+                ) | Select-Object -First 1
+                if (
+                    -not $copyLinkNode -or
+                    $copyLinkNode.GetAttribute("bounds") -notmatch (
+                        "^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$"
+                    )
+                ) {
+                    throw "Doubao share sheet is visible but Copy Link is missing"
                 }
-                Invoke-ElementClick `
-                    -SessionId $SessionId `
-                    -ElementId $shareItems[0]
+                $copyLinkX = [int](([int]$Matches[1] + [int]$Matches[3]) / 2)
+                $copyLinkY = [int](([int]$Matches[2] + [int]$Matches[4]) / 2)
+                & adb -s $script:deviceSerial shell input tap `
+                    $copyLinkX $copyLinkY | Out-Null
                 Start-Sleep -Milliseconds 500
 
                 $rawUrl = Get-ClipboardText -SessionId $SessionId
@@ -565,7 +610,23 @@ function Get-DoubaoSources {
                 $sourceResult.error_message = $_.Exception.Message
             } finally {
                 try {
-                    Return-ToDoubaoChat -SessionId $SessionId
+                    $requiresNewSession = Return-ToDoubaoChat -SessionId $SessionId
+                    try {
+                        Invoke-AppiumRequest `
+                            -Method Delete `
+                            -Path "/session/$SessionId" `
+                            -Body $null `
+                            -TimeoutSeconds 15 | Out-Null
+                    } catch {
+                        # The share sheet frequently leaves instrumentation wedged.
+                    }
+                    & adb -s $script:deviceSerial shell am force-stop `
+                        io.appium.uiautomator2.server | Out-Null
+                    & adb -s $script:deviceSerial shell am force-stop `
+                        io.appium.uiautomator2.server.test | Out-Null
+                    Start-Sleep -Milliseconds 500
+                    $SessionId = New-DoubaoAppiumSession `
+                        -ActivateApp:$requiresNewSession
                     Expand-ReferenceList -SessionId $SessionId
                 } catch {
                     if (-not $sourceResult.error_message) {
@@ -635,6 +696,7 @@ function Get-DoubaoSources {
         }
     }
     @{
+        session_id = $SessionId
         search_keyword_count = $summary.search_keyword_count
         reference_count = $summary.reference_count
         sources = @($sources | Sort-Object index)
@@ -829,6 +891,11 @@ try {
     ) {
         & adb -s $serial shell am force-stop $foregroundPackage | Out-Null
     }
+    # A timed-out source collection can leave UiAutomator2 holding the device
+    # accessibility bridge, which makes the next native hierarchy dump fail.
+    & adb -s $serial shell am force-stop io.appium.uiautomator2.server | Out-Null
+    & adb -s $serial shell am force-stop io.appium.uiautomator2.server.test | Out-Null
+    Start-Sleep -Milliseconds 500
     & adb -s $serial shell input keyevent 3 | Out-Null
     & adb -s $serial shell am force-stop $packageName | Out-Null
     $capabilities = @{
@@ -846,6 +913,7 @@ try {
             firstMatch = @(@{})
         }
     }
+    $script:appiumCapabilities = $capabilities
     & cmd.exe /d /c (
         "adb -s $serial shell am start -W -n " +
         "$packageName/com.larus.home.impl.alias.AliasActivity1 >nul 2>&1"
@@ -859,6 +927,21 @@ try {
         $newChatReady = $false
         for ($navigationAttempt = 0; $navigationAttempt -lt 5; $navigationAttempt++) {
             [xml]$navigationDocument = Get-NativePageSource
+            $sideBarNewChatNode = $navigationDocument.SelectSingleNode(
+                "//*[@resource-id='$packageName`:id/side_bar_create_conversation']"
+            )
+            if (
+                $sideBarNewChatNode -and
+                $sideBarNewChatNode.GetAttribute("bounds") -match (
+                    "^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$"
+                )
+            ) {
+                $sideBarNewChatX = [int](([int]$Matches[1] + [int]$Matches[3]) / 2)
+                $sideBarNewChatY = [int](([int]$Matches[2] + [int]$Matches[4]) / 2)
+                & adb -s $serial shell input tap $sideBarNewChatX $sideBarNewChatY | Out-Null
+                $newChatReady = $true
+                break
+            }
             $newChatNode = $navigationDocument.SelectSingleNode(
                 "//*[@resource-id='$packageName`:id/right_img']"
             )
@@ -1008,27 +1091,12 @@ try {
     }
     $answerCompletedAt = Get-Date
 
-    $session = Invoke-AppiumRequest `
-        -Method Post `
-        -Path "/session" `
-        -Body $capabilities `
-        -TimeoutSeconds 60
-    $sessionId = [string]$session.value.sessionId
-    if (-not $sessionId) {
-        throw "Appium did not return a source-collection session ID"
-    }
-    Invoke-AppiumRequest `
-        -Method Post `
-        -Path "/session/$sessionId/execute/sync" `
-        -Body @{
-            script = "mobile: activateApp"
-            args = @(@{ appId = $packageName })
-        } | Out-Null
-    Start-Sleep -Seconds 1
+    $sessionId = New-DoubaoAppiumSession -ActivateApp
     $sourceCollectionStartedAt = Get-Date
     $sourceCollection = Get-DoubaoSources `
         -SessionId $sessionId `
         -AnswerSource $finalSource
+    $sessionId = [string]$sourceCollection.session_id
     $sourceCollectionCompletedAt = Get-Date
 
     $safeTaskId = ([string]$task.id) -replace "[^a-zA-Z0-9_-]", "_"
