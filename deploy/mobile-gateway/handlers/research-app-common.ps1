@@ -304,7 +304,7 @@ function Get-PageSource {
 function Get-ClipboardText {
     param([Parameter(Mandatory)][string]$SessionId)
 
-    if ($Platform -eq "yuanbao" -and $script:deviceSerial) {
+    if ($Platform -in @("deepseek", "yuanbao") -and $script:deviceSerial) {
         $previousIme = (
             & adb -s $script:deviceSerial shell settings get secure default_input_method
         ).Trim()
@@ -353,6 +353,55 @@ function Get-ClipboardText {
         ).Trim()
     } catch {
         throw "Appium returned invalid clipboard content"
+    }
+}
+
+function Get-DeepSeekAnswerSnapshot {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    $sizeOutput = (& adb -s $script:deviceSerial shell wm size 2>&1) -join "`n"
+    if ($sizeOutput -notmatch '(\d+)x(\d+)') {
+        throw "Could not determine the Android display size"
+    }
+    $width = [int]$Matches[1]
+    $height = [int]$Matches[2]
+
+    # The floating down arrow is the only reliable control while Compose is
+    # rendering a long answer. At the bottom, the same point may open Retry.
+    & adb -s $script:deviceSerial shell input tap `
+        ([int]($width * 0.90)) ([int]($height * 0.83)) | Out-Null
+    Start-Sleep -Milliseconds 800
+
+    $source = Get-PageSource -SessionId $SessionId
+    if ($source -match '更加简洁|更加详细|再试一次') {
+        & adb -s $script:deviceSerial shell input tap `
+            ([int]($width * 0.02)) ([int]($height * 0.45)) | Out-Null
+        Start-Sleep -Milliseconds 300
+        $source = Get-PageSource -SessionId $SessionId
+    }
+    $document = ConvertTo-Xml -Source $source
+    $copyNode = $document.SelectSingleNode("//*[@content-desc='复制']")
+    $copyBounds = if ($copyNode) { Get-Bounds -Node $copyNode } else { $null }
+    if (-not $copyBounds) {
+        return $null
+    }
+
+    & adb -s $script:deviceSerial shell input tap `
+        $copyBounds.center_x $copyBounds.center_y | Out-Null
+    Start-Sleep -Milliseconds 400
+    $answer = Get-ClipboardText -SessionId $SessionId
+    if (-not $answer -or $answer.Length -lt 30 -or $answer -match '^https?://') {
+        return $null
+    }
+
+    $referenceCount = 0
+    if ($source -match '(?:已阅读\s*)?(\d+)\s*个网页') {
+        $referenceCount = [int]$Matches[1]
+    }
+    @{
+        source = $source
+        answer = $answer
+        reference_count = $referenceCount
     }
 }
 
@@ -771,7 +820,7 @@ function Get-AnswerInfo {
         "deepseek" {
             foreach ($node in @($document.SelectNodes("//*[@text]"))) {
                 $text = $node.GetAttribute("text").Trim()
-                if ($text -match "已阅读\s*(\d+)\s*个网页") {
+                if ($text -match "(?:已阅读\s*)?(\d+)\s*个网页") {
                     $referenceCount = [int]$Matches[1]
                 }
             }
@@ -892,6 +941,34 @@ function Wait-ForAnswer {
     $lastAnswer = $null
     $stableCount = 0
     $firstTokenAt = $null
+    if ($Platform -eq "deepseek") {
+        do {
+            Start-Sleep -Seconds 3
+            try {
+                $info = Get-DeepSeekAnswerSnapshot -SessionId $SessionId
+            } catch {
+                Write-GatewayTrace "deepseek snapshot unavailable: $($_.Exception.Message)"
+                $info = $null
+            }
+            if (-not $info -or -not $info.answer) {
+                continue
+            }
+            if (-not $firstTokenAt) {
+                $firstTokenAt = Get-Date
+            }
+            if ($info.answer -eq $lastAnswer) {
+                $stableCount++
+            } else {
+                $stableCount = 0
+                $lastAnswer = $info.answer
+            }
+            if ($stableCount -ge 1) {
+                $info.first_token_at = $firstTokenAt
+                return $info
+            }
+        } while ((Get-Date) -lt $deadline)
+        throw "Timed out waiting for $Platform response after $TimeoutSeconds seconds"
+    }
     do {
         Start-Sleep -Seconds 3
         $source = Get-PageSource -SessionId $SessionId
@@ -912,13 +989,7 @@ function Wait-ForAnswer {
             $lastAnswer = $info.answer
         }
         $explicitComplete = $false
-        if ($Platform -eq "deepseek") {
-            $explicitComplete = $source -match "content-desc=`"复制`""
-        } elseif ($Platform -eq "yuanbao") {
-            $explicitComplete = $source -match "复制本次模型回答"
-        } else {
-            $explicitComplete = $info.reference_count -gt 0 -and $stableCount -ge 1
-        }
+        $explicitComplete = $info.reference_count -gt 0 -and $stableCount -ge 1
         $stableComplete = $stableCount -ge 2
         if ($Platform -eq "kimi") {
             $stableComplete = (
@@ -1167,7 +1238,7 @@ function Get-DeepSeekSources {
 
     $answerDocument = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
     $markerNode = $answerDocument.SelectSingleNode(
-        "//*[@text='已阅读 $ReferenceCount 个网页']"
+        "//*[@text='$ReferenceCount 个网页' or @text='已阅读 $ReferenceCount 个网页']"
     )
     $markerBounds = if ($markerNode) { Get-Bounds -Node $markerNode } else { $null }
     if (-not $markerBounds) {
@@ -1296,7 +1367,7 @@ function Get-PanelSources {
         [Parameter(Mandatory)][int]$ReferenceCount
     )
 
-    if ($ReferenceCount -lt 1 -and $Platform -in @("qwen", "yuanbao")) {
+    if ($Platform -eq "qwen" -and $ReferenceCount -lt 1) {
         return @()
     }
     if ($Platform -eq "yuanbao") {
