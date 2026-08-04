@@ -439,6 +439,12 @@ function Get-Bounds {
 
     $value = [string]$Node.GetAttribute("bounds")
     if ($value -match "^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$") {
+        if (
+            [int]$Matches[3] -le [int]$Matches[1] -or
+            [int]$Matches[4] -le [int]$Matches[2]
+        ) {
+            return $null
+        }
         return @{
             left = [int]$Matches[1]
             top = [int]$Matches[2]
@@ -1634,10 +1640,15 @@ try {
     Submit-Prompt -SessionId $sessionId -Prompt $prompt
     Write-GatewayTrace "prompt submitted"
     $sentAt = Get-Date
-    if ($Platform -in @("deepseek", "yuanbao")) {
+    if ($Platform -eq "deepseek") {
         # Compose hierarchy reads are reliable after streaming animations
         # settle. Reading during input or early generation can block UIA2.
         Start-Sleep -Seconds 20
+    } elseif ($Platform -eq "yuanbao") {
+        # Yuanbao pauses while loading product cards. Accessibility dumps
+        # during that pause can freeze Compose and make a partial answer look
+        # stable, so leave generation entirely undisturbed first.
+        Start-Sleep -Seconds 75
     }
     $answerInfo = Wait-ForAnswer `
         -SessionId $sessionId `
