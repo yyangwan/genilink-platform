@@ -316,9 +316,10 @@ function Press-Back {
 function Get-PageSource {
     param([Parameter(Mandatory)][string]$SessionId)
 
-    if ($Platform -in @("deepseek", "yuanbao") -and $script:deviceSerial) {
-        # Appium's source endpoint wedges on Compose answer views.
-        # Android's native dumper returns the same accessibility hierarchy.
+    if ($script:deviceSerial) {
+        # Appium's source endpoint can wedge on Compose-backed answer views.
+        # Android's native dumper returns the same accessibility hierarchy
+        # without leaving a request blocked in UiAutomator2.
         $name = "$Platform-$PID-$([guid]::NewGuid().ToString('N')).xml"
         $devicePath = "/sdcard/$name"
         $localPath = Join-Path $env:TEMP $name
@@ -762,31 +763,31 @@ function Start-NewConversation {
             }
         }
         "qwen" {
-            Click-Point -SessionId $SessionId -X 90 -Y 200
-            Start-Sleep -Seconds 1
-            $button = Find-Element `
-                -SessionId $SessionId `
-                -Using "xpath" `
-                -Value "//*[contains(@text,'新建') and contains(@text,'对话')]" `
-                -TimeoutSeconds 3 `
-                -Optional
-            if ($button) {
-                Click-Element -SessionId $SessionId -ElementId $button
-            } else {
-                Press-Back -SessionId $SessionId
-            }
+            & adb -s $script:deviceSerial shell input tap 90 200 | Out-Null
+            Start-Sleep -Milliseconds 700
+            & adb -s $script:deviceSerial shell input tap 400 310 | Out-Null
         }
         "kimi" {
-            $button = Find-Element `
-                -SessionId $SessionId `
-                -Using "xpath" `
-                -Value "//*[@content-desc='开启新会话']" `
-                -TimeoutSeconds 5 `
-                -Optional
-            if ($button) {
-                Click-Element -SessionId $SessionId -ElementId $button
+            & adb -s $script:deviceSerial shell input tap 100 180 | Out-Null
+            Start-Sleep -Milliseconds 700
+            & adb -s $script:deviceSerial shell input tap 865 258 | Out-Null
+            Start-Sleep -Seconds 1
+            $source = Get-PageSource -SessionId $SessionId
+            $document = ConvertTo-Xml -Source $source
+            $dismissNode = if ($document) {
+                $document.SelectSingleNode("//*[@text='稍后再说']")
             } else {
-                Click-Point -SessionId $SessionId -X 918 -Y 186
+                $null
+            }
+            $dismissBounds = if ($dismissNode) {
+                Get-Bounds -Node $dismissNode
+            } else {
+                $null
+            }
+            if ($dismissBounds) {
+                & adb -s $script:deviceSerial shell input tap `
+                    $dismissBounds.center_x $dismissBounds.center_y | Out-Null
+                Start-Sleep -Milliseconds 700
             }
         }
     }
@@ -824,20 +825,7 @@ function Submit-Prompt {
             $input = "adb"
         }
         { $_ -in @("qwen", "kimi") } {
-            $input = Find-Element `
-                -SessionId $SessionId `
-                -Using "class name" `
-                -Value "android.widget.EditText" `
-                -TimeoutSeconds 3 `
-                -Optional
-            if (-not $input) {
-                Click-Point -SessionId $SessionId -X 520 -Y 2190
-                Start-Sleep -Seconds 1
-                $input = Find-Element `
-                    -SessionId $SessionId `
-                    -Using "class name" `
-                    -Value "android.widget.EditText"
-            }
+            $input = "adb"
         }
     }
 
@@ -850,11 +838,11 @@ function Submit-Prompt {
             -Body @{} | Out-Null
     }
     if ($input -eq "adb") {
-        if ($Platform -eq "yuanbao") {
-            # Yuanbao's input sits near the bottom of this 1152x2376 device.
-            & adb -s $script:deviceSerial shell input tap 300 2100 | Out-Null
+        if ($Platform -in @("yuanbao", "qwen", "kimi")) {
+            $inputY = if ($Platform -eq "kimi") { 2170 } else { 2190 }
+            & adb -s $script:deviceSerial shell input tap 500 $inputY | Out-Null
             if ($LASTEXITCODE -ne 0) {
-                throw "ADB failed to focus the Yuanbao prompt input"
+                throw "ADB failed to focus the $Platform prompt input"
             }
         }
         Start-Sleep -Milliseconds 500
@@ -871,13 +859,21 @@ function Submit-Prompt {
             $quotedPrompt = "'$encodedPrompt'"
             & adb -s $script:deviceSerial shell input text $quotedPrompt | Out-Null
             if ($LASTEXITCODE -ne 0) {
-                throw "Could not type the Yuanbao prompt"
+                throw "Could not type the $Platform prompt"
             }
         } finally {
             if ($previousIme -and $previousIme -ne "null") {
                 & adb -s $script:deviceSerial shell ime set $previousIme | Out-Null
                 Start-Sleep -Milliseconds 500
             }
+        }
+        if ($Platform -in @("qwen", "kimi")) {
+            $draftSource = Get-PageSource -SessionId $SessionId
+            if ($draftSource -notmatch [regex]::Escape($Prompt)) {
+                throw "$Platform prompt input was not confirmed in the UI"
+            }
+            & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
+            Start-Sleep -Milliseconds 500
         }
     } else {
         Invoke-AppiumRequest `
@@ -911,6 +907,14 @@ function Submit-Prompt {
         & adb -s $script:deviceSerial shell input tap 1025 2102 | Out-Null
         if ($LASTEXITCODE -ne 0) {
             throw "ADB failed to tap the Yuanbao send button"
+        }
+        return
+    }
+    if ($Platform -in @("qwen", "kimi")) {
+        $sendY = if ($Platform -eq "qwen") { 2190 } else { 2170 }
+        & adb -s $script:deviceSerial shell input tap 1030 $sendY | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "ADB failed to tap the $Platform send button"
         }
         return
     }
@@ -1087,7 +1091,12 @@ function Get-AnswerInfo {
                 )
             )) {
                 $text = $node.GetAttribute("text").Trim()
-                if ($text -eq $Prompt -or $text.Length -lt 60) {
+                if (
+                    $text -eq $Prompt -or
+                    $text.Length -lt 2 -or
+                    $text -in $ignoredSourceLabels -or
+                    $text -in $sourceNames
+                ) {
                     continue
                 }
                 $answerParts += $text
@@ -1170,8 +1179,14 @@ function Wait-ForAnswer {
         $explicitComplete = $info.reference_count -gt 0 -and $stableCount -ge 1
         $stableComplete = $stableCount -ge 2
         if ($Platform -eq "kimi") {
+            # During generation Kimi exposes the square stop control through
+            # the stale accessibility label "发送讯息". Once generation is
+            # complete that node disappears and the voice-input control
+            # returns. Do not accept a briefly stable partial paragraph.
+            $generationComplete = $source -notmatch 'content-desc="发送讯息"'
+            $explicitComplete = $explicitComplete -and $generationComplete
             $stableComplete = (
-                $info.reference_count -gt 0 -and
+                $generationComplete -and
                 $stableCount -ge 1
             )
         }
@@ -1628,11 +1643,16 @@ function Get-PanelSources {
             $markerBounds.center_x $markerBounds.center_y | Out-Null
         Write-GatewayTrace "source panel opened"
     } else {
-        $marker = Find-Element `
-            -SessionId $SessionId `
-            -Using "xpath" `
-            -Value "//*[contains(@text,'参考了') and contains(@text,'篇资料')]"
-        Click-Element -SessionId $SessionId -ElementId $marker
+        $answerDocument = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+        $markerNode = $answerDocument.SelectSingleNode(
+            "//*[contains(@text,'参考了') and contains(@text,'篇资料')]"
+        )
+        $markerBounds = if ($markerNode) { Get-Bounds -Node $markerNode } else { $null }
+        if (-not $markerBounds) {
+            throw "Qwen source marker was not found"
+        }
+        & adb -s $script:deviceSerial shell input tap `
+            $markerBounds.center_x $markerBounds.center_y | Out-Null
     }
     Start-Sleep -Seconds 1
     if ($ReferenceCount -lt 1) {
@@ -1715,6 +1735,13 @@ function Get-PanelSources {
             }
             $collected[[string]$index] = $record
             $foundNew = $true
+            if ($Platform -eq "yuanbao") {
+                # Opening a source and returning rebuilds the panel. Any
+                # remaining bounds from this document are stale and can point
+                # into Yuanbao's recommendation feed instead of the next
+                # citation, so refresh the hierarchy after every record.
+                break
+            }
         }
         if ($collected.Count -ge $ReferenceCount) {
             break
@@ -1824,12 +1851,19 @@ try {
     $script:deviceSerial = $serial
 
     $startedAt = Get-Date
-    if ($Platform -eq "yuanbao") {
+    if ($Platform -in @("yuanbao", "qwen", "kimi")) {
         $sessionId = "adb"
-        & adb -s $serial shell am start `
-            -n "$packageName/.biz.login.v2.HYLoginMainActivity" | Out-Null
+        if ($Platform -eq "yuanbao") {
+            & adb -s $serial shell am start `
+                -n "$packageName/.biz.login.v2.HYLoginMainActivity" | Out-Null
+        } else {
+            & cmd.exe /d /c (
+                "adb -s $serial shell monkey -p $packageName " +
+                "-c android.intent.category.LAUNCHER 1 >nul 2>&1"
+            )
+        }
         if ($LASTEXITCODE -ne 0) {
-            throw "Could not activate Yuanbao"
+            throw "Could not activate $Platform"
         }
     } else {
         $capabilities = @{
@@ -1966,7 +2000,7 @@ try {
         [Text.UTF8Encoding]::new($true)
     )
     $screenshotPath = Join-Path $taskResultDirectory "screenshot.png"
-    if ($Platform -in @("deepseek", "yuanbao")) {
+    if ($Platform -in @("deepseek", "yuanbao", "qwen", "kimi")) {
         $deviceScreenshot = "/sdcard/$safeTaskId-screenshot.png"
         try {
             & adb -s $script:deviceSerial shell screencap -p $deviceScreenshot | Out-Null
