@@ -180,6 +180,13 @@ function Click-Point {
         [Parameter(Mandatory)][int]$Y
     )
 
+    if ($SessionId -eq "adb") {
+        & adb -s $script:deviceSerial shell input tap $X $Y | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "ADB failed to tap ($X, $Y)"
+        }
+        return
+    }
     Invoke-AppiumRequest `
         -Method Post `
         -Path "/session/$SessionId/execute/sync" `
@@ -223,6 +230,14 @@ function Scroll-Region {
         [int]$Height = 1850
     )
 
+    if ($SessionId -eq "adb") {
+        $centerX = [int]($Left + ($Width / 2))
+        $startY = [int]($Top + ($Height * 0.82))
+        $endY = [int]($Top + ($Height * 0.18))
+        & adb -s $script:deviceSerial shell input swipe `
+            $centerX $startY $centerX $endY 350 | Out-Null
+        return ($LASTEXITCODE -eq 0)
+    }
     $response = Invoke-AppiumRequest `
         -Method Post `
         -Path "/session/$SessionId/execute/sync" `
@@ -1095,6 +1110,11 @@ function Return-ToDeepSeekSourcePanel {
         if ($source -match 'text="搜索结果"') {
             return
         }
+        if ($SessionId -eq "adb") {
+            Press-Back -SessionId $SessionId
+            Start-Sleep -Milliseconds 700
+            continue
+        }
         $close = Find-Element `
             -SessionId $SessionId `
             -Using "xpath" `
@@ -1355,12 +1375,25 @@ function Get-DeepSeekSources {
                     -SessionId $SessionId `
                     -X $bounds.center_x `
                     -Y $bounds.center_y
-                $open = Find-Element `
-                    -SessionId $SessionId `
-                    -Using "xpath" `
-                    -Value "//*[@content-desc='在浏览器中打开']" `
-                    -TimeoutSeconds 12
-                $pageSource = Get-PageSource -SessionId $SessionId
+                $openBounds = $null
+                $pageSource = $null
+                $openDeadline = (Get-Date).AddSeconds(12)
+                do {
+                    Start-Sleep -Milliseconds 500
+                    $pageSource = Get-PageSource -SessionId $SessionId
+                    $pageDocument = ConvertTo-Xml -Source $pageSource
+                    $openNode = $pageDocument.SelectSingleNode(
+                        "//*[@content-desc='在浏览器中打开']"
+                    )
+                    $openBounds = if ($openNode) {
+                        Get-Bounds -Node $openNode
+                    } else {
+                        $null
+                    }
+                } while (-not $openBounds -and (Get-Date) -lt $openDeadline)
+                if (-not $openBounds) {
+                    throw "DeepSeek source page did not expose Open in browser"
+                }
                 $pageDocument = ConvertTo-Xml -Source $pageSource
                 $pageTitleNode = $pageDocument.SelectSingleNode(
                     "//*[@class='android.widget.TextView' and @text]"
@@ -1368,7 +1401,8 @@ function Get-DeepSeekSources {
                 if ($pageTitleNode) {
                     $record.page_title = $pageTitleNode.GetAttribute("text")
                 }
-                Click-Element -SessionId $SessionId -ElementId $open
+                & adb -s $script:deviceSerial shell input tap `
+                    $openBounds.center_x $openBounds.center_y | Out-Null
                 Start-Sleep -Seconds 2
                 $rawUrl = Get-ResolverUrl
                 if (-not $rawUrl) {
@@ -1386,13 +1420,8 @@ function Get-DeepSeekSources {
                 $record.status = "failed"
                 $record.error_message = $_.Exception.Message
                 try {
-                    Invoke-AppiumRequest `
-                        -Method Post `
-                        -Path "/session/$SessionId/execute/sync" `
-                        -Body @{
-                            script = "mobile: activateApp"
-                            args = @(@{ appId = $packageName })
-                        } | Out-Null
+                    & adb -s $script:deviceSerial shell monkey `
+                        -p $packageName 1 | Out-Null
                     Start-Sleep -Milliseconds 500
                     Return-ToDeepSeekSourcePanel -SessionId $SessionId
                 } catch {}
@@ -1687,8 +1716,15 @@ try {
     Write-GatewayTrace "prompt submitted"
     $sentAt = Get-Date
     if ($Platform -eq "deepseek") {
-        # Compose hierarchy reads are reliable after streaming animations
-        # settle. Reading during input or early generation can block UIA2.
+        # Native hierarchy dumps conflict with UiAutomator2's accessibility
+        # instrumentation on DeepSeek Compose views. Appium is only needed to
+        # enter the conversation and is released before capture begins.
+        Invoke-AppiumRequest `
+            -Method Delete `
+            -Path "/session/$sessionId" `
+            -Body $null | Out-Null
+        $appiumSessionClosed = $true
+        $sessionId = "adb"
         Start-Sleep -Seconds 20
     } elseif ($Platform -eq "yuanbao") {
         # Yuanbao pauses while loading product cards. Accessibility dumps
@@ -1748,7 +1784,7 @@ try {
         [Text.UTF8Encoding]::new($true)
     )
     $screenshotPath = Join-Path $taskResultDirectory "screenshot.png"
-    if ($Platform -eq "yuanbao") {
+    if ($Platform -in @("deepseek", "yuanbao")) {
         $deviceScreenshot = "/sdcard/$safeTaskId-screenshot.png"
         try {
             & adb -s $script:deviceSerial shell screencap -p $deviceScreenshot | Out-Null
