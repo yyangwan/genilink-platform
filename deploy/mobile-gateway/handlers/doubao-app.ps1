@@ -403,32 +403,13 @@ function ConvertTo-CanonicalSourceUrl {
 function Return-ToDoubaoChat {
     param([Parameter(Mandatory)][string]$SessionId)
 
-    # Sources may open an external app. Android Back can then stop on that
-    # app's onboarding dialog, so explicitly foreground Doubao's preserved
-    # chat activity instead of probing the external hierarchy with Appium.
-    $foregroundPackage = Get-ForegroundPackage
-    if ($foregroundPackage -eq $packageName) {
-        & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
-        Start-Sleep -Seconds 1
-        return $false
-    }
-    if (
-        $foregroundPackage -and
-        $foregroundPackage -notmatch '^com\.huawei\.android\.launcher$'
-    ) {
-        & adb -s $script:deviceSerial shell am force-stop `
-            $foregroundPackage | Out-Null
-    }
-    & adb -s $script:deviceSerial shell input keyevent 3 | Out-Null
-    & cmd.exe /d /c (
-        "adb -s $script:deviceSerial shell am start -W -n " +
-        "$packageName/com.larus.home.impl.alias.AliasActivity1 >nul 2>&1"
-    )
-    if ($LASTEXITCODE -ne 0) {
-        throw "ADB failed to return to the Doubao chat"
-    }
+    # Copy Link closes the system share sheet and leaves the source detail in
+    # Doubao. One Back returns to the preserved reference panel. Foreground
+    # package detection is racy here because Android briefly reports the share
+    # sheet process after it has visually disappeared.
+    & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
     Start-Sleep -Seconds 1
-    return $true
+    return $false
 }
 
 function New-DoubaoAppiumSession {
