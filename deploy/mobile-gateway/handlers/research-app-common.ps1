@@ -387,11 +387,13 @@ function Get-DeepSeekAnswerSnapshot {
     param([Parameter(Mandatory)][string]$SessionId)
 
     $sizeOutput = (& adb -s $script:deviceSerial shell wm size 2>&1) -join "`n"
-    if ($sizeOutput -notmatch '(\d+)x(\d+)') {
+    $sizeMatches = [regex]::Matches($sizeOutput, '(\d+)x(\d+)')
+    if ($sizeMatches.Count -lt 1) {
         throw "Could not determine the Android display size"
     }
-    $width = [int]$Matches[1]
-    $height = [int]$Matches[2]
+    $activeSize = $sizeMatches[$sizeMatches.Count - 1]
+    $width = [int]$activeSize.Groups[1].Value
+    $height = [int]$activeSize.Groups[2].Value
 
     # The floating down arrow is the only reliable control while Compose is
     # rendering a long answer. At the bottom, the same point may open Retry.
@@ -436,11 +438,13 @@ function Get-YuanbaoAnswerSnapshot {
     param([Parameter(Mandatory)][string]$SessionId)
 
     $sizeOutput = (& adb -s $script:deviceSerial shell wm size 2>&1) -join "`n"
-    if ($sizeOutput -notmatch '(\d+)x(\d+)') {
+    $sizeMatches = [regex]::Matches($sizeOutput, '(\d+)x(\d+)')
+    if ($sizeMatches.Count -lt 1) {
         throw "Could not determine the Android display size"
     }
-    $width = [int]$Matches[1]
-    $height = [int]$Matches[2]
+    $activeSize = $sizeMatches[$sizeMatches.Count - 1]
+    $width = [int]$activeSize.Groups[1].Value
+    $height = [int]$activeSize.Groups[2].Value
 
     for ($attempt = 0; $attempt -lt 16; $attempt++) {
         $source = Get-PageSource -SessionId $SessionId
