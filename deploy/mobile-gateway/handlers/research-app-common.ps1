@@ -630,23 +630,14 @@ function Start-NewConversation {
     $script:readyInputElement = $null
     switch ($Platform) {
         "deepseek" {
-            for ($attempt = 0; $attempt -lt 5; $attempt++) {
-                $button = Find-Element `
-                    -SessionId $SessionId `
-                    -Using "xpath" `
-                    -Value "//*[@content-desc='开启新对话']" `
-                    -TimeoutSeconds 2 `
-                    -Optional
-                if ($button) {
-                    Click-Element -SessionId $SessionId -ElementId $button
-                    break
-                }
-                Press-Back -SessionId $SessionId
-                Start-Sleep -Seconds 1
+            # The Compose accessibility lookup can wedge before input. The
+            # New Conversation button is fixed in the top-right on every
+            # DeepSeek conversation/mode screen.
+            & adb -s $script:deviceSerial shell input tap 1075 190 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "ADB failed to start a DeepSeek conversation"
             }
-            if (-not $button) {
-                throw "Could not return DeepSeek to a conversation screen"
-            }
+            Start-Sleep -Seconds 1
         }
         "yuanbao" {
             # Huawei's share sheet blocks page-source requests and ignores the
