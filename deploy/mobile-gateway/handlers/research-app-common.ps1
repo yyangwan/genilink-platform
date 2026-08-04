@@ -440,8 +440,8 @@ function Get-YuanbaoAnswerSnapshot {
             }
         }
         & adb -s $script:deviceSerial shell input swipe `
-            ([int]($width * 0.50)) ([int]($height * 0.74)) `
-            ([int]($width * 0.50)) ([int]($height * 0.19)) 250 | Out-Null
+            ([int]($width * 0.78)) ([int]($height * 0.63)) `
+            ([int]($width * 0.78)) ([int]($height * 0.19)) 250 | Out-Null
         Start-Sleep -Milliseconds 500
     }
     $null
