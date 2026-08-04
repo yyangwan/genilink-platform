@@ -116,10 +116,20 @@ function Invoke-ElementClick {
         [string]$ElementId
     )
 
-    Invoke-AppiumRequest `
-        -Method Post `
-        -Path "/session/$SessionId/element/$ElementId/click" `
-        -Body @{} | Out-Null
+    $response = Invoke-AppiumRequest `
+        -Method Get `
+        -Path "/session/$SessionId/element/$ElementId/rect" `
+        -Body $null
+    $rect = $response.value
+    if ($null -eq $rect -or $rect.width -lt 1 -or $rect.height -lt 1) {
+        throw "Could not determine the element bounds"
+    }
+    $centerX = [int]($rect.x + ($rect.width / 2))
+    $centerY = [int]($rect.y + ($rect.height / 2))
+    & adb -s $script:deviceSerial shell input tap $centerX $centerY | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "ADB failed to tap the Doubao element"
+    }
 }
 
 function Get-PageSource {
@@ -131,6 +141,37 @@ function Get-PageSource {
         -Body $null `
         -TimeoutSeconds 45
     [string]$response.value
+}
+
+function Get-NativePageSource {
+    $devicePath = "/sdcard/mobile-gateway-doubao.xml"
+    $localPath = Join-Path $resultRoot "doubao-current.xml"
+    & cmd.exe /d /c (
+        "adb -s $script:deviceSerial shell uiautomator dump " +
+        "$devicePath >nul 2>&1"
+    )
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not dump the Doubao UI hierarchy"
+    }
+    & cmd.exe /d /c (
+        "adb -s $script:deviceSerial pull $devicePath `"$localPath`" " +
+        ">nul 2>&1"
+    )
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not retrieve the Doubao UI hierarchy"
+    }
+    Get-Content -LiteralPath $localPath -Raw -Encoding UTF8
+}
+
+function Get-ForegroundPackage {
+    foreach ($line in @(
+        & adb -s $script:deviceSerial shell dumpsys activity activities
+    )) {
+        if ($line -match 'mResumedActivity:.*\s([a-zA-Z0-9._]+)/') {
+            return [string]$Matches[1]
+        }
+    }
+    $null
 }
 
 function Find-AppiumElements {
@@ -359,32 +400,27 @@ function ConvertTo-CanonicalSourceUrl {
 function Return-ToDoubaoChat {
     param([Parameter(Mandatory)][string]$SessionId)
 
-    for ($attempt = 0; $attempt -lt 4; $attempt++) {
-        $referenceTitle = Find-AppiumElement `
-            -SessionId $SessionId `
-            -ResourceId "$packageName`:id/ll_reference_title" `
-            -TimeoutSeconds 2 `
-            -Optional
-        if ($referenceTitle) {
-            return
-        }
-
-        $backButton = Find-AppiumElement `
-            -SessionId $SessionId `
-            -ResourceId "$packageName`:id/btn_back" `
-            -TimeoutSeconds 2 `
-            -Optional
-        if ($backButton) {
-            Invoke-ElementClick -SessionId $SessionId -ElementId $backButton
-        } else {
-            Invoke-AppiumRequest `
-                -Method Post `
-                -Path "/session/$SessionId/back" `
-                -Body @{} | Out-Null
-        }
-        Start-Sleep -Seconds 1
+    # Sources may open an external app. Android Back can then stop on that
+    # app's onboarding dialog, so explicitly foreground Doubao's preserved
+    # chat activity instead of probing the external hierarchy with Appium.
+    $foregroundPackage = Get-ForegroundPackage
+    if (
+        $foregroundPackage -and
+        $foregroundPackage -ne $packageName -and
+        $foregroundPackage -notmatch '^com\.huawei\.android\.launcher$'
+    ) {
+        & adb -s $script:deviceSerial shell am force-stop `
+            $foregroundPackage | Out-Null
     }
-    throw "Could not return to the Doubao chat after opening a reference"
+    & adb -s $script:deviceSerial shell input keyevent 3 | Out-Null
+    & cmd.exe /d /c (
+        "adb -s $script:deviceSerial shell am start -W -n " +
+        "$packageName/com.larus.home.impl.alias.AliasActivity1 >nul 2>&1"
+    )
+    if ($LASTEXITCODE -ne 0) {
+        throw "ADB failed to return to the Doubao chat"
+    }
+    Start-Sleep -Seconds 1
 }
 
 function Expand-ReferenceList {
@@ -427,10 +463,12 @@ function Get-DoubaoSources {
     Expand-ReferenceList -SessionId $SessionId
     $collected = @{}
     $stalledScrolls = 0
-    while (
-        $collected.Count -lt $summary.reference_count -and
-        $stalledScrolls -lt 4
-    ) {
+    $collectionFailure = $null
+    try {
+        while (
+            $collected.Count -lt $summary.reference_count -and
+            $stalledScrolls -lt 4
+        ) {
         $expandedSource = Get-PageSource -SessionId $SessionId
         $visibleItems = @(Get-VisibleReferenceItems -Source $expandedSource)
         $visibleElements = @(Find-AppiumElements `
@@ -569,6 +607,9 @@ function Get-DoubaoSources {
             Start-Sleep -Milliseconds 500
             $stalledScrolls = 0
         }
+        }
+    } catch {
+        $collectionFailure = $_.Exception.Message
     }
 
     $sources = @(
@@ -585,7 +626,11 @@ function Get-DoubaoSources {
                 url = $null
                 raw_url = $null
                 status = "failed"
-                error_message = "Reference item was not exposed by the Doubao UI"
+                error_message = if ($collectionFailure) {
+                    "Source collection interrupted: $collectionFailure"
+                } else {
+                    "Reference item was not exposed by the Doubao UI"
+                }
             }
         }
     }
@@ -608,6 +653,7 @@ function Get-AssistantMessage {
     $contentId = "$packageName`:id/content_view"
     $copyId = "$packageName`:id/msg_action_copy"
     $assistantNodes = @()
+    $nativeFallback = $false
     foreach ($contentNode in @($document.SelectNodes("//*[@resource-id='$contentId']"))) {
         $messageNode = $contentNode.ParentNode
         if ($null -eq $messageNode) {
@@ -619,16 +665,36 @@ function Get-AssistantMessage {
         }
     }
     if ($assistantNodes.Count -eq 0) {
-        return $null
+        # Native uiautomator does not expose msg_action_copy, but it does
+        # expose the same content_view containers in message order.
+        $assistantNodes = @(
+            $document.SelectNodes("//*[@resource-id='$contentId']") |
+                Where-Object {
+                    $_.SelectSingleNode(
+                        ".//*[@resource-id='$packageName`:id/tv_reference_title']"
+                    ) -or
+                    @($_.SelectNodes(".//*[@text]")).Count -gt 1
+                }
+        )
+        if ($assistantNodes.Count -eq 0) {
+            return $null
+        }
+        $nativeFallback = $true
     }
 
-    $latest = $assistantNodes[-1]
     $candidates = @()
-    foreach ($node in @($latest.SelectNodes(".//*"))) {
-        foreach ($attributeName in @("content-desc", "text")) {
-            $value = $node.GetAttribute($attributeName)
-            if (-not [string]::IsNullOrWhiteSpace($value)) {
-                $candidates += $value.Trim()
+    $candidateRoots = if ($nativeFallback) {
+        $assistantNodes
+    } else {
+        @($assistantNodes[-1])
+    }
+    foreach ($candidateRoot in $candidateRoots) {
+        foreach ($node in @($candidateRoot.SelectNodes(".//*"))) {
+            foreach ($attributeName in @("content-desc", "text")) {
+                $value = $node.GetAttribute($attributeName)
+                if (-not [string]::IsNullOrWhiteSpace($value)) {
+                    $candidates += $value.Trim()
+                }
             }
         }
     }
@@ -641,7 +707,14 @@ function Get-AssistantMessage {
         Select-Object -First 1
     @{
         answer = $answer
-        completed = $true
+        completed = (
+            $null -ne $document.SelectSingleNode(
+                "//*[@resource-id='$packageName`:id/input_text']"
+            ) -and
+            $null -eq $document.SelectSingleNode(
+                "//*[@resource-id='$packageName`:id/action_stop']"
+            )
+        )
     }
 }
 
@@ -688,6 +761,25 @@ function Get-AdbDevices {
     )
 }
 
+function ConvertTo-ImapUtf7 {
+    param([Parameter(Mandatory)][string]$Text)
+
+    $escaped = $Text.Replace("&", "&-")
+    [regex]::Replace($escaped, '[^\x20-\x7e]+', {
+        param($Match)
+
+        $chunk = $Match.Value
+        $bytes = [byte[]]::new($chunk.Length * 2)
+        for ($index = 0; $index -lt $chunk.Length; $index++) {
+            $code = [int][char]$chunk[$index]
+            $bytes[$index * 2] = [byte]($code -shr 8)
+            $bytes[$index * 2 + 1] = [byte]($code -band 0xff)
+        }
+        [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('/', ',') |
+            ForEach-Object { "&$_-" }
+    })
+}
+
 $sessionId = $null
 try {
     $task = $TaskJson | ConvertFrom-Json
@@ -724,8 +816,21 @@ try {
     if ($serial -notin $devices) {
         throw "Requested Android device is not connected: $serial"
     }
+    $script:deviceSerial = $serial
 
     $startedAt = Get-Date
+    # Rebuild the activity stack so an external source app or embedded browser
+    # from the previous attempt cannot poison new-conversation navigation.
+    $foregroundPackage = Get-ForegroundPackage
+    if (
+        $foregroundPackage -and
+        $foregroundPackage -ne $packageName -and
+        $foregroundPackage -notmatch '^com\.huawei\.android\.launcher$'
+    ) {
+        & adb -s $serial shell am force-stop $foregroundPackage | Out-Null
+    }
+    & adb -s $serial shell input keyevent 3 | Out-Null
+    & adb -s $serial shell am force-stop $packageName | Out-Null
     $capabilities = @{
         capabilities = @{
             alwaysMatch = @{
@@ -741,89 +846,124 @@ try {
             firstMatch = @(@{})
         }
     }
-    $session = Invoke-AppiumRequest `
-        -Method Post `
-        -Path "/session" `
-        -Body $capabilities `
-        -TimeoutSeconds 60
-    $sessionId = [string]$session.value.sessionId
-    if (-not $sessionId) {
-        throw "Appium did not return a session ID"
+    & cmd.exe /d /c (
+        "adb -s $serial shell am start -W -n " +
+        "$packageName/com.larus.home.impl.alias.AliasActivity1 >nul 2>&1"
+    )
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not start Doubao"
     }
-
-    Invoke-AppiumRequest `
-        -Method Post `
-        -Path "/session/$sessionId/execute/sync" `
-        -Body @{
-            script = "mobile: activateApp"
-            args = @(@{ appId = $packageName })
-        } | Out-Null
     Start-Sleep -Seconds 2
 
     if ($newConversation) {
-        $newChatButton = $null
+        $newChatReady = $false
         for ($navigationAttempt = 0; $navigationAttempt -lt 5; $navigationAttempt++) {
-            $newChatButton = Find-AppiumElement `
-                -SessionId $sessionId `
-                -ResourceId "$packageName`:id/right_img" `
-                -TimeoutSeconds 2 `
-                -Optional
-            if ($newChatButton) {
+            [xml]$navigationDocument = Get-NativePageSource
+            $newChatNode = $navigationDocument.SelectSingleNode(
+                "//*[@resource-id='$packageName`:id/right_img']"
+            )
+            if ($newChatNode) {
+                if ($newChatNode.GetAttribute("bounds") -notmatch (
+                    "^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$"
+                )) {
+                    throw "Could not determine the Doubao new-chat bounds"
+                }
+                $newChatX = [int](([int]$Matches[1] + [int]$Matches[3]) / 2)
+                $newChatY = [int](([int]$Matches[2] + [int]$Matches[4]) / 2)
+                & adb -s $serial shell input tap $newChatX $newChatY | Out-Null
+                $newChatReady = $true
                 break
             }
-            $backButton = Find-AppiumElement `
-                -SessionId $sessionId `
-                -ResourceId "$packageName`:id/back_icon" `
-                -TimeoutSeconds 2 `
-                -Optional
-            if ($backButton) {
-                Invoke-ElementClick -SessionId $sessionId -ElementId $backButton
+            $newTopicNode = $navigationDocument.SelectSingleNode(
+                "//*[@resource-id='$packageName`:id/topic_text']"
+            )
+            if (
+                $newTopicNode -and
+                $newTopicNode.GetAttribute("bounds") -match (
+                    "^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$"
+                )
+            ) {
+                $newTopicX = [int](([int]$Matches[1] + [int]$Matches[3]) / 2)
+                $newTopicY = [int](([int]$Matches[2] + [int]$Matches[4]) / 2)
+                & adb -s $serial shell input tap $newTopicX $newTopicY | Out-Null
+                $newChatReady = $true
+                break
+            }
+            $backNode = $navigationDocument.SelectSingleNode(
+                "//*[@resource-id='$packageName`:id/back_icon']"
+            )
+            if (
+                $backNode -and
+                $backNode.GetAttribute("bounds") -match (
+                    "^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$"
+                )
+            ) {
+                $backX = [int](([int]$Matches[1] + [int]$Matches[3]) / 2)
+                $backY = [int](([int]$Matches[2] + [int]$Matches[4]) / 2)
+                & adb -s $serial shell input tap $backX $backY | Out-Null
             } else {
-                Invoke-AppiumRequest `
-                    -Method Post `
-                    -Path "/session/$sessionId/back" `
-                    -Body @{} | Out-Null
+                & adb -s $serial shell input keyevent 4 | Out-Null
             }
             Start-Sleep -Seconds 1
         }
-        if (-not $newChatButton) {
+        if (-not $newChatReady) {
             throw "Could not navigate to the Doubao conversation list"
         }
-        Invoke-ElementClick -SessionId $sessionId -ElementId $newChatButton
         Start-Sleep -Seconds 2
     }
 
-    $inputElement = Find-AppiumElement `
-        -SessionId $sessionId `
-        -ResourceId "$packageName`:id/input_text" `
-        -TimeoutSeconds 3 `
-        -Optional
-    if (-not $inputElement) {
-        $textModeButton = Find-AppiumElement `
-            -SessionId $sessionId `
-            -ResourceId "$packageName`:id/action_input" `
-            -TimeoutSeconds 10
-        Invoke-ElementClick -SessionId $sessionId -ElementId $textModeButton
-        $inputElement = Find-AppiumElement `
-            -SessionId $sessionId `
-            -ResourceId "$packageName`:id/input_text" `
-            -TimeoutSeconds 10
+    # Keep generation free of UiAutomator2 instrumentation, then attach a
+    # read-only Appium session for source collection after completion.
+    & adb -s $serial shell am force-stop io.appium.uiautomator2.server | Out-Null
+    & adb -s $serial shell am force-stop io.appium.uiautomator2.server.test | Out-Null
+    $sessionId = $null
+    Start-Sleep -Seconds 2
+    $textInputReady = $false
+    for ($inputAttempt = 0; $inputAttempt -lt 3; $inputAttempt++) {
+        & adb -s $serial shell input tap 878 2200 | Out-Null
+        Start-Sleep -Seconds 1
+        $inputSource = Get-NativePageSource
+        if ($inputSource -match "$packageName`:id/input_text") {
+            $textInputReady = $true
+            break
+        }
+    }
+    if (-not $textInputReady) {
+        throw "Could not switch Doubao to text input mode"
+    }
+    $previousIme = (
+        & adb -s $serial shell settings get secure default_input_method
+    ).Trim()
+    try {
+        & adb -s $serial shell ime set io.appium.settings/.UnicodeIME | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not activate Appium UnicodeIME"
+        }
+        Start-Sleep -Seconds 1
+        $encodedPrompt = ConvertTo-ImapUtf7 -Text $prompt
+        & adb -s $serial shell input text "'$encodedPrompt'" | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not type the Doubao prompt"
+        }
+    } finally {
+        if ($previousIme -and $previousIme -ne "null") {
+            & adb -s $serial shell ime set $previousIme | Out-Null
+        }
     }
 
-    Invoke-AppiumRequest `
-        -Method Post `
-        -Path "/session/$sessionId/element/$inputElement/clear" `
-        -Body @{} | Out-Null
-    Invoke-AppiumRequest `
-        -Method Post `
-        -Path "/session/$sessionId/element/$inputElement/value" `
-        -Body @{ text = $prompt; value = @($prompt) } | Out-Null
-
-    $sendButton = Find-AppiumElement `
-        -SessionId $sessionId `
-        -ResourceId "$packageName`:id/action_send" `
-        -TimeoutSeconds 10
-    Invoke-ElementClick -SessionId $sessionId -ElementId $sendButton
+    $draftSource = Get-NativePageSource
+    [xml]$draftDocument = $draftSource
+    $sendNode = $draftDocument.SelectSingleNode(
+        "//*[@resource-id='$packageName`:id/action_send']"
+    )
+    if (-not $sendNode -or $sendNode.GetAttribute("bounds") -notmatch (
+        "^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$"
+    )) {
+        throw "Could not locate the Doubao send button"
+    }
+    $sendX = [int](([int]$Matches[1] + [int]$Matches[3]) / 2)
+    $sendY = [int](([int]$Matches[2] + [int]$Matches[4]) / 2)
+    & adb -s $serial shell input tap $sendX $sendY | Out-Null
     $sentAt = Get-Date
 
     $deadline = $sentAt.AddSeconds($timeoutSeconds)
@@ -831,26 +971,11 @@ try {
     $finalSource = $null
     $message = $null
     $responseRetryCount = 0
+    $lastAnswer = $null
+    $stableAnswerCount = 0
     do {
         Start-Sleep -Seconds 2
-        $source = Get-PageSource -SessionId $sessionId
-        if (
-            $source.Contains($doubaoRetryMessage) -and
-            $responseRetryCount -lt 2
-        ) {
-            $retryElement = Find-AppiumElementByXPath `
-                -SessionId $sessionId `
-                -XPath "//*[@text='$doubaoRetryMessage']" `
-                -Optional
-            if ($retryElement) {
-                Invoke-ElementClick `
-                    -SessionId $sessionId `
-                    -ElementId $retryElement
-                $responseRetryCount++
-                Start-Sleep -Seconds 2
-                continue
-            }
-        }
+        $source = Get-NativePageSource
         if (
             $null -eq $firstTokenAt -and
             (Get-FirstAssistantText -Source $source -Prompt $prompt)
@@ -858,7 +983,18 @@ try {
             $firstTokenAt = Get-Date
         }
         $message = Get-AssistantMessage -Source $source
-        if ($null -ne $message -and $message.completed) {
+        if ($message.answer -and $message.answer -eq $lastAnswer) {
+            $stableAnswerCount++
+        } else {
+            $stableAnswerCount = 0
+            $lastAnswer = $message.answer
+        }
+        if (
+            $null -ne $message -and
+            $message.completed -and
+            $message.answer.Length -ge 80 -and
+            $stableAnswerCount -ge 1
+        ) {
             $finalSource = $source
             break
         }
@@ -871,6 +1007,24 @@ try {
         throw "Timed out waiting for Doubao response after $timeoutSeconds seconds"
     }
     $answerCompletedAt = Get-Date
+
+    $session = Invoke-AppiumRequest `
+        -Method Post `
+        -Path "/session" `
+        -Body $capabilities `
+        -TimeoutSeconds 60
+    $sessionId = [string]$session.value.sessionId
+    if (-not $sessionId) {
+        throw "Appium did not return a source-collection session ID"
+    }
+    Invoke-AppiumRequest `
+        -Method Post `
+        -Path "/session/$sessionId/execute/sync" `
+        -Body @{
+            script = "mobile: activateApp"
+            args = @(@{ appId = $packageName })
+        } | Out-Null
+    Start-Sleep -Seconds 1
     $sourceCollectionStartedAt = Get-Date
     $sourceCollection = Get-DoubaoSources `
         -SessionId $sessionId `
@@ -890,16 +1044,21 @@ try {
         $finalSource,
         [Text.UTF8Encoding]::new($false)
     )
-    $screenshotResponse = Invoke-AppiumRequest `
-        -Method Get `
-        -Path "/session/$sessionId/screenshot" `
-        -Body $null `
-        -TimeoutSeconds 45
     $screenshotPath = Join-Path $taskResultDirectory "screenshot.png"
-    [IO.File]::WriteAllBytes(
-        $screenshotPath,
-        [Convert]::FromBase64String([string]$screenshotResponse.value)
+    $deviceScreenshot = "/sdcard/$safeTaskId-screenshot.png"
+    & cmd.exe /d /c (
+        "adb -s $serial shell screencap -p $deviceScreenshot >nul 2>&1"
     )
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not capture the Doubao screenshot"
+    }
+    & cmd.exe /d /c (
+        "adb -s $serial pull $deviceScreenshot `"$screenshotPath`" " +
+        ">nul 2>&1"
+    )
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not retrieve the Doubao screenshot"
+    }
     $screenshotHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $screenshotPath).Hash.ToLower()
 
     $versionLine = & adb -s $serial shell dumpsys package $packageName |

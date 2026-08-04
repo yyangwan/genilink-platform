@@ -739,10 +739,32 @@ function Start-NewConversation {
             Start-Sleep -Seconds 1
         }
         "yuanbao" {
-            # Huawei's share sheet blocks page-source requests and ignores the
-            # Android back key. This is the observed Yuanbao Cancel button.
-            & adb -s $script:deviceSerial shell input tap 1068 1648 | Out-Null
-            Start-Sleep -Milliseconds 700
+            # Yuanbao can show its upgrade dialog on launch, and Huawei can
+            # leave a system guide above the app after source navigation.
+            # Clear known blockers from the hierarchy before using app coords.
+            for ($dismissAttempt = 0; $dismissAttempt -lt 4; $dismissAttempt++) {
+                $blockerSource = Get-PageSource -SessionId $SessionId
+                $blockerDocument = ConvertTo-Xml -Source $blockerSource
+                $blocker = if ($blockerDocument) {
+                    $blockerDocument.SelectSingleNode(
+                        "//*[@resource-id='$packageName`:id/skip' or " +
+                        "@text='稍后提示' or @text='取消']"
+                    )
+                } else {
+                    $null
+                }
+                $blockerBounds = if ($blocker) {
+                    Get-Bounds -Node $blocker
+                } else {
+                    $null
+                }
+                if (-not $blockerBounds) {
+                    break
+                }
+                & adb -s $script:deviceSerial shell input tap `
+                    $blockerBounds.center_x $blockerBounds.center_y | Out-Null
+                Start-Sleep -Milliseconds 700
+            }
             # Always create an empty conversation through Yuanbao's drawer.
             & adb -s $script:deviceSerial shell input tap 100 190 | Out-Null
             Start-Sleep -Milliseconds 700
@@ -1178,7 +1200,23 @@ function Wait-ForAnswer {
         $explicitComplete = $false
         $explicitComplete = $info.reference_count -gt 0 -and $stableCount -ge 1
         $stableComplete = $stableCount -ge 2
-        if ($Platform -eq "kimi") {
+        if ($Platform -eq "qwen") {
+            # Qwen can pause for several seconds after announcing a search.
+            # A short stable window captured only that preamble in production.
+            $minimumGenerationTimeReached = (
+                $firstTokenAt -and
+                ((Get-Date) - $firstTokenAt).TotalSeconds -ge 30
+            )
+            $explicitComplete = (
+                $minimumGenerationTimeReached -and
+                $info.reference_count -gt 0 -and
+                $stableCount -ge 1
+            )
+            $stableComplete = (
+                $minimumGenerationTimeReached -and
+                $stableCount -ge 3
+            )
+        } elseif ($Platform -eq "kimi") {
             # During generation Kimi exposes the square stop control through
             # the stale accessibility label "发送讯息". Once generation is
             # complete that node disappears and the voice-input control
@@ -1853,15 +1891,13 @@ try {
     $startedAt = Get-Date
     if ($Platform -in @("yuanbao", "qwen", "kimi")) {
         $sessionId = "adb"
-        if ($Platform -eq "yuanbao") {
-            & adb -s $serial shell am start `
-                -n "$packageName/.biz.login.v2.HYLoginMainActivity" | Out-Null
-        } else {
-            & cmd.exe /d /c (
-                "adb -s $serial shell monkey -p $packageName " +
-                "-c android.intent.category.LAUNCHER 1 >nul 2>&1"
-            )
-        }
+        # Rebuild the activity stack on every attempt. Source browsers and
+        # share sheets from a failed attempt otherwise poison all retries.
+        & adb -s $serial shell am force-stop $packageName | Out-Null
+        & cmd.exe /d /c (
+            "adb -s $serial shell monkey -p $packageName " +
+            "-c android.intent.category.LAUNCHER 1 >nul 2>&1"
+        )
         if ($LASTEXITCODE -ne 0) {
             throw "Could not activate $Platform"
         }
