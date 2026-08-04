@@ -405,6 +405,48 @@ function Get-DeepSeekAnswerSnapshot {
     }
 }
 
+function Get-YuanbaoAnswerSnapshot {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    $sizeOutput = (& adb -s $script:deviceSerial shell wm size 2>&1) -join "`n"
+    if ($sizeOutput -notmatch '(\d+)x(\d+)') {
+        throw "Could not determine the Android display size"
+    }
+    $width = [int]$Matches[1]
+    $height = [int]$Matches[2]
+
+    for ($attempt = 0; $attempt -lt 16; $attempt++) {
+        $source = Get-PageSource -SessionId $SessionId
+        $document = ConvertTo-Xml -Source $source
+        $copyNode = $document.SelectSingleNode(
+            "//*[@text='复制本次模型回答' or @content-desc='复制本次模型回答']"
+        )
+        $sourceNode = $document.SelectSingleNode(
+            "//*[@text='源' or @content-desc='源']"
+        )
+        $copyBounds = if ($copyNode) { Get-Bounds -Node $copyNode } else { $null }
+        $sourceBounds = if ($sourceNode) { Get-Bounds -Node $sourceNode } else { $null }
+        if ($copyBounds -and $sourceBounds) {
+            & adb -s $script:deviceSerial shell input tap `
+                $copyBounds.center_x $copyBounds.center_y | Out-Null
+            Start-Sleep -Milliseconds 400
+            $answer = Get-ClipboardText -SessionId $SessionId
+            if ($answer -and $answer.Length -ge 30 -and $answer -notmatch '^https?://') {
+                return @{
+                    source = $source
+                    answer = $answer
+                    reference_count = 0
+                }
+            }
+        }
+        & adb -s $script:deviceSerial shell input swipe `
+            ([int]($width * 0.50)) ([int]($height * 0.74)) `
+            ([int]($width * 0.50)) ([int]($height * 0.19)) 250 | Out-Null
+        Start-Sleep -Milliseconds 500
+    }
+    $null
+}
+
 function ConvertTo-Xml {
     param([Parameter(Mandatory)][string]$Source)
 
@@ -947,13 +989,17 @@ function Wait-ForAnswer {
     $lastAnswer = $null
     $stableCount = 0
     $firstTokenAt = $null
-    if ($Platform -eq "deepseek") {
+    if ($Platform -in @("deepseek", "yuanbao")) {
         do {
             Start-Sleep -Seconds 3
             try {
-                $info = Get-DeepSeekAnswerSnapshot -SessionId $SessionId
+                $info = if ($Platform -eq "deepseek") {
+                    Get-DeepSeekAnswerSnapshot -SessionId $SessionId
+                } else {
+                    Get-YuanbaoAnswerSnapshot -SessionId $SessionId
+                }
             } catch {
-                Write-GatewayTrace "deepseek snapshot unavailable: $($_.Exception.Message)"
+                Write-GatewayTrace "$Platform snapshot unavailable: $($_.Exception.Message)"
                 $info = $null
             }
             if (-not $info -or -not $info.answer) {
