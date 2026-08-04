@@ -597,6 +597,20 @@ function Get-ResolverUrl {
     $null
 }
 
+function Get-ExternalUrlHandlerPackage {
+    foreach ($line in @(
+        & adb -s $script:deviceSerial shell dumpsys activity activities
+    )) {
+        if (
+            $line -match 'dat=https?://[^\s}]+.*cmp=([a-zA-Z0-9._]+)/' -and
+            $Matches[1] -ne $packageName
+        ) {
+            return [string]$Matches[1]
+        }
+    }
+    $null
+}
+
 function Get-AppVersion {
     param([Parameter(Mandatory)][string]$Package)
 
@@ -790,7 +804,15 @@ function Submit-Prompt {
         Start-Sleep -Milliseconds 500
     }
     if ($Platform -eq "deepseek") {
-        & adb -s $script:deviceSerial shell input tap 1030 1430 | Out-Null
+        $imeState = (
+            & adb -s $script:deviceSerial shell dumpsys input_method 2>&1
+        ) -join "`n"
+        $sendY = if ($imeState -match 'mInputShown=true|mIsInputViewShown=true') {
+            1430
+        } else {
+            2250
+        }
+        & adb -s $script:deviceSerial shell input tap 1030 $sendY | Out-Null
         if ($LASTEXITCODE -ne 0) {
             throw "ADB failed to tap the DeepSeek send button"
         }
@@ -1403,6 +1425,22 @@ function Get-DeepSeekSources {
                 }
                 & adb -s $script:deviceSerial shell input tap `
                     $openBounds.center_x $openBounds.center_y | Out-Null
+                Start-Sleep -Milliseconds 500
+                $confirmDocument = ConvertTo-Xml -Source (
+                    Get-PageSource -SessionId $SessionId
+                )
+                $allowNode = $confirmDocument.SelectSingleNode(
+                    "//*[@text='允许' or @content-desc='允许']"
+                )
+                $allowBounds = if ($allowNode) {
+                    Get-Bounds -Node $allowNode
+                } else {
+                    $null
+                }
+                if ($allowBounds) {
+                    & adb -s $script:deviceSerial shell input tap `
+                        $allowBounds.center_x $allowBounds.center_y | Out-Null
+                }
                 Start-Sleep -Seconds 2
                 $rawUrl = Get-ResolverUrl
                 if (-not $rawUrl) {
@@ -1413,7 +1451,15 @@ function Get-DeepSeekSources {
                 $record.url = $url
                 $record.domain = Get-Host -Url $url
                 $record.url_resolution = "exact"
-                Press-Back -SessionId $SessionId
+                $externalPackage = Get-ExternalUrlHandlerPackage
+                if ($externalPackage) {
+                    & adb -s $script:deviceSerial shell am force-stop `
+                        $externalPackage | Out-Null
+                    & adb -s $script:deviceSerial shell monkey `
+                        -p $packageName 1 | Out-Null
+                } else {
+                    Press-Back -SessionId $SessionId
+                }
                 Start-Sleep -Milliseconds 500
                 Return-ToDeepSeekSourcePanel -SessionId $SessionId
             } catch {
