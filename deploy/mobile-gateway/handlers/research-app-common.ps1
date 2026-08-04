@@ -594,9 +594,11 @@ function Submit-Prompt {
                 throw "ADB failed to focus the DeepSeek prompt input"
             }
             Start-Sleep -Seconds 1
-            # This Huawei gateway keyboard exposes a dedicated clear key. A
-            # retry otherwise appends the prompt to the persisted draft.
-            & adb -s $script:deviceSerial shell input tap 1025 1935 | Out-Null
+            # DeepSeek preserves an unsent draft across new conversations.
+            # Move to the end and delete a bounded maximum prompt length in a
+            # single adb invocation before typing the retry payload.
+            $clearKeys = @("123") + @(1..300 | ForEach-Object { "67" })
+            & adb -s $script:deviceSerial shell input keyevent @clearKeys | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 throw "ADB failed to clear the DeepSeek prompt input"
             }
@@ -670,7 +672,7 @@ function Submit-Prompt {
     }
     Start-Sleep -Seconds 1
 
-    if ($input -eq "adb") {
+    if ($Platform -eq "yuanbao") {
         # Restore the full-height layout before locating the send control.
         & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
         Start-Sleep -Milliseconds 500
