@@ -45,6 +45,48 @@ function Write-GatewayTrace {
     }
 }
 
+function Start-DeepSeekApp {
+    param([Parameter(Mandatory)][string]$Serial)
+
+    # adb's monkey command writes normal diagnostics to stderr, which
+    # PowerShell promotes to a terminating error under ErrorActionPreference.
+    & cmd.exe /d /c "adb -s $Serial shell am start -W -S -n com.deepseek.chat/.MainActivity >nul 2>&1"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not start DeepSeek app (adb exit code $LASTEXITCODE)"
+    }
+    Start-Sleep -Milliseconds 700
+    $resumedPackage = $null
+    foreach ($line in @(& adb -s $Serial shell dumpsys activity activities)) {
+        if ($line -match 'mResumedActivity:.*\s([a-zA-Z0-9._]+)/') {
+            $resumedPackage = [string]$Matches[1]
+            break
+        }
+    }
+    if ($resumedPackage -ne 'com.deepseek.chat') {
+        throw "DeepSeek did not reach the foreground (resumed=$resumedPackage)"
+    }
+}
+
+function Resume-DeepSeekApp {
+    param([Parameter(Mandatory)][string]$Serial)
+
+    & cmd.exe /d /c "adb -s $Serial shell am start -W -n com.deepseek.chat/.MainActivity >nul 2>&1"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not resume DeepSeek app (adb exit code $LASTEXITCODE)"
+    }
+    Start-Sleep -Milliseconds 700
+    $resumedPackage = $null
+    foreach ($line in @(& adb -s $Serial shell dumpsys activity activities)) {
+        if ($line -match 'mResumedActivity:.*\s([a-zA-Z0-9._]+)/') {
+            $resumedPackage = [string]$Matches[1]
+            break
+        }
+    }
+    if ($resumedPackage -ne 'com.deepseek.chat') {
+        throw "DeepSeek did not return to the foreground (resumed=$resumedPackage)"
+    }
+}
+
 function Invoke-AppiumRequest {
     param(
         [Parameter(Mandatory)][string]$Method,
@@ -358,8 +400,7 @@ function Get-ClipboardText {
                 & adb -s $script:deviceSerial shell ime set $previousIme | Out-Null
             }
             if ($Platform -eq "deepseek") {
-                & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
-                Start-Sleep -Milliseconds 400
+                Resume-DeepSeekApp -Serial $script:deviceSerial
             }
         }
     }
@@ -604,18 +645,60 @@ function Get-Host {
 
 function Get-ResolverUrl {
     $dump = @(& adb -s $script:deviceSerial shell dumpsys activity activities)
+    $candidates = @()
     foreach ($line in $dump) {
         if ($line -match "dat=(https?://[^\s}]+)") {
-            return [string]$Matches[1]
+            $candidates += [string]$Matches[1]
         }
     }
-    $null
+    if ($candidates.Count -gt 0) {
+        $first = $candidates[0]
+        try {
+            $urlHost = ([Uri]$first).Host
+            $completeSameHost = @(
+                $candidates |
+                    Where-Object {
+                        $_ -notmatch '/\.\.\.(?:$|[/?#])' -and
+                        ([Uri]$_).Host -eq $urlHost
+                    }
+            )
+            if ($completeSameHost.Count -gt 0) {
+                return [string](
+                    $completeSameHost |
+                        Sort-Object Length -Descending |
+                        Select-Object -First 1
+                )
+            }
+        } catch {}
+        return $first
+    }
+    foreach ($line in $dump) {
+        if ($line -match 'dat=zhihu://articles/(\d+)') {
+            return "https://zhuanlan.zhihu.com/p/$($Matches[1])"
+        }
+        if ($line -match 'dat=zhihu://questions/(\d+)') {
+            return "https://www.zhihu.com/question/$($Matches[1])"
+        }
+        if ($line -match 'dat=zhihu://answers/(\d+)') {
+            return "https://www.zhihu.com/answer/$($Matches[1])"
+        }
+    }
+    return $null
 }
 
 function Get-ExternalUrlHandlerPackage {
-    foreach ($line in @(
+    $activityDump = @(
         & adb -s $script:deviceSerial shell dumpsys activity activities
-    )) {
+    )
+    foreach ($line in $activityDump) {
+        if (
+            $line -match '(?:mResumedActivity|ResumedActivity):.*\s([a-zA-Z0-9._]+)/' -and
+            $Matches[1] -ne $packageName
+        ) {
+            return [string]$Matches[1]
+        }
+    }
+    foreach ($line in $activityDump) {
         if (
             $line -match 'dat=https?://[^\s}]+.*cmp=([a-zA-Z0-9._]+)/' -and
             $Matches[1] -ne $packageName
@@ -1399,6 +1482,7 @@ function Get-DeepSeekSources {
                 -Url $null `
                 -Resolution "unavailable"
             try {
+                Write-GatewayTrace "deepseek source $ordinal open"
                 Click-Point `
                     -SessionId $SessionId `
                     -X $bounds.center_x `
@@ -1445,6 +1529,11 @@ function Get-DeepSeekSources {
                 if ($pageTitleNode) {
                     $record.page_title = $pageTitleNode.GetAttribute("text")
                 }
+                $embeddedUrl = Get-ResolverUrl
+                if ($embeddedUrl) {
+                    Write-GatewayTrace `
+                        "deepseek source $ordinal embedded $embeddedUrl"
+                }
                 & adb -s $script:deviceSerial shell input tap `
                     $openBounds.center_x $openBounds.center_y | Out-Null
                 Start-Sleep -Milliseconds 500
@@ -1466,6 +1555,9 @@ function Get-DeepSeekSources {
                 Start-Sleep -Seconds 2
                 $rawUrl = Get-ResolverUrl
                 if (-not $rawUrl) {
+                    $rawUrl = $embeddedUrl
+                }
+                if (-not $rawUrl) {
                     throw "Android resolver did not expose the source URL"
                 }
                 $url = ConvertTo-CanonicalUrl -Url $rawUrl
@@ -1473,12 +1565,14 @@ function Get-DeepSeekSources {
                 $record.url = $url
                 $record.domain = Get-Host -Url $url
                 $record.url_resolution = "exact"
+                Write-GatewayTrace "deepseek source $ordinal resolved $url"
                 $externalPackage = Get-ExternalUrlHandlerPackage
                 if ($externalPackage) {
+                    Write-GatewayTrace `
+                        "deepseek source $ordinal close external $externalPackage"
                     & adb -s $script:deviceSerial shell am force-stop `
                         $externalPackage | Out-Null
-                    & adb -s $script:deviceSerial shell monkey `
-                        -p $packageName 1 | Out-Null
+                    Resume-DeepSeekApp -Serial $script:deviceSerial
                 } else {
                     Press-Back -SessionId $SessionId
                 }
@@ -1487,9 +1581,10 @@ function Get-DeepSeekSources {
             } catch {
                 $record.status = "failed"
                 $record.error_message = $_.Exception.Message
+                Write-GatewayTrace `
+                    "deepseek source $ordinal failed: $($_.Exception.Message)"
                 try {
-                    & adb -s $script:deviceSerial shell monkey `
-                        -p $packageName 1 | Out-Null
+                    Resume-DeepSeekApp -Serial $script:deviceSerial
                     Start-Sleep -Milliseconds 500
                     Return-ToDeepSeekSourcePanel -SessionId $SessionId
                 } catch {}
@@ -1773,7 +1868,7 @@ try {
             # the previous task. Rebuild only the activity stack; no app data
             # or authenticated state is cleared.
             & adb -s $serial shell am force-stop $packageName | Out-Null
-            & adb -s $serial shell monkey -p $packageName 1 | Out-Null
+            Start-DeepSeekApp -Serial $serial
             Start-Sleep -Seconds 1
         }
     }
@@ -1811,6 +1906,7 @@ try {
         }
         $appiumSessionClosed = $true
         $sessionId = "adb"
+        Resume-DeepSeekApp -Serial $serial
         Start-Sleep -Seconds 20
     } elseif ($Platform -eq "yuanbao") {
         # Yuanbao pauses while loading product cards. Accessibility dumps
