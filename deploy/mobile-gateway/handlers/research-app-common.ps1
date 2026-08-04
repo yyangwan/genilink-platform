@@ -1415,6 +1415,22 @@ function Get-DeepSeekSources {
                     } else {
                         $null
                     }
+                    if (-not $openBounds) {
+                        foreach ($candidateNode in @(
+                            $pageDocument.SelectNodes("//*[@clickable='true']")
+                        )) {
+                            $candidateBounds = Get-Bounds -Node $candidateNode
+                            if (
+                                $candidateBounds -and
+                                $candidateBounds.left -ge 900 -and
+                                $candidateBounds.top -ge 120 -and
+                                $candidateBounds.bottom -le 450
+                            ) {
+                                $openBounds = $candidateBounds
+                                break
+                            }
+                        }
+                    }
                 } while (-not $openBounds -and (Get-Date) -lt $openDeadline)
                 if (-not $openBounds) {
                     throw "DeepSeek source page did not expose Open in browser"
