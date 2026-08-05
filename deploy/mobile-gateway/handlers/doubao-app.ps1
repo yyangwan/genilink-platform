@@ -149,11 +149,17 @@ function Get-PageSource {
 function Get-NativePageSource {
     $devicePath = "/sdcard/mobile-gateway-doubao.xml"
     $localPath = Join-Path $resultRoot "doubao-current.xml"
-    & cmd.exe /d /c (
-        "adb -s $script:deviceSerial shell uiautomator dump " +
-        "$devicePath >nul 2>&1"
-    )
-    if ($LASTEXITCODE -ne 0) {
+    $dumpProcess = Start-Process `
+        -FilePath "adb" `
+        -ArgumentList @("-s", $script:deviceSerial, "shell", "uiautomator", "dump", $devicePath) `
+        -WindowStyle Hidden `
+        -PassThru
+    if (-not $dumpProcess.WaitForExit(15000)) {
+        $dumpProcess.Kill()
+        $dumpProcess.WaitForExit()
+        throw "Timed out while dumping the Doubao UI hierarchy"
+    }
+    if ($dumpProcess.ExitCode -ne 0) {
         throw "Could not dump the Doubao UI hierarchy"
     }
     & cmd.exe /d /c (
@@ -166,7 +172,117 @@ function Get-NativePageSource {
     Get-Content -LiteralPath $localPath -Raw -Encoding UTF8
 }
 
+function Get-NativeNodeBounds {
+    param([Parameter(Mandatory)]$Node)
+
+    if ($Node.GetAttribute("bounds") -notmatch (
+        "^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$"
+    )) {
+        return $null
+    }
+    $left = [int]$Matches[1]
+    $top = [int]$Matches[2]
+    $right = [int]$Matches[3]
+    $bottom = [int]$Matches[4]
+    if ($right -le $left -or $bottom -le $top) {
+        return $null
+    }
+    @{
+        left = $left
+        top = $top
+        right = $right
+        bottom = $bottom
+        center_x = [int](($left + $right) / 2)
+        center_y = [int](($top + $bottom) / 2)
+    }
+}
+
+function Invoke-NativeNodeTap {
+    param([Parameter(Mandatory)]$Node)
+
+    $tapNode = $Node
+    $bounds = Get-NativeNodeBounds -Node $tapNode
+    while (-not $bounds -and $tapNode.ParentNode) {
+        $tapNode = $tapNode.ParentNode
+        $bounds = Get-NativeNodeBounds -Node $tapNode
+    }
+    if (-not $bounds) {
+        throw "Android UI node does not expose valid bounds"
+    }
+    & adb -s $script:deviceSerial shell input tap `
+        $bounds.center_x $bounds.center_y | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "ADB failed to tap the Android UI node"
+    }
+}
+
+function Get-DirectClipboardText {
+    $previousIme = (
+        & adb -s $script:deviceSerial shell settings get secure default_input_method
+    ).Trim()
+    try {
+        & adb -s $script:deviceSerial shell ime set `
+            io.appium.settings/.AppiumIME | Out-Null
+        Start-Sleep -Milliseconds 400
+        $output = & adb -s $script:deviceSerial shell am broadcast `
+            -n io.appium.settings/.receivers.ClipboardReceiver `
+            -a io.appium.settings.clipboard.get 2>&1 | Out-String
+        if ($output -notmatch 'data="([A-Za-z0-9+/=]+)"') {
+            throw "Appium Settings did not return clipboard content"
+        }
+        $text = [Text.Encoding]::UTF8.GetString(
+            [Convert]::FromBase64String($Matches[1])
+        ).Trim()
+        if ($text -notmatch '^https?://' -and $text -match '^([A-Za-z0-9+/]{20,}={0,2})') {
+            try {
+                $nested = [Text.Encoding]::UTF8.GetString(
+                    [Convert]::FromBase64String($Matches[1])
+                ).Trim()
+                if ($nested -match '^https?://') {
+                    $text = $nested
+                }
+            } catch {}
+        }
+        $text
+    } finally {
+        if ($previousIme -and $previousIme -ne "null") {
+            & adb -s $script:deviceSerial shell ime set $previousIme | Out-Null
+        }
+    }
+}
+
+function Get-ForegroundIntentUrl {
+    $recentLines = @()
+    $insideCurrentTask = $false
+    foreach ($line in @(& adb -s $script:deviceSerial shell dumpsys activity recents)) {
+        if ($line -match '^\s*\* Recent #0:') {
+            $insideCurrentTask = $true
+        } elseif ($insideCurrentTask -and $line -match '^\s*\* Recent #\d+:') {
+            break
+        }
+        if ($insideCurrentTask) {
+            $recentLines += $line
+        }
+    }
+    $recent = $recentLines -join "`n"
+    if ($recent -match 'dat=(https?://[^\s}\]]+)') {
+        return [Uri]::UnescapeDataString($Matches[1])
+    }
+    $hostMatch = [regex]::Match($recent, '(?:[?&])host=([^&\s}]+)')
+    $groupIdMatch = [regex]::Match($recent, '(?:[?&])group_id=(\d+)')
+    if ($recent -match 'dat=snssdk[^\s}]*' -and $hostMatch.Success -and $groupIdMatch.Success) {
+        $hostName = [Uri]::UnescapeDataString($hostMatch.Groups[1].Value)
+        return "https://$hostName/share/video/$($groupIdMatch.Groups[1].Value)"
+    }
+    $null
+}
+
 function Get-ForegroundPackage {
+    foreach ($line in @(& adb -s $script:deviceSerial shell dumpsys window)) {
+        if ($line -match 'mCurrentFocus=.*\s([a-zA-Z0-9._]+)/') {
+            return [string]$Matches[1]
+        }
+    }
     foreach ($line in @(
         & adb -s $script:deviceSerial shell dumpsys activity activities
     )) {
@@ -406,18 +522,22 @@ function Return-ToDoubaoChat {
     # Some source schemes launch a separate app task. Stopping that task
     # reveals Doubao's preserved WebActivity; one Back then returns to the
     # reference panel without relaunching Doubao at its home screen.
-    $foregroundPackage = Get-ForegroundPackage
-    if (
-        $foregroundPackage -and
-        $foregroundPackage -ne $packageName -and
-        $foregroundPackage -notmatch '^com\.huawei\.android\.launcher$'
-    ) {
-        & adb -s $script:deviceSerial shell am force-stop `
-            $foregroundPackage | Out-Null
-        Start-Sleep -Milliseconds 500
+    for ($attempt = 0; $attempt -lt 6; $attempt++) {
+        $foregroundPackage = Get-ForegroundPackage
+        if ($foregroundPackage -eq $packageName) {
+            & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
+            Start-Sleep -Seconds 1
+            return $false
+        }
+        if (
+            $foregroundPackage -and
+            $foregroundPackage -notmatch '^com\.huawei\.android\.launcher$'
+        ) {
+            & adb -s $script:deviceSerial shell am force-stop `
+                $foregroundPackage | Out-Null
+        }
+        Start-Sleep -Milliseconds 750
     }
-    & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
-    Start-Sleep -Seconds 1
     return $false
 }
 
@@ -466,6 +586,40 @@ function Expand-ReferenceList {
     }
 }
 
+function Restore-NativeReferencePanel {
+    for ($attempt = 0; $attempt -lt 10; $attempt++) {
+        $foregroundPackage = Get-ForegroundPackage
+        if ($foregroundPackage -ne $packageName) {
+            if (
+                $foregroundPackage -and
+                $foregroundPackage -notmatch '^com\.huawei\.android\.launcher$'
+            ) {
+                & adb -s $script:deviceSerial shell am force-stop `
+                    $foregroundPackage | Out-Null
+            }
+            Start-Sleep -Milliseconds 750
+            continue
+        }
+        [xml]$document = Get-NativePageSource
+        if ($document.SelectSingleNode(
+            "//*[@resource-id='$packageName`:id/tv_reference_content']"
+        )) {
+            return
+        }
+        $referenceTitle = $document.SelectSingleNode(
+            "//*[@resource-id='$packageName`:id/ll_reference_title']"
+        )
+        if ($referenceTitle) {
+            Invoke-NativeNodeTap -Node $referenceTitle
+            Start-Sleep -Milliseconds 700
+            continue
+        }
+        & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
+        Start-Sleep -Milliseconds 700
+    }
+    throw "Could not restore the Doubao reference panel"
+}
+
 function Get-DoubaoSources {
     param(
         [Parameter(Mandatory)]
@@ -477,14 +631,14 @@ function Get-DoubaoSources {
     $summary = Get-ReferenceSummary -Source $AnswerSource
     if ($summary.reference_count -le 0) {
         return @{
-            session_id = $SessionId
+            session_id = $null
             search_keyword_count = $summary.search_keyword_count
             reference_count = 0
             sources = @()
         }
     }
 
-    Expand-ReferenceList -SessionId $SessionId
+    Restore-NativeReferencePanel
     $collected = @{}
     $stalledScrolls = 0
     $collectionFailure = $null
@@ -493,171 +647,179 @@ function Get-DoubaoSources {
             $collected.Count -lt $summary.reference_count -and
             $stalledScrolls -lt 4
         ) {
-        $expandedSource = Get-PageSource -SessionId $SessionId
-        $visibleItems = @(Get-VisibleReferenceItems -Source $expandedSource)
-        $visibleElements = @(Find-AppiumElements `
-            -SessionId $SessionId `
-            -ResourceId "$packageName`:id/tv_reference_content")
-        $processedThisPass = $false
+            [xml]$expandedDocument = Get-NativePageSource
+            $visibleItems = @()
+            foreach ($itemNode in @($expandedDocument.SelectNodes(
+                "//*[@resource-id='$packageName`:id/ll_source_item']"
+            ))) {
+                $titleNode = $itemNode.SelectSingleNode(
+                    ".//*[@resource-id='$packageName`:id/tv_reference_content']"
+                )
+                if (-not $titleNode) {
+                    continue
+                }
+                $ordinal = $null
+                foreach ($textNode in @($itemNode.SelectNodes(".//*[@text]"))) {
+                    if ($textNode.GetAttribute("text") -match '^\s*(\d+)\.\s*$') {
+                        $ordinal = [int]$Matches[1]
+                        break
+                    }
+                }
+                $bounds = Get-NativeNodeBounds -Node $itemNode
+                $title = $titleNode.GetAttribute("text").Trim()
+                if ($null -ne $ordinal -and $bounds -and $title) {
+                    $visibleItems += [pscustomobject]@{
+                        index = $ordinal
+                        title = $title
+                        node = $itemNode
+                    }
+                }
+            }
 
-        for (
-            $itemIndex = 0;
-            $itemIndex -lt [math]::Min($visibleItems.Count, $visibleElements.Count);
-            $itemIndex++
-        ) {
-            $item = $visibleItems[$itemIndex]
-            $key = [string]$item.index
-            if ($collected.ContainsKey($key)) {
+            $item = @($visibleItems | Where-Object {
+                -not $collected.ContainsKey([string]$_.index)
+            } | Sort-Object index) | Select-Object -First 1
+            if ($item) {
+                $key = [string]$item.index
+                $sourceResult = [ordered]@{
+                    index = [int]$item.index
+                    title = [string]$item.title
+                    page_title = $null
+                    domain = $null
+                    url = $null
+                    raw_url = $null
+                    url_resolution = "unavailable"
+                    status = "failed"
+                    error_message = $null
+                }
+                $clipboardBefore = $null
+                try {
+                    try { $clipboardBefore = Get-DirectClipboardText } catch {}
+                    Invoke-NativeNodeTap -Node $item.node
+                    Start-Sleep -Seconds 2
+
+                    $foregroundPackage = Get-ForegroundPackage
+                    $intentUrl = if ($foregroundPackage -ne $packageName) {
+                        Get-ForegroundIntentUrl
+                    } else {
+                        $null
+                    }
+                    $rawUrl = $intentUrl
+                    if (-not $rawUrl) {
+                        [xml]$detailDocument = Get-NativePageSource
+                        $pageTitleNode = $detailDocument.SelectSingleNode(
+                            "//*[@resource-id='$packageName`:id/tv_title']"
+                        )
+                        if ($pageTitleNode) {
+                            $sourceResult.page_title = $pageTitleNode.GetAttribute("text")
+                        }
+                        $shareButton = $detailDocument.SelectSingleNode(
+                            "//*[@resource-id='$packageName`:id/btn_share']"
+                        )
+                        if (-not $shareButton) {
+                            # A cold external app launch can leave Doubao focused briefly.
+                            for ($launchAttempt = 0; $launchAttempt -lt 8; $launchAttempt++) {
+                                Start-Sleep -Milliseconds 750
+                                $foregroundPackage = Get-ForegroundPackage
+                                if ($foregroundPackage -ne $packageName) {
+                                    $rawUrl = Get-ForegroundIntentUrl
+                                    if ($rawUrl) {
+                                        break
+                                    }
+                                }
+                            }
+                        }
+                        if ($rawUrl) {
+                            $shareButton = $null
+                        } elseif (-not $shareButton) {
+                            [xml]$detailDocument = Get-NativePageSource
+                            $shareButton = $detailDocument.SelectSingleNode(
+                                "//*[@resource-id='$packageName`:id/btn_share']"
+                            )
+                        }
+                        if (-not $rawUrl -and -not $shareButton) {
+                            throw "Doubao source detail did not expose Share"
+                        }
+                        if (-not $rawUrl) {
+                            Invoke-NativeNodeTap -Node $shareButton
+                            Start-Sleep -Milliseconds 800
+                            [xml]$shareDocument = Get-NativePageSource
+                            $copyLinkNode = @($shareDocument.SelectNodes(
+                                "//*[@resource-id='$packageName`:id/tv_app_name']"
+                            ) | Where-Object {
+                                ([string]$_.GetAttribute("text")).Contains($copyLinkLabel)
+                            }) | Select-Object -First 1
+                            if (-not $copyLinkNode) {
+                                throw "Doubao share sheet did not expose Copy Link"
+                            }
+                            Invoke-NativeNodeTap -Node $copyLinkNode
+                            Start-Sleep -Milliseconds 600
+                            $rawUrl = Get-DirectClipboardText
+                            if ($rawUrl -eq $clipboardBefore) {
+                                $existing = @($collected.Values | Where-Object {
+                                    $_.url -eq (ConvertTo-CanonicalSourceUrl -Url $rawUrl)
+                                }) | Select-Object -First 1
+                                if ($existing -and $existing.title -ne $sourceResult.title) {
+                                    throw "Copy Link did not update the clipboard"
+                                }
+                            }
+                        }
+                    }
+
+                    $uri = $null
+                    if (
+                        -not [Uri]::TryCreate($rawUrl, [UriKind]::Absolute, [ref]$uri) -or
+                        $uri.Scheme -notin @("http", "https")
+                    ) {
+                        throw "Doubao did not expose an HTTP source URL"
+                    }
+                    $canonicalUrl = ConvertTo-CanonicalSourceUrl -Url $rawUrl
+                    $sourceResult.raw_url = $rawUrl
+                    $sourceResult.url = $canonicalUrl
+                    $sourceResult.domain = ([Uri]$canonicalUrl).Host.ToLowerInvariant()
+                    $sourceResult.url_resolution = "exact"
+                    $sourceResult.status = "collected"
+                } catch {
+                    $sourceResult.error_message = $_.Exception.Message
+                } finally {
+                    try {
+                        Return-ToDoubaoChat -SessionId "adb" | Out-Null
+                        Restore-NativeReferencePanel
+                    } catch {
+                        if (-not $sourceResult.error_message) {
+                            $sourceResult.error_message = $_.Exception.Message
+                        }
+                    }
+                }
+                $collected[$key] = [pscustomobject]$sourceResult
+                $stalledScrolls = 0
                 continue
             }
 
-            $processedThisPass = $true
-            $sourceResult = [ordered]@{
-                index = [int]$item.index
-                title = [string]$item.title
-                page_title = $null
-                domain = $null
-                url = $null
-                raw_url = $null
-                status = "failed"
-                error_message = $null
+            $container = $expandedDocument.SelectSingleNode(
+                "//*[@resource-id='$packageName`:id/sub_keyword_reference']"
+            )
+            $listNode = if ($container) {
+                $container.SelectSingleNode(
+                    ".//*[@class='androidx.recyclerview.widget.RecyclerView']"
+                )
+            } else {
+                $null
             }
-            try {
-                Invoke-ElementClick `
-                    -SessionId $SessionId `
-                    -ElementId $visibleElements[$itemIndex]
-                $shareButton = Find-AppiumElement `
-                    -SessionId $SessionId `
-                    -ResourceId "$packageName`:id/btn_share" `
-                    -TimeoutSeconds 15
-
-                $pageTitleElement = Find-AppiumElement `
-                    -SessionId $SessionId `
-                    -ResourceId "$packageName`:id/tv_title" `
-                    -TimeoutSeconds 3 `
-                    -Optional
-                if ($pageTitleElement) {
-                    $sourceResult.page_title = Get-ElementText `
-                        -SessionId $SessionId `
-                        -ElementId $pageTitleElement
-                }
-
-                $clipboardMarker = "mobile-gateway-$([guid]::NewGuid().ToString('N'))"
-                try {
-                    Set-ClipboardText -SessionId $SessionId -Value $clipboardMarker
-                } catch {
-                    $clipboardMarker = $null
-                }
-                Invoke-ElementClick -SessionId $SessionId -ElementId $shareButton
-                Start-Sleep -Milliseconds 750
-                [xml]$shareDocument = Get-PageSource -SessionId $SessionId
-                $copyLinkNode = @(
-                    $shareDocument.SelectNodes(
-                        "//*[@resource-id='$packageName`:id/tv_app_name']"
-                    ) | Where-Object {
-                        ([string]$_.GetAttribute("text")).Contains($copyLinkLabel)
-                    }
-                ) | Select-Object -First 1
-                if (
-                    -not $copyLinkNode -or
-                    $copyLinkNode.GetAttribute("bounds") -notmatch (
-                        "^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$"
-                    )
-                ) {
-                    throw "Doubao share sheet is visible but Copy Link is missing"
-                }
-                $copyLinkX = [int](([int]$Matches[1] + [int]$Matches[3]) / 2)
-                $copyLinkY = [int](([int]$Matches[2] + [int]$Matches[4]) / 2)
-                & adb -s $script:deviceSerial shell input tap `
-                    $copyLinkX $copyLinkY | Out-Null
-                Start-Sleep -Milliseconds 500
-
-                $rawUrl = Get-ClipboardText -SessionId $SessionId
-                if (
-                    -not $rawUrl -or
-                    ($clipboardMarker -and $rawUrl -eq $clipboardMarker)
-                ) {
-                    throw "Copy Link did not update the clipboard"
-                }
-                $uri = $null
-                if (
-                    -not [Uri]::TryCreate(
-                        $rawUrl,
-                        [UriKind]::Absolute,
-                        [ref]$uri
-                    ) -or
-                    $uri.Scheme -notin @("http", "https")
-                ) {
-                    throw "Copied value is not an HTTP URL"
-                }
-                $canonicalUrl = ConvertTo-CanonicalSourceUrl -Url $rawUrl
-                $canonicalUri = [Uri]$canonicalUrl
-                $sourceResult.raw_url = $rawUrl
-                $sourceResult.url = $canonicalUrl
-                $sourceResult.domain = $canonicalUri.Host.ToLowerInvariant()
-                $sourceResult.status = "collected"
-            } catch {
-                $sourceResult.error_message = $_.Exception.Message
-            } finally {
-                try {
-                    $requiresNewSession = Return-ToDoubaoChat -SessionId $SessionId
-                    try {
-                        Invoke-AppiumRequest `
-                            -Method Delete `
-                            -Path "/session/$SessionId" `
-                            -Body $null `
-                            -TimeoutSeconds 15 | Out-Null
-                    } catch {
-                        # The share sheet frequently leaves instrumentation wedged.
-                    }
-                    & adb -s $script:deviceSerial shell am force-stop `
-                        io.appium.uiautomator2.server | Out-Null
-                    & adb -s $script:deviceSerial shell am force-stop `
-                        io.appium.uiautomator2.server.test | Out-Null
-                    Start-Sleep -Milliseconds 500
-                    $SessionId = New-DoubaoAppiumSession `
-                        -ActivateApp:$requiresNewSession
-                    Expand-ReferenceList -SessionId $SessionId
-                } catch {
-                    if (-not $sourceResult.error_message) {
-                        $sourceResult.error_message = $_.Exception.Message
-                    }
-                }
+            $listBounds = if ($listNode) {
+                Get-NativeNodeBounds -Node $listNode
+            } else {
+                $null
             }
-            $collected[$key] = [pscustomobject]$sourceResult
-            break
-        }
-
-        if ($processedThisPass) {
-            $stalledScrolls = 0
-            continue
-        }
-
-        $bounds = Get-ReferenceListBounds -Source $expandedSource
-        if ($null -eq $bounds) {
+            if (-not $listBounds) {
+                $stalledScrolls++
+                continue
+            }
+            & adb -s $script:deviceSerial shell input swipe `
+                $listBounds.center_x ($listBounds.bottom - 120) `
+                $listBounds.center_x ($listBounds.top + 120) 500 | Out-Null
+            Start-Sleep -Milliseconds 700
             $stalledScrolls++
-            continue
-        }
-        $scroll = Invoke-AppiumRequest `
-            -Method Post `
-            -Path "/session/$SessionId/execute/sync" `
-            -Body @{
-                script = "mobile: scrollGesture"
-                args = @(@{
-                    left = $bounds.left
-                    top = $bounds.top
-                    width = $bounds.width
-                    height = $bounds.height
-                    direction = "down"
-                    percent = 0.85
-                })
-            }
-        if (-not $scroll.value) {
-            $stalledScrolls++
-        } else {
-            Start-Sleep -Milliseconds 500
-            $stalledScrolls = 0
-        }
         }
     } catch {
         $collectionFailure = $_.Exception.Message
@@ -676,6 +838,7 @@ function Get-DoubaoSources {
                 domain = $null
                 url = $null
                 raw_url = $null
+                url_resolution = "unavailable"
                 status = "failed"
                 error_message = if ($collectionFailure) {
                     "Source collection interrupted: $collectionFailure"
@@ -686,7 +849,7 @@ function Get-DoubaoSources {
         }
     }
     @{
-        session_id = $SessionId
+        session_id = $null
         search_keyword_count = $summary.search_keyword_count
         reference_count = $summary.reference_count
         sources = @($sources | Sort-Object index)
@@ -1081,10 +1244,10 @@ try {
     }
     $answerCompletedAt = Get-Date
 
-    $sessionId = New-DoubaoAppiumSession -ActivateApp
+    $sessionId = $null
     $sourceCollectionStartedAt = Get-Date
     $sourceCollection = Get-DoubaoSources `
-        -SessionId $sessionId `
+        -SessionId "adb" `
         -AnswerSource $finalSource
     $sessionId = [string]$sourceCollection.session_id
     $sourceCollectionCompletedAt = Get-Date
@@ -1127,6 +1290,29 @@ try {
     } else {
         $null
     }
+    $sourceRecords = @($sourceCollection.sources)
+    $sourceSuccessCount = @($sourceRecords | Where-Object {
+        $_.status -eq "collected" -and $_.url
+    }).Count
+    $sourceFailureCount = [math]::Max(
+        $sourceRecords.Count - $sourceSuccessCount,
+        [int]$sourceCollection.reference_count - $sourceSuccessCount
+    )
+    $sourceCompleteness = if ($sourceCollection.reference_count -gt 0) {
+        [math]::Round(
+            $sourceSuccessCount / [double]$sourceCollection.reference_count,
+            4
+        )
+    } else {
+        1.0
+    }
+    $captureStatus = if ($sourceCompleteness -ge 1) {
+        "complete"
+    } elseif ($sourceSuccessCount -gt 0) {
+        "partial"
+    } else {
+        "answer_only"
+    }
     $completedAt = Get-Date
     [pscustomobject]@{
         platform = "doubao"
@@ -1152,7 +1338,12 @@ try {
         )
         search_keyword_count = $sourceCollection.search_keyword_count
         reference_count = $sourceCollection.reference_count
-        sources = @($sourceCollection.sources)
+        source_count = $sourceRecords.Count
+        source_success_count = $sourceSuccessCount
+        source_failure_count = $sourceFailureCount
+        source_completeness = $sourceCompleteness
+        capture_status = $captureStatus
+        sources = $sourceRecords
         screenshot_path = $screenshotPath
         screenshot_sha256 = $screenshotHash
         source_path = $sourcePath

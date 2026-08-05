@@ -861,8 +861,31 @@ function Submit-Prompt {
     }
     if ($input -eq "adb") {
         if ($Platform -in @("yuanbao", "qwen", "kimi")) {
-            $inputY = if ($Platform -eq "kimi") { 2170 } else { 2190 }
-            & adb -s $script:deviceSerial shell input tap 500 $inputY | Out-Null
+            if ($Platform -eq "yuanbao") {
+                $inputSource = Get-PageSource -SessionId $SessionId
+                $inputDocument = ConvertTo-Xml -Source $inputSource
+                $inputNode = if ($inputDocument) {
+                    $inputDocument.SelectSingleNode(
+                        "//*[@resource-id='$packageName`:id/edConversationInput']"
+                    )
+                } else {
+                    $null
+                }
+                $inputBounds = if ($inputNode) {
+                    Get-Bounds -Node $inputNode
+                } else {
+                    $null
+                }
+                if (-not $inputBounds) {
+                    throw "Could not locate the Yuanbao prompt input"
+                }
+                $inputX = $inputBounds.center_x
+                $inputY = $inputBounds.center_y
+            } else {
+                $inputX = 500
+                $inputY = if ($Platform -eq "kimi") { 2170 } else { 2190 }
+            }
+            & adb -s $script:deviceSerial shell input tap $inputX $inputY | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 throw "ADB failed to focus the $Platform prompt input"
             }
@@ -889,7 +912,7 @@ function Submit-Prompt {
                 Start-Sleep -Milliseconds 500
             }
         }
-        if ($Platform -in @("qwen", "kimi")) {
+        if ($Platform -in @("yuanbao", "qwen", "kimi")) {
             $draftSource = Get-PageSource -SessionId $SessionId
             if ($draftSource -notmatch [regex]::Escape($Prompt)) {
                 throw "$Platform prompt input was not confirmed in the UI"
@@ -1302,12 +1325,63 @@ function Return-ToDeepSeekSourcePanel {
 function Return-ToYuanbaoSourcePanel {
     param([Parameter(Mandatory)][string]$SessionId)
 
-    for ($attempt = 0; $attempt -lt 6; $attempt++) {
+    for ($attempt = 0; $attempt -lt 10; $attempt++) {
+        $foregroundPackage = Get-ForegroundPackage
+        if ($foregroundPackage -ne $packageName) {
+            if (
+                $foregroundPackage -and
+                $foregroundPackage -notmatch '^com\.huawei\.android\.launcher$'
+            ) {
+                & adb -s $script:deviceSerial shell am force-stop `
+                    $foregroundPackage | Out-Null
+            }
+            Start-Sleep -Milliseconds 750
+            continue
+        }
         $source = Get-PageSource -SessionId $SessionId
-        if ($source -match 'text="引用来源') {
+        if ($source -match 'text="引用来源\s*\d+"') {
             return
         }
-        Press-Back -SessionId $SessionId
+        if ($source -match 'resource-id="activity-detail"') {
+            & adb -s $script:deviceSerial shell input tap 114 222 | Out-Null
+            Start-Sleep -Milliseconds 700
+            continue
+        }
+        $document = ConvertTo-Xml -Source $source
+        $returnNode = if ($document) {
+            $document.SelectSingleNode(
+                "//*[@text='返回' or @content-desc='返回']"
+            )
+        } else {
+            $null
+        }
+        $returnBounds = if ($returnNode) {
+            Get-Bounds -Node $returnNode
+        } else {
+            $null
+        }
+        if (-not $returnBounds -and $document) {
+            foreach ($candidateNode in @($document.SelectNodes("//*[@clickable='true']"))) {
+                $candidateBounds = Get-Bounds -Node $candidateNode
+                if (
+                    $candidateBounds -and
+                    $candidateBounds.left -le 200 -and
+                    $candidateBounds.top -ge 100 -and
+                    $candidateBounds.top -le 350 -and
+                    ($candidateBounds.right - $candidateBounds.left) -ge 60 -and
+                    ($candidateBounds.bottom - $candidateBounds.top) -ge 60
+                ) {
+                    $returnBounds = $candidateBounds
+                    break
+                }
+            }
+        }
+        if ($returnBounds) {
+            & adb -s $script:deviceSerial shell input tap `
+                $returnBounds.center_x $returnBounds.center_y | Out-Null
+        } else {
+            Press-Back -SessionId $SessionId
+        }
         Start-Sleep -Milliseconds 700
     }
     throw "Could not return to the Yuanbao source panel"
@@ -1315,10 +1389,17 @@ function Return-ToYuanbaoSourcePanel {
 
 function Get-ForegroundPackage {
     $output = (
-        & adb -s $script:deviceSerial shell timeout 5 dumpsys window windows
+        & adb -s $script:deviceSerial shell dumpsys window
     ) -join "`n"
     if ($output -match 'mCurrentFocus=Window\{[^\r\n]*?\s([a-zA-Z0-9._]+)/') {
         return $Matches[1]
+    }
+    foreach ($line in @(
+        & adb -s $script:deviceSerial shell dumpsys activity activities
+    )) {
+        if ($line -match 'mResumedActivity:.*\s([a-zA-Z0-9._]+)/') {
+            return [string]$Matches[1]
+        }
     }
     $null
 }
@@ -1369,7 +1450,11 @@ function Resolve-YuanbaoSourceUrl {
     )
 
     $disabledPackage = $null
+    $clipboardBefore = $null
     try {
+        try {
+            $clipboardBefore = Get-ClipboardText -SessionId $SessionId
+        } catch {}
         Write-GatewayTrace "source $($Record.index) open"
         & adb -s $script:deviceSerial shell input tap `
             $Bounds.center_x $Bounds.center_y | Out-Null
@@ -1434,7 +1519,18 @@ function Resolve-YuanbaoSourceUrl {
         }
 
         $rawUrl = Get-ClipboardText -SessionId $SessionId
+        if ($rawUrl -eq $clipboardBefore) {
+            Write-GatewayTrace "source $($Record.index) clipboard unchanged; retry"
+            & adb -s $script:deviceSerial shell input tap `
+                $menuBounds.center_x $menuBounds.center_y | Out-Null
+            Start-Sleep -Seconds 1
+            Invoke-YuanbaoCopyLink -SessionId $SessionId
+            $rawUrl = Get-ClipboardText -SessionId $SessionId
+        }
         Write-GatewayTrace "source $($Record.index) clipboard $rawUrl"
+        if ($rawUrl -eq $clipboardBefore) {
+            throw "Yuanbao Copy Link did not update the clipboard"
+        }
         if ($rawUrl -notmatch '^https?://') {
             throw "Yuanbao copied an invalid source URL"
         }
@@ -1489,7 +1585,14 @@ function Get-DeepSeekSources {
     $collected = @{}
     $stalls = 0
     while ($collected.Count -lt $ReferenceCount -and $stalls -lt 5) {
-        $document = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+        $panelSource = Get-PageSource -SessionId $SessionId
+        if (
+            $Platform -eq "yuanbao" -and
+            $panelSource -notmatch 'text="引用来源\s*\d+"'
+        ) {
+            throw "Yuanbao left the source panel during collection"
+        }
+        $document = ConvertTo-Xml -Source $panelSource
         $processed = $false
         foreach ($item in @(
             $document.SelectNodes(
@@ -1770,6 +1873,9 @@ function Get-PanelSources {
                     -SessionId $SessionId `
                     -Record $record `
                     -Bounds $bounds
+                # Resolve failures are recorded per source, but losing the
+                # panel invalidates every subsequent coordinate and title.
+                Return-ToYuanbaoSourcePanel -SessionId $SessionId
             }
             $collected[[string]$index] = $record
             $foundNew = $true
@@ -1790,9 +1896,14 @@ function Get-PanelSources {
         } else {
             Scroll-Region -SessionId $SessionId -Top 850 -Height 1450
         }
-        if (-not $foundNew -and -not $didScroll) {
-            $stalls++
+        if ($foundNew) {
+            $stalls = 0
         } else {
+            # ADB only confirms that the gesture was injected, not that the
+            # panel actually moved. Bound retries by observable new records.
+            $stalls++
+        }
+        if ($didScroll) {
             Start-Sleep -Milliseconds 700
         }
     }
@@ -2057,6 +2168,29 @@ try {
         )
     }
 
+    $sourceRecords = @($sources)
+    $sourceSuccessCount = @($sourceRecords | Where-Object {
+        $_.status -eq "collected" -and $_.url
+    }).Count
+    $sourceFailureCount = [math]::Max(
+        $sourceRecords.Count - $sourceSuccessCount,
+        [int]$answerInfo.reference_count - $sourceSuccessCount
+    )
+    $sourceCompleteness = if ($answerInfo.reference_count -gt 0) {
+        [math]::Round(
+            $sourceSuccessCount / [double]$answerInfo.reference_count,
+            4
+        )
+    } else {
+        1.0
+    }
+    $captureStatus = if ($sourceCompleteness -ge 1) {
+        "complete"
+    } elseif ($sourceSuccessCount -gt 0) {
+        "partial"
+    } else {
+        "answer_only"
+    }
     $completedAt = Get-Date
     [pscustomobject][ordered]@{
         platform = $Platform
@@ -2068,8 +2202,12 @@ try {
         answer = $answerInfo.answer
         answer_urls = $answerUrls
         reference_count = [int]$answerInfo.reference_count
-        source_count = @($sources).Count
-        sources = @($sources)
+        source_count = $sourceRecords.Count
+        source_success_count = $sourceSuccessCount
+        source_failure_count = $sourceFailureCount
+        source_completeness = $sourceCompleteness
+        capture_status = $captureStatus
+        sources = $sourceRecords
         started_at = $startedAt.ToString("o")
         sent_at = $sentAt.ToString("o")
         first_token_at = if ($answerInfo.first_token_at) {
