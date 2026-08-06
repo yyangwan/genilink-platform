@@ -1796,11 +1796,11 @@ function Get-PanelSources {
             $markerBounds.center_x $markerBounds.center_y | Out-Null
     }
     Start-Sleep -Seconds 1
-    if ($ReferenceCount -lt 1) {
-        $panelSource = Get-PageSource -SessionId $SessionId
-        if ($panelSource -match "引用来源\s*(\d+)") {
-            $ReferenceCount = [int]$Matches[1]
-        }
+    $panelSource = Get-PageSource -SessionId $SessionId
+    if ($panelSource -match "引用来源\s*(\d+)") {
+        # The answer view can expose a stale intermediate count while product
+        # cards are still loading. The opened panel is authoritative.
+        $ReferenceCount = [int]$Matches[1]
     }
     if ($ReferenceCount -lt 1) {
         throw "$Platform source panel did not expose a reference count"
@@ -1958,7 +1958,9 @@ function Get-KimiSources {
             -SiteName $siteName `
             -Domain $null `
             -Url $null `
-            -Resolution "unavailable"
+            -Resolution "unavailable" `
+            -Status "failed" `
+            -ErrorMessage "Kimi citation URL was not resolved"
     }
     @($records)
 }

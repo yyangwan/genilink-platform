@@ -362,6 +362,15 @@ function Get-ReferenceSummary {
         $titleId = "$packageName`:id/tv_reference_title"
         $titleNode = $document.SelectSingleNode("//*[@resource-id='$titleId']")
         if ($null -eq $titleNode) {
+            # The collapsed search card uses a different resource ID and copy.
+            # Treat its count as provisional; Get-DoubaoSources refreshes the
+            # exact cited-reference count after opening the panel.
+            $searchTitleId = "$packageName`:id/search_title"
+            $titleNode = $document.SelectSingleNode(
+                "//*[@resource-id='$searchTitleId']"
+            )
+        }
+        if ($null -eq $titleNode) {
             return $result
         }
         $title = $titleNode.GetAttribute("text")
@@ -370,6 +379,8 @@ function Get-ReferenceSummary {
             $result.search_keyword_count = [int]$Matches[1]
         }
         if ($title -match "参考\s*(\d+)\s*篇资料") {
+            $result.reference_count = [int]$Matches[1]
+        } elseif ($title -match "找到\s*(\d+)\s*篇资料") {
             $result.reference_count = [int]$Matches[1]
         }
     } catch {
@@ -614,6 +625,17 @@ function Restore-NativeReferencePanel {
             Start-Sleep -Milliseconds 700
             continue
         }
+        $searchTitle = $document.SelectSingleNode(
+            "//*[@resource-id='$packageName`:id/search_title']"
+        )
+        if (
+            $searchTitle -and
+            $searchTitle.GetAttribute("text") -match "找到\s*\d+\s*篇资料"
+        ) {
+            Invoke-NativeNodeTap -Node $searchTitle
+            Start-Sleep -Milliseconds 700
+            continue
+        }
         & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
         Start-Sleep -Milliseconds 700
     }
@@ -639,6 +661,12 @@ function Get-DoubaoSources {
     }
 
     Restore-NativeReferencePanel
+    # The collapsed card can report searched documents while the expanded
+    # panel reports the smaller set actually cited by the answer.
+    $expandedSummary = Get-ReferenceSummary -Source (Get-NativePageSource)
+    if ($expandedSummary.reference_count -gt 0) {
+        $summary = $expandedSummary
+    }
     $collected = @{}
     $stalledScrolls = 0
     $collectionFailure = $null
