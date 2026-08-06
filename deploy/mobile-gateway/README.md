@@ -57,9 +57,10 @@ The gateway currently supports:
 - `qwen` or `qianwen` + `app`: collects every source name, title, and exposed
   domain. Its generated URL is explicitly labeled `site_root`, not an exact
   article path.
-- `kimi` + `app`: collects inline source chips from the final answer
-  container and retains URLs printed directly in the answer. Search-plan
-  chips and generation status controls are excluded.
+- `kimi` + `app`: scrolls through lazy-loaded answer segments, collects inline
+  source chips, opens each source preview and in-app page, and extracts the
+  exact original URL. Search-plan chips and generation status controls are
+  excluded.
 
 Task results include `reference_count`, `source_count`, `answer_urls`, and a
 `sources` array. Every expected reference keeps its list index. A source that

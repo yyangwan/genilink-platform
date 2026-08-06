@@ -362,7 +362,7 @@ function Get-PageSource {
 function Get-ClipboardText {
     param([Parameter(Mandatory)][string]$SessionId)
 
-    if ($Platform -in @("deepseek", "yuanbao") -and $script:deviceSerial) {
+    if ($Platform -in @("deepseek", "yuanbao", "kimi") -and $script:deviceSerial) {
         if ($Platform -eq "deepseek") {
             # Appium session cleanup leaves the Settings helper stopped, so
             # its explicit clipboard receiver otherwise returns result=0.
@@ -894,17 +894,40 @@ function Submit-Prompt {
         $previousIme = (
             & adb -s $script:deviceSerial shell settings get secure default_input_method
         ).Trim()
+        $qwenDraftConfirmed = $false
         try {
             & adb -s $script:deviceSerial shell ime set io.appium.settings/.UnicodeIME | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 throw "Could not activate Appium UnicodeIME"
             }
             Start-Sleep -Seconds 1
+            if ($Platform -eq "qwen") {
+                # Qwen rebuilds its custom editor when the IME changes. Focus
+                # it again, then clear the draft it persists across new chats.
+                & adb -s $script:deviceSerial shell input tap $inputX $inputY | Out-Null
+                Start-Sleep -Milliseconds 500
+                $clearKeys = @("123") + @(1..300 | ForEach-Object { "67" })
+                & adb -s $script:deviceSerial shell input keyevent @clearKeys | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Could not clear the Qwen prompt input"
+                }
+                Start-Sleep -Milliseconds 300
+            }
             $encodedPrompt = ConvertTo-ImapUtf7 -Text $Prompt
             $quotedPrompt = "'$encodedPrompt'"
             & adb -s $script:deviceSerial shell input text $quotedPrompt | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 throw "Could not type the $Platform prompt"
+            }
+            if ($Platform -eq "qwen") {
+                Start-Sleep -Milliseconds 500
+                $draftSource = Get-PageSource -SessionId $SessionId
+                $qwenDraftConfirmed = (
+                    $draftSource -match [regex]::Escape($Prompt)
+                )
+                if (-not $qwenDraftConfirmed) {
+                    throw "qwen prompt input was not confirmed in the focused editor"
+                }
             }
         } finally {
             if ($previousIme -and $previousIme -ne "null") {
@@ -912,11 +935,13 @@ function Submit-Prompt {
                 Start-Sleep -Milliseconds 500
             }
         }
-        if ($Platform -in @("yuanbao", "qwen", "kimi")) {
+        if ($Platform -in @("yuanbao", "kimi")) {
             $draftSource = Get-PageSource -SessionId $SessionId
             if ($draftSource -notmatch [regex]::Escape($Prompt)) {
                 throw "$Platform prompt input was not confirmed in the UI"
             }
+        }
+        if ($Platform -in @("yuanbao", "qwen", "kimi")) {
             & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
             Start-Sleep -Milliseconds 500
         }
@@ -1002,17 +1027,21 @@ function Get-KimiAnswerContainer {
             continue
         }
         $height = $bounds.bottom - $bounds.top
-        if ($height -lt 400) {
+        if (
+            $height -lt 400 -or
+            $bounds.left -lt 36 -or
+            $bounds.right -gt 1116
+        ) {
             continue
         }
-        $hasLongText = $false
-        foreach ($text in @(Get-DescendantTexts -Node $node)) {
-            if ($text.Length -ge 60) {
-                $hasLongText = $true
-                break
-            }
-        }
-        if ($hasLongText) {
+        $texts = @(Get-DescendantTexts -Node $node)
+        $totalTextLength = ($texts | ForEach-Object { $_.Length } |
+            Measure-Object -Sum).Sum
+        $hasLongText = @($texts | Where-Object { $_.Length -ge 60 }).Count -gt 0
+        if (
+            $hasLongText -or
+            ($texts.Count -ge 3 -and $totalTextLength -ge 60)
+        ) {
             $candidates += [pscustomobject]@{
                 node = $node
                 height = $height
@@ -1158,6 +1187,100 @@ function Get-AnswerInfo {
     }
 }
 
+function Invoke-KimiConversationSwipe {
+    param([Parameter(Mandatory)][ValidateSet("up", "down")][string]$Direction)
+
+    if ($Direction -eq "up") {
+        $startY = 1800
+        $endY = 500
+    } else {
+        $startY = 500
+        $endY = 1800
+    }
+    & adb -s $script:deviceSerial shell input swipe `
+        576 $startY 576 $endY 400 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not scroll the Kimi conversation $Direction"
+    }
+    Start-Sleep -Milliseconds 700
+}
+
+function Get-KimiViewportSignature {
+    param([Parameter(Mandatory)][string]$Source)
+
+    $document = ConvertTo-Xml -Source $Source
+    if (-not $document) {
+        return $Source
+    }
+    @(
+        $document.SelectNodes("//*[@text]") |
+            ForEach-Object {
+                "{0}|{1}" -f `
+                    $_.GetAttribute("bounds"),
+                    $_.GetAttribute("text").Trim()
+            } |
+            Where-Object { $_ -notmatch '\|$' }
+    ) -join "`n"
+}
+
+function Move-ToKimiConversationTop {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    $source = Get-PageSource -SessionId $SessionId
+    for ($attempt = 0; $attempt -lt 12; $attempt++) {
+        $before = Get-KimiViewportSignature -Source $source
+        Invoke-KimiConversationSwipe -Direction "down"
+        $nextSource = Get-PageSource -SessionId $SessionId
+        $after = Get-KimiViewportSignature -Source $nextSource
+        $source = $nextSource
+        if ($after -eq $before) {
+            break
+        }
+    }
+    $source
+}
+
+function Get-KimiAnswerSnapshot {
+    param(
+        [Parameter(Mandatory)][string]$SessionId,
+        [Parameter(Mandatory)][string]$Prompt
+    )
+
+    $source = Move-ToKimiConversationTop -SessionId $SessionId
+    $parts = [Collections.Generic.List[string]]::new()
+    $seenParts = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal
+    )
+    $seenViewports = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal
+    )
+    $referenceCount = 0
+    for ($viewport = 0; $viewport -lt 24; $viewport++) {
+        $signature = Get-KimiViewportSignature -Source $source
+        if (-not $seenViewports.Add($signature)) {
+            break
+        }
+        $info = Get-AnswerInfo -Source $source -Prompt $Prompt
+        foreach ($part in @($info.answer -split "`n")) {
+            $part = $part.Trim()
+            if ($part -and $seenParts.Add($part)) {
+                $parts.Add($part)
+            }
+        }
+        $referenceCount += [int]$info.reference_count
+        Invoke-KimiConversationSwipe -Direction "up"
+        $source = Get-PageSource -SessionId $SessionId
+    }
+    if ($parts.Count -eq 0) {
+        throw "Kimi completed without an accessible answer"
+    }
+    @{
+        source = $source
+        answer = $parts -join "`n"
+        reference_count = $referenceCount
+    }
+}
+
 function Wait-ForAnswer {
     param(
         [Parameter(Mandatory)][string]$SessionId,
@@ -1241,17 +1364,30 @@ function Wait-ForAnswer {
             )
         } elseif ($Platform -eq "kimi") {
             # During generation Kimi exposes the square stop control through
-            # the stale accessibility label "发送讯息". Once generation is
-            # complete that node disappears and the voice-input control
-            # returns. Do not accept a briefly stable partial paragraph.
-            $generationComplete = $source -notmatch 'content-desc="发送讯息"'
-            $explicitComplete = $explicitComplete -and $generationComplete
-            $stableComplete = (
-                $generationComplete -and
-                $stableCount -ge 1
+            # the stale accessibility label "发送讯息". Completed answers
+            # restore the voice-input control, even when a hidden send node
+            # remains. Long answers can keep changing their lazy accessibility
+            # subtree after generation, so text equality is not a valid gate.
+            $generationComplete = (
+                $source -match 'content-desc="切换至语音输入"'
             )
+            $minimumGenerationTimeReached = (
+                $firstTokenAt -and
+                ((Get-Date) - $firstTokenAt).TotalSeconds -ge 3
+            )
+            $explicitComplete = (
+                $generationComplete -and
+                $minimumGenerationTimeReached
+            )
+            $stableComplete = $false
         }
         if ($info.answer -and ($explicitComplete -or $stableComplete)) {
+            if ($Platform -eq "kimi") {
+                $info = Get-KimiAnswerSnapshot `
+                    -SessionId $SessionId `
+                    -Prompt $Prompt
+                $source = $info.source
+            }
             return @{
                 source = $source
                 answer = $info.answer
@@ -1910,18 +2046,172 @@ function Get-PanelSources {
     @($collected.Values | Sort-Object index)
 }
 
+function Return-ToKimiAnswer {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    for ($attempt = 0; $attempt -lt 8; $attempt++) {
+        $foregroundPackage = Get-ForegroundPackage
+        if ($foregroundPackage -and $foregroundPackage -ne $packageName) {
+            & adb -s $script:deviceSerial shell am force-stop `
+                $foregroundPackage | Out-Null
+            Start-Sleep -Milliseconds 700
+            continue
+        }
+        $source = Get-PageSource -SessionId $SessionId
+        if ($source -match "尽管问，带图也行") {
+            return
+        }
+        Press-Back -SessionId $SessionId
+        Start-Sleep -Milliseconds 700
+    }
+    throw "Could not return Kimi to the answer after collecting a citation"
+}
+
+function Resolve-KimiSourceUrl {
+    param(
+        [Parameter(Mandatory)][string]$SessionId,
+        [Parameter(Mandatory)]$Record,
+        [Parameter(Mandatory)]$Bounds
+    )
+
+    Write-GatewayTrace "kimi source $($Record.index) open"
+    try {
+        & adb -s $script:deviceSerial shell input tap `
+            $Bounds.center_x $Bounds.center_y | Out-Null
+        Start-Sleep -Seconds 1
+
+        $previewSource = Get-PageSource -SessionId $SessionId
+        $visibleUrls = @(Get-UrlsFromText -Text $previewSource)
+        $rawUrl = $visibleUrls | Select-Object -First 1
+        if (-not $rawUrl) {
+            if ($previewSource -match "尽管问，带图也行") {
+                throw "Kimi citation did not open its source preview"
+            }
+            $previewDocument = ConvertTo-Xml -Source $previewSource
+            $titleCandidates = @()
+            foreach ($titleNode in @(
+                $previewDocument.SelectNodes("//*[@text]")
+            )) {
+                $title = $titleNode.GetAttribute("text").Trim()
+                $titleBounds = Get-Bounds -Node $titleNode
+                if (
+                    $titleBounds -and
+                    $titleBounds.top -ge 900 -and
+                    $title.Length -ge 8 -and
+                    $title -ne $Record.site_name -and
+                    $title -notmatch '^\d{4}(?:[-/.]\d{1,2}){1,2}$' -and
+                    $title -notmatch '^\d{4}年\d{1,2}月\d{1,2}日$'
+                ) {
+                    $titleCandidates += [pscustomobject]@{
+                        title = $title
+                        bounds = $titleBounds
+                    }
+                }
+            }
+            $sourceTitle = $titleCandidates |
+                Sort-Object { $_.bounds.top }, { $_.title.Length } |
+                Select-Object -First 1
+            if (-not $sourceTitle) {
+                throw "Kimi source preview did not expose a source card title"
+            }
+            $Record.title = $sourceTitle.title
+            Write-GatewayTrace (
+                "kimi source {0} card title {1}" -f `
+                    $Record.index,
+                    $Record.title
+            )
+            & adb -s $script:deviceSerial shell input tap `
+                $sourceTitle.bounds.center_x $sourceTitle.bounds.center_y | Out-Null
+            Start-Sleep -Seconds 2
+
+            $pageSource = $null
+            for ($urlAttempt = 0; $urlAttempt -lt 3; $urlAttempt++) {
+                $foregroundPackage = Get-ForegroundPackage
+                if ($foregroundPackage -and $foregroundPackage -ne $packageName) {
+                    $rawUrl = Get-ResolverUrl
+                } else {
+                    $pageSource = Get-PageSource -SessionId $SessionId
+                    $rawUrl = @(
+                        Get-UrlsFromText -Text $pageSource
+                    ) | Select-Object -First 1
+                }
+                if ($rawUrl) {
+                    break
+                }
+                Start-Sleep -Seconds 1
+            }
+            if (-not $rawUrl -and $pageSource) {
+                # Successfully loaded pages keep only the article title in
+                # the header. Kimi's own share sheet exposes Copy Link even
+                # when the WebView accessibility tree omits its current URL.
+                $pageDocument = ConvertTo-Xml -Source $pageSource
+                $shareNode = $pageDocument.SelectSingleNode(
+                    "//*[@content-desc='titleImage']"
+                )
+                $shareBounds = if ($shareNode) {
+                    Get-Bounds -Node $shareNode
+                } else {
+                    $null
+                }
+                if ($shareBounds) {
+                    & adb -s $script:deviceSerial shell input tap `
+                        $shareBounds.center_x $shareBounds.center_y | Out-Null
+                    Start-Sleep -Seconds 1
+                    $shareDocument = ConvertTo-Xml -Source (
+                        Get-PageSource -SessionId $SessionId
+                    )
+                    $copyNode = $shareDocument.SelectSingleNode(
+                        "//*[@text='复制链接' or @content-desc='复制链接']"
+                    )
+                    while (
+                        $copyNode -and
+                        $copyNode.GetAttribute("clickable") -ne "true"
+                    ) {
+                        $copyNode = $copyNode.ParentNode
+                    }
+                    $copyBounds = if ($copyNode) {
+                        Get-Bounds -Node $copyNode
+                    } else {
+                        $null
+                    }
+                    if ($copyBounds) {
+                        & adb -s $script:deviceSerial shell input tap `
+                            $copyBounds.center_x $copyBounds.center_y | Out-Null
+                        Start-Sleep -Milliseconds 700
+                        $rawUrl = Get-ClipboardText -SessionId $SessionId
+                    }
+                }
+            }
+        }
+        if (
+            [string]::IsNullOrWhiteSpace([string]$rawUrl) -or
+            [string]$rawUrl -notmatch '^https?://'
+        ) {
+            throw "Kimi source page did not expose an HTTP URL"
+        }
+        $canonicalUrl = ConvertTo-CanonicalUrl -Url $rawUrl
+        $Record.url = $canonicalUrl
+        $Record.raw_url = $rawUrl
+        $Record.domain = Get-Host -Url $canonicalUrl
+        $Record.url_resolution = "exact"
+        $Record.status = "collected"
+        $Record.error_message = $null
+        Write-GatewayTrace "kimi source $($Record.index) resolved $canonicalUrl"
+    } catch {
+        $Record.status = "failed"
+        $Record.error_message = $_.Exception.Message
+        Write-GatewayTrace "kimi source $($Record.index) failed $($Record.error_message)"
+    } finally {
+        Return-ToKimiAnswer -SessionId $SessionId
+    }
+}
+
 function Get-KimiSources {
     param(
         [Parameter(Mandatory)][string]$SessionId,
         [Parameter(Mandatory)][string]$Source
     )
 
-    $document = ConvertTo-Xml -Source $Source
-    $answerContainer = Get-KimiAnswerContainer -Document $document
-    if (-not $answerContainer) {
-        return @()
-    }
-    $records = @()
     $ignoredSourceLabels = @(
         "快速",
         "进阶",
@@ -1929,38 +2219,105 @@ function Get-KimiSources {
         "思考已完成",
         "搜索网页",
         "内容由 AI 生成",
-        "尽管问，带图也行"
+        "尽管问，带图也行",
+        "对比",
+        "复制",
+        "重试",
+        "分享",
+        "点赞",
+        "不喜欢"
     )
-    foreach ($item in @(
-        $answerContainer.SelectNodes(
-            ".//*[@class='android.view.View' and @clickable='true']"
-        )
-    )) {
-        $texts = @(Get-DescendantTexts -Node $item)
-        $bounds = Get-Bounds -Node $item
-        if (
-            $texts.Count -ne 1 -or
-            -not $bounds -or
-            ($bounds.bottom - $bounds.top) -gt 170
-        ) {
+    $records = [Collections.Generic.List[object]]::new()
+    $seenCitations = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal
+    )
+    $seenViewports = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal
+    )
+    $Source = Move-ToKimiConversationTop -SessionId $SessionId
+    for ($viewport = 0; $viewport -lt 24; $viewport++) {
+        $signature = Get-KimiViewportSignature -Source $Source
+        $document = ConvertTo-Xml -Source $Source
+        $answerContainer = Get-KimiAnswerContainer -Document $document
+        $processedCitation = $false
+        if ($answerContainer) {
+            foreach ($item in @(
+                $answerContainer.SelectNodes(
+                    ".//*[@class='android.view.View' and @clickable='true']"
+                )
+            )) {
+                $texts = @(Get-DescendantTexts -Node $item)
+                $bounds = Get-Bounds -Node $item
+                if (
+                    $texts.Count -ne 1 -or
+                    -not $bounds -or
+                    ($bounds.bottom - $bounds.top) -gt 170
+                ) {
+                    continue
+                }
+                $siteName = $texts[0]
+                if (
+                    $siteName.Length -gt 40 -or
+                    $siteName -in $ignoredSourceLabels
+                ) {
+                    continue
+                }
+                $precedingText = @(
+                    $answerContainer.SelectNodes(
+                        ".//*[@class='android.widget.TextView' and @text]"
+                    ) |
+                        ForEach-Object {
+                            $textBounds = Get-Bounds -Node $_
+                            $text = $_.GetAttribute("text").Trim()
+                            if (
+                                $textBounds -and
+                                $textBounds.bottom -le ($bounds.top + 20) -and
+                                $text.Length -ge 8 -and
+                                $text -ne $siteName -and
+                                $text -notin $ignoredSourceLabels
+                            ) {
+                                [pscustomobject]@{
+                                    text = $text
+                                    bottom = $textBounds.bottom
+                                }
+                            }
+                        } |
+                        Sort-Object bottom -Descending
+                ) | Select-Object -First 1
+                if (-not $precedingText) {
+                    continue
+                }
+                $citationKey = "{0}|{1}" -f $siteName, $precedingText.text
+                if (-not $seenCitations.Add($citationKey)) {
+                    continue
+                }
+                $record = New-SourceRecord `
+                    -Index ($records.Count + 1) `
+                    -Title $null `
+                    -SiteName $siteName `
+                    -Domain $null `
+                    -Url $null `
+                    -Resolution "unavailable" `
+                    -Status "failed" `
+                    -ErrorMessage "Kimi citation URL was not resolved"
+                $records.Add($record)
+                Resolve-KimiSourceUrl `
+                    -SessionId $SessionId `
+                    -Record $record `
+                    -Bounds $bounds
+                $Source = Get-PageSource -SessionId $SessionId
+                $processedCitation = $true
+                break
+            }
+        }
+        if ($processedCitation) {
             continue
         }
-        $siteName = $texts[0]
-        if (
-            $siteName.Length -gt 40 -or
-            $siteName -in $ignoredSourceLabels
-        ) {
-            continue
+        if (-not $seenViewports.Add($signature)) {
+            break
         }
-        $records += New-SourceRecord `
-            -Index ($records.Count + 1) `
-            -Title $null `
-            -SiteName $siteName `
-            -Domain $null `
-            -Url $null `
-            -Resolution "unavailable" `
-            -Status "failed" `
-            -ErrorMessage "Kimi citation URL was not resolved"
+        Invoke-KimiConversationSwipe -Direction "up"
+        $Source = Get-PageSource -SessionId $SessionId
     }
     @($records)
 }
@@ -2124,7 +2481,7 @@ try {
     }
     $sourceCollectionCompletedAt = Get-Date
     Write-GatewayTrace "sources complete count=$(@($sources).Count)"
-    if ($Platform -eq "yuanbao" -and $answerInfo.reference_count -lt 1) {
+    if ($Platform -in @("yuanbao", "kimi")) {
         $answerInfo.reference_count = @($sources).Count
     }
     if (
