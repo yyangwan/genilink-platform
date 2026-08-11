@@ -4,17 +4,22 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   AlertCircle,
   ArrowUpRight,
+  ChartNoAxesColumnIncreasing,
   CheckCircle2,
+  ChevronDown,
   FileText,
   Globe2,
+  Lightbulb,
   Loader2,
   Download,
   RefreshCw,
+  ScanSearch,
   Sparkles,
   TrendingUp,
 } from "lucide-react";
 
 import { sectionCard } from "@/components/charts/shared";
+import { buildProductWebsiteTechnicalFileDrafts } from "@/lib/product-website/technical-file-drafts";
 import type {
   ProductWebsiteAnalysis,
   ProductWebsiteAnalysisStatus,
@@ -31,6 +36,12 @@ interface ProductWebsiteAnalysisPanelProps {
 }
 
 const TERMINAL_STATUSES: ProductWebsiteAnalysisStatus[] = ["completed", "partial", "failed"];
+
+const ANALYSIS_VIEWS = [
+  { key: "details", label: "详细内容", icon: ChartNoAxesColumnIncreasing },
+  { key: "diagnostics", label: "维度诊断", icon: ScanSearch },
+  { key: "recommendations", label: "优化建议", icon: Lightbulb },
+] as const;
 
 const DIMENSION_LABELS: Record<string, string> = {
   aiCitability: "AI 可引用性",
@@ -84,6 +95,14 @@ function impactText(impact?: string) {
   return impact || "--";
 }
 
+function diagnosticStatusText(status?: string, score?: number) {
+  if (status === "strong") return "表现良好";
+  if (status === "weak") return "优先改进";
+  if ((score ?? 0) >= 80) return "表现良好";
+  if ((score ?? 100) < 60) return "优先改进";
+  return "需要关注";
+}
+
 function statusText(status?: ProductWebsiteAnalysisStatus | null, stage?: string | null) {
   if (status === "completed") return "分析完成";
   if (status === "partial") return "部分完成";
@@ -118,8 +137,6 @@ export function ProductWebsiteAnalysisPanel({
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [enableAiCitation, setEnableAiCitation] = useState(false);
-  const [crawlerProvider, setCrawlerProvider] = useState<"native" | "firecrawl">("native");
   const [activeView, setActiveView] = useState<"details" | "diagnostics" | "recommendations">("details");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -137,6 +154,34 @@ export function ProductWebsiteAnalysisPanel({
   const schemaQuality = snapshot?.geoAudit?.schemaQuality;
   const platformPresence = snapshot?.geoAudit?.platformPresence;
   const isRunning = !!analysis && !TERMINAL_STATUSES.includes(analysis.status);
+  const diagnosticRows = useMemo(
+    () => Object.entries(dimensionDiagnostics).sort(([, left], [, right]) => (left.score ?? 101) - (right.score ?? 101)),
+    [dimensionDiagnostics],
+  );
+  const recommendationGroups = useMemo(() => ([
+    { key: "high", label: "优先处理", items: recommendations.filter((item) => item.priority === "high") },
+    { key: "medium", label: "计划改进", items: recommendations.filter((item) => item.priority === "medium" || !item.priority) },
+    { key: "low", label: "持续优化", items: recommendations.filter((item) => item.priority === "low") },
+  ]).filter((group) => group.items.length > 0), [recommendations]);
+  const technicalFileDrafts = useMemo(() => buildProductWebsiteTechnicalFileDrafts({
+    targetUrl: contentDetail?.metadata?.finalUrl || snapshot?.page?.finalUrl || targetUrl,
+    title: contentDetail?.metadata?.title || snapshot?.page?.title,
+    description: contentDetail?.metadata?.description || snapshot?.page?.metaDescription || snapshot?.page?.description,
+    canonical: contentDetail?.metadata?.canonical || snapshot?.page?.canonical,
+    technicalAudit,
+  }), [contentDetail, snapshot?.page, targetUrl, technicalAudit]);
+
+  const downloadTechnicalFile = useCallback((filename: string, content: string) => {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(href);
+  }, []);
 
   const clearPoll = useCallback(() => {
     if (pollRef.current) {
@@ -224,8 +269,8 @@ export function ProductWebsiteAnalysisPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectId,
-          enableAiCitation,
-          crawlerProvider,
+          enableAiCitation: true,
+          crawlerProvider: "firecrawl",
         }),
       });
       if (!res.ok) {
@@ -244,7 +289,7 @@ export function ProductWebsiteAnalysisPanel({
     } finally {
       setStarting(false);
     }
-  }, [crawlerProvider, enableAiCitation, fetchAnalysis, pollAnalysis, projectId]);
+  }, [fetchAnalysis, pollAnalysis, projectId]);
 
   const dimensionRows = useMemo(() => {
     return Object.entries(dimensions)
@@ -286,33 +331,6 @@ export function ProductWebsiteAnalysisPanel({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <label
-            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm"
-            style={{ border: "1px solid var(--border)", color: "var(--text-secondary)", background: "var(--bg-elevated)" }}
-          >
-            <input
-              type="checkbox"
-              checked={enableAiCitation}
-              onChange={(event) => setEnableAiCitation(event.target.checked)}
-              disabled={starting || isRunning}
-            />
-            真实 AI 引用
-          </label>
-          <select
-            value={crawlerProvider}
-            onChange={(event) => setCrawlerProvider(event.target.value as "native" | "firecrawl")}
-            disabled={starting || isRunning}
-            className="h-9 rounded-md px-2 text-sm"
-            title="抓取方式"
-            style={{
-              border: "1px solid var(--border)",
-              color: "var(--text-secondary)",
-              background: "var(--bg-elevated)",
-            }}
-          >
-            <option value="native">Native</option>
-            <option value="firecrawl">Firecrawl</option>
-          </select>
           <button
             type="button"
             onClick={load}
@@ -406,18 +424,23 @@ export function ProductWebsiteAnalysisPanel({
               近 30 天趋势
             </div>
             {trendPoints.length > 0 ? (
-              <div className="flex h-24 items-end gap-2">
+              <div className="flex h-28 items-end gap-2">
                 {trendPoints.map((point) => {
                   const height = `${Math.max(8, ((Number(point.overall) || 0) / maxTrendScore) * 100)}%`;
                   return (
-                    <div key={point.analysisId} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-                      <div
-                        className="w-full rounded-t"
-                        title={`${formatDate(point.date)}: ${point.overall}`}
-                        style={{ height, background: scoreColor(point.overall), opacity: 0.85 }}
-                      />
+                    <div key={point.analysisId} className="flex h-full min-w-0 flex-1 flex-col items-center gap-1">
+                      <span className="text-[10px] font-medium" style={{ color: scoreColor(point.overall) }}>
+                        {point.overall}
+                      </span>
+                      <div className="flex h-20 w-full items-end">
+                        <div
+                          className="w-full rounded-t transition-[height]"
+                          title={`${formatDate(point.date)}: ${point.overall}`}
+                          style={{ height, background: scoreColor(point.overall), opacity: 0.85 }}
+                        />
+                      </div>
                       <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                        {new Date(point.date).getDate()}
+                        {new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" }).format(new Date(point.date))}
                       </span>
                     </div>
                   );
@@ -491,28 +514,43 @@ export function ProductWebsiteAnalysisPanel({
             className="mb-4 inline-flex rounded-md p-1"
             style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
           >
-            {[
-              ["details", "详细内容"],
-              ["diagnostics", "维度诊断"],
-              ["recommendations", "优化建议"],
-            ].map(([key, label]) => (
+            {ANALYSIS_VIEWS.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setActiveView(key as "details" | "diagnostics" | "recommendations")}
-                className="rounded px-3 py-1.5 text-sm"
+                aria-pressed={activeView === key}
+                className="group inline-flex cursor-pointer items-center gap-1.5 rounded px-3 py-1.5 text-sm transition-colors hover:bg-[var(--bg-hover)]"
                 style={{
                   background: activeView === key ? "var(--color-primary)" : "transparent",
                   color: activeView === key ? "#0b0d14" : "var(--text-secondary)",
                 }}
               >
+                <Icon
+                  className={`h-3.5 w-3.5 transition-transform transition-colors group-hover:scale-110 ${
+                    activeView === key ? "" : "text-[var(--text-muted)] group-hover:text-[var(--color-primary)]"
+                  }`}
+                />
                 {label}
               </button>
             ))}
           </div>
 
           {activeView === "details" && (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            <>
+              <div className="mb-3 flex flex-col gap-3 rounded-md px-4 py-3 md:flex-row md:items-center md:justify-between" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
+                <div>
+                  <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>页面信号总览</h3>
+                  <p className="mt-1 text-xs leading-5" style={{ color: "var(--text-muted)" }}>先看基础抓取与技术状态，再向下查看结构化数据、平台覆盖和正文证据。</p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <span className="rounded px-2 py-1" style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}>正文 {snapshot?.page?.wordCount ?? "--"} 词</span>
+                  <span className="rounded px-2 py-1" style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}>Schema {snapshot?.page?.schemaTypes?.length ?? 0} 类</span>
+                  <span className="rounded px-2 py-1" style={{ background: "var(--bg-hover)", color: scoreColor(technicalAudit?.score?.overall) }}>技术 GEO {technicalAudit?.score?.overall ?? "--"}</span>
+                </div>
+              </div>
+              <div className="mb-2 text-xs font-medium uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>01 · 页面基础与机器可读性</div>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
               <div className="rounded-md px-4 py-4 lg:col-span-4" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
                 <div className="mb-3 text-sm font-medium" style={{ color: "var(--text-primary)" }}>页面机器可读信号</div>
                 <dl className="space-y-3 text-sm">
@@ -571,6 +609,12 @@ export function ProductWebsiteAnalysisPanel({
                   <div><div className="text-xs" style={{ color: "var(--text-muted)" }}>抓取耗时</div><div style={{ color: "var(--text-primary)" }}>{contentDetail?.crawl?.durationMs ?? "--"} ms</div></div>
                 </div>
               </div>
+
+              {(technicalAudit || schemaQuality || platformPresence) && (
+                <div className="mt-2 lg:col-span-12">
+                  <div className="text-xs font-medium uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>02 · 技术 GEO、实体与平台覆盖</div>
+                </div>
+              )}
 
               {technicalAudit && (
                 <div className="rounded-md px-4 py-4 lg:col-span-12" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
@@ -684,6 +728,10 @@ export function ProductWebsiteAnalysisPanel({
                 </div>
               )}
 
+              <div className="mt-2 lg:col-span-12">
+                <div className="text-xs font-medium uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>03 · 内容质量与正文证据</div>
+              </div>
+
               {eeatSignals && (
                 <div className="rounded-md px-4 py-4 lg:col-span-12" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
                   <div className="mb-3 flex items-center justify-between gap-3">
@@ -734,82 +782,128 @@ export function ProductWebsiteAnalysisPanel({
                   )}
                 </div>
               </div>
-            </div>
+              </div>
+            </>
           )}
 
           {activeView === "diagnostics" && (
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              {Object.entries(dimensionDiagnostics).map(([key, item]) => (
-                <div key={key} className="rounded-md px-4 py-4" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{item.label || DIMENSION_LABELS[key as keyof ProductWebsiteScore["dimensions"]] || key}</div>
-                    <div className="font-mono text-sm" style={{ color: scoreColor(item.score) }}>{item.score ?? "--"}</div>
-                  </div>
-                  <p className="text-sm leading-6" style={{ color: "var(--text-secondary)" }}>{item.summary}</p>
-                  <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-                    {[
-                      ["证据", item.evidence || []],
-                      ["问题", item.issues?.length ? item.issues : ["暂无明显问题"]],
-                      ["机会", item.opportunities || []],
-                    ].map(([label, values]) => (
-                      <div key={label as string}>
-                        <div className="mb-1 text-xs" style={{ color: "var(--text-muted)" }}>{label as string}</div>
-                        <ul className="space-y-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-                          {(values as string[]).map((text, index) => <li key={index}>{text}</li>)}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
+            <div>
+              {!!diagnosticRows.length && (
+                <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {[
+                    ["优先改进", diagnosticRows.filter(([, item]) => diagnosticStatusText(item.status, item.score) === "优先改进").length, "var(--color-error)"],
+                    ["需要关注", diagnosticRows.filter(([, item]) => diagnosticStatusText(item.status, item.score) === "需要关注").length, "var(--color-warning)"],
+                    ["表现良好", diagnosticRows.filter(([, item]) => diagnosticStatusText(item.status, item.score) === "表现良好").length, "var(--color-success)"],
+                  ].map(([label, value, color]) => (
+                    <div key={label as string} className="rounded-md px-3 py-3" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
+                      <div className="font-mono text-lg" style={{ color: color as string }}>{value as number}</div>
+                      <div className="text-xs" style={{ color: "var(--text-muted)" }}>{label as string}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {!Object.keys(dimensionDiagnostics).length && (
+              )}
+              <div className="space-y-3">
+                {diagnosticRows.map(([key, item], index) => (
+                  <details key={key} open={index === 0} className="group rounded-md" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
+                    <summary className="flex cursor-pointer list-none items-start justify-between gap-4 px-4 py-4 transition-colors hover:bg-[var(--bg-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>{String(index + 1).padStart(2, "0")}</span>
+                          <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{item.label || DIMENSION_LABELS[key as keyof ProductWebsiteScore["dimensions"]] || key}</h3>
+                          <span className="rounded px-2 py-0.5 text-xs" style={{ background: "var(--bg-hover)", color: scoreColor(item.score) }}>{diagnosticStatusText(item.status, item.score)}</span>
+                        </div>
+                        <p className="mt-2 line-clamp-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>{item.summary || "展开查看该维度的证据、问题与机会。"}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <span className="font-mono text-base" style={{ color: scoreColor(item.score) }}>{item.score ?? "--"}</span>
+                        <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" style={{ color: "var(--text-muted)" }} />
+                      </div>
+                    </summary>
+                    <div className="grid grid-cols-1 gap-4 border-t px-4 py-4 md:grid-cols-3" style={{ borderColor: "var(--border)" }}>
+                      {[
+                        ["分析证据", item.evidence || []],
+                        ["发现问题", item.issues?.length ? item.issues : ["暂无明显问题"]],
+                        ["优化机会", item.opportunities || []],
+                      ].map(([label, values]) => (
+                        <div key={label as string}>
+                          <div className="mb-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>{label as string}</div>
+                          <ul className="space-y-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
+                            {(values as string[]).map((text, valueIndex) => <li key={valueIndex} className="border-l-2 pl-2" style={{ borderColor: "var(--border)" }}>{text}</li>)}
+                            {!(values as string[]).length && <li>暂无信息</li>}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ))}
+              </div>
+              {!diagnosticRows.length && (
                 <div className="text-sm" style={{ color: "var(--text-muted)" }}>暂无维度诊断</div>
               )}
             </div>
           )}
 
           {activeView === "recommendations" && (
-            <div className="grid grid-cols-1 gap-4">
-              {recommendations.map((item, index) => (
-                <div key={item.id || `${item.title}-${index}`} className="rounded-md px-4 py-4" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <div className="mb-2 flex flex-wrap items-center gap-2">
-                        <span className="h-2 w-2 rounded-full" style={{ background: priorityColor(item.priority) }} />
-                        <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{item.title}</span>
+            <div className="space-y-5">
+              {!!technicalFileDrafts.length && (
+                <section className="rounded-md px-4 py-4" style={{ background: "color-mix(in srgb, var(--color-primary) 8%, var(--bg-elevated))", border: "1px solid color-mix(in srgb, var(--color-primary) 35%, var(--border))" }}>
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" style={{ color: "var(--color-primary)" }} />
+                    <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>技术文件修复包</h3>
+                    <span className="rounded px-2 py-0.5 font-mono text-xs" style={{ background: "var(--bg-hover)", color: "var(--color-primary)" }}>{technicalFileDrafts.length}</span>
+                  </div>
+                  <p className="mt-2 max-w-3xl text-xs leading-5" style={{ color: "var(--text-secondary)" }}>已为缺失文件生成草稿。下载后请核对 TODO、链接和抓取策略，再发布到网站根目录；系统不会自动改动客户网站。</p>
+                  <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+                    {technicalFileDrafts.map((draft) => (
+                      <div key={draft.id} className="flex flex-col rounded-md px-3 py-3" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
+                        <div className="font-mono text-sm" style={{ color: "var(--text-primary)" }}>{draft.label}</div>
+                        <p className="mt-2 flex-1 text-xs leading-5" style={{ color: "var(--text-muted)" }}>{draft.description}</p>
+                        <button type="button" onClick={() => downloadTechnicalFile(draft.filename, draft.content)} aria-label={`下载 ${draft.filename} 草稿`} className="mt-3 inline-flex w-fit cursor-pointer items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-primary)] hover:text-[#0b0d14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]" style={{ background: "var(--bg-hover)", color: "var(--color-primary)" }}>
+                          <Download className="h-3.5 w-3.5" />下载草稿
+                        </button>
                       </div>
-                      <p className="text-sm leading-6" style={{ color: "var(--text-secondary)" }}>{item.problem || item.detail}</p>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap gap-2 text-xs">
-                      {[item.dimensionLabel || item.dimension, priorityText(item.priority), impactText(item.impact), effortText(item.effort), typeof item.expectedLift === "number" ? `预期 +${item.expectedLift}` : null].filter(Boolean).map((tag) => (
-                        <span key={tag} className="rounded px-2 py-1" style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}>{tag}</span>
-                      ))}
-                    </div>
+                    ))}
                   </div>
-                  <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-                    <div>
-                      <div className="mb-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>分析证据</div>
-                      <ul className="space-y-1 text-sm" style={{ color: "var(--text-secondary)" }}>
-                        {(item.evidence || []).map((text, evidenceIndex) => <li key={evidenceIndex}>{text}</li>)}
-                      </ul>
-                    </div>
-                    <div>
-                      <div className="mb-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>执行动作</div>
-                      <ol className="space-y-1 text-sm" style={{ color: "var(--text-secondary)" }}>
-                        {(item.actions || []).map((text, actionIndex) => <li key={actionIndex}>{actionIndex + 1}. {text}</li>)}
-                      </ol>
-                    </div>
-                    <div>
-                      <div className="mb-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>验收指标</div>
-                      <p className="text-sm leading-6" style={{ color: "var(--text-secondary)" }}>{item.successMetric || "--"}</p>
-                      {!!item.examples?.length && (
-                        <div className="mt-3 rounded-md px-3 py-2 text-xs" style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}>
-                          {item.examples[0]}
+                </section>
+              )}
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {(["high", "medium", "low"] as const).map((priority) => (
+                  <div key={priority} className="rounded-md px-3 py-3" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
+                    <div className="font-mono text-lg" style={{ color: priorityColor(priority) }}>{recommendations.filter((item) => item.priority === priority || (priority === "medium" && !item.priority)).length}</div>
+                    <div className="text-xs" style={{ color: "var(--text-muted)" }}>{priorityText(priority)}</div>
+                  </div>
+                ))}
+              </div>
+
+              {recommendationGroups.map((group) => (
+                <section key={group.key}>
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ background: priorityColor(group.key as ProductWebsiteRecommendation["priority"]) }} />
+                    <h3 className="text-xs font-medium uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>{group.label} · {group.items.length}</h3>
+                  </div>
+                  <div className="space-y-3">
+                    {group.items.map((item, index) => (
+                      <details key={item.id || `${item.title}-${index}`} open={group.key === "high" && index === 0} className="group rounded-md" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
+                        <summary className="flex cursor-pointer list-none flex-col gap-3 px-4 py-4 transition-colors hover:bg-[var(--bg-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] md:flex-row md:items-start md:justify-between">
+                          <div className="min-w-0">
+                            <h4 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{item.title}</h4>
+                            <p className="mt-2 line-clamp-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>{item.problem || item.detail || "展开查看执行建议。"}</p>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs">
+                            {[item.dimensionLabel || item.dimension, impactText(item.impact), effortText(item.effort), typeof item.expectedLift === "number" ? `预期 +${item.expectedLift}` : null].filter(Boolean).map((tag) => <span key={tag} className="rounded px-2 py-1" style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}>{tag}</span>)}
+                            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" style={{ color: "var(--text-muted)" }} />
+                          </div>
+                        </summary>
+                        <div className="grid grid-cols-1 gap-5 border-t px-4 py-4 lg:grid-cols-3" style={{ borderColor: "var(--border)" }}>
+                          <div><div className="mb-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>为什么要做</div><ul className="space-y-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>{(item.evidence || []).map((text, itemIndex) => <li key={itemIndex} className="border-l-2 pl-2" style={{ borderColor: "var(--border)" }}>{text}</li>)}{!item.evidence?.length && <li>暂无补充证据</li>}</ul></div>
+                          <div><div className="mb-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>怎么执行</div><ol className="space-y-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>{(item.actions || []).map((text, itemIndex) => <li key={itemIndex}><span className="mr-2 font-mono text-xs" style={{ color: "var(--color-primary)" }}>{String(itemIndex + 1).padStart(2, "0")}</span>{text}</li>)}{!item.actions?.length && <li>暂无执行步骤</li>}</ol></div>
+                          <div><div className="mb-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>如何验收</div><p className="text-sm leading-6" style={{ color: "var(--text-secondary)" }}>{item.successMetric || "待补充验收指标"}</p>{!!item.examples?.length && <div className="mt-3 rounded-md px-3 py-2 text-xs leading-5" style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}>{item.examples[0]}</div>}</div>
                         </div>
-                      )}
-                    </div>
+                      </details>
+                    ))}
                   </div>
-                </div>
+                </section>
               ))}
               {!recommendations.length && (
                 <div className="text-sm" style={{ color: "var(--text-muted)" }}>暂无优化建议</div>

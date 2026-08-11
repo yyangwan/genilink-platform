@@ -74,13 +74,13 @@ export function buildProductWebsiteAnalyzePayload(input: {
     return { error: normalized.error };
   }
 
-  const options: ProductWebsiteUpstreamAnalyzeRequest['options'] = {};
-  if (typeof input.enableAiCitation === 'boolean') {
-    options.enable_ai_citation = input.enableAiCitation;
-  }
-  if (input.crawlerProvider === 'native' || input.crawlerProvider === 'firecrawl') {
-    options.crawler_provider = input.crawlerProvider;
-  }
+  const options: ProductWebsiteUpstreamAnalyzeRequest['options'] = {
+    enable_ai_citation: typeof input.enableAiCitation === 'boolean' ? input.enableAiCitation : true,
+    crawler_provider:
+      input.crawlerProvider === 'native' || input.crawlerProvider === 'firecrawl'
+        ? input.crawlerProvider
+        : 'firecrawl',
+  };
 
   return {
     project_id: input.projectId,
@@ -88,6 +88,6 @@ export function buildProductWebsiteAnalyzePayload(input: {
     target_url: normalized.url,
     project: buildProductWebsiteProjectContext(input.project),
     brands: input.brands,
-    ...(Object.keys(options).length ? { options } : {}),
+    options,
   };
 }

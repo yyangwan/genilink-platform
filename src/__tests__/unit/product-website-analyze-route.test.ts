@@ -138,6 +138,10 @@ describe('POST /api/integration/product-website/analyze', () => {
       expect.objectContaining({
         body: expect.objectContaining({
           target_url: 'https://example.com/product',
+          options: {
+            enable_ai_citation: true,
+            crawler_provider: 'firecrawl',
+          },
         }),
       }),
     );
