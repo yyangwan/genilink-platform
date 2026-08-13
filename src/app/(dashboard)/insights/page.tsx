@@ -16,6 +16,9 @@ import { PageHeader } from "@/components/ui/page-header";
 import { DiagnosticChecklist, type DiagnosticItem } from "@/components/ui/diagnostic-checklist";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { MetricExplanation } from "@/components/ui/metric-explanation";
+import { AuditSnapshotSelector } from "@/components/audits/audit-snapshot-selector";
+import { useAuditSnapshot } from "@/components/audits/use-audit-snapshot";
 import SentimentPieChart from "@/components/charts/SentimentPieChart";
 import TopicRadarChart from "@/components/charts/TopicRadarChart";
 import AnswerStructureChart from "@/components/charts/AnswerStructureChart";
@@ -139,12 +142,15 @@ function SourceAuthorityList({ sources }: { sources: ContentIntelligence["source
 
 function InsightsContent() {
   const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
+  const auditSnapshot = useAuditSnapshot(currentProjectId);
 
-  const url = currentProjectId
-    ? `/api/integration/content-intelligence?projectId=${currentProjectId}`
+  const url = currentProjectId && auditSnapshot.selectedAuditId
+    ? `/api/integration/content-intelligence?projectId=${currentProjectId}&auditId=${auditSnapshot.selectedAuditId}`
     : null;
 
   const ci = useSectionFetch<ContentIntelligence>(url);
+  const pageLoading = auditSnapshot.loading || ci.loading;
+  const pageError = auditSnapshot.error || ci.error;
 
   // No project selected
   if (!loading && !currentProjectId) {
@@ -154,7 +160,7 @@ function InsightsContent() {
     ];
     return (
       <div className="space-y-6">
-        <PageHeader title="内容洞察" subtitle="AI 生成内容的深度分析" />
+        <PageHeader title="内容洞察" subtitle="按单次审计查看 AI 回答的内容特征" />
         <DiagnosticChecklist items={checklistItems} title="准备工作" />
       </div>
     );
@@ -175,10 +181,21 @@ function InsightsContent() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="内容洞察" subtitle="AI 生成内容的深度分析" />
+      <PageHeader title="内容洞察" subtitle="按单次审计查看 AI 回答的内容特征" />
+
+      {currentProjectId && (
+        <AuditSnapshotSelector
+          audits={auditSnapshot.audits}
+          selectedAuditId={auditSnapshot.selectedAuditId}
+          latestAuditId={auditSnapshot.latestAuditId}
+          projectId={currentProjectId}
+          loading={auditSnapshot.loading}
+          onChange={auditSnapshot.selectAudit}
+        />
+      )}
 
       {/* Loading skeleton */}
-      {ci.loading && (
+      {pageLoading && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
@@ -194,14 +211,14 @@ function InsightsContent() {
       )}
 
       {/* Error state */}
-      {ci.error && !ci.loading && (
+      {pageError && !pageLoading && (
         <div className="dashboard-surface dashboard-surface--padded">
-          <ErrorState onRetry={ci.refetch} />
+          <ErrorState onRetry={() => window.location.reload()} />
         </div>
       )}
 
       {/* Content */}
-      {!ci.loading && !ci.error && data && (
+      {!pageLoading && !pageError && data && (
         <>
           {/* Stat cards */}
           <StatCards data={data} />
@@ -248,6 +265,9 @@ function InsightsContent() {
                 <BarChart3 style={{ width: 16, height: 16, color: "var(--color-primary)" }} />
                 回答结构分布
               </div>
+              <MetricExplanation>
+                回答结构指 AI 组织答案的呈现方式，例如列表式、对比式、问答式或叙述式；占比越高，表示该方式在本次审计中越常见。
+              </MetricExplanation>
               <div style={{ height: 280 }}>
                 {answerStructureData.length > 0 ? (
                   <AnswerStructureChart data={answerStructureData} />
@@ -279,7 +299,7 @@ function InsightsContent() {
       )}
 
       {/* Empty state — API returned no error but also no data */}
-      {!ci.loading && !ci.error && !data && (
+      {!pageLoading && !pageError && !data && (
         <div className="dashboard-surface dashboard-surface--padded">
           <EmptyState
             icon={Brain}

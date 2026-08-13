@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { DiagnosticChecklist, type DiagnosticItem } from "@/components/ui/diagnostic-checklist";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { MetricExplanation } from "@/components/ui/metric-explanation";
 import SourceAuthorityTrends from "@/components/charts/SourceAuthorityTrends";
 import CompetitorPositioningMap from "@/components/charts/CompetitorPositioningMap";
 import StructureEvolution from "@/components/charts/StructureEvolution";
@@ -115,7 +116,7 @@ function SourceAuthorityTab({ projectId }: { projectId: string }) {
   if (locked) return <div style={cardStyle}><EmptyState icon={Globe} title="需要升级" description="战略智能功能需要订阅智见专业版" /></div>;
   if (error) return <div style={cardStyle}><ErrorState onRetry={() => window.location.reload()} /></div>;
   if (chartData.length === 0) {
-    return <div style={cardStyle}><EmptyState icon={Globe} title="暂无来源权威数据" description="运行审计后可查看来源权威趋势" /></div>;
+    return <div style={cardStyle}><EmptyState icon={Globe} title="暂无来源权威数据" description="完成审计后可查看最近最多 10 次审计的来源权威趋势" /></div>;
   }
 
   // Build trend table data
@@ -124,6 +125,9 @@ function SourceAuthorityTab({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-6">
+      <MetricExplanation>
+        数据范围：最近最多 10 次已完成或部分完成的审计，按审计时间展示引用来源及权威度变化。
+      </MetricExplanation>
       {/* Domain authority trend line chart */}
       <div style={cardStyle}>
         <div style={sectionTitle}>
@@ -186,7 +190,7 @@ function CompetitorPositioningTab({ projectId }: { projectId: string }) {
   if (locked) return <div style={cardStyle}><EmptyState icon={Target} title="需要升级" description="战略智能功能需要订阅智见专业版" /></div>;
   if (error) return <div style={cardStyle}><ErrorState onRetry={() => window.location.reload()} /></div>;
   if (chartData.length === 0) {
-    return <div style={cardStyle}><EmptyState icon={Target} title="暂无竞品定位数据" description="运行审计后可查看竞品定位地图" /></div>;
+    return <div style={cardStyle}><EmptyState icon={Target} title="暂无竞品定位数据" description="完成审计后可查看项目历史数据聚合的竞品定位" /></div>;
   }
 
   // Brand ranking table sorted by score
@@ -194,6 +198,9 @@ function CompetitorPositioningTab({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-6">
+      <MetricExplanation>
+        数据范围：项目历史审计结果聚合；品牌和竞品名单以最新审计快照为准，定位指标汇总项目已有审计数据。
+      </MetricExplanation>
       {/* Scatter quadrant chart */}
       <div style={cardStyle}>
         <div style={sectionTitle}>
@@ -272,12 +279,18 @@ function StructureEvolutionTab({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-6">
+      <MetricExplanation>
+        数据范围：最近最多 10 次已完成或部分完成的审计，用于观察 AI 回答呈现方式随审计周期的变化。
+      </MetricExplanation>
       {/* Stacked bar chart */}
       <div style={cardStyle}>
         <div style={sectionTitle}>
           <BarChart3 style={{ width: 16, height: 16, color: "var(--color-primary)" }} />
-          结构类型演变
+          回答结构类型演变
         </div>
+        <MetricExplanation>
+          回答结构指 AI 组织答案的方式：结构化包含列表式和对比式，半结构化主要是问答式，非结构化主要是连续叙述式。
+        </MetricExplanation>
         <div style={{ height: 320 }}>
           <StructureEvolution data={chartData} />
         </div>
@@ -287,16 +300,19 @@ function StructureEvolutionTab({ projectId }: { projectId: string }) {
       <div style={cardStyle}>
         <div style={sectionTitle}>
           <BarChart3 style={{ width: 16, height: 16, color: "var(--color-primary)" }} />
-          结构类型与提及率相关性
+          各审计周期的结构占比
         </div>
+        <MetricExplanation>
+          对比每个审计周期中不同回答结构的占比，用于观察 AI 答案的呈现方式是否发生变化。
+        </MetricExplanation>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)" }}>
             <thead>
               <tr style={{ borderBottom: "2px solid var(--border)" }}>
                 <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>期间</th>
-                <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>结构化</th>
-                <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>半结构化</th>
-                <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>非结构化</th>
+                <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>结构化（列表/对比）</th>
+                <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>半结构化（问答）</th>
+                <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>非结构化（叙述）</th>
               </tr>
             </thead>
             <tbody>
@@ -437,6 +453,9 @@ function MultiAuditCompareTab({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-6">
+      <MetricExplanation>
+        数据范围：从历史记录中手动选择 2–5 次已完成或部分完成的审计，仅对所选审计进行并列比较。
+      </MetricExplanation>
       {/* Audit selection */}
       <div style={cardStyle}>
         <div style={sectionTitle}>
@@ -685,7 +704,7 @@ function StrategicContent() {
     ];
     return (
       <div className="space-y-6">
-        <PageHeader title="战略智能" subtitle="深度战略分析与竞争洞察" />
+        <PageHeader title="战略智能" subtitle="基于跨审计历史数据的趋势、竞争与结构分析" />
         <DiagnosticChecklist items={checklistItems} title="准备工作" />
       </div>
     );
@@ -709,7 +728,7 @@ function StrategicContent() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="战略智能" subtitle="深度战略分析与竞争洞察" />
+      <PageHeader title="战略智能" subtitle="基于跨审计历史数据的趋势、竞争与结构分析" />
 
       {/* Tab bar */}
       <div style={{ display: "flex", gap: 4, padding: "4px", background: "var(--bg-hover)", borderRadius: 10, width: "fit-content" }}>

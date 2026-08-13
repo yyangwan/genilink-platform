@@ -10,6 +10,18 @@ vi.mock('@/components/project/project-context', () => ({
   useProject: vi.fn(),
 }));
 
+vi.mock('@/components/audits/use-audit-snapshot', () => ({
+  useAuditSnapshot: () => ({
+    audits: [],
+    loading: false,
+    error: false,
+    selectedAuditId: null,
+    latestAuditId: null,
+    isLatestAudit: false,
+    selectAudit: vi.fn(),
+  }),
+}));
+
 vi.mock('@/components/ui/page-header', () => ({
   PageHeader: ({ title }: { title: string }) => <div>{title}</div>,
 }));

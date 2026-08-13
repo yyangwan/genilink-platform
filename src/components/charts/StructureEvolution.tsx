@@ -44,9 +44,9 @@ export default function StructureEvolution({ data }: StructureEvolutionProps) {
         />
         <Tooltip contentStyle={tooltipStyles} formatter={(value) => [`${value}%`]} />
         <Legend wrapperStyle={legendStyles} />
-        <Bar dataKey="structured" name="结构化" stackId="a" fill="var(--color-primary)" />
-        <Bar dataKey="semi_structured" name="半结构化" stackId="a" fill="var(--color-primary-dim, var(--color-warning))" />
-        <Bar dataKey="unstructured" name="非结构化" stackId="a" fill="var(--bg-hover)" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="structured" name="结构化（列表/对比）" stackId="a" fill="var(--color-primary)" />
+        <Bar dataKey="semi_structured" name="半结构化（问答）" stackId="a" fill="var(--color-primary-dim, var(--color-warning))" />
+        <Bar dataKey="unstructured" name="非结构化（叙述）" stackId="a" fill="var(--bg-hover)" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

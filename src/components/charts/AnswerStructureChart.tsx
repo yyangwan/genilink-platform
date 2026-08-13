@@ -10,6 +10,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { tooltipStyles, axisTickStyles, axisLineStyles, tickLineStyles, gridStyles, chartMargin } from "./shared";
+import { getAnswerStructureLabel } from "@/lib/visibility/answer-structure";
 
 interface AnswerStructureChartProps {
   data: { type: string; count: number; percentage: number }[];
@@ -18,10 +19,15 @@ interface AnswerStructureChartProps {
 export default function AnswerStructureChart({ data }: AnswerStructureChartProps) {
   if (!data || data.length === 0) return null;
 
+  const localizedData = data.map((item) => ({
+    ...item,
+    label: getAnswerStructureLabel(item.type),
+  }));
+
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart
-        data={data}
+        data={localizedData}
         layout="vertical"
         margin={chartMargin}
       >
@@ -35,7 +41,7 @@ export default function AnswerStructureChart({ data }: AnswerStructureChartProps
         />
         <YAxis
           type="category"
-          dataKey="type"
+          dataKey="label"
           tick={axisTickStyles}
           axisLine={axisLineStyles}
           tickLine={tickLineStyles}

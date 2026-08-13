@@ -15,7 +15,8 @@ import { useProject } from "@/components/project/project-context";
 import { PageHeader } from "@/components/ui/page-header";
 import { DiagnosticChecklist, type DiagnosticItem } from "@/components/ui/diagnostic-checklist";
 import { EmptyState } from "@/components/ui/empty-state";
-import { getAuditStatus, isAuditFinished } from "@/lib/audit-status";
+import { AuditSnapshotSelector } from "@/components/audits/audit-snapshot-selector";
+import { useAuditSnapshot } from "@/components/audits/use-audit-snapshot";
 interface Brand {
   id: number;
   name: string;
@@ -40,13 +41,6 @@ interface GroupedRow {
   mentionGap: number;
 }
 
-function getAuditDateValue(audit: { completed_at?: string | null; created_at?: string | null; started_at?: string | null; id?: number }): number {
-  const raw = audit.completed_at ?? audit.created_at ?? audit.started_at;
-  const value = raw ? new Date(raw).getTime() : Number.NaN;
-  if (!Number.isNaN(value)) return value;
-  return audit.id ?? 0;
-}
-
 const PLATFORM_LABELS: Record<string, string> = {
   deepseek: "DeepSeek",
   qwen: "通义千问",
@@ -65,6 +59,7 @@ function CompareContent() {
   const [filterPlatform, setFilterPlatform] = useState("all");
   const [filterMentionOnly, setFilterMentionOnly] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const auditSnapshot = useAuditSnapshot(currentProjectId);
 
   const platformNames = PLATFORM_LABELS;
   const platformKeys = useMemo(
@@ -73,7 +68,7 @@ function CompareContent() {
   );
 
   const loadData = async () => {
-    if (!currentProjectId) return;
+    if (!currentProjectId || !auditSnapshot.selectedAuditId) return;
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -84,32 +79,10 @@ function CompareContent() {
     setLocked(false);
 
     try {
-      // 1. Get audits to find the latest one
-      const auditsRes = await fetch(`/api/integration/audits?projectId=${currentProjectId}`, { signal });
-      if (auditsRes.status === 403) { setLocked(true); setDataLoading(false); return; }
-      if (!auditsRes.ok) throw new Error("获取审计数据失败");
-      const auditsData = await auditsRes.json();
-      const audits = auditsData.audits || auditsData;
-      const completedAudits = (Array.isArray(audits) ? audits : []).filter(
-        (a: { phase?: string; status: string; completed_at?: string | null; created_at?: string | null; started_at?: string | null; id?: number }) => isAuditFinished(getAuditStatus(a))
-      );
-      completedAudits.sort((a: { completed_at?: string | null; created_at?: string | null; started_at?: string | null; id?: number }, b: { completed_at?: string | null; created_at?: string | null; started_at?: string | null; id?: number }) =>
-        getAuditDateValue(b) - getAuditDateValue(a),
-      );
-
-      if (completedAudits.length === 0) {
-        setResults([]);
-        setBrands([]);
-        setDataLoading(false);
-        return;
-      }
-
-      const latestAudit = completedAudits[0];
-
-      // 2. Fetch brands and audit results in parallel
+      // Fetch brands and the selected audit snapshot in parallel.
       const [brandsRes, resultsRes] = await Promise.all([
         fetch(`/api/integration/brands?projectId=${currentProjectId}`, { signal }),
-        fetch(`/api/integration/audits/${latestAudit.id}/results?projectId=${currentProjectId}`, { signal }),
+        fetch(`/api/integration/audits/${auditSnapshot.selectedAuditId}/results?projectId=${currentProjectId}`, { signal }),
       ]);
 
       if (brandsRes.status === 403 || resultsRes.status === 403) { setLocked(true); setDataLoading(false); return; }
@@ -135,7 +108,7 @@ function CompareContent() {
   useEffect(() => {
     loadData();
     return () => { if (abortRef.current) abortRef.current.abort(); };
-  }, [currentProjectId]);
+  }, [currentProjectId, auditSnapshot.selectedAuditId]);
 
   // Brand column order: primary brands first, then competitors
   const brandColumns = useMemo(() => {
@@ -259,6 +232,17 @@ function CompareContent() {
       .sort((a, b) => b.rate - a.rate);
   }, [results, brandColumns, brands]);
 
+  const auditSelector = currentProjectId ? (
+    <AuditSnapshotSelector
+      audits={auditSnapshot.audits}
+      selectedAuditId={auditSnapshot.selectedAuditId}
+      latestAuditId={auditSnapshot.latestAuditId}
+      projectId={currentProjectId}
+      loading={auditSnapshot.loading}
+      onChange={auditSnapshot.selectAudit}
+    />
+  ) : null;
+
   // No project selected
   if (!loading && !currentProjectId) {
     const checklistItems: DiagnosticItem[] = [
@@ -287,6 +271,7 @@ function CompareContent() {
     return (
       <div className="space-y-6">
         <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
+        {auditSelector}
         <div className="grid grid-cols-2 gap-4">
           <div className="dashboard-skeleton h-72 rounded-xl animate-skeleton-pulse" />
           <div className="dashboard-skeleton h-72 rounded-xl animate-skeleton-pulse" />
@@ -300,6 +285,7 @@ function CompareContent() {
     return (
       <div className="space-y-6">
         <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
+        {auditSelector}
         <div className="dashboard-surface">
           <EmptyState icon={GitCompare} title="需要升级后使用" description="竞品对比功能需要订阅智见专业版" />
         </div>
@@ -311,6 +297,7 @@ function CompareContent() {
     return (
       <div className="space-y-6">
         <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
+        {auditSelector}
         <div className="dashboard-surface">
           <EmptyState
             icon={GitCompare}
@@ -324,10 +311,28 @@ function CompareContent() {
     );
   }
 
+  if (auditSnapshot.error) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
+        <div className="dashboard-surface">
+          <EmptyState
+            icon={GitCompare}
+            title="审计记录加载失败"
+            description="暂时无法读取历史审计，请稍后重试"
+            actionLabel="重试"
+            onAction={() => window.location.reload()}
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (results.length === 0) {
     return (
       <div className="space-y-6">
         <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
+        {auditSelector}
         <div className="dashboard-surface">
           <EmptyState
             icon={GitCompare}
@@ -357,6 +362,8 @@ function CompareContent() {
           </button>
         }
       />
+
+      {auditSelector}
 
       {/* Charts row */}
       <CompareCharts radarData={radarData} barData={barData} brandColumns={brandColumns} />

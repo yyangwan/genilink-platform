@@ -1,38 +1,33 @@
 "use client";
 
 import React, { Suspense, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useProjectId } from "@/components/project/use-project-id";
 import {
   BarChart3,
   AlertCircle,
-  TrendingUp,
   Users,
   Globe,
   CheckCircle2,
   XCircle,
   MessageSquare,
   Award,
-  FileText,
   Gauge,
   Layers3,
   Lightbulb,
-  Network,
   Search,
   ShieldCheck,
   Sparkles,
   Target,
   Trophy,
+  ArrowRight,
   type LucideIcon,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const SentimentPieChart = dynamic(
   () => import("@/components/charts/SentimentPieChart"),
-  { ssr: false },
-);
-const StructureBarChart = dynamic(
-  () => import("@/components/charts/StructureBarChart"),
   { ssr: false },
 );
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
@@ -45,7 +40,7 @@ import type {
   ContentIntelligence,
 } from "@/types/visibility";
 import { sectionCard } from "@/components/charts/shared";
-import { formatDateInTimeZone } from "@/lib/time";
+import { getAnswerStructureLabel } from "@/lib/visibility/answer-structure";
 
 function scoreColor(score: number): string {
   if (score >= 70) return "var(--color-success)";
@@ -222,45 +217,6 @@ function MeterRow({
       )}
     </div>
   );
-}
-
-/** Transform structure_distribution (keyed by type) into per-audit stacked bar data */
-function buildStructureChartData(evolution: {
-  audits?: Array<{ audit_id: number; date: string }>;
-  structure_distribution: Record<string, Array<{ audit_id: number; count: number; pct: number }>>;
-}): Record<string, string | number>[] {
-  // Collect all unique audit IDs across all structure types
-  const auditIds = new Set<number>();
-  for (const points of Object.values(evolution.structure_distribution)) {
-    for (const p of points) auditIds.add(p.audit_id);
-  }
-
-  // Map audit_id → label using audits array if available
-  const auditLabels = new Map<number, string>();
-  if (evolution.audits) {
-    for (const a of evolution.audits) auditLabels.set(a.audit_id, a.date);
-  }
-
-  const sortedIds = [...auditIds].sort((a, b) => a - b);
-
-  // Build lookup: (type, audit_id) → pct
-  const lookup = new Map<string, Map<number, number>>();
-  for (const [type, points] of Object.entries(evolution.structure_distribution)) {
-    const m = new Map<number, number>();
-    for (const p of points) m.set(p.audit_id, p.pct);
-    lookup.set(type, m);
-  }
-
-  return sortedIds.map((id) => {
-    const date = auditLabels.get(id);
-    const period = date ? formatDateInTimeZone(date, { includeTime: false }) : `#${id}`;
-    return {
-      period,
-      structured: Math.round((lookup.get("list")?.get(id) || 0) * 100),
-      semi_structured: Math.round((lookup.get("comparison")?.get(id) || 0) * 100),
-      unstructured: Math.round((lookup.get("narrative")?.get(id) || 0) * 100),
-    };
-  });
 }
 
 function insightTypeIcon(type: string) {
@@ -442,79 +398,44 @@ function OverviewTab({ report }: { report: ReportData }) {
         </div>
       )}
 
-      {report.prompts && report.prompts.length > 0 && (
-        <div style={compactCard()}>
-          <SectionTitle icon={Search} title="查询详情" meta={`展示 ${Math.min(report.prompts.length, 50)} 条`} tone="muted" />
-          <div className="space-y-2">
-            {report.prompts.map((q, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-3 py-2 px-3 rounded-lg"
-                style={{ background: "var(--bg-elevated)" }}
-              >
-                <span className="shrink-0 mt-0.5">
-                  {q.mentioned ? (
-                    <CheckCircle2 className="w-4 h-4" style={{ color: "var(--color-success)" }} />
-                  ) : (
-                    <XCircle className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
-                  )}
+    </div>
+  );
+}
+
+// ── Audit Details Tab ──
+function AuditDetailsTab({ report }: { report: ReportData }) {
+  if (!report.prompts?.length) {
+    return <div style={sectionCard}><EmptyState icon={Search} title="暂无审计明细" description="本次审计没有可展示的查询结果" /></div>;
+  }
+
+  return (
+    <div style={compactCard()}>
+      <SectionTitle icon={Search} title="查询与命中明细" meta={`${report.prompts.length} 条`} tone="muted" />
+      <p className="mb-4 text-xs leading-5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+        以下数据全部来自审计 #{report.audit_id}，展示各平台查询中品牌是否被提及、推荐及排名情况。
+      </p>
+      <div className="space-y-2">
+        {report.prompts.map((q, i) => (
+          <div key={`${q.platform}-${q.prompt}-${q.brand}-${i}`} className="flex items-start gap-3 rounded-lg px-3 py-3" style={{ background: "var(--bg-elevated)" }}>
+            <span className="mt-0.5 shrink-0">
+              {q.mentioned ? <CheckCircle2 className="h-4 w-4" style={{ color: "var(--color-success)" }} /> : <XCircle className="h-4 w-4" style={{ color: "var(--text-muted)" }} />}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <span className="rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "var(--color-primary-dim)", color: "var(--color-primary)", fontFamily: "var(--font-display)" }}>{q.platform}</span>
+                {q.brand && <span className="text-xs" style={{ color: "var(--text-muted)" }}>{q.brand}</span>}
+                <span className="rounded px-1.5 py-0.5 text-xs" style={{ background: q.mentioned ? "var(--color-success)18" : "var(--bg-hover)", color: q.mentioned ? "var(--color-success)" : "var(--text-muted)" }}>
+                  {q.mentioned ? "已提及" : "未提及"}
                 </span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span
-                      className="text-xs font-medium px-1.5 py-0.5 rounded"
-                      style={{ background: "var(--color-primary-dim)", color: "var(--color-primary)", fontFamily: "var(--font-display)" }}
-                    >
-                      {q.platform}
-                    </span>
-                    {q.brand && (
-                      <span
-                        className="text-xs"
-                        style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
-                      >
-                        {q.brand}
-                      </span>
-                    )}
-                    {q.recommended && (
-                      <span
-                        className="text-xs font-medium px-1.5 py-0.5 rounded"
-                        style={{ background: "var(--color-success)20", color: "var(--color-success)", fontFamily: "var(--font-display)" }}
-                      >
-                        推荐
-                      </span>
-                    )}
-                    {q.rank != null && (
-                      <span
-                        className="text-xs"
-                        style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-                      >
-                        #{q.rank}
-                      </span>
-                    )}
-                  </div>
-                  <p
-                    className="text-sm truncate"
-                    style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
-                  >
-                    {q.prompt}
-                  </p>
-                </div>
-                {q.confidence != null && (
-                  <span
-                    className="text-xs font-medium shrink-0"
-                    style={{
-                      color: (q.confidence >= 0.7 ? "var(--color-success)" : q.confidence >= 0.4 ? "var(--color-warning)" : "var(--text-muted)"),
-                      fontFamily: "var(--font-mono)",
-                    }}
-                  >
-                    {Math.round(q.confidence * 100)}%
-                  </span>
-                )}
+                {q.recommended && <span className="rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "var(--color-success)20", color: "var(--color-success)" }}>推荐</span>}
+                {q.rank != null && <span className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>排名 #{q.rank}</span>}
               </div>
-            ))}
+              <p className="text-sm leading-6" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{q.prompt}</p>
+            </div>
+            {q.confidence != null && <span className="shrink-0 text-xs font-medium" style={{ color: q.confidence >= 0.7 ? "var(--color-success)" : q.confidence >= 0.4 ? "var(--color-warning)" : "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{Math.round(q.confidence * 100)}%</span>}
           </div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 }
@@ -656,7 +577,7 @@ function ContentTab({
                 .map((item) => (
                   <MeterRow
                     key={item.type}
-                    label={item.type}
+                    label={getAnswerStructureLabel(item.type)}
                     value={item.count}
                     maxValue={maxStructureCount}
                     color="var(--color-primary)"
@@ -698,198 +619,119 @@ function ContentTab({
   );
 }
 
-// ── Strategic Tab ──
-function StrategicTab({
-  competitor,
-  sourceAuthority,
-  structureEvolution,
-  loading,
-  error,
-}: {
-  competitor: { brands: Array<{ name: string; is_competitor: boolean; mention_frequency: number; sentiment_positive_rate: number; avg_authority: number; mention_count: number }> } | null;
-  sourceAuthority: { audits: Array<{ audit_id: number; date: string }>; domain_trends: Array<{ domain: string; data: Array<{ audit_id: number; count: number; authority_avg: number }> }> } | null;
-  structureEvolution: { audits: Array<{ audit_id: number; date: string }>; structure_distribution: Record<string, Array<{ audit_id: number; count: number; pct: number }>> } | null;
-  loading: boolean;
-  error: boolean;
-}) {
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        {[1, 2].map((i) => (
-          <div key={i} className="dashboard-surface dashboard-surface--padded h-48 animate-skeleton-pulse" />
-        ))}
-      </div>
-    );
-  }
+// ── Competitor Snapshot Tab ──
+function CompetitorSnapshotTab({ report }: { report: ReportData }) {
+  const brands = report.brands?.slice().sort((a, b) => b.mention_count - a.mention_count) ?? [];
+  const platforms = [...new Set((report.prompts ?? []).map((prompt) => prompt.platform))];
+  const maxMentions = Math.max(...brands.map((brand) => brand.mention_count), 1);
 
-  if (error || (!competitor && !sourceAuthority && !structureEvolution)) {
-    return (
-      <div style={sectionCard}>
-        <EmptyState
-          icon={AlertCircle}
-          title="无法加载战略分析"
-          description="请稍后重试或检查审计是否已完成"
-        />
-      </div>
-    );
+  if (brands.length === 0) {
+    return <div style={sectionCard}><EmptyState icon={Users} title="暂无竞品快照" description="本次审计没有可展示的品牌提及数据" /></div>;
   }
-
-  const sortedCompetitors = competitor?.brands
-    ?.slice()
-    .sort((a, b) => b.mention_frequency - a.mention_frequency) ?? [];
-  const ownPosition = sortedCompetitors.find((brand) => !brand.is_competitor);
-  const leader = sortedCompetitors[0];
-  const maxMentionFrequency = Math.max(...sortedCompetitors.map((brand) => brand.mention_frequency), 0.01);
-  const domainRows = sourceAuthority?.domain_trends
-    ?.slice()
-    .sort((a, b) => {
-      const aTotal = a.data.reduce((s, d) => s + d.count, 0);
-      const bTotal = b.data.reduce((s, d) => s + d.count, 0);
-      return bTotal - aTotal;
-    }) ?? [];
-  const topDomain = domainRows[0];
-  const maxDomainMentions = Math.max(...domainRows.map((d) => d.data.reduce((s, x) => s + x.count, 0)), 1);
-  const structureData = structureEvolution?.structure_distribution
-    ? buildStructureChartData(structureEvolution)
-    : [];
-  const latestStructure = structureData[structureData.length - 1];
-  const latestStructured = Number(latestStructure?.structured ?? 0);
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <MiniStat
-          icon={Trophy}
-          label="竞争领先者"
-          value={leader?.name ?? "--"}
-          hint={leader ? `${Math.round(leader.mention_frequency * 100)}% 提及率` : "暂无竞品数据"}
-          tone="warning"
-        />
-        <MiniStat
-          icon={Award}
-          label="本品牌位置"
-          value={ownPosition ? `${Math.round(ownPosition.mention_frequency * 100)}%` : "--"}
-          hint={ownPosition ? `${ownPosition.mention_count} 次提及` : "未识别本品牌"}
-          tone="primary"
-        />
-        <MiniStat
-          icon={Network}
-          label="核心来源"
-          value={topDomain?.domain ?? "--"}
-          hint={topDomain ? `${topDomain.data.reduce((s, d) => s + d.count, 0)} 次引用` : "暂无来源趋势"}
-          tone="success"
-        />
+      <div className="rounded-lg px-4 py-3 text-xs leading-5" style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}>
+        数据范围：仅统计审计 #{report.audit_id} 的品牌提及与推荐结果，不包含其他历史审计。
       </div>
-
-      {competitor?.brands && competitor.brands.length > 0 && (
+      <div style={compactCard()}>
+        <SectionTitle icon={Users} title="本次品牌提及对比" meta={`${brands.length} 个品牌`} />
+        <div className="space-y-3">
+          {brands.map((brand, index) => (
+            <MeterRow
+              key={brand.brand}
+              label={`${index + 1}. ${brand.brand}`}
+              value={brand.mention_count}
+              maxValue={maxMentions}
+              suffix="次"
+              color={brand.is_own ? "var(--color-primary)" : "var(--color-warning)"}
+              meta={`${brand.visibility_score}`}
+            />
+          ))}
+        </div>
+      </div>
+      {platforms.length > 0 && (
         <div style={compactCard()}>
-          <SectionTitle icon={Users} title="竞品定位" meta={`${competitor.brands.length} 个品牌`} />
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            {sortedCompetitors.map((comp) => {
-                const score = Math.round(comp.mention_frequency * 100);
-                const relativeWidth = Math.max(2, (comp.mention_frequency / maxMentionFrequency) * 100);
-                return (
-                  <div
-                    key={comp.name}
-                    className="rounded-lg p-3"
-                    style={{ background: "var(--bg-elevated)" }}
-                  >
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div
-                          className="truncate text-sm font-medium"
-                          style={{
-                            color: !comp.is_competitor ? "var(--color-primary)" : "var(--text-primary)",
-                            fontFamily: "var(--font-body)",
-                          }}
-                        >
-                          {comp.name}
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-2 text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                          <span>{comp.mention_count} 次提及</span>
-                          <span>正向 {Math.round(comp.sentiment_positive_rate * 100)}%</span>
-                          <span>权威 {Math.round(comp.avg_authority)}</span>
-                        </div>
-                      </div>
-                      <span
-                        className="shrink-0 text-lg font-bold"
-                        style={{ color: !comp.is_competitor ? "var(--color-primary)" : scoreColor(score), fontFamily: "var(--font-mono)" }}
-                      >
-                        {score}%
-                      </span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full" style={{ background: "var(--bg-hover)" }}>
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${relativeWidth}%`,
-                          background: !comp.is_competitor ? "var(--color-primary)" : scoreColor(score),
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+          <SectionTitle icon={BarChart3} title="各平台品牌表现" meta={`${platforms.length} 个平台`} tone="warning" />
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm" style={{ fontFamily: "var(--font-body)" }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid var(--border)" }}>
+                  <th className="px-3 py-2 text-left text-xs" style={{ color: "var(--text-muted)" }}>品牌</th>
+                  {platforms.map((platform) => <th key={platform} className="px-3 py-2 text-center text-xs" style={{ color: "var(--text-muted)" }}>{platform}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {brands.map((brand) => (
+                  <tr key={brand.brand} style={{ borderBottom: "1px solid var(--border)" }}>
+                    <td className="px-3 py-3 font-medium" style={{ color: brand.is_own ? "var(--color-primary)" : "var(--text-primary)" }}>{brand.brand}</td>
+                    {platforms.map((platform) => {
+                      const rows = report.prompts.filter((prompt) => prompt.brand === brand.brand && prompt.platform === platform);
+                      const mentions = rows.filter((prompt) => prompt.mentioned).length;
+                      const recommendations = rows.filter((prompt) => prompt.recommended).length;
+                      return (
+                        <td key={platform} className="px-3 py-3 text-center">
+                          <span style={{ color: mentions > 0 ? "var(--color-success)" : "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{mentions}/{rows.length}</span>
+                          {recommendations > 0 && <span className="ml-1 text-[11px]" style={{ color: "var(--color-primary)" }}>推荐 {recommendations}</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
+    </div>
+  );
+}
 
-      {sourceAuthority?.domain_trends && sourceAuthority.domain_trends.length > 0 && (
-        <div style={compactCard()}>
-          <SectionTitle icon={TrendingUp} title="来源权威趋势" meta={`${sourceAuthority.audits?.length ?? 0} 次审计`} tone="success" />
-          <div className="space-y-3">
-            {domainRows
-              .slice(0, 10)
-              .map((domain) => {
-                const totalCount = domain.data.reduce((s, d) => s + d.count, 0);
-                const avgAuthority = domain.data.length
-                  ? Math.round(domain.data.reduce((s, d) => s + d.authority_avg, 0) / domain.data.length)
-                  : 0;
-                return (
-                  <MeterRow
-                    key={domain.domain}
-                    label={domain.domain}
-                    value={totalCount}
-                    maxValue={maxDomainMentions}
-                    color={scoreColor(avgAuthority)}
-                    meta={`${avgAuthority}`}
-                  />
-                );
-              })}
-          </div>
-        </div>
-      )}
+interface AuditSuggestion {
+  id: string;
+  text: string;
+  description?: string;
+  category?: string;
+  platform?: string;
+  priority: "high" | "medium" | "low";
+  status: "pending" | "resolved" | "ignored";
+  evidence_summary?: string;
+  audit_findings?: string[];
+  success_metric?: string;
+  expected_result?: string;
+}
 
-      {structureEvolution?.structure_distribution && (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_280px]">
-          <div style={compactCard()}>
-            <SectionTitle icon={BarChart3} title="结构化演变" meta={`${structureData.length} 个周期`} tone="warning" />
-            <div style={{ height: 240 }}>
-              <StructureBarChart data={structureData} />
-            </div>
-          </div>
-          <div style={compactCard()}>
-            <SectionTitle icon={FileText} title="最新结构分布" tone="muted" />
-            <div className="space-y-3">
-              <MiniStat icon={Layers3} label="结构化" value={`${latestStructured}%`} hint="列表型回答占比" tone="primary" />
-              <MiniStat
-                icon={Network}
-                label="半结构化"
-                value={`${Number(latestStructure?.semi_structured ?? 0)}%`}
-                hint="对比型回答占比"
-                tone="warning"
-              />
-              <MiniStat
-                icon={MessageSquare}
-                label="叙述型"
-                value={`${Number(latestStructure?.unstructured ?? 0)}%`}
-                hint="长文本回答占比"
-                tone="muted"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+function SuggestionsTab({ suggestions, loading, error, auditId }: { suggestions: AuditSuggestion[] | null; loading: boolean; error: boolean; auditId: string }) {
+  if (loading) return <div className="dashboard-surface dashboard-surface--padded h-72 animate-skeleton-pulse" />;
+  if (error) return <div style={sectionCard}><EmptyState icon={AlertCircle} title="无法加载优化建议" description="请稍后重试" /></div>;
+  if (!suggestions?.length) return <div style={sectionCard}><EmptyState icon={Lightbulb} title="暂无优化建议" description="本次审计尚未生成优化建议" /></div>;
+
+  const sorted = suggestions.slice().sort((a, b) => ({ high: 0, medium: 1, low: 2 }[a.priority] ?? 3) - ({ high: 0, medium: 1, low: 2 }[b.priority] ?? 3));
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg px-4 py-3 text-xs leading-5" style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}>
+        以下建议由审计 #{auditId} 自动生成，建议内容与审计证据保持不变；执行状态可在优化建议模块持续更新。
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {sorted.map((suggestion) => {
+          const priority = priorityConfig(suggestion.priority);
+          return (
+            <article key={suggestion.id} style={compactCard()}>
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span className="rounded px-2 py-0.5 text-xs font-medium" style={{ background: priority.bg, color: priority.color }}>{priority.label}优先级</span>
+                {suggestion.category && <span className="text-xs" style={{ color: "var(--text-muted)" }}>{suggestion.category}</span>}
+                {suggestion.platform && <span className="text-xs" style={{ color: "var(--text-muted)" }}>{suggestion.platform}</span>}
+                <span className="ml-auto text-xs" style={{ color: suggestion.status === "resolved" ? "var(--color-success)" : "var(--text-muted)" }}>{suggestion.status === "resolved" ? "已处理" : "待处理"}</span>
+              </div>
+              <h3 className="text-sm font-semibold leading-6" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>{suggestion.text}</h3>
+              {suggestion.description && <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>{suggestion.description}</p>}
+              {suggestion.evidence_summary && <div className="mt-3 rounded-lg px-3 py-2 text-xs leading-5" style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}><strong>审计依据：</strong>{suggestion.evidence_summary}</div>}
+              {suggestion.audit_findings && suggestion.audit_findings.length > 0 && <ul className="mt-3 list-disc space-y-1 pl-5 text-xs leading-5" style={{ color: "var(--text-secondary)" }}>{suggestion.audit_findings.slice(0, 3).map((finding, index) => <li key={index}>{finding}</li>)}</ul>}
+              {(suggestion.success_metric || suggestion.expected_result) && <p className="mt-3 text-xs leading-5" style={{ color: "var(--color-success)" }}><strong>预期结果：</strong>{suggestion.success_metric || suggestion.expected_result}</p>}
+            </article>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -904,8 +746,10 @@ function ReportContent() {
 
   const tabs = [
     { id: "overview", label: "总览" },
-    { id: "content", label: "内容分析" },
-    { id: "strategic", label: "战略分析" },
+    { id: "details", label: "审计明细" },
+    { id: "content", label: "内容洞察" },
+    { id: "competitors", label: "竞品快照" },
+    { id: "suggestions", label: "优化建议" },
   ];
 
   // Fetch main report
@@ -920,23 +764,10 @@ function ReportContent() {
       : ""
   );
 
-  // Fetch strategic data — 3 separate calls
-  const competitor = useSectionFetch<{ brands: Array<{ name: string; is_competitor: boolean; mention_frequency: number; sentiment_positive_rate: number; avg_authority: number; mention_count: number }> }>(
-    activeTab === "strategic" && projectId
-      ? `/api/integration/strategic/competitor-positioning?projectId=${projectId}&auditId=${auditId}`
-      : ""
-  );
-
-  const sourceAuthority = useSectionFetch<{ audits: Array<{ audit_id: number; date: string }>; domain_trends: Array<{ domain: string; data: Array<{ audit_id: number; count: number; authority_avg: number }> }> }>(
-    activeTab === "strategic" && projectId
-      ? `/api/integration/strategic/source-authority?projectId=${projectId}&auditId=${auditId}`
-      : ""
-  );
-
-  const structureEvolution = useSectionFetch<{ audits: Array<{ audit_id: number; date: string }>; structure_distribution: Record<string, Array<{ audit_id: number; count: number; pct: number }>> }>(
-    activeTab === "strategic" && projectId
-      ? `/api/integration/strategic/structure-evolution?projectId=${projectId}&auditId=${auditId}`
-      : ""
+  const suggestions = useSectionFetch<AuditSuggestion[]>(
+    activeTab === "suggestions" && projectId
+      ? `/api/integration/suggestions?projectId=${projectId}&auditId=${auditId}`
+      : null,
   );
 
   // Loading state
@@ -996,18 +827,23 @@ function ReportContent() {
       <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
       {activeTab === "overview" && <OverviewTab report={report.data} />}
+      {activeTab === "details" && <AuditDetailsTab report={report.data} />}
       {activeTab === "content" && (
         <ContentTab content={content.data} loading={content.loading} error={content.error} />
       )}
-      {activeTab === "strategic" && (
-        <StrategicTab
-          competitor={competitor.data}
-          sourceAuthority={sourceAuthority.data}
-          structureEvolution={structureEvolution.data}
-          loading={competitor.loading || sourceAuthority.loading || structureEvolution.loading}
-          error={competitor.error || sourceAuthority.error || structureEvolution.error}
-        />
-      )}
+      {activeTab === "competitors" && <CompetitorSnapshotTab report={report.data} />}
+      {activeTab === "suggestions" && <SuggestionsTab suggestions={suggestions.data} loading={suggestions.loading} error={suggestions.error} auditId={auditId} />}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Link href={projectId ? `/trends?project=${encodeURIComponent(projectId)}` : "/trends"} className="dashboard-surface flex items-center justify-between gap-3 px-4 py-3 no-underline">
+          <span><strong className="block text-sm" style={{ color: "var(--text-primary)" }}>查看趋势分析</strong><span className="text-xs" style={{ color: "var(--text-muted)" }}>对比多次审计的指标变化</span></span>
+          <ArrowRight className="h-4 w-4" style={{ color: "var(--color-primary)" }} />
+        </Link>
+        <Link href={projectId ? `/strategic?project=${encodeURIComponent(projectId)}` : "/strategic"} className="dashboard-surface flex items-center justify-between gap-3 px-4 py-3 no-underline">
+          <span><strong className="block text-sm" style={{ color: "var(--text-primary)" }}>进入战略智能</strong><span className="text-xs" style={{ color: "var(--text-muted)" }}>查看跨审计竞争与结构规律</span></span>
+          <ArrowRight className="h-4 w-4" style={{ color: "var(--color-primary)" }} />
+        </Link>
+      </div>
     </div>
   );
 }
