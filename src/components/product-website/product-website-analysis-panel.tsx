@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { sectionCard } from "@/components/charts/shared";
+import { AiPlatformLabel, AiPlatformList } from "@/components/ui/ai-platform-label";
 import { buildProductWebsiteTechnicalFileDrafts } from "@/lib/product-website/technical-file-drafts";
 import type {
   ProductWebsiteAnalysis,
@@ -153,6 +154,9 @@ export function ProductWebsiteAnalysisPanel({
   const eeatSignals = snapshot?.geoAudit?.eeatSignals;
   const schemaQuality = snapshot?.geoAudit?.schemaQuality;
   const platformPresence = snapshot?.geoAudit?.platformPresence;
+  const coveredAiPlatforms = (platformPresence?.models || [])
+    .map((item) => item.id || item.label)
+    .filter((platform): platform is string => Boolean(platform));
   const isRunning = !!analysis && !TERMINAL_STATUSES.includes(analysis.status);
   const diagnosticRows = useMemo(
     () => Object.entries(dimensionDiagnostics).sort(([, left], [, right]) => (left.score ?? 101) - (right.score ?? 101)),
@@ -701,8 +705,10 @@ export function ProductWebsiteAnalysisPanel({
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
                       <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>已接入模型平台覆盖</div>
-                      <div className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-                        {(platformPresence.models || []).map((item) => item.label || item.id).filter(Boolean).join("、") || "--"}
+                      <div className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                        {coveredAiPlatforms.length > 0
+                          ? <AiPlatformList platforms={coveredAiPlatforms} iconSize={15} />
+                          : "--"}
                       </div>
                     </div>
                     <div className="font-mono text-sm" style={{ color: scoreColor(platformPresence.score) }}>{platformPresence.score ?? "--"}/100</div>
@@ -719,8 +725,11 @@ export function ProductWebsiteAnalysisPanel({
                     <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
                       {platformPresence.modelAdvice.filter((item) => item.missingPlatforms?.length).slice(0, 4).map((item) => (
                         <div key={item.model} className="rounded-md px-3 py-2 text-xs leading-5" style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}>
-                          <span style={{ color: scoreColor(item.score), fontFamily: "var(--font-mono)" }}>{item.score ?? "--"}</span>
-                          <span> · {item.label}：{item.advice}</span>
+                          <div className="flex items-center gap-2">
+                            <span style={{ color: scoreColor(item.score), fontFamily: "var(--font-mono)" }}>{item.score ?? "--"}</span>
+                            {(item.model || item.label) && <AiPlatformLabel platform={item.model || item.label || ""} iconSize={15} />}
+                          </div>
+                          <div className="mt-1">{item.advice}</div>
                         </div>
                       ))}
                     </div>
@@ -950,9 +959,12 @@ export function ProductWebsiteAnalysisPanel({
                 style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                    {item.platform}
-                  </span>
+                  <AiPlatformLabel
+                    platform={item.platform}
+                    iconSize={17}
+                    className="text-sm font-medium"
+                    style={{ color: "var(--text-primary)" }}
+                  />
                   <span
                     className="h-2 w-2 rounded-full"
                     title={item.status}

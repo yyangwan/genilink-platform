@@ -19,6 +19,22 @@ const analysis = {
     contentDetail: { metadata: { finalUrl: 'https://example.com' } },
     dimensionDiagnostics: { technical: { label: '技术可读', score: 45, status: 'weak', issues: ['缺少机器可读文件'] } },
     recommendations: [{ title: '补充结构化数据', priority: 'high', actions: ['添加 JSON-LD'] }],
+    geoAudit: {
+      platformPresence: {
+        score: 72,
+        models: [
+          { id: 'qwen', label: 'Qwen' },
+          { id: 'yuanbao', label: 'Hunyuan' },
+        ],
+        platforms: [{ id: 'zhihu', label: '知乎', found: true }],
+        modelAdvice: [{ model: 'doubao', label: 'Doubao', score: 45, missingPlatforms: ['baike'], advice: '补充百科实体页' }],
+      },
+    },
+    aiCitations: {
+      enabled: true,
+      prompts: ['示例问题'],
+      platforms: [{ platform: 'qwen', status: 'completed', citationCount: 2, ownDomainCitationCount: 1, mentionsProduct: true }],
+    },
     technicalAudit: {
       robots: { found: false },
       llms: { found: false },
@@ -59,8 +75,14 @@ describe('ProductWebsiteAnalysisPanel', () => {
     await screen.findByText('重新分析');
     expect(screen.getAllByText('38.5').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('08/10')).toBeTruthy();
-    expect(screen.queryByText('真实 AI 引用')).toBeNull();
+    expect(screen.getByText('真实 AI 引用')).toBeTruthy();
     expect(screen.queryByTitle('抓取方式')).toBeNull();
+    expect(screen.getAllByTitle('通义千问').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByTitle('腾讯元宝')).toBeTruthy();
+    expect(screen.getByTitle('豆包')).toBeTruthy();
+    expect(screen.queryByText('Qwen')).toBeNull();
+    expect(screen.queryByText('Hunyuan')).toBeNull();
+    expect(screen.queryByText('Doubao')).toBeNull();
 
     for (const label of ['详细内容', '维度诊断', '优化建议']) {
       const tab = screen.getByRole('button', { name: label });
