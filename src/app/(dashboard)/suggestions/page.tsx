@@ -26,6 +26,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { sectionCard } from "@/components/charts/shared";
 import { AuditSnapshotSelector } from "@/components/audits/audit-snapshot-selector";
 import { useAuditSnapshot } from "@/components/audits/use-audit-snapshot";
+import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 
 interface Suggestion {
   id: string;
@@ -187,7 +188,13 @@ function ActionPlanDetail({ suggestion }: { suggestion: Suggestion }) {
               <div key={i} style={textBlock}>
                 {typeof item === "string" ? item : (
                   <>
-                    {item.platform && <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{item.platform}</div>}
+                    {item.platform && (
+                      <AiPlatformLabel
+                        platform={item.platform}
+                        iconSize={16}
+                        style={{ color: "var(--text-muted)", fontSize: 12 }}
+                      />
+                    )}
                     {item.prompt && <div>{item.prompt}</div>}
                     {item.finding && <div>{item.finding}</div>}
                   </>
@@ -765,7 +772,7 @@ function SuggestionsContent() {
                         className="text-xs"
                         style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
                       >
-                        {s.platform}
+                        <AiPlatformLabel platform={s.platform} iconSize={16} />
                       </span>
                     )}
                     {s.audit_id && (

@@ -3,6 +3,7 @@
 import React from "react";
 import { X } from "lucide-react";
 import type { CompetitorProfile } from "@/types/visibility";
+import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 
 interface CompetitorDrawerProps {
   open: boolean;
@@ -146,12 +147,12 @@ export function CompetitorDrawer({ open, onClose, competitor, loading }: Competi
                 <div className="space-y-2">
                   {competitor.platform_breakdown.map((p) => (
                     <div key={p.platform} className="flex items-center gap-3">
-                      <span
-                        className="text-sm w-20 shrink-0"
+                      <AiPlatformLabel
+                        platform={p.platform}
+                        iconSize={17}
+                        className="w-28 shrink-0 text-sm"
                         style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-                      >
-                        {p.platform}
-                      </span>
+                      />
                       <div
                         className="flex-1 h-2 rounded-full overflow-hidden"
                         style={{ background: "var(--bg-hover)" }}

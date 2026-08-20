@@ -33,16 +33,9 @@ import { PageHeader } from "@/components/ui/page-header";
 import type { VisibilitySummary } from "@/types";
 import { sectionCard } from "@/components/charts/shared";
 import { formatDateInTimeZone } from "@/lib/time";
+import { getAiPlatformLabel } from "@/lib/ai-platforms";
 
 type AnalysisPhase = "idle" | "creating" | "collecting" | "analyzing" | "done" | "error";
-
-const PLATFORM_LABELS: Record<string, string> = {
-  deepseek: "DeepSeek",
-  qwen: "通义千问",
-  doubao: "豆包",
-  kimi: "Kimi",
-  hunyuan: "腾讯元宝",
-};
 
 function scoreColor(score: number | null | undefined): string {
   if (score == null) return "var(--text-primary)";
@@ -168,7 +161,7 @@ function VisibilityContent() {
       const event = rawEvent as MessageEvent;
       try {
         const payload = JSON.parse(String(event.data)) as { platform?: string };
-        const label = payload.platform ? PLATFORM_LABELS[payload.platform] ?? payload.platform : "平台";
+        const label = payload.platform ? getAiPlatformLabel(payload.platform) : "平台";
         setAnalysisPhase("collecting");
         setAnalysisDetail(`正在查询 ${label}...`);
       } catch {
@@ -181,7 +174,7 @@ function VisibilityContent() {
       const event = rawEvent as MessageEvent;
       try {
         const payload = JSON.parse(String(event.data)) as { platform?: string };
-        const label = payload.platform ? PLATFORM_LABELS[payload.platform] ?? payload.platform : "平台";
+        const label = payload.platform ? getAiPlatformLabel(payload.platform) : "平台";
         setAnalysisPhase("collecting");
         setAnalysisDetail(`${label} 查询完成，继续处理其他平台...`);
       } catch {
@@ -194,7 +187,7 @@ function VisibilityContent() {
       const event = rawEvent as MessageEvent;
       try {
         const payload = JSON.parse(String(event.data)) as { platform?: string };
-        const label = payload.platform ? PLATFORM_LABELS[payload.platform] ?? payload.platform : "平台";
+        const label = payload.platform ? getAiPlatformLabel(payload.platform) : "平台";
         setAnalysisPhase("collecting");
         setAnalysisDetail(`${label} 查询失败，继续处理剩余平台...`);
       } catch {

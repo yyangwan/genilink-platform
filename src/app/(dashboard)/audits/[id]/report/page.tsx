@@ -41,6 +41,7 @@ import type {
 } from "@/types/visibility";
 import { sectionCard } from "@/components/charts/shared";
 import { getAnswerStructureLabel } from "@/lib/visibility/answer-structure";
+import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 
 function scoreColor(score: number): string {
   if (score >= 70) return "var(--color-success)";
@@ -178,7 +179,7 @@ function MeterRow({
   color,
   meta,
 }: {
-  label: string;
+  label: React.ReactNode;
   value: number;
   maxValue?: number;
   suffix?: string;
@@ -295,7 +296,7 @@ function OverviewTab({ report }: { report: ReportData }) {
                   .map((p) => (
                     <MeterRow
                       key={p.platform}
-                      label={p.platform}
+                      label={<AiPlatformLabel platform={p.platform} iconSize={17} />}
                       value={p.score}
                       suffix=""
                       color={scoreColor(p.score)}
@@ -382,9 +383,12 @@ function OverviewTab({ report }: { report: ReportData }) {
                           {tCfg.label}
                         </span>
                         {insight.platform && (
-                          <span className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                            {insight.platform}
-                          </span>
+                          <AiPlatformLabel
+                            platform={insight.platform}
+                            iconSize={15}
+                            className="text-xs"
+                            style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+                          />
                         )}
                       </div>
                       <p className="text-sm" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
@@ -422,7 +426,12 @@ function AuditDetailsTab({ report }: { report: ReportData }) {
             </span>
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex flex-wrap items-center gap-2">
-                <span className="rounded px-1.5 py-0.5 text-xs font-medium" style={{ background: "var(--color-primary-dim)", color: "var(--color-primary)", fontFamily: "var(--font-display)" }}>{q.platform}</span>
+                <AiPlatformLabel
+                  platform={q.platform}
+                  iconSize={16}
+                  className="rounded px-1.5 py-0.5 text-xs font-medium"
+                  style={{ background: "var(--color-primary-dim)", color: "var(--color-primary)", fontFamily: "var(--font-display)" }}
+                />
                 {q.brand && <span className="text-xs" style={{ color: "var(--text-muted)" }}>{q.brand}</span>}
                 <span className="rounded px-1.5 py-0.5 text-xs" style={{ background: q.mentioned ? "var(--color-success)18" : "var(--bg-hover)", color: q.mentioned ? "var(--color-success)" : "var(--text-muted)" }}>
                   {q.mentioned ? "已提及" : "未提及"}
@@ -600,9 +609,12 @@ function ContentTab({
                 style={{ background: "var(--bg-elevated)" }}
               >
                 <div className="min-w-0">
-                  <div className="truncate text-sm" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
-                    {cell.platform}
-                  </div>
+                  <AiPlatformLabel
+                    platform={cell.platform}
+                    iconSize={17}
+                    className="text-sm"
+                    style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                  />
                   <div className="truncate text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                     {cell.category}
                   </div>
@@ -658,7 +670,11 @@ function CompetitorSnapshotTab({ report }: { report: ReportData }) {
               <thead>
                 <tr style={{ borderBottom: "2px solid var(--border)" }}>
                   <th className="px-3 py-2 text-left text-xs" style={{ color: "var(--text-muted)" }}>品牌</th>
-                  {platforms.map((platform) => <th key={platform} className="px-3 py-2 text-center text-xs" style={{ color: "var(--text-muted)" }}>{platform}</th>)}
+                  {platforms.map((platform) => (
+                    <th key={platform} className="px-3 py-2 text-center text-xs" style={{ color: "var(--text-muted)" }}>
+                      <AiPlatformLabel platform={platform} iconSize={15} className="justify-center" />
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -720,7 +736,9 @@ function SuggestionsTab({ suggestions, loading, error, auditId }: { suggestions:
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <span className="rounded px-2 py-0.5 text-xs font-medium" style={{ background: priority.bg, color: priority.color }}>{priority.label}优先级</span>
                 {suggestion.category && <span className="text-xs" style={{ color: "var(--text-muted)" }}>{suggestion.category}</span>}
-                {suggestion.platform && <span className="text-xs" style={{ color: "var(--text-muted)" }}>{suggestion.platform}</span>}
+                {suggestion.platform && (
+                  <AiPlatformLabel platform={suggestion.platform} iconSize={15} className="text-xs" style={{ color: "var(--text-muted)" }} />
+                )}
                 <span className="ml-auto text-xs" style={{ color: suggestion.status === "resolved" ? "var(--color-success)" : "var(--text-muted)" }}>{suggestion.status === "resolved" ? "已处理" : "待处理"}</span>
               </div>
               <h3 className="text-sm font-semibold leading-6" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>{suggestion.text}</h3>

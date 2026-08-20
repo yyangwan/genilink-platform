@@ -17,6 +17,8 @@ import { DiagnosticChecklist, type DiagnosticItem } from "@/components/ui/diagno
 import { EmptyState } from "@/components/ui/empty-state";
 import { AuditSnapshotSelector } from "@/components/audits/audit-snapshot-selector";
 import { useAuditSnapshot } from "@/components/audits/use-audit-snapshot";
+import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
+import { getAiPlatformLabel } from "@/lib/ai-platforms";
 interface Brand {
   id: number;
   name: string;
@@ -41,14 +43,6 @@ interface GroupedRow {
   mentionGap: number;
 }
 
-const PLATFORM_LABELS: Record<string, string> = {
-  deepseek: "DeepSeek",
-  qwen: "通义千问",
-  doubao: "豆包",
-  kimi: "Kimi",
-  hunyuan: "腾讯元宝",
-};
-
 function CompareContent() {
   const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -61,9 +55,8 @@ function CompareContent() {
   const abortRef = useRef<AbortController | null>(null);
   const auditSnapshot = useAuditSnapshot(currentProjectId);
 
-  const platformNames = PLATFORM_LABELS;
   const platformKeys = useMemo(
-    () => [...new Set(results.map((r) => r.platform))].filter((p) => platformNames[p]),
+    () => [...new Set(results.map((r) => r.platform))],
     [results]
   );
 
@@ -202,7 +195,7 @@ function CompareContent() {
     }
 
     return platforms.map((p) => {
-      const entry: Record<string, string | number> = { platform: platformNames[p] || p };
+      const entry: Record<string, string | number> = { platform: getAiPlatformLabel(p) };
       for (const brand of brandColumns) {
         const mentions = brandData[brand]?.[p] || 0;
         const total = platformTotals[p] || 1;
@@ -210,7 +203,7 @@ function CompareContent() {
       }
       return entry;
     });
-  }, [results, brandColumns, platformNames]);
+  }, [results, brandColumns]);
 
   // Bar chart data
   const barData = useMemo(() => {
@@ -390,7 +383,7 @@ function CompareContent() {
                   onClick={() => setFilterPlatform(p)}
                   style={{ background: filterPlatform === p ? "var(--color-primary-dim)" : "transparent", border: filterPlatform === p ? "1px solid var(--color-primary)" : "1px solid var(--border)", color: filterPlatform === p ? "var(--color-primary)" : "var(--text-secondary)", cursor: "pointer" }}
                 >
-                  {platformNames[p]}
+                  <AiPlatformLabel platform={p} iconSize={16} />
                 </button>
               ))}
             </div>
@@ -459,7 +452,7 @@ function CompareContent() {
               {groupedResults.map((row, idx) => (
                 <tr key={idx} className="hover:bg-[var(--bg-hover)] transition-colors">
                   <td className="px-3 py-2" style={{ borderBottom: "1px solid var(--border)" }}>
-                    {platformNames[row.platform] || row.platform}
+                    <AiPlatformLabel platform={row.platform} iconSize={17} />
                   </td>
                   <td className="max-w-[260px] truncate" style={{ color: "var(--text-secondary)" }} title={row.promptText}>
                     {row.promptText || "—"}

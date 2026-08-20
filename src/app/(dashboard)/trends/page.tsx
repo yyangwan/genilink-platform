@@ -18,6 +18,8 @@ import type { TrendData, TrendAnnotation, AuditListItem } from "@/types/visibili
 import { sectionCard } from "@/components/charts/shared";
 import { getAuditStatus, isAuditFinished } from "@/lib/audit-status";
 import { formatDateInTimeZone } from "@/lib/time";
+import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
+import { getAiPlatformLabel } from "@/lib/ai-platforms";
 
 type Period = "daily" | "weekly" | "monthly";
 
@@ -98,7 +100,12 @@ function PlatformTrendTable({ trends }: { trends: TrendData[] }) {
             return (
               <tr key={name} style={{ borderTop: "1px solid var(--border)" }}>
                 <td className="py-2.5 pr-4">
-                  <span className="text-sm font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{name}</span>
+                  <AiPlatformLabel
+                    platform={name}
+                    iconSize={18}
+                    className="text-sm font-medium"
+                    style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                  />
                 </td>
                 <td className="py-2.5 pr-4 text-right">
                   <span className="text-sm font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>{latestScore}</span>
@@ -194,7 +201,7 @@ function TrendsContent() {
   ];
 
   const platformNames = trends.length > 0
-    ? [...new Set(trends.flatMap((t) => t.platforms.map((p) => p.platform)))]
+    ? [...new Set(trends.flatMap((t) => t.platforms.map((p) => getAiPlatformLabel(p.platform))))]
     : [];
 
   const chartData = useMemo(() => {
@@ -204,7 +211,7 @@ function TrendsContent() {
         总分: t.overall_score,
       };
       for (const p of t.platforms) {
-        entry[p.platform] = p.score;
+        entry[getAiPlatformLabel(p.platform)] = p.score;
       }
       return entry;
     });
@@ -277,8 +284,8 @@ function TrendsContent() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <SummaryCard label="最新总分" value={latestTrend?.overall_score ?? "--"} delta={scoreDelta} icon={TrendingUp} />
             <SummaryCard label="总分变化" value={scoreDelta != null ? (scoreDelta > 0 ? `+${scoreDelta}` : `${scoreDelta}`) : "--"} icon={ArrowUpRight} />
-            <SummaryCard label="最佳平台" value={bestPlatform ? `${bestPlatform.platform} ${bestPlatform.score}` : "--"} icon={TrendingUp} />
-            <SummaryCard label="最弱平台" value={worstPlatform ? `${worstPlatform.platform} ${worstPlatform.score}` : "--"} icon={ArrowDownRight} />
+            <SummaryCard label="最佳平台" value={bestPlatform ? `${getAiPlatformLabel(bestPlatform.platform)} ${bestPlatform.score}` : "--"} icon={TrendingUp} />
+            <SummaryCard label="最弱平台" value={worstPlatform ? `${getAiPlatformLabel(worstPlatform.platform)} ${worstPlatform.score}` : "--"} icon={ArrowDownRight} />
           </div>
 
           {/* Main chart area */}

@@ -23,6 +23,7 @@ import { MetricExplanation } from "@/components/ui/metric-explanation";
 import SourceAuthorityTrends from "@/components/charts/SourceAuthorityTrends";
 import CompetitorPositioningMap from "@/components/charts/CompetitorPositioningMap";
 import StructureEvolution from "@/components/charts/StructureEvolution";
+import { AiPlatformList } from "@/components/ui/ai-platform-label";
 
 import type {
   AnswerStructureEvolution,
@@ -493,7 +494,9 @@ function MultiAuditCompareTab({ projectId }: { projectId: string }) {
                 <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>#{audit.id}</span>
                 <span style={{ color: "var(--text-muted)" }}>{formatDateInTimeZone(audit.created_at, { includeTime: false, includeYear: true })}</span>
                 {audit.platforms?.length > 0 && (
-                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>({audit.platforms.join(", ")})</span>
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                    <AiPlatformList platforms={audit.platforms} iconSize={15} />
+                  </span>
                 )}
               </label>
             );

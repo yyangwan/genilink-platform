@@ -11,22 +11,13 @@ import {
 } from "@/components/dashboard/widgets";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { useProject } from "@/components/project/project-context";
+import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 import type {
   VisibilitySummary,
   GeoSummary,
   ContentSummary,
   OptimizationTask,
 } from "@/types";
-
-// ─── Platform display names ─────────────────────────────────
-const PLATFORM_DISPLAY: Record<string, string> = {
-  doubao: "豆包",
-  deepseek: "DeepSeek",
-  kimi: "Kimi",
-  qwen: "通义千问",
-  wenxin: "文心一言",
-  yuanbao: "腾讯元宝",
-};
 
 // ─── Service health badge ───────────────────────────────────
 function HealthBadge({
@@ -196,7 +187,7 @@ function PlatformBar({ name, score }: { name: string; score: number }) {
           fontFamily: "var(--font-body)",
         }}
       >
-        {name}
+        <AiPlatformLabel platform={name} iconSize={18} />
       </span>
       <div
         className="flex-1 h-2 rounded-full overflow-hidden"
@@ -573,7 +564,7 @@ function DashboardContent() {
               {visibility.data.platformCoverage.map((p) => (
                 <PlatformBar
                   key={p.name}
-                  name={PLATFORM_DISPLAY[p.name] ?? p.name}
+                  name={p.name}
                   score={p.score}
                 />
               ))}
