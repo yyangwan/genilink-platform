@@ -17,6 +17,7 @@ describe("AuditSnapshotSelector", () => {
 
     const select = screen.getByLabelText("选择审计报告");
 
+    expect(screen.queryByText("选择审计报告")).toBeNull();
     expect(select.className).toContain("cursor-pointer");
     expect(select.className).toContain("hover:border-[var(--color-primary)]");
     expect(select.className).toContain("hover:bg-[var(--bg-hover)]");
