@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ExternalLink, History } from "lucide-react";
+import { ChevronDown, ExternalLink, History } from "lucide-react";
 import { formatDateInTimeZone } from "@/lib/time";
 import type { SelectableAudit } from "@/lib/visibility/audit-selection";
 
@@ -51,19 +51,29 @@ export function AuditSnapshotSelector({
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          aria-label="选择审计数据快照"
-          value={selectedAuditId ?? ""}
-          disabled={loading || audits.length === 0}
-          onChange={(event) => onChange(Number(event.target.value))}
-          className="min-w-[260px] rounded-lg px-3 py-2 text-sm outline-none"
-          style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
-        >
-          {loading && <option value="">正在加载审计记录...</option>}
-          {audits.map((audit) => (
-            <option key={audit.id} value={audit.id}>{auditLabel(audit, latestAuditId)}</option>
-          ))}
-        </select>
+        <label className="min-w-[260px]">
+          <span className="mb-1 block text-[11px] font-medium tracking-wide" style={{ color: "var(--text-secondary)" }}>
+            选择审计报告
+          </span>
+          <span className="group relative block">
+            <select
+              aria-label="选择审计报告"
+              value={selectedAuditId ?? ""}
+              disabled={loading || audits.length === 0}
+              onChange={(event) => onChange(Number(event.target.value))}
+              className="min-h-10 w-full cursor-pointer appearance-none rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] py-2 pl-3 pr-10 text-sm text-[var(--text-primary)] outline-none transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-px hover:border-[var(--color-primary)] hover:bg-[var(--bg-hover)] hover:shadow-[0_0_0_3px_var(--color-primary-dim)] focus-visible:border-[var(--color-primary)] focus-visible:ring-2 focus-visible:ring-[var(--color-primary-dim)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+            >
+              {loading && <option value="">正在加载审计记录...</option>}
+              {audits.map((audit) => (
+                <option key={audit.id} value={audit.id}>{auditLabel(audit, latestAuditId)}</option>
+              ))}
+            </select>
+            <ChevronDown
+              aria-hidden="true"
+              className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)] transition-[color,transform] duration-200 group-hover:translate-y-[-40%] group-hover:text-[var(--color-primary)] group-focus-within:translate-y-[-40%] group-focus-within:text-[var(--color-primary)]"
+            />
+          </span>
+        </label>
         {selectedAuditId !== null && (
           <Link
             href={`/audits/${selectedAuditId}/report?project=${encodeURIComponent(projectId)}`}

@@ -12,6 +12,7 @@ export function ProjectSelector() {
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const mobileSheetRef = useRef<HTMLDivElement>(null);
 
   const handleSelect = useCallback(
     (id: string) => {
@@ -31,12 +32,12 @@ export function ProjectSelector() {
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (
-        triggerRef.current &&
-        !triggerRef.current.contains(e.target as Node) &&
-        listRef.current &&
-        !listRef.current.contains(e.target as Node)
-      ) {
+      const target = e.target as Node;
+      const insideTrigger = triggerRef.current?.contains(target) ?? false;
+      const insideDesktopList = listRef.current?.contains(target) ?? false;
+      const insideMobileSheet = mobileSheetRef.current?.contains(target) ?? false;
+
+      if (!insideTrigger && !insideDesktopList && !insideMobileSheet) {
         setOpen(false);
       }
     };
@@ -242,6 +243,7 @@ export function ProjectSelector() {
 
           {/* Mobile bottom sheet */}
           <div
+            ref={mobileSheetRef}
             className="show-mobile-only"
             style={{
               position: "fixed",
