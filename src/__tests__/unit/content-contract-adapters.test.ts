@@ -104,6 +104,30 @@ describe('content contract adapters', () => {
     });
   });
 
+  it('never exposes publishing credentials to the browser contract', () => {
+    const result = normalizePlatformConfig({
+      config: {
+        platform: 'wechat',
+        enabled: true,
+        appId: 'public-app-id',
+        appSecret: 'private-secret',
+        accessToken: 'private-access-token',
+        refreshToken: 'private-refresh-token',
+      },
+    }, 'wechat');
+
+    expect(result).toMatchObject({
+      connected: true,
+      appId: 'public-app-id',
+      hasAppSecret: true,
+      hasAccessToken: true,
+      hasRefreshToken: true,
+    });
+    expect(result).not.toHaveProperty('appSecret');
+    expect(result).not.toHaveProperty('accessToken');
+    expect(result).not.toHaveProperty('refreshToken');
+  });
+
   it('normalizes analytics payloads from either the legacy flat shape or the newer summary shape', () => {
     expect(normalizeAnalyticsData({
       summary: {

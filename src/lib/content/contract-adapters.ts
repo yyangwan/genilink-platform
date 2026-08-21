@@ -164,11 +164,20 @@ export function normalizeGenieGenerationResult(value: unknown) {
 export function normalizePlatformConfig(value: unknown, platform: string) {
   const body = asObject(value);
   const config = asObject(body.config ?? body);
-  const connected = Boolean(config.enabled && (config.hasAccessToken || config.appId));
+  const hasAccessToken = Boolean(config.hasAccessToken || config.accessToken);
+  const hasRefreshToken = Boolean(config.hasRefreshToken || config.refreshToken);
+  const hasAppSecret = Boolean(config.hasAppSecret || config.appSecret);
+  const connected = Boolean(config.enabled !== false && (hasAccessToken || config.appId));
+  const safeConfig = Object.fromEntries(
+    Object.entries(config).filter(([key]) => !['accessToken', 'refreshToken', 'appSecret'].includes(key)),
+  );
   return {
-    ...config,
+    ...safeConfig,
     platform: typeof config.platform === 'string' ? config.platform : platform,
     connected,
+    hasAccessToken,
+    hasRefreshToken,
+    hasAppSecret,
   };
 }
 
