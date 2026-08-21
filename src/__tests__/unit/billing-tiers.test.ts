@@ -39,6 +39,27 @@ describe('subscription tiers', () => {
     expect(access.limits).toEqual(getTierDefinition('pro').limits);
   });
 
+  it('keeps lite on basic tools with lower usage quotas', () => {
+    const lite = getTierDefinition('lite');
+    const pro = getTierDefinition('pro');
+
+    expect(lite.modules).toEqual(['visibility', 'content']);
+    expect(lite.limits.promptsPerProject).toBe(10);
+    expect(lite.limits.projects).toBeLessThan(pro.limits.projects);
+    expect(lite.limits.contentGenerationsPerMonth).toBeLessThan(pro.limits.contentGenerationsPerMonth);
+    expect(lite.limits.compareRunsPerMonth).toBe(0);
+  });
+
+  it('keeps API access out of current suite entitlements', () => {
+    const access = resolveBillingAccess([
+      { module: 'suite', billingPlan: { key: 'suite-max-monthly' } },
+    ]);
+
+    expect(access.tier).toBe('max');
+    expect(access.modules).toEqual(['visibility', 'content']);
+    expect(getTierDefinition('max').features.join(' ')).not.toContain('API');
+  });
+
   it('does not grant access to retired module-only plans', () => {
     expect(resolveBillingAccess([{ module: 'content', billingPlan: null }])).toMatchObject({
       tier: null,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
+import { getWorkspaceBillingAccess } from '@/lib/billing/access';
 import { DEFAULT_PROMPT_CATEGORY, isPromptCategory } from '@/lib/prompts/prompt-options';
 
 type PromptRecord = Record<string, unknown> & {
@@ -47,6 +48,25 @@ export async function POST(req: NextRequest) {
   const category = body.category || DEFAULT_PROMPT_CATEGORY;
   if (!isPromptCategory(category)) {
     return NextResponse.json({ error: 'Invalid prompt category' }, { status: 400 });
+  }
+
+  const access = await getWorkspaceBillingAccess(result.ctx.session.user.id, result.ctx.workspaceId);
+  const existing = await fetchUpstream(result.ctx, `/api/prompts?project_id=${result.ctx.projectId}`, {
+    errorMessage: 'Failed to fetch prompts',
+  });
+  if ('response' in existing) return existing.response;
+
+  const existingPrompts = Array.isArray(existing.data) ? existing.data : [];
+  if (existingPrompts.length >= access.limits.promptsPerProject) {
+    return NextResponse.json(
+      {
+        error: 'PLAN_LIMIT_EXCEEDED',
+        feature: 'prompts_per_project',
+        used: existingPrompts.length,
+        limit: access.limits.promptsPerProject,
+      },
+      { status: 402 },
+    );
   }
 
   const upstream = await fetchUpstream(result.ctx, `/api/prompts?project_id=${result.ctx.projectId}`, {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withBrandRoute } from '@/lib/auth/brand-route';
 import { prisma } from '@/lib/db';
+import { hasBrandCapacity } from '@/lib/billing/access';
 import { isUniqueViolation } from '@/lib/prisma-helpers';
 
 export const GET = withBrandRoute(async (_req, { workspaceId }) => {
@@ -13,12 +14,20 @@ export const GET = withBrandRoute(async (_req, { workspaceId }) => {
   return NextResponse.json(brands);
 });
 
-export const POST = withBrandRoute(async (req, { workspaceId }) => {
+export const POST = withBrandRoute(async (req, { userId, workspaceId }) => {
   const body = await req.json();
   const { name, aliases, isCompetitor, logo, website, description } = body;
+  const competitor = Boolean(isCompetitor);
 
   if (!name?.trim()) {
     return NextResponse.json({ error: '品牌名称不能为空' }, { status: 400 });
+  }
+
+  if (!(await hasBrandCapacity(userId, workspaceId, competitor))) {
+    return NextResponse.json(
+      { error: 'PLAN_LIMIT_EXCEEDED', feature: competitor ? 'competitors' : 'brands' },
+      { status: 402 },
+    );
   }
 
   // Create brand (partial unique index catches duplicate active names)
@@ -28,7 +37,7 @@ export const POST = withBrandRoute(async (req, { workspaceId }) => {
       data: {
         name: name.trim(),
         aliases: aliases ?? [],
-        isCompetitor: isCompetitor ?? false,
+        isCompetitor: competitor,
         logo: logo ?? null,
         website: website ?? null,
         description: description ?? null,

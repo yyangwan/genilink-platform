@@ -3,6 +3,12 @@ import { withContentAuth, ContentAuthContext } from '@/lib/auth/content-auth';
 import { prisma } from '@/lib/db';
 import { generateContentBriefFromSuggestion } from '@/lib/content/brief-generator';
 import type { SuggestionForContentBrief } from '@/lib/content/content-brief';
+import {
+  assertMonthlyUsageQuota,
+  PlanLimitError,
+  planLimitResponse,
+  recordMonthlyUsage,
+} from '@/lib/billing/usage';
 
 export async function POST(req: NextRequest) {
   return withContentAuth(async (ctx: ContentAuthContext) => {
@@ -34,7 +40,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    try {
+      await assertMonthlyUsageQuota(ctx.userId, ctx.workspaceId, 'content_generation');
+    } catch (err) {
+      if (err instanceof PlanLimitError) return planLimitResponse(err);
+      throw err;
+    }
+
     const brief = await generateContentBriefFromSuggestion(project, suggestion);
+    await recordMonthlyUsage(ctx.userId, ctx.workspaceId, 'content_generation', 1, {
+      projectId: ctx.projectId,
+      source: 'suggestion',
+    });
+
     return NextResponse.json({ data: brief });
   }, { action: 'write' })(req);
 }

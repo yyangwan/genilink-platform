@@ -17,9 +17,23 @@ export interface WorkspaceBillingAccess {
   limits: ReturnType<typeof getTierDefinition>['limits'];
 }
 
-const FREE_LIMITS = {
+const FREE_LIMITS: ReturnType<typeof getTierDefinition>['limits'] = {
   projects: 1,
   members: 1,
+  brands: 1,
+  competitors: 1,
+  promptsPerProject: 10,
+  websiteAnalysesPerMonth: 3,
+  visibilityAuditsPerMonth: 1,
+  scheduledAudits: 0,
+  compareRunsPerMonth: 0,
+  pdfExportsPerMonth: 0,
+  contentGenerationsPerMonth: 0,
+  contentOptimizationsPerMonth: 0,
+  contentScoresPerMonth: 0,
+  calendarItemsPerMonth: 0,
+  brandVoices: 0,
+  contentTemplates: 0,
 };
 
 export function resolveBillingAccess(subscriptions: AccessSubscription[]): WorkspaceBillingAccess {
@@ -69,4 +83,17 @@ export async function hasMemberCapacity(userId: string, workspaceId: string): Pr
   const access = await getWorkspaceBillingAccess(userId, workspaceId);
   const count = await prisma.workspaceMember.count({ where: { workspaceId } });
   return count < access.limits.members;
+}
+
+export async function hasBrandCapacity(
+  userId: string,
+  workspaceId: string,
+  isCompetitor: boolean,
+): Promise<boolean> {
+  const access = await getWorkspaceBillingAccess(userId, workspaceId);
+  const limit = isCompetitor ? access.limits.competitors : access.limits.brands;
+  const count = await prisma.brand.count({
+    where: { workspaceId, isCompetitor, deletedAt: null },
+  });
+  return count < limit;
 }

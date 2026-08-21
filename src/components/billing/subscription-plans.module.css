@@ -9,13 +9,17 @@
 .cycleButton, .cycleActive { min-width: 86px; border: 0; border-radius: 999px; padding: 9px 16px; color: var(--text-secondary); background: transparent; cursor: pointer; font: 600 13px/1 var(--font-body); }
 .cycleActive { color: #0b0d14; background: var(--color-primary); }
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.card, .cardFeatured { position: relative; display: flex; min-height: 520px; flex-direction: column; padding: 26px; overflow: hidden; border: 1px solid var(--border); border-radius: 20px; background: var(--bg-card); box-shadow: 0 18px 50px rgb(0 0 0 / 8%); }
+.card, .cardFeatured { position: relative; display: flex; min-height: 560px; flex-direction: column; padding: 26px; overflow: hidden; border: 1px solid var(--border); border-radius: 24px; background: linear-gradient(160deg, color-mix(in srgb, var(--bg-card) 94%, white 6%), var(--bg-card)); box-shadow: 0 18px 50px rgb(0 0 0 / 8%); transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
+.card:hover, .cardFeatured:hover { transform: translateY(-8px); border-color: color-mix(in srgb, var(--color-primary) 45%, var(--border)); box-shadow: 0 24px 70px rgb(0 0 0 / 12%); }
 .cardFeatured { border-color: color-mix(in srgb, var(--color-primary) 65%, var(--border)); box-shadow: 0 22px 60px color-mix(in srgb, var(--color-primary) 14%, transparent); transform: translateY(-6px); }
+.cardFeatured:hover { transform: translateY(-12px); }
 .cardTop { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
 .eyebrow { color: var(--color-primary); font: 700 11px/1 var(--font-display); letter-spacing: .13em; text-transform: uppercase; }
 .cardTop h3 { margin: 8px 0 0; color: var(--text-primary); font: 700 24px/1.1 var(--font-display); }
 .badge { border-radius: 999px; padding: 7px 9px; background: color-mix(in srgb, var(--color-primary) 13%, transparent); color: var(--color-primary); font: 700 11px/1 var(--font-body); }
 .description { min-height: 50px; margin: 14px 0 0; color: var(--text-secondary); font: 400 13px/1.65 var(--font-body); }
+.highlightStrip { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
+.highlightStrip span { border: 1px solid color-mix(in srgb, var(--color-primary) 26%, var(--border)); border-radius: 999px; padding: 7px 9px; background: color-mix(in srgb, var(--color-primary) 8%, transparent); color: var(--text-primary); font: 700 11px/1 var(--font-body); }
 .priceRow { display: flex; align-items: baseline; gap: 6px; margin-top: 22px; }
 .priceRow strong { color: var(--text-primary); font: 700 30px/1 var(--font-display); letter-spacing: -.03em; }
 .priceRow span { color: var(--text-muted); font: 500 12px/1 var(--font-body); }
@@ -31,7 +35,19 @@
 .cta, .ctaPrimary { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; margin-top: auto; border: 1px solid var(--border); border-radius: 11px; background: transparent; color: var(--text-primary); cursor: pointer; text-decoration: none; font: 700 13px/1 var(--font-display); }
 .ctaPrimary { border-color: var(--color-primary); background: var(--color-primary); color: #0b0d14; }
 .cta:disabled, .ctaPrimary:disabled { cursor: not-allowed; opacity: .5; }
+.matrix { margin-top: 18px; overflow: hidden; border: 1px solid var(--border); border-radius: 24px; background: color-mix(in srgb, var(--bg-card) 94%, transparent); box-shadow: 0 18px 55px rgb(0 0 0 / 7%); }
+.matrixHeader, .matrixRow { display: grid; grid-template-columns: minmax(220px, 1.2fr) repeat(3, minmax(140px, 1fr)); align-items: center; gap: 12px; }
+.matrixHeader { position: sticky; top: 0; z-index: 1; padding: 18px 22px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg-card) 96%, black 4%); color: var(--text-primary); }
+.matrixHeader span { color: var(--text-secondary); font: 700 13px/1 var(--font-display); letter-spacing: .08em; text-transform: uppercase; }
+.matrixHeader strong { font: 700 14px/1 var(--font-display); text-align: center; }
+.matrixGroup { padding: 8px 0 10px; }
+.matrixGroup + .matrixGroup { border-top: 1px solid var(--border); }
+.matrixGroup h3 { margin: 0; padding: 16px 22px 10px; color: var(--text-primary); font: 700 15px/1.2 var(--font-display); }
+.matrixRow { min-height: 46px; padding: 0 22px; color: var(--text-secondary); transition: background .18s ease; }
+.matrixRow:hover { background: color-mix(in srgb, var(--color-primary) 6%, transparent); }
+.matrixRow span { font: 500 13px/1.35 var(--font-body); }
+.matrixRow strong { color: var(--text-primary); font: 700 13px/1.35 var(--font-body); text-align: center; }
 .spinner { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (max-width: 900px) { .heading { align-items: start; flex-direction: column; } .trust { justify-content: flex-start; } .grid { grid-template-columns: 1fr; } .cardFeatured { transform: none; } }
+@media (max-width: 900px) { .heading { align-items: start; flex-direction: column; } .trust { justify-content: flex-start; } .grid { grid-template-columns: 1fr; } .cardFeatured, .card:hover, .cardFeatured:hover { transform: none; } .matrix { overflow-x: auto; } .matrixHeader, .matrixRow { min-width: 720px; } }
 @media (max-width: 520px) { .card, .cardFeatured { min-height: auto; padding: 21px; } .heading h2 { font-size: 27px; } }

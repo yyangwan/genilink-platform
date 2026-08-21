@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard } from '@/lib/proxy/route-guard';
+import {
+  assertMonthlyUsageQuota,
+  PlanLimitError,
+  planLimitResponse,
+  recordMonthlyUsage,
+} from '@/lib/billing/usage';
 
 export async function GET(
   req: NextRequest,
@@ -9,6 +15,13 @@ export async function GET(
   if (!result.ok) return result.response;
 
   const { id } = await params;
+  try {
+    await assertMonthlyUsageQuota(result.ctx.session.user.id, result.ctx.workspaceId, 'pdf_export');
+  } catch (err) {
+    if (err instanceof PlanLimitError) return planLimitResponse(err);
+    throw err;
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20_000);
 
@@ -31,6 +44,10 @@ export async function GET(
     const contentType = res.headers.get('Content-Type') || 'application/pdf';
     const filename = res.headers.get('Content-Disposition')?.match(/filename="?(.+?)"?$/)?.[1]
       || `product-website-analysis-${id}.pdf`;
+    await recordMonthlyUsage(result.ctx.session.user.id, result.ctx.workspaceId, 'pdf_export', 1, {
+      projectId: result.ctx.projectId,
+      analysisId: id,
+    });
 
     return new NextResponse(buffer, {
       status: 200,

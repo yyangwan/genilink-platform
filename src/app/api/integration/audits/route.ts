@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
 import { prisma } from '@/lib/db';
+import {
+  assertMonthlyUsageQuota,
+  PlanLimitError,
+  planLimitResponse,
+  recordMonthlyUsage,
+} from '@/lib/billing/usage';
 
 // GET /api/integration/audits?projectId=xxx — list audits for a project
 export async function GET(req: NextRequest) {
@@ -34,6 +40,13 @@ export async function POST(req: NextRequest) {
       is_competitor: a.brand.isCompetitor || false,
     }));
 
+  try {
+    await assertMonthlyUsageQuota(result.ctx.session.user.id, result.ctx.workspaceId, 'visibility_audit');
+  } catch (err) {
+    if (err instanceof PlanLimitError) return planLimitResponse(err);
+    throw err;
+  }
+
   const upstream = await fetchUpstream(result.ctx, `/api/audits`, {
     method: 'POST',
     body: {
@@ -44,5 +57,10 @@ export async function POST(req: NextRequest) {
     errorMessage: 'Failed to create audit',
   });
   if ('response' in upstream) return upstream.response;
+
+  await recordMonthlyUsage(result.ctx.session.user.id, result.ctx.workspaceId, 'visibility_audit', 1, {
+    projectId: result.ctx.projectId,
+  });
+
   return NextResponse.json(upstream.data);
 }

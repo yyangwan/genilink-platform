@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withContentAuth, ContentAuthContext } from '@/lib/auth/content-auth';
 import { prisma } from '@/lib/db';
 import { generateContent } from '@/lib/content/service';
+import {
+  assertMonthlyUsageQuota,
+  PlanLimitError,
+  planLimitResponse,
+  recordMonthlyUsage,
+} from '@/lib/billing/usage';
 
 async function loadProjectGenerationContext(projectId: string, workspaceId: string) {
   const project = await prisma.project.findFirst({
@@ -46,6 +52,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    return generateContent(ctx, id, { ...payload, ...projectContext });
+    try {
+      await assertMonthlyUsageQuota(ctx.userId, ctx.workspaceId, 'content_generation');
+    } catch (err) {
+      if (err instanceof PlanLimitError) return planLimitResponse(err);
+      throw err;
+    }
+
+    const response = await generateContent(ctx, id, { ...payload, ...projectContext });
+    if (response.ok) {
+      await recordMonthlyUsage(ctx.userId, ctx.workspaceId, 'content_generation', 1, {
+        projectId: ctx.projectId,
+        contentId: id,
+      });
+    }
+
+    return response;
   }, { action: 'write' })(req);
 }

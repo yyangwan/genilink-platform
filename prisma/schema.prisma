@@ -72,6 +72,7 @@ model Workspace {
   invites       WorkspaceInvite[]
   paymentOrders PaymentOrder[]
   subscriptions Subscription[]
+  usageEvents   UsageEvent[]
 }
 
 model WorkspaceMember {
@@ -253,4 +254,19 @@ model Subscription {
   updatedAt          DateTime  @updatedAt
 
   @@unique([userId, workspaceId, module])
+}
+
+model UsageEvent {
+  id          String    @id @default(cuid()) @db.Text
+  workspaceId String    @db.Text
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String?   @db.Text
+  feature     String    @db.Text
+  quantity    Int       @default(1)
+  periodStart DateTime
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, feature, periodStart])
+  @@index([createdAt])
 }

@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard } from '@/lib/proxy/route-guard';
+import {
+  assertMonthlyUsageQuota,
+  PlanLimitError,
+  planLimitResponse,
+  recordMonthlyUsage,
+} from '@/lib/billing/usage';
 
 export async function POST(req: NextRequest) {
   const result = await resolveGuard(req, { requireProject: false });
   if (!result.ok) return result.response;
 
   const body = await req.json();
+  try {
+    await assertMonthlyUsageQuota(result.ctx.session.user.id, result.ctx.workspaceId, 'compare_run');
+  } catch (err) {
+    if (err instanceof PlanLimitError) return planLimitResponse(err);
+    throw err;
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30_000);
@@ -28,6 +40,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await res.json();
+    await recordMonthlyUsage(result.ctx.session.user.id, result.ctx.workspaceId, 'compare_run');
     return NextResponse.json(data);
   } catch (err) {
     clearTimeout(timer);
