@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0.0] - 2026-08-21
+
+### Added
+- Customers can configure WeChat, Xiaohongshu, Douyin, Weibo, Toutiao, and Zhihu independently for the current login account and project.
+- Every platform now includes step-by-step credential guidance, official console links, and locally served official product icons.
+- Added regression coverage for platform route validation, credential redaction, account/project scope, and the redesigned settings experience.
+
+### Changed
+- Rebuilt the publishing settings page with per-platform status cards, a focused configuration drawer, connection maintenance actions, and clear account/project scope messaging.
+- Platform responses expose credential-presence flags while keeping secrets and access tokens out of browser responses.
+
+### Fixed
+- Unsupported publishing platform identifiers are rejected before reaching the content service.
+- Platform configuration payloads are validated and stripped of spoofed user or workspace fields before proxying.
+
 ## [0.1.0.1] - 2026-05-20
 
 ### Fixed
