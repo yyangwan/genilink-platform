@@ -47,6 +47,9 @@ describe('subscription tiers', () => {
     expect(lite.limits.promptsPerProject).toBe(10);
     expect(lite.limits.projects).toBeLessThan(pro.limits.projects);
     expect(lite.limits.contentGenerationsPerMonth).toBeLessThan(pro.limits.contentGenerationsPerMonth);
+    expect(lite.limits.contentOptimizationsPerMonth).toBeGreaterThan(0);
+    expect(lite.limits.contentScoresPerMonth).toBeGreaterThan(0);
+    expect(lite.limits.calendarItemsPerMonth).toBe(0);
     expect(lite.limits.compareRunsPerMonth).toBe(0);
   });
 

@@ -39,7 +39,7 @@ export const SUBSCRIPTION_TIERS: SubscriptionTierDefinition[] = [
     badge: '轻量起步',
     recommended: false,
     modules: ['visibility', 'content'],
-    features: ['基础网站分析与官网诊断', '1 个项目 / 1 名成员', '每项目 10 条提示词', '基础审计报告与标准建议'],
+    features: ['基础网站分析与官网诊断', '智创基础：内容生成、优化与评分', '1 个项目 / 1 名成员', '每项目 10 条提示词'],
     limits: {
       projects: 1,
       members: 1,
@@ -54,7 +54,7 @@ export const SUBSCRIPTION_TIERS: SubscriptionTierDefinition[] = [
       contentGenerationsPerMonth: 10,
       contentOptimizationsPerMonth: 10,
       contentScoresPerMonth: 30,
-      calendarItemsPerMonth: 10,
+      calendarItemsPerMonth: 0,
       brandVoices: 1,
       contentTemplates: 5,
     },

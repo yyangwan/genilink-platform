@@ -28,7 +28,7 @@ type MatrixGroup = {
 };
 
 const TIER_HIGHLIGHTS: Record<SubscriptionTier, string[]> = {
-  lite: ['基础工具', '低频验证', '个人/小团队起步'],
+  lite: ['智见基础分析', '智创基础创作', '个人/小团队起步'],
   pro: ['完整增长闭环', '内容工作流', '推荐团队方案'],
   max: ['多项目管理', '规模化生产', '高级分析支持'],
 };
@@ -57,10 +57,11 @@ const PLAN_MATRIX: MatrixGroup[] = [
   {
     title: '智创：内容生产',
     rows: [
+      { label: '智创功能范围', values: { lite: '基础创作工具', pro: '完整内容工作流', max: '规模化内容生产' } },
       { label: '内容生成', values: { lite: '10 次/月', pro: '100 次/月', max: '500 次/月' } },
       { label: '内容优化', values: { lite: '10 次/月', pro: '200 次/月', max: '1000 次/月' } },
       { label: '内容评分', values: { lite: '30 次/月', pro: '300 次/月', max: '2000 次/月' } },
-      { label: '内容日历排期', values: { lite: '10 次/月', pro: '100 次/月', max: '500 次/月' } },
+      { label: '内容日历排期', values: { lite: '不支持', pro: '100 次/月', max: '500 次/月' } },
       { label: '品牌声音', values: { lite: '1 个', pro: '5 个', max: '20 个' } },
       { label: '内容模板', values: { lite: '5 个', pro: '20 个', max: '100 个' } },
     ],
