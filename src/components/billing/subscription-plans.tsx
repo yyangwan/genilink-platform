@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ArrowRight, Check, ShieldCheck } from 'lucide-react';
 import type { BillingCycle, SubscriptionTier } from '@/types/billing';
-import { SUBSCRIPTION_TIERS, getTierDefinition } from '@/lib/billing/tiers';
+import { SUBSCRIPTION_PLAN_MATRIX, SUBSCRIPTION_TIERS, getTierDefinition } from '@/lib/billing/tiers';
 import { formatSubscriptionPrice, type SubscriptionPlanView } from './subscription-plan-content';
 import styles from './subscription-plans.module.css';
 
@@ -16,65 +16,6 @@ type Props = {
   billingDisabled?: boolean;
   getPlanHref?: (planKey: string, tier: SubscriptionTier) => string;
 };
-
-type MatrixRow = {
-  label: string;
-  values: Record<SubscriptionTier, string>;
-};
-
-type MatrixGroup = {
-  title: string;
-  rows: MatrixRow[];
-};
-
-const TIER_HIGHLIGHTS: Record<SubscriptionTier, string[]> = {
-  lite: ['智见基础分析', '智创基础创作', '个人/小团队起步'],
-  pro: ['完整增长闭环', '内容工作流', '推荐团队方案'],
-  max: ['多项目管理', '规模化生产', '高级分析支持'],
-};
-
-const PLAN_MATRIX: MatrixGroup[] = [
-  {
-    title: '团队与项目容量',
-    rows: [
-      { label: '项目数量', values: { lite: '1 个', pro: '5 个', max: '20 个' } },
-      { label: '团队成员', values: { lite: '1 人', pro: '5 人', max: '20 人' } },
-      { label: '品牌资产', values: { lite: '1 个', pro: '5 个', max: '20 个' } },
-      { label: '竞品品牌', values: { lite: '2 个', pro: '10 个', max: '50 个' } },
-      { label: '提示词数量', values: { lite: '每项目 10 条', pro: '每项目 10 条', max: '每项目 10 条' } },
-    ],
-  },
-  {
-    title: '智见：分析与审计',
-    rows: [
-      { label: '网站分析', values: { lite: '10 次/月', pro: '100 次/月', max: '500 次/月' } },
-      { label: '可见性审计', values: { lite: '3 次/月', pro: '30 次/月', max: '200 次/月' } },
-      { label: '定时审计任务', values: { lite: '不支持', pro: '10 个', max: '100 个' } },
-      { label: '竞品/审计对比', values: { lite: '不支持', pro: '5 次/月', max: '50 次/月' } },
-      { label: 'PDF 报告导出', values: { lite: '1 次/月', pro: '30 次/月', max: '200 次/月' } },
-    ],
-  },
-  {
-    title: '智创：内容生产',
-    rows: [
-      { label: '智创功能范围', values: { lite: '基础创作工具', pro: '完整内容工作流', max: '规模化内容生产' } },
-      { label: '内容生成', values: { lite: '10 次/月', pro: '100 次/月', max: '500 次/月' } },
-      { label: '内容优化', values: { lite: '10 次/月', pro: '200 次/月', max: '1000 次/月' } },
-      { label: '内容评分', values: { lite: '30 次/月', pro: '300 次/月', max: '2000 次/月' } },
-      { label: '内容日历排期', values: { lite: '不支持', pro: '100 次/月', max: '500 次/月' } },
-      { label: '品牌声音', values: { lite: '1 个', pro: '5 个', max: '20 个' } },
-      { label: '内容模板', values: { lite: '5 个', pro: '20 个', max: '100 个' } },
-    ],
-  },
-  {
-    title: '服务与扩展',
-    rows: [
-      { label: '标准优化建议', values: { lite: '支持', pro: '支持', max: '支持' } },
-      { label: '优先支持', values: { lite: '标准支持', pro: '优先支持', max: '高级支持' } },
-      { label: '开放接口与系统集成', values: { lite: '不支持', pro: '不支持', max: '暂未开放' } },
-    ],
-  },
-];
 
 export function LandingSubscriptionPlans({
   plans,
@@ -143,7 +84,7 @@ export function LandingSubscriptionPlans({
               <p className={styles.description}>{tier.description}</p>
 
               <div className={styles.highlightStrip}>
-                {TIER_HIGHLIGHTS[tier.key].map((item) => (
+                {tier.highlights.map((item) => (
                   <span key={item}>{item}</span>
                 ))}
               </div>
@@ -161,7 +102,7 @@ export function LandingSubscriptionPlans({
                 ))}
               </div>
 
-              <ul className={styles.features}>
+              <ul className={styles.features} aria-label={`${tier.name}核心权益`}>
                 {tier.features.map((feature) => (
                   <li key={feature}><Check size={16} /><span>{feature}</span></li>
                 ))}
@@ -193,7 +134,7 @@ export function LandingSubscriptionPlans({
           ))}
         </div>
 
-        {PLAN_MATRIX.map((group) => (
+        {SUBSCRIPTION_PLAN_MATRIX.map((group) => (
           <div key={group.title} className={styles.matrixGroup}>
             <h3>{group.title}</h3>
             {group.rows.map((row) => (

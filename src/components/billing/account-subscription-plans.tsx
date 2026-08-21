@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowUpRight, Check, CheckCircle2, Loader2, ShieldCheck } from 'lucide-react';
-import { SUBSCRIPTION_TIERS, getTierDefinition, isUpgrade } from '@/lib/billing/tiers';
+import { SUBSCRIPTION_PLAN_MATRIX, SUBSCRIPTION_TIERS, getTierDefinition, isUpgrade } from '@/lib/billing/tiers';
 import type { BillingCycle, BillingProvider, SubscriptionTier } from '@/types/billing';
 import {
   formatSubscriptionPrice,
@@ -46,7 +46,7 @@ export function AccountSubscriptionPlans({
         <div>
           <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>选择升级方案</h2>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            套餐权益与官网一致，这里只展示当前账号可以执行的订阅操作。
+            套餐卡片展示核心权益，完整能力与额度见下方对照表。
           </p>
         </div>
         <div className="inline-flex rounded-full border p-1" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }} role="group" aria-label="订阅周期">
@@ -125,7 +125,7 @@ export function AccountSubscriptionPlans({
                 ))}
               </div>
 
-              <ul className="mt-4 grid gap-2.5">
+              <ul className="mt-4 grid gap-2.5" aria-label={`${tier.name}核心权益`}>
                 {tier.features.map((feature) => (
                   <li key={feature} className="flex items-start gap-2 text-xs leading-5" style={{ color: 'var(--text-secondary)' }}>
                     <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-primary)' }} />
@@ -170,6 +170,30 @@ export function AccountSubscriptionPlans({
             </article>
           );
         })}
+      </div>
+
+      <div className="mt-6 overflow-x-auto rounded-xl border" style={{ borderColor: 'var(--border)' }} aria-label="完整套餐权益对照">
+        <div className="min-w-[760px]">
+          <div className="grid grid-cols-[minmax(220px,1.2fr)_repeat(3,minmax(140px,1fr))] items-center gap-3 border-b px-5 py-4" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+            <span className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-secondary)' }}>完整权益与额度</span>
+            {SUBSCRIPTION_TIERS.map((tier) => (
+              <strong key={tier.key} className="text-center text-sm" style={{ color: 'var(--text-primary)' }}>{tier.name}</strong>
+            ))}
+          </div>
+          {SUBSCRIPTION_PLAN_MATRIX.map((group) => (
+            <div key={group.title} className="border-b last:border-b-0" style={{ borderColor: 'var(--border)' }}>
+              <h3 className="px-5 pb-2 pt-5 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{group.title}</h3>
+              {group.rows.map((row) => (
+                <div key={row.label} className="grid min-h-11 grid-cols-[minmax(220px,1.2fr)_repeat(3,minmax(140px,1fr))] items-center gap-3 px-5 py-2 text-xs transition-colors hover:bg-[color-mix(in_srgb,var(--color-primary)_6%,transparent)]">
+                  <span style={{ color: 'var(--text-secondary)' }}>{row.label}</span>
+                  {SUBSCRIPTION_TIERS.map((tier) => (
+                    <strong key={tier.key} className="text-center font-semibold" style={{ color: 'var(--text-primary)' }}>{row.values[tier.key]}</strong>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

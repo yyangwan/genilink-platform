@@ -75,5 +75,8 @@ describe('BillingSettingsPage', () => {
     expect(screen.getByRole('button', { name: '月付' }).className).toContain('cursor-pointer');
     expect(screen.getByRole('button', { name: '微信支付' }).className).toContain('cursor-pointer');
     expect(screen.getByRole('button', { name: '升级到专业版' }).className).toContain('cursor-pointer');
+    expect(screen.getByLabelText('完整套餐权益对照')).toBeTruthy();
+    expect(screen.getByText('智创功能范围')).toBeTruthy();
+    expect(screen.getAllByText('基础创作工具').length).toBeGreaterThan(0);
   });
 });

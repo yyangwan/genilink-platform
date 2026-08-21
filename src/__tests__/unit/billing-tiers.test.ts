@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  SUBSCRIPTION_PLAN_MATRIX,
+  SUBSCRIPTION_TIERS,
   getTierDefinition,
   getTierFromPlanKey,
   isUpgrade,
@@ -61,6 +63,29 @@ describe('subscription tiers', () => {
     expect(access.tier).toBe('max');
     expect(access.modules).toEqual(['visibility', 'content']);
     expect(getTierDefinition('max').features.join(' ')).not.toContain('API');
+  });
+
+  it('derives every numeric pricing row from the enforced tier limits', () => {
+    const numericRows = SUBSCRIPTION_PLAN_MATRIX.flatMap((group) => group.rows).filter((row) => row.limitKey);
+
+    expect(numericRows).toHaveLength(16);
+    for (const row of numericRows) {
+      for (const tier of SUBSCRIPTION_TIERS) {
+        const limit = tier.limits[row.limitKey!];
+        expect(row.values[tier.key]).toContain(limit === 0 ? '不支持' : String(limit));
+      }
+    }
+  });
+
+  it('uses canonical capability descriptions in the shared pricing matrix', () => {
+    const rows = SUBSCRIPTION_PLAN_MATRIX.flatMap((group) => group.rows);
+    const contentScope = rows.find((row) => row.label === '智创功能范围');
+    const integrations = rows.find((row) => row.label === '开放接口与系统集成');
+
+    for (const tier of SUBSCRIPTION_TIERS) {
+      expect(contentScope?.values[tier.key]).toBe(tier.contentScope);
+      expect(integrations?.values[tier.key]).toBe(tier.integrationStatus);
+    }
   });
 
   it('does not grant access to retired module-only plans', () => {
