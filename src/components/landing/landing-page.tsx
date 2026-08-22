@@ -3,8 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -34,6 +33,7 @@ const productModules = [
   {
     id: "website",
     image: "/landing/screens/website-analysis.png",
+    video: "/landing/videos/landing-website-analysis.webm",
     icon: Globe2,
     label: "网站分析",
     title: "先看清官网是否适合被 AI 抓取和理解",
@@ -51,6 +51,7 @@ const productModules = [
   {
     id: "visibility",
     image: "/landing/screens/visibility-audit.png",
+    video: "/landing/videos/landing-visibility-audit.webm",
     icon: Radar,
     label: "AI 可见性审计",
     title: "看清品牌在主流 AI 回答里有没有出现",
@@ -68,6 +69,7 @@ const productModules = [
   {
     id: "report",
     image: "/landing/screens/audit-reports.png",
+    video: "/landing/videos/landing-audit-report.webm",
     icon: FileText,
     label: "审计报告",
     title: "把审计结果整理成能直接汇报的报告",
@@ -85,6 +87,7 @@ const productModules = [
   {
     id: "compare",
     image: "/landing/screens/competitor-analysis.png",
+    video: "/landing/videos/landing-competitor-analysis.webm",
     icon: BarChart3,
     label: "竞品分析",
     title: "用同一套问题比较你和竞品的 AI 表现",
@@ -102,6 +105,7 @@ const productModules = [
   {
     id: "content",
     image: "/landing/screens/content-insights.png",
+    video: "/landing/videos/landing-content-insights.webm",
     icon: Sparkles,
     label: "内容洞察",
     title: "把 AI 可见性缺口变成下一批内容选题",
@@ -119,6 +123,7 @@ const productModules = [
   {
     id: "creation",
     image: "/landing/screens/dashboard-overview.png",
+    video: "/landing/videos/landing-ai-content-creation.webm",
     icon: Target,
     label: "智创内容生成",
     title: "从选题 brief 生成可编辑的内容初稿",
@@ -136,6 +141,7 @@ const productModules = [
   {
     id: "calendar",
     image: "/landing/screens/content-calendar.png",
+    video: "/landing/videos/landing-content-calendar.webm",
     icon: LineChart,
     label: "智创内容日历",
     title: "把内容计划排进日历，持续跟踪进度",
@@ -541,19 +547,56 @@ function ProductShot({
   active: (typeof productModules)[number];
   isActive: boolean;
 }) {
-  const [isPaused, setIsPaused] = useState(false);
-  const isPlaying = !isPaused;
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [mediaError, setMediaError] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    if (mediaError) return;
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (reducedMotion.matches) {
+      video.pause();
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting && entry.intersectionRatio >= 0.28 && !document.hidden) {
+          if (video.readyState === 0) video.load();
+          void video.play().catch(() => setIsPlaying(false));
+        } else {
+          video.pause();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "120px 0px",
+        threshold: [0, 0.28, 0.55],
+      },
+    );
+
+    observer.observe(video);
+
+    return () => {
+      observer.disconnect();
+      video.pause();
+    };
+  }, [active.video, mediaError]);
 
   function togglePlayback() {
-    setIsPaused((paused) => !paused);
-  }
+    const video = videoRef.current;
+    if (!video) return;
 
-  const motionStyle = {
-    "--focus-x": active.focus.x,
-    "--focus-y": active.focus.y,
-    "--focus-width": active.focus.width,
-    "--focus-height": active.focus.height,
-  } as CSSProperties;
+    if (video.paused) {
+      void video.play().catch(() => setIsPlaying(false));
+    } else {
+      video.pause();
+    }
+  }
 
   return (
     <div
@@ -563,38 +606,45 @@ function ProductShot({
       data-motion={active.demoMode}
       aria-label={`${active.label}界面动态预览`}
     >
-      <div className={styles.productMedia} style={motionStyle}>
-        <Image
-          className={styles.productScreenshot}
-          src={active.image}
-          alt={`${active.label}真实产品界面截图`}
-          fill
-          unoptimized
-          sizes="(max-width: 760px) 100vw, (max-width: 1100px) 88vw, 62vw"
-        />
-        <div className={styles.nativeMotion} aria-hidden="true">
-          <div className={styles.motionRest} />
-          <div className={styles.motionReveal}>
-            <Image
-              className={styles.motionScreenshot}
-              src={active.image}
-              alt=""
-              fill
-              unoptimized
-              sizes="(max-width: 760px) 100vw, (max-width: 1100px) 88vw, 62vw"
-            />
-          </div>
-          <i className={styles.motionSweep} />
-        </div>
-        <button
-          type="button"
-          className={styles.mediaControl}
-          aria-label={isPlaying ? `暂停${active.label}演示` : `播放${active.label}演示`}
-          aria-pressed={isPlaying}
-          onClick={togglePlayback}
-        >
-          {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-        </button>
+      <div className={styles.productMedia}>
+        {mediaError ? (
+          <Image
+            className={styles.productFallbackImage}
+            src={active.image}
+            alt={`${active.label}功能页面截图`}
+            fill
+            unoptimized
+            sizes="(max-width: 760px) 100vw, (max-width: 1100px) 88vw, 62vw"
+          />
+        ) : (
+          <video
+            ref={videoRef}
+            className={styles.productVideo}
+            poster={active.image}
+            muted
+            loop
+            playsInline
+            preload="none"
+            aria-label={`${active.label}功能页面动态演示`}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            onError={() => setMediaError(true)}
+          >
+            <source src={active.video} type="video/webm" />
+            当前浏览器不支持视频播放。
+          </video>
+        )}
+        {!mediaError ? (
+          <button
+            type="button"
+            className={styles.mediaControl}
+            aria-label={isPlaying ? `暂停${active.label}演示` : `播放${active.label}演示`}
+            aria-pressed={isPlaying}
+            onClick={togglePlayback}
+          >
+            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+          </button>
+        ) : null}
       </div>
     </div>
   );

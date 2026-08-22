@@ -1485,14 +1485,19 @@
   background: #f6f7fa;
 }
 
-.productScreenshot,
-.motionScreenshot {
+.productVideo,
+.productFallbackImage {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
   background: #f6f7fa;
   transition: transform 520ms var(--ease-out);
+}
+
+.productShot:hover .productVideo,
+.productShot:hover .productFallbackImage {
+  transform: scale(1.008);
 }
 
 .nativeMotion {
