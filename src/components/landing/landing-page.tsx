@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -540,7 +541,7 @@ function AnimatedConsole({
   );
 }
 
-function ProductShot({
+export function ProductShot({
   active,
   isActive,
 }: {
@@ -556,6 +557,7 @@ function ProductShot({
 
     const video = videoRef.current;
     if (!video) return;
+    const videoElement = video;
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (reducedMotion.matches) {
@@ -563,15 +565,25 @@ function ProductShot({
       return;
     }
 
+    function syncPlayback() {
+      const rect = videoElement.getBoundingClientRect();
+      const visibleHeight = Math.max(
+        0,
+        Math.min(rect.bottom, window.innerHeight + 120) - Math.max(rect.top, -120),
+      );
+      const visibleRatio = visibleHeight / Math.max(rect.height, 1);
+
+      if (reducedMotion.matches || document.hidden || visibleRatio < 0.28) {
+        videoElement.pause();
+        return;
+      }
+
+      if (videoElement.readyState === 0) videoElement.load();
+      void videoElement.play().catch(() => setIsPlaying(false));
+    }
+
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting && entry.intersectionRatio >= 0.28 && !document.hidden) {
-          if (video.readyState === 0) video.load();
-          void video.play().catch(() => setIsPlaying(false));
-        } else {
-          video.pause();
-        }
-      },
+      () => syncPlayback(),
       {
         root: null,
         rootMargin: "120px 0px",
@@ -579,11 +591,33 @@ function ProductShot({
       },
     );
 
-    observer.observe(video);
+    observer.observe(videoElement);
+    document.addEventListener("visibilitychange", syncPlayback);
+    window.addEventListener("focus", syncPlayback);
+    window.addEventListener("pageshow", syncPlayback);
+    window.addEventListener("scroll", syncPlayback, { passive: true });
+    window.addEventListener("resize", syncPlayback);
+    let recoveryFrame = 0;
+    let lastRecoveryAt = performance.now();
+    function recoverOnAnimationFrame(timestamp: number) {
+      if (timestamp - lastRecoveryAt >= 1000) {
+        lastRecoveryAt = timestamp;
+        syncPlayback();
+      }
+      recoveryFrame = window.requestAnimationFrame(recoverOnAnimationFrame);
+    }
+    recoveryFrame = window.requestAnimationFrame(recoverOnAnimationFrame);
+    syncPlayback();
 
     return () => {
       observer.disconnect();
-      video.pause();
+      document.removeEventListener("visibilitychange", syncPlayback);
+      window.removeEventListener("focus", syncPlayback);
+      window.removeEventListener("pageshow", syncPlayback);
+      window.removeEventListener("scroll", syncPlayback);
+      window.removeEventListener("resize", syncPlayback);
+      window.cancelAnimationFrame(recoveryFrame);
+      videoElement.pause();
     };
   }, [active.video, mediaError]);
 
