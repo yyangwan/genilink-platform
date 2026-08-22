@@ -551,6 +551,7 @@ export function ProductShot({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [mediaError, setMediaError] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const mp4Video = active.video.replace(/\.webm$/, ".mp4");
 
   useEffect(() => {
     if (mediaError) return;
@@ -664,6 +665,7 @@ export function ProductShot({
             onPause={() => setIsPlaying(false)}
             onError={() => setMediaError(true)}
           >
+            <source src={mp4Video} type="video/mp4" />
             <source src={active.video} type="video/webm" />
             当前浏览器不支持视频播放。
           </video>

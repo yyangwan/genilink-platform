@@ -52,6 +52,22 @@ describe("landing product video playback", () => {
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 1000 });
   });
 
+  it("prefers H.264 MP4 before VP9 WebM for desktop compatibility", () => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => undefined);
+    const view = render(<ProductShot active={activeModule} isActive />);
+    const sources = [...view.container.querySelectorAll("video source")];
+
+    expect(sources.map((source) => source.getAttribute("type"))).toEqual([
+      "video/mp4",
+      "video/webm",
+    ]);
+    expect(sources[0]?.getAttribute("src")).toBe(
+      "/landing/videos/landing-website-analysis.mp4",
+    );
+  });
+
   it("starts a visible video when the PC window regains focus", async () => {
     const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
     vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
