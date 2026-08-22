@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, Check, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Check, ShieldCheck, X } from 'lucide-react';
 import type { BillingCycle, SubscriptionTier } from '@/types/billing';
 import { SUBSCRIPTION_PLAN_MATRIX, SUBSCRIPTION_TIERS, getTierDefinition } from '@/lib/billing/tiers';
 import { formatSubscriptionPrice, type SubscriptionPlanView } from './subscription-plan-content';
@@ -16,6 +16,18 @@ type Props = {
   billingDisabled?: boolean;
   getPlanHref?: (planKey: string, tier: SubscriptionTier) => string;
 };
+
+function MatrixValue({ value }: { value: string }) {
+  if (value === '不支持') {
+    return (
+      <strong className={styles.matrixUnsupported} aria-label="不支持" title="不支持">
+        <X size={18} strokeWidth={2.4} aria-hidden="true" />
+      </strong>
+    );
+  }
+
+  return <strong>{value}</strong>;
+}
 
 export function LandingSubscriptionPlans({
   plans,
@@ -141,7 +153,7 @@ export function LandingSubscriptionPlans({
               <div key={row.label} className={styles.matrixRow}>
                 <span>{row.label}</span>
                 {SUBSCRIPTION_TIERS.map((tier) => (
-                  <strong key={tier.key}>{row.values[tier.key]}</strong>
+                  <MatrixValue key={tier.key} value={row.values[tier.key]} />
                 ))}
               </div>
             ))}

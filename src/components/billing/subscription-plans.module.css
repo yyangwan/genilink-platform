@@ -47,6 +47,7 @@
 .matrixRow:hover { background: color-mix(in srgb, var(--color-primary) 6%, transparent); }
 .matrixRow span { font: 500 13px/1.35 var(--font-body); }
 .matrixRow strong { color: var(--text-primary); font: 700 13px/1.35 var(--font-body); text-align: center; }
+.matrixRow .matrixUnsupported { display: inline-flex; align-items: center; justify-content: center; color: #d65c5c; }
 .spinner { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 900px) { .heading { align-items: start; flex-direction: column; } .trust { justify-content: flex-start; } .grid { grid-template-columns: 1fr; } .cardFeatured, .card:hover, .cardFeatured:hover { transform: none; } .matrix { overflow-x: auto; } .matrixHeader, .matrixRow { min-width: 720px; } }
