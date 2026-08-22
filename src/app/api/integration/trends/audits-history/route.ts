@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
+import { scopeHistoryPayload } from '@/lib/billing/scope';
 
 export async function GET(req: NextRequest) {
   const result = await resolveGuard(req);
@@ -14,5 +15,5 @@ export async function GET(req: NextRequest) {
     { errorMessage: 'Failed to fetch audits history' },
   );
   if ('response' in upstream) return upstream.response;
-  return NextResponse.json(upstream.data);
+  return NextResponse.json(scopeHistoryPayload(upstream.data, result.ctx.billing.capabilities.trendHistoryDays));
 }

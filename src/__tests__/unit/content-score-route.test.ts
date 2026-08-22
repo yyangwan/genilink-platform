@@ -26,6 +26,13 @@ vi.mock('@/lib/proxy/proxy-errors', () => ({
   handleProxyError: vi.fn(() => Response.json({ error: 'proxy error' }, { status: 502 })),
 }));
 
+vi.mock('@/lib/billing/usage', () => ({
+  assertMonthlyUsageQuota: vi.fn(),
+  recordMonthlyUsage: vi.fn(),
+  PlanLimitError: class extends Error {},
+  planLimitResponse: vi.fn(),
+}));
+
 function mockRequest(body: unknown) {
   return new NextRequest('http://localhost/api/content/content-1/score', {
     method: 'POST',

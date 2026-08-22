@@ -15,8 +15,12 @@ vi.mock('@/lib/auth/workspace', () => ({
   getWorkspaceRole: vi.fn().mockResolvedValue('owner'),
 }));
 vi.mock('@/lib/billing/guard', () => ({
-  requireBilling: vi.fn().mockResolvedValue(undefined),
+  requireBilling: vi.fn().mockResolvedValue({
+    capabilities: { trendHistoryDays: 365, strategicIntelligence: 'basic' },
+  }),
+  requireBillingCapability: vi.fn(),
   BillingError: class extends Error {},
+  BillingCapabilityError: class extends Error {},
 }));
 vi.mock('@/lib/auth/service-jwt', () => ({
   issueVisibilityProjectJWT: vi.fn().mockResolvedValue('project-jwt'),

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
 import { mapSuggestion } from './mapper';
+import { suggestionResultLimit } from '@/lib/billing/scope';
 
 export async function GET(req: NextRequest) {
-  const result = await resolveGuard(req);
+  const result = await resolveGuard(req, { capability: 'optimizationAdvice' });
   if (!result.ok) return result.response;
 
   const auditId = req.nextUrl.searchParams.get('auditId');
@@ -14,12 +15,13 @@ export async function GET(req: NextRequest) {
   });
   if ('response' in upstream) return upstream.response;
 
-  const mapped = (Array.isArray(upstream.data) ? upstream.data : []).map(mapSuggestion);
+  const limit = suggestionResultLimit(result.ctx.billing.capabilities.optimizationAdvice);
+  const mapped = (Array.isArray(upstream.data) ? upstream.data : []).map(mapSuggestion).slice(0, limit);
   return NextResponse.json(mapped);
 }
 
 export async function POST(req: NextRequest) {
-  const result = await resolveGuard(req);
+  const result = await resolveGuard(req, { capability: 'optimizationAdvice' });
   if (!result.ok) return result.response;
 
   const upstream = await fetchUpstream(result.ctx, `/api/suggestions/${result.ctx.projectId}/generate`, {
@@ -29,6 +31,7 @@ export async function POST(req: NextRequest) {
   });
   if ('response' in upstream) return upstream.response;
 
-  const mapped = (Array.isArray(upstream.data) ? upstream.data : []).map(mapSuggestion);
+  const limit = suggestionResultLimit(result.ctx.billing.capabilities.optimizationAdvice);
+  const mapped = (Array.isArray(upstream.data) ? upstream.data : []).map(mapSuggestion).slice(0, limit);
   return NextResponse.json(mapped);
 }

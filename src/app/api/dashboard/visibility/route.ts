@@ -5,6 +5,9 @@ import { getAuditStatus, isAuditFinished } from '@/lib/audit-status';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
 import { getWorkspaceRole } from '@/lib/auth/workspace';
 import { issueVisibilityProjectJWT } from '@/lib/auth/service-jwt';
+import { requireBilling, BillingError } from '@/lib/billing/guard';
+import { hasCapabilityLevel } from '@/lib/billing/tiers';
+import { filterHistoryRecords, suggestionResultLimit } from '@/lib/billing/scope';
 
 const VISIBILITY_URL = process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000';
 const PLATFORM_LABELS: Record<string, string> = {
@@ -45,6 +48,14 @@ export async function GET(req: NextRequest) {
 
   const role = await getWorkspaceRole(session.user.id, workspaceId);
   if (!role) return NextResponse.json(EMPTY);
+  let billing;
+  try {
+    billing = await requireBilling(session.user.id, workspaceId, 'visibility');
+  } catch (err) {
+    if (err instanceof BillingError) return NextResponse.json(EMPTY);
+    throw err;
+  }
+  const canUseCompetitorPositioning = hasCapabilityLevel(billing.capabilities.competitorPositioning);
   const serviceToken = await issueVisibilityProjectJWT({
     userId: session.user.id,
     email: session.user.email,
@@ -60,7 +71,9 @@ export async function GET(req: NextRequest) {
 
   try {
     const [positioningRes, auditsRes, platformsRes] = await Promise.allSettled([
-      fetch(`${VISIBILITY_URL}/api/strategic/projects/${project.id}/competitor-positioning`, { headers, signal: AbortSignal.timeout(15_000) }),
+      canUseCompetitorPositioning
+        ? fetch(`${VISIBILITY_URL}/api/strategic/projects/${project.id}/competitor-positioning`, { headers, signal: AbortSignal.timeout(15_000) })
+        : Promise.resolve(null),
       fetch(`${VISIBILITY_URL}/api/trends/${project.id}/audits-history`, { headers, signal: AbortSignal.timeout(15_000) }),
       fetch(`${VISIBILITY_URL}/api/platforms`, { headers, signal: AbortSignal.timeout(15_000) }),
     ]);
@@ -71,7 +84,7 @@ export async function GET(req: NextRequest) {
     let competitorRank: number | null = null;
     const ownBrandNames = new Set<string>();
 
-    if (positioningRes.status === 'fulfilled' && positioningRes.value.ok) {
+    if (positioningRes.status === 'fulfilled' && positioningRes.value?.ok) {
       const positioning = await positioningRes.value.json();
       const brands = positioning.brands as Array<{
         name: string;
@@ -110,7 +123,10 @@ export async function GET(req: NextRequest) {
     let trend: Array<{ date: string; score: number }> = [];
 
     if (auditsRes.status === 'fulfilled' && auditsRes.value.ok) {
-      const audits = await auditsRes.value.json();
+      const rawAudits = await auditsRes.value.json();
+      const audits = Array.isArray(rawAudits)
+        ? filterHistoryRecords(rawAudits, billing.capabilities.trendHistoryDays)
+        : rawAudits;
       if (Array.isArray(audits) && audits.length > 0) {
         trend = audits
           .map((audit: { created_at?: string | null; completed_at?: string | null; started_at?: string | null; overall_score?: number | null; score?: number | null }) => {
@@ -225,7 +241,7 @@ export async function GET(req: NextRequest) {
     if (suggestionsRes.ok) {
       const raw = await suggestionsRes.json();
       if (Array.isArray(raw)) {
-        suggestions = raw.slice(0, 5).map((s: { priority?: string; text?: string; title?: string; type?: string; description?: string; detail?: { evidence_summary?: string } }) => ({
+        suggestions = raw.slice(0, Math.min(5, suggestionResultLimit(billing.capabilities.optimizationAdvice))).map((s: { priority?: string; text?: string; title?: string; type?: string; description?: string; detail?: { evidence_summary?: string } }) => ({
           priority: s.priority ?? s.type ?? 'medium',
           text: s.text ?? s.title ?? s.detail?.evidence_summary ?? s.description ?? '',
         }));

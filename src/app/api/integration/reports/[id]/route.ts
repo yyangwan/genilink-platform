@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
 import { prisma } from '@/lib/db';
+import type { CapabilityLevel } from '@/lib/billing/tiers';
 
 export async function GET(
   req: NextRequest,
@@ -65,7 +66,7 @@ export async function GET(
     ]);
 
     const mapped = mapReport(report, Array.isArray(results) ? results : [], ownBrandNames);
-    return NextResponse.json(mapped);
+    return NextResponse.json(scopeReport(mapped, result.ctx.billing.capabilities.auditReport));
   } catch (err) {
     clearTimeout(timer);
     if ((err as Error).name === 'AbortError') {
@@ -147,4 +148,17 @@ function mapReport(report: Record<string, unknown>, results: QueryResult[], ownB
       rank: r.recommendation_rank,
     })),
   };
+}
+
+function scopeReport(report: ReturnType<typeof mapReport>, level: CapabilityLevel) {
+  if (level === 'basic') {
+    return {
+      ...report,
+      insights: report.insights.slice(0, 3),
+      brands: [],
+      prompts: [],
+      entitlementLevel: level,
+    };
+  }
+  return { ...report, entitlementLevel: level };
 }

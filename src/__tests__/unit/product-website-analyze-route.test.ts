@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import { maxBillingAccess } from './billing-fixture';
 
 vi.mock('@/lib/proxy/route-guard', () => ({
   resolveGuard: vi.fn(),
@@ -15,6 +16,13 @@ vi.mock('@/lib/db', () => ({
       findMany: vi.fn(),
     },
   },
+}));
+
+vi.mock('@/lib/billing/usage', () => ({
+  assertMonthlyUsageQuota: vi.fn(),
+  recordMonthlyUsage: vi.fn(),
+  PlanLimitError: class extends Error {},
+  planLimitResponse: vi.fn(),
 }));
 
 import { fetchUpstream, resolveGuard } from '@/lib/proxy/route-guard';
@@ -33,6 +41,7 @@ describe('POST /api/integration/product-website/analyze', () => {
         serviceToken: 'token-1',
         upstreamUrl: (path: string) => `http://upstream${path}`,
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-1' },
+        billing: maxBillingAccess,
       },
     });
     vi.mocked(prisma.project.findFirst).mockResolvedValue({

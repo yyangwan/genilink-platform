@@ -36,6 +36,13 @@ vi.mock('@/lib/content/service', () => ({
   getGenieGenerations: vi.fn(),
 }));
 
+vi.mock('@/lib/billing/usage', () => ({
+  assertMonthlyUsageQuota: vi.fn(),
+  recordMonthlyUsage: vi.fn(),
+  PlanLimitError: class extends Error {},
+  planLimitResponse: vi.fn(),
+}));
+
 import { generateGenieContent } from '@/lib/content/service';
 import { POST } from '@/app/api/genie/generate/route';
 

@@ -54,6 +54,10 @@ vi.mock('@/lib/proxy/zhijian-client', () => ({
   syncBrandDeleteToVisibility: vi.fn(),
 }));
 
+vi.mock('@/lib/billing/access', () => ({
+  hasBrandCapacity: vi.fn().mockResolvedValue(true),
+}));
+
 vi.mock('next/headers', () => ({
   cookies: vi.fn().mockResolvedValue({
     get: vi.fn().mockReturnValue({ value: 'ws-1' }),

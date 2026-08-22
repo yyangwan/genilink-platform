@@ -4,6 +4,12 @@ import { prisma } from '@/lib/db';
 import { handleProxyError } from '@/lib/proxy/proxy-errors';
 import { generateGenieContent, getGenieGenerations } from '@/lib/content/service';
 import { normalizeGenieGenerationResult, unwrapGenieGenerations } from '@/lib/content/contract-adapters';
+import {
+  assertMonthlyUsageQuota,
+  PlanLimitError,
+  planLimitResponse,
+  recordMonthlyUsage,
+} from '@/lib/billing/usage';
 
 async function loadProjectGenerationContext(projectId: string, workspaceId: string) {
   const project = await prisma.project.findFirst({
@@ -47,8 +53,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    const result = await generateGenieContent(ctx, { ...payload, ...projectContext });
-    return NextResponse.json({ data: normalizeGenieGenerationResult(result) });
+    try {
+      await assertMonthlyUsageQuota(ctx.userId, ctx.workspaceId, 'content_generation');
+      const result = await generateGenieContent(ctx, { ...payload, ...projectContext });
+      await recordMonthlyUsage(ctx.userId, ctx.workspaceId, 'content_generation', 1, {
+        projectId: ctx.projectId,
+        source: 'genie',
+      });
+      return NextResponse.json({ data: normalizeGenieGenerationResult(result) });
+    } catch (err) {
+      if (err instanceof PlanLimitError) return planLimitResponse(err);
+      return handleProxyError(err);
+    }
   }, { action: 'write' })(req);
 }
 

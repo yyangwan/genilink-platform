@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     try {
       return NextResponse.json({ data: await getPlatformOAuth(ctx) });
     } catch (err) { return handleProxyError(err); }
-  }, { action: 'read' })(req);
+  }, { action: 'read', capability: 'platformConfig', minimumCapabilityLevel: 'full' })(req);
 }
 
 export async function POST(req: NextRequest) {
@@ -17,5 +17,5 @@ export async function POST(req: NextRequest) {
     try {
       return NextResponse.json({ data: await handlePlatformOAuth(ctx, payload) });
     } catch (err) { return handleProxyError(err); }
-  }, { action: 'write' })(req);
+  }, { action: 'write', capability: 'platformConfig', minimumCapabilityLevel: 'full' })(req);
 }

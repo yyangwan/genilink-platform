@@ -17,8 +17,14 @@ vi.mock('@/lib/auth/workspace', () => ({
 }));
 
 vi.mock('@/lib/billing/guard', () => ({
-  requireBilling: vi.fn().mockResolvedValue(undefined),
+  requireBilling: vi.fn().mockResolvedValue({ capabilities: {} }),
+  requireBillingCapability: vi.fn(),
   BillingError: class extends Error {},
+  BillingCapabilityError: class extends Error {},
+}));
+
+vi.mock('@/lib/billing/access', () => ({
+  getWorkspaceBillingAccess: vi.fn().mockResolvedValue({ limits: { scheduledAudits: 10 } }),
 }));
 
 vi.mock('@/lib/auth/service-jwt', () => ({
@@ -77,7 +83,9 @@ describe('POST /api/integration/schedules', () => {
   });
 
   it('uses a project-scoped JWT when creating a schedule', async () => {
-    mockFetch.mockResolvedValueOnce(Response.json({ id: 10 }));
+    mockFetch
+      .mockResolvedValueOnce(Response.json([]))
+      .mockResolvedValueOnce(Response.json({ id: 10 }));
 
     const res = await createSchedule(
       new NextRequest('http://localhost/api/integration/schedules', {
@@ -99,7 +107,7 @@ describe('POST /api/integration/schedules', () => {
       role: 'owner',
     });
 
-    const upstreamRequest = getUpstreamRequest();
+    const upstreamRequest = mockFetch.mock.calls[1]?.[0] as Request | undefined;
     expect(upstreamRequest?.url).toBe('http://127.0.0.1:8000/api/schedules');
     expect(upstreamRequest?.headers.get('authorization')).toBe(
       'Bearer project-jwt',

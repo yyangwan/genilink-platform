@@ -62,12 +62,12 @@ const tierPlan = (
 };
 
 export const BILLING_PLAN_SEEDS: BillingPlanSeed[] = [
-  tierPlan('lite', 'monthly', envInt('BILLING_LITE_MONTHLY_CENTS') ?? 0, 10),
-  tierPlan('lite', 'yearly', envInt('BILLING_LITE_YEARLY_CENTS') ?? 0, 20),
-  tierPlan('pro', 'monthly', envInt('BILLING_PRO_MONTHLY_CENTS') ?? 0, 30),
-  tierPlan('pro', 'yearly', envInt('BILLING_PRO_YEARLY_CENTS') ?? 0, 40),
-  tierPlan('max', 'monthly', envInt('BILLING_MAX_MONTHLY_CENTS') ?? 0, 50),
-  tierPlan('max', 'yearly', envInt('BILLING_MAX_YEARLY_CENTS') ?? 0, 60),
+  tierPlan('lite', 'monthly', envInt('BILLING_LITE_MONTHLY_CENTS') ?? getTierDefinition('lite').monthlyPriceCents, 10),
+  tierPlan('lite', 'yearly', envInt('BILLING_LITE_YEARLY_CENTS') ?? getTierDefinition('lite').yearlyPriceCents, 20),
+  tierPlan('pro', 'monthly', envInt('BILLING_PRO_MONTHLY_CENTS') ?? getTierDefinition('pro').monthlyPriceCents, 30),
+  tierPlan('pro', 'yearly', envInt('BILLING_PRO_YEARLY_CENTS') ?? getTierDefinition('pro').yearlyPriceCents, 40),
+  tierPlan('max', 'monthly', envInt('BILLING_MAX_MONTHLY_CENTS') ?? getTierDefinition('max').monthlyPriceCents, 50),
+  tierPlan('max', 'yearly', envInt('BILLING_MAX_YEARLY_CENTS') ?? getTierDefinition('max').yearlyPriceCents, 60),
 ];
 
 export function isBillingPlanConfigured(plan: BillingPlanSeed): boolean {

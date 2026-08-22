@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import { maxBillingAccess } from './billing-fixture';
 
 vi.mock('@/lib/proxy/route-guard', () => ({
   resolveGuard: vi.fn(),
   fetchUpstream: vi.fn(),
+}));
+
+vi.mock('@/lib/billing/access', () => ({
+  getWorkspaceBillingAccess: vi.fn().mockResolvedValue({ limits: { promptsPerProject: 10 } }),
 }));
 
 import { fetchUpstream, resolveGuard } from '@/lib/proxy/route-guard';
@@ -21,6 +26,7 @@ describe('GET /api/integration/prompts', () => {
         serviceToken: 'token-1',
         upstreamUrl: (path: string) => `http://upstream${path}`,
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-1' },
+        billing: maxBillingAccess,
       },
     });
   });

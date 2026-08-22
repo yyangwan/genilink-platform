@@ -8,7 +8,7 @@ import {
 } from '@/lib/billing/usage';
 
 export async function POST(req: NextRequest) {
-  const result = await resolveGuard(req, { requireProject: false });
+  const result = await resolveGuard(req, { requireProject: false, capability: 'competitorComparison' });
   if (!result.ok) return result.response;
 
   const body = await req.json();

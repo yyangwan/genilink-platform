@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import { maxBillingAccess } from './billing-fixture';
 
 vi.mock('@/lib/auth/config', () => ({
   auth: vi.fn().mockResolvedValue({
@@ -108,6 +109,7 @@ describe('fetchUpstream', () => {
       serviceToken: 'token-1',
       upstreamUrl: (path: string) => `http://upstream${path}`,
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-1' },
+      billing: maxBillingAccess,
     }, '/api/prompts/274?project_id=project-1', { method: 'DELETE' });
 
     expect(result).toEqual({ data: null });

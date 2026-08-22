@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import { getTierDefinition } from '@/lib/billing/tiers';
 
 vi.mock('@/lib/proxy/route-guard', () => ({
   resolveGuard: vi.fn(),
@@ -9,6 +10,8 @@ vi.mock('@/lib/proxy/route-guard', () => ({
 import { fetchUpstream, resolveGuard } from '@/lib/proxy/route-guard';
 import { GET } from '@/app/api/integration/suggestions/route';
 
+const proTier = getTierDefinition('pro');
+
 const guardCtx = {
   session: { user: { id: 'user-1' } },
   workspaceId: 'workspace-1',
@@ -16,6 +19,12 @@ const guardCtx = {
   serviceToken: 'token-1',
   upstreamUrl: (path: string) => `http://upstream${path}`,
   headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-1' },
+  billing: {
+    tier: 'pro' as const,
+    modules: proTier.modules,
+    limits: proTier.limits,
+    capabilities: proTier.capabilities,
+  },
 };
 
 describe('/api/integration/suggestions', () => {

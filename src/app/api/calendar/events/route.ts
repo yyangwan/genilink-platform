@@ -7,4 +7,4 @@ export const GET = withContentAuth(async (ctx: ContentAuthContext, req: NextRequ
   try {
     return NextResponse.json({ data: await getCalendarEvents(ctx, req.nextUrl.searchParams) });
   } catch (err) { return handleProxyError(err); }
-}, { action: 'read' });
+}, { action: 'read', capability: 'contentCalendar' });

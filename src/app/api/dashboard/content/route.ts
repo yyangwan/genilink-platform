@@ -6,6 +6,7 @@ import { proxyRequest } from '@/lib/proxy/zhijian-client';
 import { getWorkspaceRole } from '@/lib/auth/workspace';
 import { issueContentProjectJWT } from '@/lib/auth/service-jwt';
 import { buildContentSummary } from '@/lib/content/content-summary';
+import { requireBilling, BillingError } from '@/lib/billing/guard';
 
 const emptyData = { totalContent: 0, publishedCount: 0, recentContent: [], qualityAvg: null };
 
@@ -32,6 +33,13 @@ export async function GET(req: NextRequest) {
   });
   if (!project) {
     return NextResponse.json(emptyData);
+  }
+
+  try {
+    await requireBilling(session.user.id, workspaceId, 'content');
+  } catch (err) {
+    if (err instanceof BillingError) return NextResponse.json(emptyData);
+    throw err;
   }
 
   try {

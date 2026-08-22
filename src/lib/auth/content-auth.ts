@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
-import { requireBilling, BillingError } from '@/lib/billing/guard';
+import { requireBilling, requireBillingCapability, BillingError, BillingCapabilityError } from '@/lib/billing/guard';
+import type { WorkspaceBillingAccess } from '@/lib/billing/access';
+import type { BillingCapabilityKey, CapabilityLevel } from '@/lib/billing/tiers';
 import { verifyProjectInWorkspace } from '@/lib/auth/workspace';
 import { requirePermission, PermissionDeniedError, ContentAction } from '@/lib/auth/content-permissions';
 import { issueContentProjectJWT } from '@/lib/auth/service-jwt';
@@ -12,6 +14,7 @@ export interface ContentAuthContext {
   projectId: string;
   role: string;
   serviceToken: string;
+  billing: WorkspaceBillingAccess;
 }
 
 type ContentHandler = (
@@ -21,6 +24,8 @@ type ContentHandler = (
 
 type ContentAuthOptions = {
   action: ContentAction;
+  capability?: BillingCapabilityKey;
+  minimumCapabilityLevel?: CapabilityLevel;
 };
 
 /**
@@ -67,11 +72,24 @@ export function withContentAuth(
       return NextResponse.json({ error: 'Project not found in workspace' }, { status: 403 });
     }
 
+    let billingAccess: WorkspaceBillingAccess;
     try {
-      await requireBilling(session.user.id, workspaceId, 'content');
+      const billing = await requireBilling(session.user.id, workspaceId, 'content');
+      if (options.capability) {
+        requireBillingCapability(billing, options.capability, options.minimumCapabilityLevel ?? 'basic');
+      }
+      billingAccess = billing;
     } catch (err) {
       if (err instanceof BillingError) {
         return NextResponse.json({ error: 'NO_SUBSCRIPTION', module: 'content' }, { status: 403 });
+      }
+      if (err instanceof BillingCapabilityError) {
+        return NextResponse.json({
+          error: 'PLAN_CAPABILITY_REQUIRED',
+          capability: err.capability,
+          requiredLevel: err.requiredLevel,
+          actualLevel: err.actualLevel,
+        }, { status: 403 });
       }
       throw err;
     }
@@ -98,6 +116,6 @@ export function withContentAuth(
       role,
     });
 
-    return handler({ userId: session.user.id, workspaceId, projectId, role, serviceToken }, req);
+    return handler({ userId: session.user.id, workspaceId, projectId, role, serviceToken, billing: billingAccess }, req);
   };
 }

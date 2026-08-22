@@ -5,6 +5,8 @@ import { getWorkspaceId } from '@/lib/auth/get-workspace';
 import { proxyRequest } from '@/lib/proxy/zhijian-client';
 import { getWorkspaceRole } from '@/lib/auth/workspace';
 import { issueVisibilityProjectJWT } from '@/lib/auth/service-jwt';
+import { requireBilling, BillingError } from '@/lib/billing/guard';
+import { suggestionResultLimit } from '@/lib/billing/scope';
 
 // GET /api/dashboard/geo — fetch real geo data from 智見
 export async function GET(req: NextRequest) {
@@ -29,6 +31,17 @@ export async function GET(req: NextRequest) {
   });
   if (!project) {
     return NextResponse.json({ websites: [], totalCitations: 0, avgAiScore: null, optimizationTasks: [] });
+  }
+
+  let suggestionLimit: number;
+  try {
+    const billing = await requireBilling(session.user.id, workspaceId, 'visibility');
+    suggestionLimit = suggestionResultLimit(billing.capabilities.optimizationAdvice);
+  } catch (err) {
+    if (err instanceof BillingError) {
+      return NextResponse.json({ websites: [], totalCitations: 0, avgAiScore: null, optimizationTasks: [] });
+    }
+    throw err;
   }
 
   try {
@@ -68,7 +81,7 @@ export async function GET(req: NextRequest) {
       })),
       totalCitations: (result.mentionCount as number) ?? 0,
       avgAiScore: (result.overallScore as number) ?? null,
-      optimizationTasks: suggestions.map((suggestion, index) => ({
+      optimizationTasks: suggestions.slice(0, suggestionLimit).map((suggestion, index) => ({
         text: suggestion.text ?? '',
         priority: suggestion.priority ?? 'medium',
         status: 'pending',

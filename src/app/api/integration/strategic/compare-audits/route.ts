@@ -3,7 +3,7 @@ import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
 
 export async function POST(req: NextRequest) {
   // projectId comes from query params so the body stream stays intact for audit_ids
-  const result = await resolveGuard(req);
+  const result = await resolveGuard(req, { capability: 'strategicIntelligence' });
   if (!result.ok) return result.response;
 
   // Parse body

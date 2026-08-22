@@ -13,5 +13,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pla
     try {
       return NextResponse.json({ data: await refreshPlatformToken(ctx, platform) });
     } catch (err) { return handleProxyError(err); }
-  }, { action: 'write' })(req);
+  }, { action: 'write', capability: 'platformConfig', minimumCapabilityLevel: 'full' })(req);
 }

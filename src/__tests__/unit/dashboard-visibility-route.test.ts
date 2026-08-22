@@ -27,6 +27,16 @@ vi.mock('@/lib/auth/service-jwt', () => ({
   issueVisibilityProjectJWT: vi.fn().mockResolvedValue('project-jwt'),
 }));
 
+vi.mock('@/lib/billing/guard', () => ({
+  requireBilling: vi.fn().mockResolvedValue({
+    capabilities: {
+      competitorPositioning: 'full',
+      trendHistoryDays: 365,
+      optimizationAdvice: 'full',
+    },
+  }),
+}));
+
 import { GET } from '@/app/api/dashboard/visibility/route';
 
 const mockFetch = vi.fn();

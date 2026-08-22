@@ -7,6 +7,7 @@ import {
   planLimitResponse,
   recordMonthlyUsage,
 } from '@/lib/billing/usage';
+import { scopeHistoryPayload } from '@/lib/billing/scope';
 
 // GET /api/integration/audits?projectId=xxx — list audits for a project
 export async function GET(req: NextRequest) {
@@ -17,7 +18,10 @@ export async function GET(req: NextRequest) {
     errorMessage: 'Failed to fetch audits',
   });
   if ('response' in upstream) return upstream.response;
-  return NextResponse.json(upstream.data);
+  return NextResponse.json(scopeHistoryPayload(
+    upstream.data,
+    result.ctx.billing.capabilities.trendHistoryDays,
+  ));
 }
 
 // POST /api/integration/audits — create a new audit for a project

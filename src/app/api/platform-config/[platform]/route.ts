@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plat
     try {
       return NextResponse.json({ data: normalizePlatformConfig(await getPlatformConfig(ctx, platform), platform) });
     } catch (err) { return handleProxyError(err); }
-  }, { action: 'read' })(req);
+  }, { action: 'read', capability: 'platformConfig' })(req);
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pla
     try {
       return NextResponse.json({ data: normalizePlatformConfig(await setPlatformConfig(ctx, platform, payload), platform) });
     } catch (err) { return handleProxyError(err); }
-  }, { action: 'write' })(req);
+  }, { action: 'write', capability: 'platformConfig' })(req);
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
@@ -56,5 +56,5 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ p
       await deletePlatformConfig(ctx, platform);
       return NextResponse.json({ success: true });
     } catch (err) { return handleProxyError(err); }
-  }, { action: 'delete' })(req);
+  }, { action: 'delete', capability: 'platformConfig' })(req);
 }

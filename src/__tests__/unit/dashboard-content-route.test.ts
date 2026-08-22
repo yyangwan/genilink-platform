@@ -31,6 +31,11 @@ vi.mock('@/lib/proxy/zhijian-client', () => ({
   proxyRequest: vi.fn(),
 }));
 
+vi.mock('@/lib/billing/guard', () => ({
+  requireBilling: vi.fn().mockResolvedValue({ capabilities: {} }),
+  BillingError: class extends Error {},
+}));
+
 import { proxyRequest } from '@/lib/proxy/zhijian-client';
 import { GET } from '@/app/api/dashboard/content/route';
 

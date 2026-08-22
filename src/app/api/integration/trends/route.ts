@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
 import { getDatePartsInTimeZone } from '@/lib/time';
+import { filterHistoryRecords } from '@/lib/billing/scope';
 
 export async function GET(req: NextRequest) {
   const result = await resolveGuard(req);
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
   const period = req.nextUrl.searchParams.get('period') || 'weekly';
 
   type RawPoint = { date: string; overall_score: number; platform_scores: Record<string, number> };
-  const daily: RawPoint[] = rawPoints.map((point) => ({
+  const daily: RawPoint[] = filterHistoryRecords(rawPoints, result.ctx.billing.capabilities.trendHistoryDays).map((point) => ({
     date: point.date as string,
     overall_score: point.overall_score as number,
     platform_scores: (point.platform_scores as Record<string, number>) || {},

@@ -5,6 +5,8 @@ import { proxyRequest } from '@/lib/proxy/zhijian-client';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
 import { getWorkspaceRole, verifyProjectInWorkspace } from '@/lib/auth/workspace';
 import { issueVisibilityProjectJWT } from '@/lib/auth/service-jwt';
+import type { WorkspaceBillingAccess } from '@/lib/billing/access';
+import { scopeHistoryPayload } from '@/lib/billing/scope';
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -34,8 +36,9 @@ export async function GET(req: NextRequest) {
   }
 
   // Check billing
+  let billing: WorkspaceBillingAccess;
   try {
-    await requireBilling(session.user.id, workspaceId, 'visibility');
+    billing = await requireBilling(session.user.id, workspaceId, 'visibility');
   } catch (err) {
     if (err instanceof BillingError) {
       return NextResponse.json(
@@ -67,7 +70,7 @@ export async function GET(req: NextRequest) {
       accessToken: serviceToken,
     });
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: scopeHistoryPayload(data, billing.capabilities.trendHistoryDays) });
   } catch (err) {
     const message = (err as Error).message;
     if (message === 'TIMEOUT') {

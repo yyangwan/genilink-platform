@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
-import { requireBilling, BillingError } from '@/lib/billing/guard';
+import { requireBilling, requireBillingCapability, BillingError, BillingCapabilityError } from '@/lib/billing/guard';
+import type { WorkspaceBillingAccess } from '@/lib/billing/access';
+import type { BillingCapabilityKey, CapabilityLevel } from '@/lib/billing/tiers';
 import { getWorkspaceRole, verifyProjectInWorkspace } from '@/lib/auth/workspace';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
 import { issueVisibilityProjectJWT, issueVisibilityWorkspaceJWT } from '@/lib/auth/service-jwt';
@@ -29,6 +31,7 @@ export interface GuardContext {
   upstreamUrl: (path: string) => string;
   /** Pre-configured headers with Content-Type and a Portal-issued JWT. */
   headers: Record<string, string>;
+  billing: WorkspaceBillingAccess;
 }
 
 export interface GuardOptions {
@@ -38,6 +41,8 @@ export interface GuardOptions {
   requireProject?: boolean;
   /** Override default timeout in ms. Default: 15_000. */
   timeoutMs?: number;
+  capability?: BillingCapabilityKey;
+  minimumCapabilityLevel?: CapabilityLevel;
 }
 
 type GuardResult =
@@ -53,7 +58,7 @@ export async function resolveGuard(
   req: NextRequest,
   opts: GuardOptions = {},
 ): Promise<GuardResult> {
-  const { module = 'visibility', requireProject = true } = opts;
+  const { module = 'visibility', requireProject = true, capability, minimumCapabilityLevel = 'basic' } = opts;
 
   // 1. Auth
   const rawSession = await auth();
@@ -69,11 +74,25 @@ export async function resolveGuard(
   }
 
   // 3. Billing
+  let billingAccess: WorkspaceBillingAccess;
   try {
-    await requireBilling(session.user.id, workspaceId, module);
+    const billing = await requireBilling(session.user.id, workspaceId, module);
+    if (capability) requireBillingCapability(billing, capability, minimumCapabilityLevel);
+    billingAccess = billing;
   } catch (err) {
     if (err instanceof BillingError) {
       return { ok: false, response: NextResponse.json({ error: 'NO_SUBSCRIPTION', module }, { status: 403 }) };
+    }
+    if (err instanceof BillingCapabilityError) {
+      return {
+        ok: false,
+        response: NextResponse.json({
+          error: 'PLAN_CAPABILITY_REQUIRED',
+          capability: err.capability,
+          requiredLevel: err.requiredLevel,
+          actualLevel: err.actualLevel,
+        }, { status: 403 }),
+      };
     }
     throw err;
   }
@@ -106,6 +125,7 @@ export async function resolveGuard(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${serviceToken}`,
         },
+        billing: billingAccess,
       },
     };
   }
@@ -148,6 +168,7 @@ export async function resolveGuard(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${serviceToken}`,
       },
+      billing: billingAccess,
     },
   };
 }

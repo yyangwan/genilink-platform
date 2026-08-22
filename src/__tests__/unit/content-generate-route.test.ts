@@ -40,6 +40,13 @@ vi.mock('@/lib/content/service', () => ({
   ),
 }));
 
+vi.mock('@/lib/billing/usage', () => ({
+  assertMonthlyUsageQuota: vi.fn(),
+  recordMonthlyUsage: vi.fn(),
+  PlanLimitError: class extends Error {},
+  planLimitResponse: vi.fn(),
+}));
+
 import { generateContent } from '@/lib/content/service';
 import { POST } from '@/app/api/content/[id]/generate/route';
 

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
+import { maxBillingAccess } from './billing-fixture';
 
 vi.mock('@/lib/proxy/route-guard', () => ({
   resolveGuard: vi.fn(),
@@ -16,6 +17,7 @@ const guardCtx = {
   serviceToken: 'token-1',
   upstreamUrl: (path: string) => `http://upstream${path}`,
   headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-1' },
+  billing: maxBillingAccess,
 };
 
 describe('/api/integration/suggestions/[id]', () => {

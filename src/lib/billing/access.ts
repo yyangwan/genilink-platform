@@ -15,6 +15,7 @@ export interface WorkspaceBillingAccess {
   tier: SubscriptionTier | null;
   modules: ModuleType[];
   limits: ReturnType<typeof getTierDefinition>['limits'];
+  capabilities: ReturnType<typeof getTierDefinition>['capabilities'];
 }
 
 const FREE_LIMITS: ReturnType<typeof getTierDefinition>['limits'] = {
@@ -30,10 +31,26 @@ const FREE_LIMITS: ReturnType<typeof getTierDefinition>['limits'] = {
   pdfExportsPerMonth: 0,
   contentGenerationsPerMonth: 0,
   contentOptimizationsPerMonth: 0,
+  seoOptimizationsPerMonth: 0,
   contentScoresPerMonth: 0,
   calendarItemsPerMonth: 0,
   brandVoices: 0,
   contentTemplates: 0,
+};
+
+const FREE_CAPABILITIES: ReturnType<typeof getTierDefinition>['capabilities'] = {
+  auditReport: 'none',
+  trendHistoryDays: 0,
+  optimizationAdvice: 'none',
+  competitorComparison: 'none',
+  contentInsights: 'none',
+  strategicIntelligence: 'none',
+  sourceAuthority: 'none',
+  structureEvolution: 'none',
+  competitorPositioning: 'none',
+  contentCalendar: 'none',
+  platformConfig: 'none',
+  support: 'none',
 };
 
 export function resolveBillingAccess(subscriptions: AccessSubscription[]): WorkspaceBillingAccess {
@@ -46,6 +63,7 @@ export function resolveBillingAccess(subscriptions: AccessSubscription[]): Works
     tier,
     modules: tierModules,
     limits: tier ? getTierDefinition(tier).limits : FREE_LIMITS,
+    capabilities: tier ? getTierDefinition(tier).capabilities : FREE_CAPABILITIES,
   };
 }
 
@@ -55,7 +73,7 @@ export async function getWorkspaceBillingAccess(
 ): Promise<WorkspaceBillingAccess> {
   if (process.env.BILLING_DISABLED === 'true') {
     const definition = getTierDefinition('max');
-    return { tier: 'max', modules: definition.modules, limits: definition.limits };
+    return { tier: 'max', modules: definition.modules, limits: definition.limits, capabilities: definition.capabilities };
   }
 
   const subscriptions = await prisma.subscription.findMany({

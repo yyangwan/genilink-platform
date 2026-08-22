@@ -11,6 +11,7 @@ export type UsageFeature =
   | 'pdf_export'
   | 'content_generation'
   | 'content_optimization'
+  | 'seo_optimization'
   | 'content_score'
   | 'calendar_item';
 
@@ -21,6 +22,7 @@ const FEATURE_LIMIT_KEYS: Record<UsageFeature, TierLimitKey> = {
   pdf_export: 'pdfExportsPerMonth',
   content_generation: 'contentGenerationsPerMonth',
   content_optimization: 'contentOptimizationsPerMonth',
+  seo_optimization: 'seoOptimizationsPerMonth',
   content_score: 'contentScoresPerMonth',
   calendar_item: 'calendarItemsPerMonth',
 };
@@ -32,6 +34,7 @@ const FEATURE_LABELS: Record<UsageFeature, string> = {
   pdf_export: 'PDF 报告导出',
   content_generation: '内容生成',
   content_optimization: '内容优化',
+  seo_optimization: 'SEO 优化',
   content_score: '内容评分',
   calendar_item: '内容日历排期',
 };

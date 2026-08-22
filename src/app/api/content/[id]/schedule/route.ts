@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     try {
       return NextResponse.json({ data: await getContentSchedule(ctx, id) });
     } catch (err) { return handleProxyError(err); }
-  }, { action: 'read' })(req);
+  }, { action: 'read', capability: 'contentCalendar' })(req);
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (err instanceof PlanLimitError) return planLimitResponse(err);
       return handleProxyError(err);
     }
-  }, { action: 'write' })(req);
+  }, { action: 'write', capability: 'contentCalendar' })(req);
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -44,5 +44,5 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       await deleteContentSchedule(ctx, id);
       return NextResponse.json({ success: true });
     } catch (err) { return handleProxyError(err); }
-  }, { action: 'write' })(req);
+  }, { action: 'write', capability: 'contentCalendar' })(req);
 }

@@ -41,7 +41,7 @@ describe('requireBilling', () => {
     ]);
 
     // Should resolve without throwing
-    await expect(requireBilling(userId, workspaceId, module)).resolves.toBeUndefined();
+    await expect(requireBilling(userId, workspaceId, module)).resolves.toMatchObject({ tier: 'lite' });
   });
 
   it('should not throw when subscription is trialing', async () => {
@@ -49,7 +49,7 @@ describe('requireBilling', () => {
       { module: 'suite', billingPlan: { key: 'suite-lite-monthly' } },
     ]);
 
-    await expect(requireBilling(userId, workspaceId, module)).resolves.toBeUndefined();
+    await expect(requireBilling(userId, workspaceId, module)).resolves.toMatchObject({ tier: 'lite' });
   });
 
   it('should throw BillingError when subscription is past_due', async () => {

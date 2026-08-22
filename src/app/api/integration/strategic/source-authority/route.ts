@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
 
 export async function GET(req: NextRequest) {
-  const result = await resolveGuard(req);
+  const result = await resolveGuard(req, { capability: 'sourceAuthority' });
   if (!result.ok) return result.response;
 
   const auditId = req.nextUrl.searchParams.get('auditId');

@@ -14,9 +14,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { id } = await params;
     const { projectId, ...payload } = await req.json();
     try {
-      await assertMonthlyUsageQuota(ctx.userId, ctx.workspaceId, 'content_optimization');
+      await assertMonthlyUsageQuota(ctx.userId, ctx.workspaceId, 'seo_optimization');
       const data = await optimizeContentSeo(ctx, id, payload);
-      await recordMonthlyUsage(ctx.userId, ctx.workspaceId, 'content_optimization', 1, {
+      await recordMonthlyUsage(ctx.userId, ctx.workspaceId, 'seo_optimization', 1, {
         projectId: ctx.projectId,
         contentId: id,
       });

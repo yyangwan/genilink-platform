@@ -4,6 +4,7 @@ import {
   SUBSCRIPTION_TIERS,
   getTierDefinition,
   getTierFromPlanKey,
+  hasCapabilityLevel,
   isUpgrade,
 } from '@/lib/billing/tiers';
 import { resolveBillingAccess } from '@/lib/billing/access';
@@ -50,8 +51,9 @@ describe('subscription tiers', () => {
     expect(lite.limits.projects).toBeLessThan(pro.limits.projects);
     expect(lite.limits.contentGenerationsPerMonth).toBeLessThan(pro.limits.contentGenerationsPerMonth);
     expect(lite.limits.contentOptimizationsPerMonth).toBeGreaterThan(0);
+    expect(lite.limits.seoOptimizationsPerMonth).toBe(10);
     expect(lite.limits.contentScoresPerMonth).toBeGreaterThan(0);
-    expect(lite.limits.calendarItemsPerMonth).toBe(0);
+    expect(lite.limits.calendarItemsPerMonth).toBe(10);
     expect(lite.limits.compareRunsPerMonth).toBe(0);
   });
 
@@ -68,7 +70,7 @@ describe('subscription tiers', () => {
   it('derives every numeric pricing row from the enforced tier limits', () => {
     const numericRows = SUBSCRIPTION_PLAN_MATRIX.flatMap((group) => group.rows).filter((row) => row.limitKey);
 
-    expect(numericRows).toHaveLength(16);
+    expect(numericRows).toHaveLength(17);
     for (const row of numericRows) {
       for (const tier of SUBSCRIPTION_TIERS) {
         const limit = tier.limits[row.limitKey!];
@@ -77,15 +79,30 @@ describe('subscription tiers', () => {
     }
   });
 
-  it('uses canonical capability descriptions in the shared pricing matrix', () => {
+  it('publishes the complete canonical pricing matrix', () => {
     const rows = SUBSCRIPTION_PLAN_MATRIX.flatMap((group) => group.rows);
-    const contentScope = rows.find((row) => row.label === '智创功能范围');
-    const integrations = rows.find((row) => row.label === '开放接口与系统集成');
+    const row = (label: string) => rows.find((item) => item.label === label)?.values;
 
-    for (const tier of SUBSCRIPTION_TIERS) {
-      expect(contentScope?.values[tier.key]).toBe(tier.contentScope);
-      expect(integrations?.values[tier.key]).toBe(tier.integrationStatus);
-    }
+    expect(rows).toHaveLength(33);
+    expect(row('月付价格')).toEqual({ lite: '¥99/月', pro: '¥399/月', max: '¥1299/月' });
+    expect(row('年付价格')).toEqual({ lite: '¥999/年', pro: '¥3999/年', max: '¥12999/年' });
+    expect(row('AI 可见性审计')).toEqual({ lite: '3 次/月', pro: '30 次/月', max: '200 次/月' });
+    expect(row('审计报告')).toEqual({ lite: '基础报告', pro: '完整报告', max: '高级报告' });
+    expect(row('趋势历史')).toEqual({ lite: '最近 30 天', pro: '最近 12 个月', max: '最近 24 个月' });
+    expect(row('战略智能')).toEqual({ lite: '不支持', pro: '基础版', max: '完整版' });
+    expect(row('内容创作')).toEqual({ lite: '10 篇/月', pro: '100 篇/月', max: '500 篇/月' });
+    expect(row('SEO 优化')).toEqual({ lite: '10 次/月', pro: '200 次/月', max: '1000 次/月' });
+    expect(row('内容日历')).toEqual({ lite: '基础版', pro: '完整版', max: '完整版' });
+    expect(row('平台配置')).toEqual({ lite: '基础配置', pro: '完整配置', max: '完整配置' });
+    expect(row('开放接口与系统集成')).toEqual({ lite: '不支持', pro: '不支持', max: '暂未开放' });
+    expect(row('客户支持')).toEqual({ lite: '标准支持', pro: '标准支持', max: '优先支持' });
+  });
+
+  it('enforces capability levels by tier', () => {
+    expect(hasCapabilityLevel(getTierDefinition('lite').capabilities.strategicIntelligence)).toBe(false);
+    expect(hasCapabilityLevel(getTierDefinition('pro').capabilities.strategicIntelligence)).toBe(true);
+    expect(hasCapabilityLevel(getTierDefinition('pro').capabilities.strategicIntelligence, 'full')).toBe(false);
+    expect(hasCapabilityLevel(getTierDefinition('max').capabilities.strategicIntelligence, 'full')).toBe(true);
   });
 
   it('does not grant access to retired module-only plans', () => {
