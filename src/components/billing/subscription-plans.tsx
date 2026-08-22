@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, Check, ShieldCheck, X } from 'lucide-react';
+import { ArrowRight, BookOpenText, Check, ShieldCheck, X } from 'lucide-react';
 import type { BillingCycle, SubscriptionTier } from '@/types/billing';
 import { SUBSCRIPTION_PLAN_MATRIX, SUBSCRIPTION_TIERS, getTierDefinition } from '@/lib/billing/tiers';
 import { formatSubscriptionPrice, type SubscriptionPlanView } from './subscription-plan-content';
@@ -17,16 +17,16 @@ type Props = {
   getPlanHref?: (planKey: string, tier: SubscriptionTier) => string;
 };
 
-function MatrixValue({ value }: { value: string }) {
+function MatrixValue({ value, tierName }: { value: string; tierName: string }) {
   if (value === '不支持') {
     return (
-      <strong className={styles.matrixUnsupported} aria-label="不支持" title="不支持">
+      <strong className={styles.matrixUnsupported} data-tier={tierName} aria-label="不支持" title="不支持">
         <X size={18} strokeWidth={2.4} aria-hidden="true" />
       </strong>
     );
   }
 
-  return <strong>{value}</strong>;
+  return <strong data-tier={tierName}>{value}</strong>;
 }
 
 export function LandingSubscriptionPlans({
@@ -138,6 +138,17 @@ export function LandingSubscriptionPlans({
         })}
       </div>
 
+      <div className={styles.guideCallout}>
+        <div>
+          <span><BookOpenText size={16} />套餐权益说明</span>
+          <p>不确定基础版、完整版和高级版有什么区别？查看额度计算、报告范围与功能边界。</p>
+        </div>
+        <Link href="/pricing-guide" className={styles.guideLink}>
+          查看详细说明
+          <ArrowRight size={16} />
+        </Link>
+      </div>
+
       <div className={styles.matrix} aria-label="套餐功能范围对比">
         <div className={styles.matrixHeader}>
           <span>功能范围</span>
@@ -153,7 +164,7 @@ export function LandingSubscriptionPlans({
               <div key={row.label} className={styles.matrixRow}>
                 <span>{row.label}</span>
                 {SUBSCRIPTION_TIERS.map((tier) => (
-                  <MatrixValue key={tier.key} value={row.values[tier.key]} />
+                  <MatrixValue key={tier.key} value={row.values[tier.key]} tierName={tier.name} />
                 ))}
               </div>
             ))}

@@ -9,7 +9,7 @@ const VISIBILITY_ROUTES = ['/visibility', '/audits', '/schedules', '/suggestions
 
 // Routes that require 'content' module subscription
 const CONTENT_ROUTES = ['/content'];
-const PUBLIC_ROUTES = ['/', '/faq', '/support', '/terms', '/privacy', '/blog'];
+const PUBLIC_ROUTES = ['/', '/faq', '/pricing-guide', '/support', '/terms', '/privacy', '/blog'];
 
 function requiresModule(pathname: string): string | null {
   if (BASE_ROUTES.some((r) => pathname === r || pathname.startsWith(r + '/'))) return null;

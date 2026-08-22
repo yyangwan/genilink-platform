@@ -19,5 +19,6 @@ describe('LandingSubscriptionPlans', () => {
     expect(unsupportedCells.every((cell) => cell.querySelector('svg'))).toBe(true);
     expect(screen.queryByText('不支持')).toBeNull();
     expect(screen.getByText('暂未开放')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /查看详细说明/ }).getAttribute('href')).toBe('/pricing-guide');
   });
 });

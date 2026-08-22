@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { BrandMark } from "@/components/brand/brand-mark";
 
 type WechatQRState = {
   url: string;
@@ -212,16 +213,10 @@ function LoginContent() {
     <div className="w-full max-w-[340px]">
       {/* Brand header for mobile (brand panel is hidden on mobile in layout) */}
       <div className="md:hidden flex flex-col items-center mb-6">
-        <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold mb-2"
-          style={{
-            background: "var(--color-primary-dim)",
-            color: "var(--color-primary)",
-            fontFamily: "var(--font-display)",
-          }}
-        >
-          智
-        </div>
+        <BrandMark
+          className="w-12 h-12 rounded-xl flex items-center justify-center mb-2 [&_svg]:w-9 [&_svg]:h-9"
+          signature
+        />
         <span
           className="text-lg font-semibold tracking-tight"
           style={{
@@ -250,7 +245,7 @@ function LoginContent() {
           fontFamily: "var(--font-body)",
         }}
       >
-        中国GEO全链路平台
+        全链路 AI 搜索增长平台
       </p>
 
       {/* Error banner */}

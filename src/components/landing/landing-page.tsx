@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 
 import styles from "./landing-page.module.css";
+import { BrandMark } from "@/components/brand/brand-mark";
 import { LandingSubscriptionPlans } from "@/components/billing/subscription-plans";
 import type { SubscriptionPlanView } from "@/components/billing/subscription-plan-content";
 import type { BillingCycle } from "@/types/billing";
@@ -82,6 +83,23 @@ const productModules = [
     focus: { x: "19%", y: "22%", width: "78%", height: "51%" },
   },
   {
+    id: "compare",
+    image: "/landing/screens/competitor-analysis.png",
+    icon: BarChart3,
+    label: "竞品分析",
+    title: "用同一套问题比较你和竞品的 AI 表现",
+    body: "识别竞品在哪些平台更常被提及、哪些内容更容易被推荐，以及你的品牌应该优先追赶哪些主题。",
+    metric: "2.4x",
+    metricLabel: "竞品差距",
+    rows: [
+      ["自有品牌", "42", "直接提及"],
+      ["竞品 A", "67", "平台覆盖领先"],
+      ["竞品 B", "55", "案例引用更多"],
+    ],
+    demoMode: "chart",
+    focus: { x: "19%", y: "16%", width: "78%", height: "39%" },
+  },
+  {
     id: "content",
     image: "/landing/screens/content-insights.png",
     icon: Sparkles,
@@ -132,24 +150,15 @@ const productModules = [
     demoMode: "calendar",
     focus: { x: "19%", y: "16%", width: "78%", height: "63%" },
   },
-  {
-    id: "compare",
-    image: "/landing/screens/competitor-analysis.png",
-    icon: BarChart3,
-    label: "竞品分析",
-    title: "用同一套问题比较你和竞品的 AI 表现",
-    body: "识别竞品在哪些平台更常被提及、哪些内容更容易被推荐，以及你的品牌应该优先追赶哪些主题。",
-    metric: "2.4x",
-    metricLabel: "竞品差距",
-    rows: [
-      ["自有品牌", "42", "直接提及"],
-      ["竞品 A", "67", "平台覆盖领先"],
-      ["竞品 B", "55", "案例引用更多"],
-    ],
-    demoMode: "chart",
-    focus: { x: "19%", y: "16%", width: "78%", height: "39%" },
-  },
 ];
+
+const aiPlatforms = [
+  { name: "DeepSeek", icon: "/platform-icons/deepseek.ico" },
+  { name: "Kimi", icon: "/platform-icons/kimi.ico" },
+  { name: "通义千问", icon: "/platform-icons/qwen.png" },
+  { name: "豆包", icon: "/platform-icons/doubao.png" },
+  { name: "腾讯元宝", icon: "/platform-icons/yuanbao.png" },
+] as const;
 
 type PricingOverview = {
   plans: SubscriptionPlanView[];
@@ -303,10 +312,11 @@ export function LandingPage() {
         <div className={styles.heroCopy}>
           <div className={styles.eyebrow}>
             <ShieldCheck size={16} />
-            面向中国 B2B 团队的 AI 搜索增长平台
+            面向个人、小团队与规模化运营团队
           </div>
-          <h1>
-            智链 AI 搜索增长平台
+          <h1 aria-label="智链 · 全链路 AI 搜索增长平台">
+            智链<span className={styles.heroTitleSeparator} aria-hidden="true" />
+            <span className={styles.heroTitleSubtitle}>全链路 AI 搜索增长平台</span>
           </h1>
           <p className={styles.lede}>
             让你的官网成为<span className={styles.nowrap}>AI答案</span>里的可信来源。
@@ -341,9 +351,20 @@ export function LandingPage() {
               <strong>7</strong>
               类官网诊断指标
             </span>
-            <span>
-              <strong>5+</strong>
-              主流 AI 平台检测
+            <span className={styles.platformStat}>
+              <span className={styles.platformIcons} aria-hidden="true">
+                {aiPlatforms.map((platform) => (
+                  <i
+                    key={platform.name}
+                    style={{ "--platform-icon": `url(${platform.icon})` } as CSSProperties}
+                  />
+                ))}
+              </span>
+              <span className={styles.platformStatCopy}>
+                <strong>5+</strong>
+                主流 AI 平台检测
+              </span>
+              <span className={styles.srOnly}>{aiPlatforms.map((platform) => platform.name).join("、")}</span>
             </span>
             <span>
               <strong>24h</strong>
@@ -429,7 +450,7 @@ export function LandingPage() {
       <footer id="questions" className={styles.footer}>
         <div className={styles.footerLead}>
           <BrandLockup />
-          <p>让中国 B2B 品牌在 AI 答案里被理解、被引用、被选择。</p>
+          <p>让您的品牌在 AI 答案里被理解、被引用、被选择。</p>
           <Link href={registerHref} className={styles.footerPrimaryLink}>
             开始免费诊断
             <ArrowRight size={15} />
@@ -445,6 +466,7 @@ export function LandingPage() {
           <div>
             <strong>资源</strong>
             <Link href="/blog">知识文章</Link>
+            <Link href="/pricing-guide">套餐权益说明</Link>
             <Link href="/support">帮助支持</Link>
             <a href="mailto:support@genilink.cn">联系我们</a>
           </div>
@@ -457,7 +479,7 @@ export function LandingPage() {
         <div className={styles.footerBottom}>
           <span>© 2026 GeniLink 智链</span>
           <span className={styles.serviceStatus}><i />平台服务正常</span>
-          <span>为中国 B2B 增长团队打造</span>
+          <span>为个人与规模化团队打造</span>
         </div>
       </footer>
     </main>
@@ -581,18 +603,10 @@ function ProductShot({
 function BrandLockup() {
   return (
     <Link href="/" className={styles.brand} aria-label="智链首页">
-      <span className={styles.brandMark} aria-hidden="true">
-        <svg viewBox="0 0 44 44" role="img">
-          <path d="M12 14.5h12.5c4.2 0 7.5 3.3 7.5 7.5s-3.3 7.5-7.5 7.5H20" />
-          <path d="M23.5 10.5 12 22l11.5 11.5" />
-          <circle cx="12" cy="14.5" r="2.2" />
-          <circle cx="12" cy="29.5" r="2.2" />
-          <circle cx="32" cy="22" r="2.2" />
-        </svg>
-      </span>
+      <BrandMark className={styles.brandMark} />
       <span className={styles.brandType}>
         <strong>智链</strong>
-        <small>GENILINK · AI SEARCH</small>
+        <small>全链路 AI 搜索增长平台</small>
       </span>
     </Link>
   );

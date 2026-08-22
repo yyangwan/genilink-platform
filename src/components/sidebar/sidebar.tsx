@@ -35,6 +35,7 @@ import {
   Globe2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BrandMark } from "@/components/brand/brand-mark";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const SIDEBAR_WIDTH = "220px";
@@ -258,16 +259,10 @@ export default function Sidebar() {
       {/* Brand header */}
       <div className="flex items-center justify-between px-5 h-16 shrink-0">
         <div className="flex items-center gap-2.5">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold"
-            style={{
-              background: "var(--color-primary-dim)",
-              color: "var(--color-primary)",
-              fontFamily: "var(--font-display)",
-            }}
-          >
-            智
-          </div>
+          <BrandMark
+            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 [&_svg]:w-6 [&_svg]:h-6"
+            signature
+          />
           <span
             className="text-base font-semibold tracking-tight"
             style={{

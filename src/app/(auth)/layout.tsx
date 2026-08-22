@@ -1,4 +1,5 @@
 import React from "react";
+import { BrandMark } from "@/components/brand/brand-mark";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -28,16 +29,10 @@ export default function AuthLayout({
             background: "linear-gradient(135deg, var(--bg-elevated) 0%, var(--bg-card) 100%)",
           }}
         >
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold mb-4"
-            style={{
-              background: "var(--color-primary-dim)",
-              color: "var(--color-primary)",
-              fontFamily: "var(--font-display)",
-            }}
-          >
-            智
-          </div>
+          <BrandMark
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 [&_svg]:w-12 [&_svg]:h-12"
+            signature
+          />
           <h1
             className="text-xl font-semibold tracking-tight mb-2"
             style={{
@@ -54,9 +49,9 @@ export default function AuthLayout({
               fontFamily: "var(--font-body)",
             }}
           >
-            中国GEO全链路平台
+            全链路 AI 搜索增长平台
             <br />
-            AI搜索可见性 + 内容创作
+            从可见性诊断到内容增长
           </p>
         </div>
 

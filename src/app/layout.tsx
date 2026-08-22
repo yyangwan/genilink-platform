@@ -3,8 +3,8 @@ import Providers from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "智链 — GEO全链路平台",
-  description: "AI搜索可见性追踪 + 内容创作 + 统一管理平台",
+  title: "智链 · 全链路 AI 搜索增长平台",
+  description: "从 AI 搜索可见性诊断、竞品分析到内容创作与排期的统一增长平台",
 };
 
 const themeScript = `
