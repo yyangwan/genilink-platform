@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Billing 独立收银台 v1 已实现并提交 (461eec1, spec: docs/billing-checkout-implementation-spec.md)：335 测试全过、本地 smoke test 全过、迁移链已补齐可重放。下一步: M5 真实小额支付验证 + 代扣审批后开启自动续期；Phase 7 E2E 仍待做。进度: `~/.gstack/projects/genilink-platform/progress.md`
+Billing 审查整改已完成并提交 (7a8b5c7, 方案: docs/billing-checkout-review-remediation-plan.md v1.1)：9 项 P1 全部修复，tsc/lint/352 测试/build 全绿，幂等作用域迁移已应用。待办: 二次审查 → 生产演练 (先跑 scripts/billing-premigration-check.sh) → 真实小额支付验证 → 渠道代扣审批后实施阶段四。进度: `~/.gstack/projects/genilink-platform/progress.md`
 
 ## ContentOS JWT Integration (done)
 
