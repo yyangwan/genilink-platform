@@ -287,7 +287,11 @@ export async function createPaymentAttempt(params: {
   // ─── After commit: channel call, then mark opened/failed ──────────────────
   if (supersededAttempt) {
     try {
-      const closeResult = await adapter.closePayment({ orderId: supersededAttempt.id });
+      // The replacement may use a different channel. Always close/query the
+      // old order through the adapter that originally created it.
+      const supersededProvider = supersededAttempt.provider as BillingProvider;
+      const supersededAdapter = getAdapter(supersededProvider);
+      const closeResult = await supersededAdapter.closePayment({ orderId: supersededAttempt.id });
       if (closeResult.outcome === 'already_paid') {
         // The replaced attempt was actually paid at the channel — reconcile it
         // instead of losing the money (remediation §4.1).
@@ -295,12 +299,12 @@ export async function createPaymentAttempt(params: {
           paymentOrderId: supersededAttempt.id,
           provider: supersededAttempt.provider,
         });
-        await reconcileSupersededPaidAttempt(supersededAttempt.id, params.provider);
+        await reconcileSupersededPaidAttempt(supersededAttempt.id, supersededProvider);
       }
     } catch (error) {
       billingLog('payment_close_failed', {
         paymentOrderId: supersededAttempt.id,
-        provider: params.provider,
+        provider: supersededAttempt.provider,
         errorCode: (error as Error).message,
       });
     }
@@ -385,7 +389,7 @@ export async function reconcilePaidAttemptByQuery(params: {
   orderId: string;
   provider: BillingProvider;
   eventReason: string;
-}): Promise<'reconciled' | 'not_paid' | 'order_missing'> {
+}): Promise<'reconciled' | 'amount_missing' | 'not_paid' | 'order_missing'> {
   const adapter = getAdapter(params.provider);
   const query = await adapter.queryPayment({ orderId: params.orderId });
   const paid =
@@ -396,6 +400,41 @@ export async function reconcilePaidAttemptByQuery(params: {
   if (!order) return 'order_missing';
 
   const eventId = `${params.eventReason}:${params.orderId}:${query.providerTransactionId ?? 'unknown'}`;
+
+  // Fail-closed on amount (second-review finding 7): a success confirmation
+  // without a channel-reported amount must NOT activate anything — park it
+  // for review instead of trusting the local order amount.
+  if (query.amountCents === null || query.currency === null || query.currency !== order.currency) {
+    await prisma.paymentEvent.upsert({
+      where: { providerEventId: eventId },
+      create: {
+        provider: params.provider,
+        providerEventId: eventId,
+        eventType: 'PAYMENT_CONFIRMED_BY_ACTIVE_QUERY',
+        status: 'requires_review',
+        signatureVerified: true,
+        payload: {
+          reason: params.eventReason,
+          orderId: params.orderId,
+          providerTransactionId: query.providerTransactionId,
+          status: query.status,
+          amountCents: null,
+          currency: query.currency,
+          issue: 'channel query returned incomplete or mismatched financial data',
+        } as Prisma.InputJsonValue,
+        processedAt: new Date(),
+      },
+      update: {},
+    });
+    billingLog('payment_close_check_amount_missing', {
+      paymentOrderId: params.orderId,
+      provider: params.provider,
+      eventReason: params.eventReason,
+      currency: query.currency,
+    });
+    return 'amount_missing';
+  }
+
   await prisma.paymentEvent.upsert({
     where: { providerEventId: eventId },
     create: {
@@ -410,6 +449,7 @@ export async function reconcilePaidAttemptByQuery(params: {
         providerTransactionId: query.providerTransactionId,
         status: query.status,
         amountCents: query.amountCents,
+        currency: query.currency,
       } as Prisma.InputJsonValue,
     },
     update: {},
@@ -420,7 +460,7 @@ export async function reconcilePaidAttemptByQuery(params: {
     paymentOrderId: params.orderId,
     provider: params.provider,
     providerTransactionId: query.providerTransactionId,
-    amountCents: query.amountCents ?? order.amountCents,
+    amountCents: query.amountCents,
     paidAt: query.paidAt,
   });
   return 'reconciled';
@@ -479,6 +519,8 @@ export async function closeExpiredSessionOrders(
         });
         if (outcome === 'reconciled') {
           reconciled += 1;
+        } else if (outcome === 'amount_missing') {
+          failed += 1;
         } else {
           closed += 1;
         }

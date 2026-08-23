@@ -58,6 +58,9 @@ export type QueryPaymentResult = {
   /** Channel-confirmed amount in cents, when the query response carries it —
    * used by watchdog/close-check reconciliation (remediation §4.1/§4.4). */
   amountCents: number | null;
+  /** Currency reported by the provider query. Successful active-query
+   * reconciliation must fail closed when it is absent or mismatched. */
+  currency: string | null;
 };
 
 export type RawWebhookInput = {

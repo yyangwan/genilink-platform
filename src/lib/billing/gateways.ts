@@ -504,6 +504,7 @@ export async function queryAlipayTrade(outTradeNo: string): Promise<{
   providerTransactionId: string | null;
   paidAt: Date | null;
   amountCents: number | null;
+  currency: string | null;
 }> {
   const result = await callAlipayOpenApi({
     method: 'alipay.trade.query',
@@ -511,7 +512,7 @@ export async function queryAlipayTrade(outTradeNo: string): Promise<{
   });
   if (!result.ok) {
     if (result.subCode === 'ACQ.TRADE_NOT_EXIST') {
-      return { status: null, providerTransactionId: null, paidAt: null, amountCents: null };
+      return { status: null, providerTransactionId: null, paidAt: null, amountCents: null, currency: null };
     }
     throw new Error(`Alipay trade.query failed: ${result.code} ${result.subCode ?? ''}`);
   }
@@ -523,5 +524,6 @@ export async function queryAlipayTrade(outTradeNo: string): Promise<{
     providerTransactionId: typeof result.data.trade_no === 'string' ? result.data.trade_no : null,
     paidAt: sendPayDate ? new Date(sendPayDate.replace('+08:00', 'Z').replace(' ', 'T')) : null,
     amountCents: Number.isFinite(totalAmount) ? Math.round(totalAmount * 100) : null,
+    currency: 'CNY',
   };
 }

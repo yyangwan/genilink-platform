@@ -287,10 +287,13 @@ export async function reserveRedemption(
   });
 
   if (existing) {
-    // Refresh the reservation with the re-validated discount.
+    // Refresh the reservation with the re-validated discount. couponId is
+    // repointed too: after remove → re-apply the row may still reference the
+    // OLD coupon, which corrupts promotion-level caps across promotions
+    // (second-review finding 4).
     await tx.couponRedemption.update({
       where: { id: existing.id },
-      data: { discountCents: quote.discountCents, status: 'reserved' },
+      data: { couponId: coupon.id, discountCents: quote.discountCents, status: 'reserved' },
     });
   } else {
     await tx.couponRedemption.create({

@@ -128,7 +128,7 @@ export const wechatPayAdapter: PaymentProviderAdapter = {
         },
       });
       if (!response.ok) {
-        return { status: null, providerTransactionId: null, paidAt: null, amountCents: null };
+        return { status: null, providerTransactionId: null, paidAt: null, amountCents: null, currency: null };
       }
       const data = (await response.json()) as {
         trade_state?: string;
@@ -146,9 +146,10 @@ export const wechatPayAdapter: PaymentProviderAdapter = {
             : typeof data.amount?.total === 'number'
               ? data.amount.total
               : null,
+        currency: data.amount?.currency ?? null,
       };
     } catch {
-      return { status: null, providerTransactionId: null, paidAt: null, amountCents: null };
+      return { status: null, providerTransactionId: null, paidAt: null, amountCents: null, currency: null };
     }
   },
 

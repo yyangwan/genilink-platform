@@ -377,8 +377,9 @@ describe('reconcileCheckoutPayment (spec §11.2, single transaction)', () => {
     const outcome = await callReconcile({ paymentEventId: 'event-2', paymentOrderId: 'order-2' });
     expect(outcome).toBe('duplicate_success_anomaly');
     const { db } = stateful.current;
-    expect(db.orders[1].status).toBe('opened'); // not marked paid
+    expect(db.orders[1].status).toBe('paid'); // channel fact is retained for refund/review
     expect(db.subscriptions).toHaveLength(0);
+    expect(db.events[0].status).toBe('requires_review');
   });
 
   it('extends from the existing period end for manual renewals — never shortens (spec §11.2)', async () => {
@@ -462,9 +463,70 @@ describe('reconcileCheckoutPayment (spec §11.2, single transaction)', () => {
     const { db } = stateful.current;
     expect(db.orders[0].status).toBe('paid');
     expect(db.sessions[0].status).toBe('requires_review');
-    expect(db.redemptions[0].status).toBe('redeemed');
     expect(db.subscriptions).toHaveLength(0); // never auto-activated
     expect(db.events[0].status).toBe('requires_review');
+  });
+
+  it('reconciles a late paid webhook even after the close-sweep marked the order expired (second-review finding 1)', async () => {
+    stateful.current = createDb({
+      // The sweep already closed the channel order and marked it expired
+      // locally — the user paid at the same moment.
+      orders: [seedOrder({ status: 'expired', closedAt: paidAt })],
+      sessions: [seedSession({ status: 'expired' })],
+      redemptions: [{ ...REDEMPTION }],
+      events: [{ providerEventId: 'event-1', status: 'received' }],
+    });
+
+    const outcome = await callReconcile();
+    expect(outcome).toBe('late_success_requires_review');
+    const { db } = stateful.current;
+    expect(db.orders[0].status).toBe('paid'); // channel fact recorded, no throw
+    expect(db.sessions[0].status).toBe('requires_review');
+    // Coupon stays reserved until the review outcome (no premature burn).
+    expect(db.redemptions[0].status).toBe('reserved');
+    expect(db.subscriptions).toHaveLength(0);
+  });
+
+  it('records a pending order paid after its checkout expired', async () => {
+    stateful.current = createDb({
+      orders: [seedOrder({ status: 'pending' })],
+      sessions: [seedSession({ status: 'expired' })],
+      events: [{ providerEventId: 'event-1', status: 'received' }],
+    });
+
+    const outcome = await callReconcile();
+    expect(outcome).toBe('late_success_requires_review');
+    expect(stateful.current.db.orders[0].status).toBe('paid');
+    expect(stateful.current.db.sessions[0].status).toBe('requires_review');
+  });
+
+  it('parks a superseded canceled attempt that is paid while its replacement is open', async () => {
+    stateful.current = createDb({
+      orders: [seedOrder({ status: 'canceled', closedAt: paidAt })],
+      sessions: [seedSession({ status: 'processing' })],
+      redemptions: [{ ...REDEMPTION }],
+      events: [{ providerEventId: 'event-1', status: 'received' }],
+    });
+
+    const outcome = await callReconcile();
+    expect(outcome).toBe('late_success_requires_review');
+    expect(stateful.current.db.orders[0].status).toBe('paid');
+    expect(stateful.current.db.sessions[0].status).toBe('requires_review');
+    expect(stateful.current.db.subscriptions).toHaveLength(0);
+  });
+
+  it('rejects a callback whose channel does not match the stored order', async () => {
+    stateful.current = createDb({
+      orders: [seedOrder({ provider: 'wechatpay' })],
+      sessions: [seedSession()],
+      events: [{ providerEventId: 'event-1', status: 'received' }],
+    });
+
+    const outcome = await callReconcile({ provider: 'alipay' });
+    expect(outcome).toBe('provider_mismatch');
+    expect(stateful.current.db.orders[0].status).toBe('opened');
+    expect(stateful.current.db.sessions[0].status).toBe('processing');
+    expect(stateful.current.db.events[0].status).toBe('rejected');
   });
 
   it('rejects a success event with a missing amount instead of trusting it (remediation §4.9)', async () => {
@@ -620,6 +682,27 @@ describe('webhook route dispatch (remediation §4.3/§4.9)', () => {
     expect(db.orders[0].status).toBe('paid');
     expect(db.attempts[0].status).toBe('succeeded');
     expect(db.subscriptions[0].currentPeriodEnd.toISOString()).toBe('2028-08-01T00:00:00.000Z');
+  });
+
+  it('acks an already processed event without resetting or reconciling it again', async () => {
+    vi.stubEnv('WECHATPAY_MCH_ID', 'mch-1');
+    vi.stubEnv('WECHATPAY_APP_ID', 'wx-app');
+    stateful.current = renewalDbSeed();
+    stateful.current.db.events.push({
+      providerEventId: 'evt-renewal-duplicate',
+      status: 'processed',
+      processedAt: paidAt,
+    });
+
+    const response = await postWechatWebhook({
+      id: 'evt-renewal-duplicate',
+      event_type: 'TRANSACTION.SUCCESS',
+      resource: { ciphertext: 'x', nonce: 'y' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(stateful.current.db.events[0].status).toBe('processed');
+    expect(stateful.current.db.orders[0].status).toBe('processing');
   });
 
   it('permanently rejects a success event whose merchant identity mismatches (remediation §4.9)', async () => {

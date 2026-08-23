@@ -112,11 +112,13 @@ export type ReconcileOutcome =
   | 'activated'
   | 'already_paid'
   | 'amount_mismatch'
+  | 'provider_mismatch'
   | 'duplicate_success_anomaly'
   | 'late_success_requires_review'
   | 'order_not_found'
   | 'renewal_activated'
-  | 'renewal_already_processed';
+  | 'renewal_already_processed'
+  | 'renewal_late_success_requires_review';
 
 export async function reconcileCheckoutPayment(params: {
   paymentEventId: string;
@@ -142,6 +144,19 @@ export async function reconcileCheckoutPayment(params: {
       if (!order) {
         await markEvent(tx, params.paymentEventId, 'ignored', null);
         return 'order_not_found';
+      }
+
+      // A signed callback from one channel must never settle an order created
+      // through another channel, even when the merchant order id is valid.
+      if (order.provider !== params.provider) {
+        billingLog('alert', {
+          eventType: 'payment_provider_mismatch',
+          paymentOrderId: order.id,
+          expected: order.provider,
+          received: params.provider,
+        });
+        await markEvent(tx, params.paymentEventId, 'rejected', order.id);
+        return 'provider_mismatch';
       }
 
       // Renewal orders follow their own reconciliation (spec §12.5).
@@ -180,26 +195,6 @@ export async function reconcileCheckoutPayment(params: {
         return 'order_not_found';
       }
 
-      // 4. Another attempt already succeeded -> anomaly, do not double-activate
-      //    (spec §11.2 step 4: refund manual queue — logged in v1).
-      if (session.status === 'completed') {
-        billingLog('refund_queue', {
-          eventType: 'duplicate_success_payment',
-          checkoutSessionId: session.id,
-          paymentOrderId: order.id,
-          provider: params.provider,
-          providerTransactionId: params.providerTransactionId,
-          amountCents: params.amountCents,
-          reason: 'second paid attempt for completed checkout session',
-        });
-        billingMetric('billing_payment_success_total', {
-          checkoutSessionId: session.id,
-          anomaly: 'duplicate_success',
-        });
-        await markEvent(tx, params.paymentEventId, 'processed', order.id);
-        return 'duplicate_success_anomaly';
-      }
-
       const now = params.paidAt ?? new Date();
 
       // 5. Verify the paid amount matches the frozen quote (spec §11.2 step 5).
@@ -225,15 +220,22 @@ export async function reconcileCheckoutPayment(params: {
         return 'amount_mismatch';
       }
 
-      // 4b. Late success after local expiry: the channel captured the money
-      // after we expired the session. Park it for manual completion or refund
-      // instead of failing the transition expired -> completed (remediation §4.1).
-      if (session.status === 'expired' || session.status === 'canceled' || session.status === 'failed') {
+      // Another attempt already completed this checkout. Record the second
+      // channel payment as a financial fact, but never activate twice.
+      if (session.status === 'completed') {
         if (order.status === 'pending') {
           assertPaymentOrderTransition('pending', 'opened');
           await tx.paymentOrder.update({ where: { id: order.id }, data: { status: 'opened' } });
         }
-        assertPaymentOrderTransition(order.status as 'opened' | 'processing', 'paid');
+        assertPaymentOrderTransition(
+          (order.status === 'pending' ? 'opened' : order.status) as
+            | 'opened'
+            | 'processing'
+            | 'expired'
+            | 'canceled'
+            | 'failed',
+          'paid',
+        );
         await tx.paymentOrder.update({
           where: { id: order.id },
           data: {
@@ -242,17 +244,66 @@ export async function reconcileCheckoutPayment(params: {
             providerTransactionId: params.providerTransactionId ?? order.providerTransactionId,
           },
         });
-        assertCheckoutSessionTransition(session.status, 'requires_review');
+        billingLog('refund_queue', {
+          eventType: 'duplicate_success_payment',
+          checkoutSessionId: session.id,
+          paymentOrderId: order.id,
+          provider: params.provider,
+          providerTransactionId: params.providerTransactionId,
+          amountCents: params.amountCents,
+          reason: 'second paid attempt for completed checkout session',
+        });
+        billingMetric('billing_payment_success_total', {
+          checkoutSessionId: session.id,
+          anomaly: 'duplicate_success',
+        });
+        await markEvent(tx, params.paymentEventId, 'requires_review', order.id);
+        return 'duplicate_success_anomaly';
+      }
+
+      // 4b. Late success after local expiry/cancel/failure: the channel
+      // captured the money anyway. The ORDER may itself already be in a local
+      // terminal state (the close-sweep marks it expired/failed) — the paid
+      // transition is legal from every non-refunded state because it is a
+      // channel FACT (second-review finding 1/2). Park the session for manual
+      // completion or refund instead of failing expired -> completed.
+      if (
+        session.status === 'expired' ||
+        session.status === 'canceled' ||
+        session.status === 'failed' ||
+        order.status === 'expired' ||
+        order.status === 'canceled' ||
+        order.status === 'failed'
+      ) {
+        let lateOrderStatus = order.status;
+        if (order.status === 'pending') {
+          assertPaymentOrderTransition('pending', 'opened');
+          await tx.paymentOrder.update({ where: { id: order.id }, data: { status: 'opened' } });
+          lateOrderStatus = 'opened';
+        }
+        assertPaymentOrderTransition(
+          lateOrderStatus as 'opened' | 'processing' | 'expired' | 'canceled' | 'failed',
+          'paid',
+        );
+        await tx.paymentOrder.update({
+          where: { id: order.id },
+          data: {
+            status: 'paid',
+            paidAt: now,
+            providerTransactionId: params.providerTransactionId ?? order.providerTransactionId,
+          },
+        });
+        assertCheckoutSessionTransition(
+          session.status as 'ready' | 'processing' | 'expired' | 'canceled' | 'failed',
+          'requires_review',
+        );
         await tx.checkoutSession.update({
           where: { id: session.id },
           data: { status: 'requires_review' },
         });
-        if (session.redemption && session.redemption.status === 'reserved') {
-          await tx.couponRedemption.update({
-            where: { id: session.redemption.id },
-            data: { status: 'redeemed', redeemedAt: now },
-          });
-        }
+        // The redemption stays 'reserved' (NOT redeemed) until the review
+        // decides completion vs refund — refunding must not burn the
+        // customer's coupon quota (second-review finding 8).
         billingLog('refund_queue', {
           eventType: 'late_success_requires_review',
           checkoutSessionId: session.id,
@@ -261,6 +312,7 @@ export async function reconcileCheckoutPayment(params: {
           providerTransactionId: params.providerTransactionId,
           amountCents: params.amountCents,
           sessionStatus: session.status,
+          orderStatus: order.status,
           reason: 'paid after local session expiry — manual completion or refund required',
         });
         await markEvent(tx, params.paymentEventId, 'requires_review', order.id);
@@ -272,7 +324,8 @@ export async function reconcileCheckoutPayment(params: {
         assertPaymentOrderTransition('pending', 'opened');
         await tx.paymentOrder.update({ where: { id: order.id }, data: { status: 'opened' } });
       }
-      assertPaymentOrderTransition('opened', 'paid');
+      const payableStatus = order.status === 'pending' ? 'opened' : order.status;
+      assertPaymentOrderTransition(payableStatus as 'opened' | 'processing', 'paid');
       await tx.paymentOrder.update({
         where: { id: order.id },
         data: {

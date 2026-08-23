@@ -31,38 +31,51 @@ fail=0
 section "_prisma_migrations applied so far"
 "${PSQL[@]}" -c "SELECT migration_name || '|' || COALESCE(finished_at::text, 'unfinished') FROM _prisma_migrations ORDER BY migration_name;" || exit 2
 
-section "Objects the pending migrations will CREATE (must NOT exist yet)"
-while IFS='|' read -r kind name; do
-  [ -z "$kind" ] && continue
+section "Migration-owned objects"
+while IFS='|' read -r migration kind name; do
+  [ -z "$migration" ] && continue
+  applied=$("${PSQL[@]}" -c "SELECT EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name = '$migration' AND finished_at IS NOT NULL AND rolled_back_at IS NULL);" < /dev/null 2>/dev/null || echo "f")
   exists=$("${PSQL[@]}" -c "SELECT to_regclass('public.\"$name\"') IS NOT NULL;" < /dev/null 2>/dev/null || echo "f")
-  if [ "$exists" = "t" ]; then
-    report "DRIFT: $kind $name already exists in production"
+  if [ "$applied" = "t" ] && [ "$exists" != "t" ]; then
+    report "DRIFT: applied migration $migration is missing $kind $name"
     fail=1
+  elif [ "$applied" != "t" ] && [ "$exists" = "t" ]; then
+    report "DRIFT: unapplied migration $migration already owns existing $kind $name"
+    fail=1
+  elif [ "$applied" = "t" ]; then
+    report "ok: applied $migration owns existing $kind $name"
   else
-    report "ok: $kind $name absent"
+    report "ok: pending $migration will create $kind $name"
   fi
 done <<'OBJECTS'
-table|BillingPlan
-table|PaymentOrder
-table|PaymentEvent
-table|UsageEvent
-table|CheckoutSession
-table|Promotion
-table|Coupon
-table|CouponRedemption
-table|PaymentAgreement
-table|RenewalAttempt
-index|CheckoutSession_userId_workspaceId_idempotencyKey_key
-index|ProjectBrand_projectId_idx
+20260821143000_add_usage_events|table|UsageEvent
+20260821143100_backfill_billing_plans_orders|table|BillingPlan
+20260821143100_backfill_billing_plans_orders|table|PaymentOrder
+20260821143100_backfill_billing_plans_orders|table|PaymentEvent
+20260821143200_add_projectbrand_index|index|ProjectBrand_projectId_idx
+20260822120000_billing_checkout_promotions_renewals|table|CheckoutSession
+20260822120000_billing_checkout_promotions_renewals|table|Promotion
+20260822120000_billing_checkout_promotions_renewals|table|Coupon
+20260822120000_billing_checkout_promotions_renewals|table|CouponRedemption
+20260822120000_billing_checkout_promotions_renewals|table|PaymentAgreement
+20260822120000_billing_checkout_promotions_renewals|table|RenewalAttempt
+20260823100000_checkout_idempotency_owner_scope|index|CheckoutSession_userId_workspaceId_idempotencyKey_key
 OBJECTS
 
 section "Columns the migrations expect to ADD (must NOT exist yet)"
 # CheckoutSession unique constraint replacement (§4.8)
+owner_scope_applied=$("${PSQL[@]}" -c "SELECT EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name = '20260823100000_checkout_idempotency_owner_scope' AND finished_at IS NOT NULL AND rolled_back_at IS NULL);" < /dev/null 2>/dev/null || echo "f")
 old_idx=$("${PSQL[@]}" -c "SELECT to_regclass('public.\"CheckoutSession_idempotencyKey_key\"') IS NOT NULL;" < /dev/null 2>/dev/null || echo "f")
-if [ "$old_idx" = "t" ]; then
-  report "expected: legacy global idempotency index present (will be swapped to owner-scoped)"
+if [ "$owner_scope_applied" = "t" ] && [ "$old_idx" = "t" ]; then
+  report "DRIFT: owner-scoped migration is applied but legacy global index still exists"
+  fail=1
+elif [ "$owner_scope_applied" != "t" ] && [ "$old_idx" = "t" ]; then
+  report "expected: pending owner-scoped migration will replace the legacy global index"
+elif [ "$owner_scope_applied" = "t" ]; then
+  report "ok: legacy global idempotency index removed"
 else
-  report "note: legacy CheckoutSession_idempotencyKey_key not found — verify the 20260822 migration state"
+  report "DRIFT: owner-scoped migration is pending but legacy global index is absent"
+  fail=1
 fi
 
 section "Existing data safety (counts; must be preserved by deploy)"

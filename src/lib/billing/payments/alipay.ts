@@ -93,9 +93,10 @@ export const alipayAdapter: PaymentProviderAdapter = {
         providerTransactionId: result.providerTransactionId,
         paidAt: result.paidAt,
         amountCents: result.amountCents,
+        currency: result.currency,
       };
     } catch {
-      return { status: null, providerTransactionId: null, paidAt: null, amountCents: null };
+      return { status: null, providerTransactionId: null, paidAt: null, amountCents: null, currency: null };
     }
   },
 

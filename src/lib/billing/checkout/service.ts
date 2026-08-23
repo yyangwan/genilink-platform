@@ -413,12 +413,11 @@ function promotionLabel(session: CheckoutSessionRecord): string {
 
 // ─── Coupon apply / remove (spec §8.3/§8.4) ─────────────────────────────────
 
-async function assertModifiable(session: CheckoutSessionRecord): Promise<void> {
+function assertModifiable(session: CheckoutSessionRecord): void {
   if (session.status !== 'ready') {
     throw toBillingError('CHECKOUT_SESSION_NOT_MODIFIABLE', { status: session.status });
   }
   if (session.expiresAt <= new Date()) {
-    await expireSession(session.id);
     throw toBillingError('CHECKOUT_SESSION_EXPIRED');
   }
 }
@@ -433,6 +432,10 @@ export async function applyCouponToSession(params: {
   // the row lock below.
   const owned = await loadOwnedCheckoutSession(params);
   if (!owned) throw toBillingError('NOT_FOUND');
+  if (owned.expiresAt <= new Date()) {
+    await expireSession(owned.id);
+    throw toBillingError('CHECKOUT_SESSION_EXPIRED');
+  }
 
   const now = new Date();
 
@@ -447,7 +450,7 @@ export async function applyCouponToSession(params: {
         include: SESSION_INCLUDE,
       });
       if (!session) throw toBillingError('NOT_FOUND');
-      await assertModifiable(session);
+      assertModifiable(session);
       if (session.expiresAt <= now) throw toBillingError('CHECKOUT_SESSION_EXPIRED');
 
       const coupon = await findCouponByCode(tx, params.code);
@@ -539,6 +542,10 @@ export async function removeCouponFromSession(params: {
 }): Promise<CheckoutSessionRecord> {
   const owned = await loadOwnedCheckoutSession(params);
   if (!owned) throw toBillingError('NOT_FOUND');
+  if (owned.expiresAt <= new Date()) {
+    await expireSession(owned.id);
+    throw toBillingError('CHECKOUT_SESSION_EXPIRED');
+  }
 
   return prisma.$transaction(
     async (tx: Tx) => {
@@ -548,7 +555,7 @@ export async function removeCouponFromSession(params: {
         include: SESSION_INCLUDE,
       });
       if (!session) throw toBillingError('NOT_FOUND');
-      await assertModifiable(session);
+      assertModifiable(session);
 
       // Releasing the hold is part of the same transaction as the quote reset
       // (remediation §4.6.5 — the old implementation left the reservation

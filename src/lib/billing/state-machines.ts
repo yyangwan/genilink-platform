@@ -21,26 +21,30 @@ export class BillingTransitionError extends Error {
 }
 
 /** spec §13.1 + remediation §6.1: expired -> requires_review on a late paid
- * notification (money captured after local expiry — manual completion/refund). */
+ * notification (money captured after local expiry — manual completion/refund).
+ * canceled/failed follow the same review path on late payments. */
 const CHECKOUT_SESSION_TRANSITIONS: Record<CheckoutSessionStatus, CheckoutSessionStatus[]> = {
-  ready: ['processing', 'expired', 'canceled'],
+  ready: ['processing', 'expired', 'canceled', 'requires_review'],
   processing: ['ready', 'completed', 'failed', 'expired', 'requires_review'],
   completed: [],
   expired: ['requires_review'],
   requires_review: ['completed', 'canceled'],
-  canceled: [],
-  failed: [],
+  canceled: ['requires_review'],
+  failed: ['requires_review'],
 };
 
-/** spec §13.2 */
+/** spec §13.2 + remediation §4.1 second review: a late paid notification
+ * after a LOCAL terminal state (expired/canceled/failed) is a channel FACT —
+ * the money moved. Record it as paid (never 500-loop the webhook); the
+ * session-level requires_review queue decides completion vs refund. */
 const PAYMENT_ORDER_TRANSITIONS: Record<PaymentOrderStatus, PaymentOrderStatus[]> = {
   pending: ['opened', 'failed'],
   opened: ['processing', 'paid', 'expired', 'canceled', 'failed'],
   processing: ['paid', 'failed'],
   paid: ['refunded'],
-  expired: [],
-  canceled: [],
-  failed: [],
+  expired: ['paid'],
+  canceled: ['paid'],
+  failed: ['paid'],
   refunded: [],
 };
 
@@ -54,7 +58,8 @@ const PAYMENT_AGREEMENT_TRANSITIONS: Record<PaymentAgreementStatus, PaymentAgree
   failed: [],
 };
 
-/** spec §13.4 (+ active -> active self-transition: renewal success on an already-active subscription) */
+/** spec §13.4. Terminal subscriptions are never reactivated implicitly; a
+ * payment confirmed after expiry/cancellation goes through manual review. */
 const SUBSCRIPTION_TRANSITIONS: Record<SubscriptionStatus, SubscriptionStatus[]> = {
   active: ['active', 'past_due', 'canceled', 'expired', 'inactive', 'trialing'],
   past_due: ['active', 'expired', 'canceled'],
@@ -75,10 +80,10 @@ const RENEWAL_ATTEMPT_TRANSITIONS: Record<RenewalAttemptStatus, RenewalAttemptSt
   notifying: ['processing', 'canceled'],
   processing: ['awaiting_confirmation', 'succeeded', 'retryable_failed', 'failed', 'canceled', 'requires_review'],
   awaiting_confirmation: ['processing', 'succeeded', 'retryable_failed', 'failed', 'requires_review', 'canceled'],
-  retryable_failed: ['processing', 'failed', 'canceled'],
+  retryable_failed: ['processing', 'succeeded', 'failed', 'canceled', 'requires_review'],
   succeeded: [],
   failed: [],
-  canceled: [],
+  canceled: ['requires_review'],
   requires_review: [],
 };
 

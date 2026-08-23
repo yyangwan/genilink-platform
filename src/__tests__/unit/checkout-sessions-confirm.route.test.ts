@@ -18,7 +18,17 @@ const wechatAdapterMock = vi.hoisted(() => ({
   verifyWebhook: vi.fn(),
 }));
 
+const alipayAdapterMock = vi.hoisted(() => ({
+  provider: 'alipay' as const,
+  getCapabilities: vi.fn(() => ({ oneTimePayment: true, recurringPayment: false, payAndSign: false })),
+  createOneTimePayment: vi.fn(),
+  closePayment: vi.fn(),
+  queryPayment: vi.fn(),
+  verifyWebhook: vi.fn(),
+}));
+
 vi.mock('@/lib/billing/payments/wechatpay', () => ({ wechatPayAdapter: wechatAdapterMock }));
+vi.mock('@/lib/billing/payments/alipay', () => ({ alipayAdapter: alipayAdapterMock }));
 
 import { prisma } from '@/lib/db';
 import { POST } from '@/app/api/billing/checkout-sessions/[sessionId]/confirm/route';
@@ -78,6 +88,7 @@ describe('POST confirm (spec §8.5)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     wechatAdapterMock.getCapabilities.mockReturnValue({ oneTimePayment: true, recurringPayment: false, payAndSign: false });
+    alipayAdapterMock.getCapabilities.mockReturnValue({ oneTimePayment: true, recurringPayment: false, payAndSign: false });
     vi.mocked(prisma.checkoutSession.findUnique).mockResolvedValue(makeSession() as never);
     vi.mocked(prisma.checkoutSession.update).mockResolvedValue(makeSession({ status: 'processing' }) as never);
     vi.mocked(prisma.checkoutSession.updateMany).mockResolvedValue({ count: 0 } as never);
@@ -108,6 +119,11 @@ describe('POST confirm (spec §8.5)', () => {
     wechatAdapterMock.createOneTimePayment.mockResolvedValue({
       presentation: 'qr_code',
       codeUrl: 'weixin://wxpay/test',
+      providerSessionId: 'order-1',
+    });
+    alipayAdapterMock.createOneTimePayment.mockResolvedValue({
+      presentation: 'redirect',
+      redirectUrl: 'https://openapi.alipay.test/pay',
       providerSessionId: 'order-1',
     });
   });
@@ -236,6 +252,44 @@ describe('POST confirm (spec §8.5)', () => {
     expect(prisma.paymentOrder.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ attemptNumber: 2, checkoutSessionId: 'session-1' }) }),
     );
+  });
+
+  it('uses the superseded order provider when switching payment channels', async () => {
+    const staleAttempt = {
+      id: 'order-0',
+      provider: 'wechatpay',
+      status: 'opened',
+      attemptNumber: 1,
+      expiredAt: new Date(Date.now() - 1000),
+      failureCode: null,
+      failureMessage: null,
+      metadata: { presentation: 'qr_code', codeUrl: 'weixin://wxpay/stale' },
+    };
+    vi.mocked(prisma.checkoutSession.findUnique).mockResolvedValue(
+      makeSession({ status: 'processing', paymentOrders: [staleAttempt] }) as never,
+    );
+    vi.mocked(prisma.paymentOrder.create).mockResolvedValueOnce({
+      id: 'order-1',
+      provider: 'alipay',
+      status: 'pending',
+      attemptNumber: 2,
+      expiredAt: null,
+      failureCode: null,
+      failureMessage: null,
+      metadata: {},
+      amountCents: 399900,
+      currency: 'CNY',
+      idempotencyKey: 'confirm-key',
+    } as never);
+
+    const response = await POST(
+      postRequest({ provider: 'alipay', autoRenew: false, forceNewAttempt: true }, { 'Idempotency-Key': 'switch-provider' }),
+      routeCtx(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(wechatAdapterMock.closePayment).toHaveBeenCalledWith({ orderId: 'order-0' });
+    expect(alipayAdapterMock.closePayment).not.toHaveBeenCalled();
   });
 
   it('returns the session to ready when the channel call fails so the user can switch channels (spec §13.1)', async () => {

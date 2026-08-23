@@ -83,7 +83,6 @@ async function recordEvent(params: {
     },
     update: {
       eventType: params.eventType,
-      status: 'received',
       signatureVerified: params.signatureVerified,
       payload: params.payload,
     },
@@ -221,7 +220,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ provider: 
       signatureVerified: true,
     });
 
-    // Duplicate notification: ACK without re-activating (spec §11.1).
+    // Any event with a final processing timestamp has already reached a stable
+    // verdict. Preserve that verdict and ACK redelivery without reprocessing.
     if (event.processedAt) {
       return providerSuccessResponse(provider, { duplicate: true });
     }
@@ -277,14 +277,34 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ provider: 
         });
         return providerSuccessResponse(provider);
       } else {
+        // A SUCCESS event with no matching order must not be dropped as
+        // 'ignored' — the channel stops retrying and the money is lost
+        // (second-review finding 10). Park it for review instead.
         billingLog('webhook_order_not_found', {
           provider,
           providerTransactionId: parsed.providerTransactionId,
           eventType: parsed.eventType,
         });
+        if (success) {
+          await prisma.paymentEvent.update({
+            where: { providerEventId: parsed.providerEventId },
+            data: { status: 'requires_review', processedAt: new Date() },
+          });
+          return providerSuccessResponse(provider);
+        }
       }
     }
 
+    // Re-read before overwriting: the reconciliation may have marked this
+    // event 'rejected' or 'requires_review' — that verdict is authoritative
+    // and must not be clobbered with 'processed' (second-review finding 3).
+    const latest = await prisma.paymentEvent.findUnique({
+      where: { providerEventId: parsed.providerEventId },
+      select: { status: true },
+    });
+    if (latest && (latest.status === 'rejected' || latest.status === 'requires_review')) {
+      return providerSuccessResponse(provider);
+    }
     if (!event.processedAt) {
       await prisma.paymentEvent.update({
         where: { providerEventId: parsed.providerEventId },

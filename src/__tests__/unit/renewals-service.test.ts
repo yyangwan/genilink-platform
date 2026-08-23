@@ -157,11 +157,17 @@ function createDb(seed: { subscriptions?: Row[]; attempts?: Row[]; agreements?: 
       update: async ({ where, data }: any) => updateRow(db.agreements, where, data),
     },
     paymentEvent: {
-      update: async ({ where }: any) => {
+      update: async ({ where, data }: any) => {
         if (!db.events.find((row) => matches(row, where))) {
           throw new Error('event not found'); // swallowed by markEvent catch
         }
-        return updateRow(db.events, where, { processedAt: new Date() })!;
+        return updateRow(db.events, where, data)!;
+      },
+      upsert: async ({ where, create, update }: any) => {
+        const existing = db.events.find((row) => matches(row, where));
+        if (existing) return updateRow(db.events, where, update)!;
+        db.events.push(create);
+        return create;
       },
     },
     checkoutSession: {
@@ -387,6 +393,7 @@ describe('executeRenewalAttempt', () => {
             providerTransactionId: 'wx-txn-takeover',
             paidAt: NOW_PAST_DUE,
             amountCents: 319920,
+            currency: 'CNY',
           })),
         } as never,
       },
@@ -400,7 +407,7 @@ describe('executeRenewalAttempt', () => {
     expect(db.subscriptions[0].currentPeriodEnd.toISOString()).toBe(PERIOD_END.toISOString());
   });
 
-  it('treats an unknown channel answer on takeover as a retryable timeout (remediation §4.4)', async () => {
+  it('keeps the same order when the channel answer is unknown (remediation §4.4)', async () => {
     stateful.current = createDb({
       subscriptions: [seedSubscription()],
       agreements: [ACTIVE_AGREEMENT],
@@ -429,13 +436,57 @@ describe('executeRenewalAttempt', () => {
       {
         adapterOverride: {
           chargeAgreement: vi.fn(),
-          queryPayment: vi.fn(async () => ({ status: null, providerTransactionId: null, paidAt: null, amountCents: null })),
+          queryPayment: vi.fn(async () => ({
+            status: null,
+            providerTransactionId: null,
+            paidAt: null,
+            amountCents: null,
+            currency: null,
+          })),
         } as never,
       },
     );
 
-    expect(outcome).toBe('retry_scheduled');
-    expect(stateful.current.db.attempts[0].status).toBe('retryable_failed');
+    expect(outcome).toBe('pending_webhook');
+    expect(stateful.current.db.attempts[0].status).toBe('awaiting_confirmation');
+  });
+
+  it('requires review when a paid channel query omits verifiable financial data', async () => {
+    stateful.current = createDb({
+      subscriptions: [seedSubscription()],
+      agreements: [ACTIVE_AGREEMENT],
+      attempts: [baseAttemptRow({ paymentOrderId: 'order-9', attemptNumber: 1 })],
+      orders: [{
+        id: 'order-9',
+        provider: 'wechatpay',
+        orderType: 'renewal',
+        status: 'processing',
+        amountCents: 319920,
+        currency: 'CNY',
+      }],
+    });
+
+    const charge = vi.fn();
+    const outcome = await executeRenewalAttempt(
+      seedAttempt({ paymentOrderId: 'order-9', paymentOrder: { id: 'order-9', status: 'processing' } }),
+      {
+        adapterOverride: {
+          chargeAgreement: charge,
+          queryPayment: vi.fn(async () => ({
+            status: 'SUCCESS',
+            providerTransactionId: 'wx-unverified',
+            paidAt: NOW_PAST_DUE,
+            amountCents: null,
+            currency: 'CNY',
+          })),
+        } as never,
+      },
+    );
+
+    expect(outcome).toBe('requires_review');
+    expect(charge).not.toHaveBeenCalled();
+    expect(stateful.current.db.attempts[0].status).toBe('requires_review');
+    expect(stateful.current.db.events[0].status).toBe('requires_review');
   });
 
   it('extends from the original period end and decrements discount cycles on success (spec §12.5)', async () => {
@@ -575,6 +626,35 @@ describe('reconcileRenewalPayment idempotency', () => {
     });
     expect(outcome).toBe('renewal_already_processed');
   });
+
+  it('records a renewal paid after subscription expiry without reactivating it', async () => {
+    stateful.current = createDb({
+      attempts: [baseAttemptRow({ paymentOrderId: 'order-1', status: 'processing' })],
+      subscriptions: [seedSubscription({ status: 'expired', autoRenew: false })],
+      orders: [{
+        id: 'order-1',
+        orderType: 'renewal',
+        status: 'processing',
+        amountCents: 319920,
+        currency: 'CNY',
+        provider: 'wechatpay',
+      }],
+    });
+
+    const outcome = await reconcileRenewalPayment(stateful.current, {
+      paymentOrderId: 'order-1',
+      provider: 'wechatpay',
+      providerTransactionId: 'wx-late-renewal',
+      amountCents: 319920,
+      paidAt: NOW_PAST_DUE,
+      paymentEventId: 'evt-late',
+    });
+
+    expect(outcome).toBe('renewal_late_success_requires_review');
+    expect(stateful.current.db.orders[0].status).toBe('paid');
+    expect(stateful.current.db.attempts[0].status).toBe('requires_review');
+    expect(stateful.current.db.subscriptions[0].status).toBe('expired');
+  });
 });
 
 describe('expireGracePeriods (spec §12.4 final row)', () => {
@@ -587,6 +667,7 @@ describe('expireGracePeriods (spec §12.4 final row)', () => {
       ],
       attempts: [
         { id: 'attempt-1', subscriptionId: 'sub-1', status: 'retryable_failed' },
+        { id: 'attempt-2', subscriptionId: 'sub-1', status: 'awaiting_confirmation' },
       ],
     });
 
@@ -597,5 +678,6 @@ describe('expireGracePeriods (spec §12.4 final row)', () => {
     expect(db.subscriptions[0].autoRenew).toBe(false);
     expect(db.subscriptions[1].status).toBe('past_due'); // still inside grace
     expect(db.attempts[0].status).toBe('canceled');
+    expect(db.attempts[1].status).toBe('awaiting_confirmation');
   });
 });
