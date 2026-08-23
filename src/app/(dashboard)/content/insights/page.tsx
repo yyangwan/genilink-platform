@@ -1,6 +1,7 @@
 "use client";
 
 import React, { Suspense } from "react";
+import Link from "next/link";
 import {
   Brain,
   MessageSquare,
@@ -24,6 +25,10 @@ import TopicRadarChart from "@/components/charts/TopicRadarChart";
 import AnswerStructureChart from "@/components/charts/AnswerStructureChart";
 
 import type { ContentIntelligence } from "@/types/visibility";
+
+type ContentIntelligenceResponse = ContentIntelligence & {
+  entitlementLevel?: "basic" | "full" | "advanced";
+};
 
 const SENTIMENT_COLORS = {
   positive: "var(--color-success)",
@@ -110,7 +115,7 @@ function InsightsContent() {
     ? `/api/integration/content-intelligence?projectId=${currentProjectId}&auditId=${auditSnapshot.selectedAuditId}`
     : null;
 
-  const ci = useSectionFetch<ContentIntelligence>(url);
+  const ci = useSectionFetch<ContentIntelligenceResponse>(url);
   const pageLoading = auditSnapshot.loading || ci.loading;
   const pageError = auditSnapshot.error || ci.error;
   const data = ci.data;
@@ -148,6 +153,7 @@ function InsightsContent() {
       ]
     : [];
   const answerStructureData = data?.answerStructure ?? [];
+  const hasRestrictedInsights = data?.entitlementLevel === "basic";
 
   return (
     <div className="space-y-6">
@@ -235,6 +241,11 @@ function InsightsContent() {
               <div className="h-[280px]">
                 {answerStructureData.length > 0 ? (
                   <AnswerStructureChart data={answerStructureData} />
+                ) : hasRestrictedInsights ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    <span>回答结构分析未包含在当前版本中</span>
+                    <Link href="/settings/billing" className="text-xs font-medium" style={{ color: "var(--color-primary)" }}>查看升级方案</Link>
+                  </div>
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                     暂无结构数据
@@ -248,14 +259,22 @@ function InsightsContent() {
                 <ExternalLink className="h-4 w-4" style={{ color: "var(--color-primary)" }} />
                 来源权威度
               </div>
-              <SourceAuthorityList sources={data.sources} />
+              {hasRestrictedInsights ? (
+                <div className="flex min-h-40 flex-col items-center justify-center gap-2 text-center text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  <span>来源权威度未包含在当前版本中</span>
+                  <Link href="/settings/billing" className="text-xs font-medium" style={{ color: "var(--color-primary)" }}>查看升级方案</Link>
+                </div>
+              ) : (
+                <SourceAuthorityList sources={data.sources} />
+              )}
             </section>
           </div>
 
           <section className="dashboard-surface flex items-center gap-2 px-6 py-3">
             <Brain className="h-4 w-4" style={{ color: "var(--color-primary)" }} />
             <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-              基于最新审计数据生成 · 分析覆盖 {data.topics.length} 个话题 · {data.sources.length} 个引用来源
+              基于最新审计数据生成 · 分析覆盖 {data.topics.length} 个话题
+              {!hasRestrictedInsights && ` · ${data.sources.length} 个引用来源`}
             </span>
           </section>
         </>

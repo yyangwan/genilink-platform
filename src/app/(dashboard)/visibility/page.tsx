@@ -78,51 +78,68 @@ function VisibilityContent() {
   }, []);
 
   const triggerAuditAnalysis = useCallback(async (auditId: string, projectId: string | null) => {
-    if (!projectId) return;
-    if (finalizedAuditRef.current === auditId) return;
-    finalizedAuditRef.current = auditId;
+    if (!projectId) return false;
+    if (finalizedAuditRef.current === auditId) return true;
 
     try {
-      await fetch(`/api/integration/audits/${auditId}/analyze`, {
+      const response = await fetch(`/api/integration/audits/${auditId}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId }),
       });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string; detail?: string } | null;
+        throw new Error(payload?.error || payload?.detail || "内容洞察启动失败");
+      }
+      finalizedAuditRef.current = auditId;
+      return true;
     } catch {
-      // Best effort.
+      finalizedAuditRef.current = null;
+      return false;
     }
   }, []);
 
-  const finalizeAudit = useCallback(async (auditId: string, projectId: string | null) => {
+  const finalizeAudit = useCallback(async (
+    auditId: string,
+    projectId: string | null,
+    triggerAnalysis = false,
+  ) => {
     closeAuditStream();
     setCurrentAuditId(null);
     setAnalysisPhase("analyzing");
     setAnalysisDetail("审计完成，正在生成内容洞察...");
 
-    await triggerAuditAnalysis(auditId, projectId);
+    const analysisStarted = triggerAnalysis
+      ? await triggerAuditAnalysis(auditId, projectId)
+      : true;
+    if (!analysisStarted) {
+      setAnalysisPhase("error");
+      setAnalysisError("内容洞察启动失败，请稍后重试");
+      setAnalysisDetail("");
+      return;
+    }
 
     clearAnalysisPoll();
     if (!projectId) return;
 
     analysisPollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/integration/content-intelligence?projectId=${encodeURIComponent(projectId)}`);
+        const res = await fetch(
+          `/api/integration/audits/${auditId}/analyze?projectId=${encodeURIComponent(projectId)}`,
+        );
         if (!res.ok) return;
-        const data = await res.json() as {
-          sentiment?: { positive?: number; neutral?: number; negative?: number };
-          topics?: unknown[];
-          sources?: unknown[];
-          answerStructure?: unknown[];
-        };
+        const analyses = await res.json() as { status?: string }[];
+        if (!Array.isArray(analyses) || analyses.length === 0) return;
+        if (analyses.some((item) => item.status === "pending" || item.status === "running")) return;
 
-        const sentiment = data.sentiment || {};
-        const hasData =
-          (sentiment.positive ?? 0) + (sentiment.neutral ?? 0) + (sentiment.negative ?? 0) > 0 ||
-          (data.topics?.length ?? 0) > 0 ||
-          (data.sources?.length ?? 0) > 0 ||
-          (data.answerStructure?.length ?? 0) > 0;
-
-        if (!hasData) return;
+        const hasUsableAnalysis = analyses.some((item) => item.status === "completed" || item.status === "partial");
+        if (!hasUsableAnalysis) {
+          clearAnalysisPoll();
+          setAnalysisPhase("error");
+          setAnalysisError("内容洞察生成失败，请稍后重试");
+          setAnalysisDetail("");
+          return;
+        }
 
         clearAnalysisPoll();
         setAnalysisPhase("done");
@@ -317,7 +334,25 @@ function VisibilityContent() {
           return p === "collecting" || p === "pending" || p === "analyzing" || p === "running";
         });
 
-        if (!active) return;
+        if (!active) {
+          const latestCompleted = Array.isArray(audits) && audits.find((a: Record<string, unknown>) => {
+            const p = (a.phase as string) || (a.status as string);
+            return p === "completed" || p === "done" || p === "partial";
+          });
+          const completedAuditId = latestCompleted && ((latestCompleted.id as string) || (latestCompleted.audit_id as string));
+          if (!completedAuditId) return;
+
+          const analysisRes = await fetch(
+            `/api/integration/audits/${completedAuditId}/analyze?projectId=${encodeURIComponent(currentProjectId)}`,
+          );
+          if (!analysisRes.ok) return;
+          const analyses = await analysisRes.json() as { status?: string }[];
+          const needsBackfill = Array.isArray(analyses) && (
+            analyses.length === 0 || analyses.some((item) => item.status === "failed" || item.status === "partial")
+          );
+          if (needsBackfill) void finalizeAudit(completedAuditId, currentProjectId, true);
+          return;
+        }
 
         const auditId = (active.id as string) || (active.audit_id as string);
         if (!auditId) return;
@@ -333,7 +368,7 @@ function VisibilityContent() {
     };
 
     checkActiveAudit();
-  }, [currentProjectId, startPolling]);
+  }, [currentProjectId, finalizeAudit, startPolling]);
 
   const handleStartAnalysis = useCallback(async () => {
     if (!currentProjectId) return;
