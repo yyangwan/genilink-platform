@@ -40,7 +40,10 @@ export type CouponCodeInput = {
 export type PurchaseType = 'new' | 'upgrade' | 'manual_renewal';
 
 /** Raw discount for a promotion rule, before caps (spec §7.2/§7.3). */
-export function rawDiscountCents(subtotalCents: number, promotion: PromotionRuleInput): number {
+export function rawDiscountCents(
+  subtotalCents: number,
+  promotion: Pick<PromotionRuleInput, 'discountType' | 'discountValue'>,
+): number {
   if (promotion.discountType === 'percentage') {
     // discountValue in basis points: 10000 = 100%, 2000 = 20% off.
     return Math.floor((subtotalCents * promotion.discountValue) / 10000);
@@ -131,12 +134,22 @@ export function calculateCheckoutQuote(input: {
 
 /**
  * Renewal-time pricing: derived ONLY from the subscription snapshot, never from
- * live Promotion config (spec §7.6). Returns the amount for the next renewal
- * and the remaining discounted cycles after it succeeds.
+ * live Promotion config (spec §7.6). `renewalPriceCents` MUST be the
+ * undiscounted base price (remediation §4.5: storing a discounted amount as
+ * the base and subtracting the snapshot discount again applied it twice).
+ * The per-cycle discount is recomputed from the snapshot RULE (type + value)
+ * against that base, so consecutive discounts apply exactly once per cycle.
  */
 export function calculateRenewalQuote(input: {
   renewalPriceCents: number;
-  discountSnapshot: { discountCents: number; duration: string; durationCycles: number | null } | null;
+  discountSnapshot: {
+    discountType?: string;
+    discountValue?: number;
+    maximumDiscountCents?: number | null;
+    discountCents?: number;
+    duration?: string;
+    durationCycles?: number | null;
+  } | null;
   discountRemainingCycles: number;
 }): { amountCents: number; remainingCyclesAfter: number } {
   const base = input.renewalPriceCents;
@@ -150,7 +163,22 @@ export function calculateRenewalQuote(input: {
     return { amountCents: Math.max(1, base), remainingCyclesAfter: 0 };
   }
 
-  const discountCents = Math.max(0, Math.min(snapshot!.discountCents, base - 1));
+  // Recompute the cycle discount from the rule (remediation §4.5.4) — falls
+  // back to the frozen first-cycle amount for snapshots that predate the
+  // type/value fields.
+  let discountCents: number;
+  if (snapshot!.discountType && typeof snapshot!.discountValue === 'number') {
+    discountCents = rawDiscountCents(base, {
+      discountType: snapshot!.discountType,
+      discountValue: snapshot!.discountValue,
+    });
+    const cap = snapshot!.maximumDiscountCents;
+    if (typeof cap === 'number' && cap > 0) discountCents = Math.min(discountCents, cap);
+  } else {
+    discountCents = snapshot!.discountCents ?? 0;
+  }
+  discountCents = Math.max(0, Math.min(discountCents, base - 1));
+
   return {
     amountCents: base - discountCents,
     remainingCyclesAfter: input.discountRemainingCycles - 1,

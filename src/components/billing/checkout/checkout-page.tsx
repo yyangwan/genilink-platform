@@ -34,7 +34,6 @@ export function CheckoutPage({ initialSession, workspaceName }: Props) {
   const [autoRenew, setAutoRenew] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [polling, setPolling] = useState(false);
   const accessSyncedRef = useRef(false);
 
   const refreshSession = useCallback(async () => {
@@ -45,30 +44,25 @@ export function CheckoutPage({ initialSession, workspaceName }: Props) {
     return data.checkoutSession;
   }, [session.id]);
 
+  // Polling indicator is DERIVED from the session status — the effect only
+  // runs the interval, no synchronous setState (remediation §4.11.3).
+  const polling = session.status === 'processing';
+
   // Poll while a payment attempt is in flight; pause when the tab is hidden
   // (spec §14.3).
   useEffect(() => {
-    if (session.status !== 'processing') {
-      setPolling(false);
-      return;
-    }
+    if (session.status !== 'processing') return;
 
     let timer: ReturnType<typeof setInterval> | null = null;
 
     const tick = async () => {
       if (document.hidden) return;
-      setPolling(true);
-      const fresh = await refreshSession();
-      if (fresh && fresh.status !== 'processing') {
-        setPolling(false);
-        if (timer) clearInterval(timer);
-      }
+      await refreshSession();
     };
 
     timer = setInterval(tick, POLL_INTERVAL_MS);
     return () => {
       if (timer) clearInterval(timer);
-      setPolling(false);
     };
   }, [session.status, refreshSession]);
 
@@ -87,23 +81,24 @@ export function CheckoutPage({ initialSession, workspaceName }: Props) {
     [session.providerAvailability],
   );
 
-  useEffect(() => {
-    if (!selectedProvider && availableProviders.length > 0) {
-      setSelectedProvider(availableProviders[0]);
-    }
-  }, [selectedProvider, availableProviders]);
+  // Default selection is DERIVED at render time (adjust-state-during-render)
+  // instead of a synchronous setState in an effect (remediation §4.11.3).
+  const effectiveProvider: BillingProvider | null =
+    selectedProvider && availableProviders.includes(selectedProvider)
+      ? selectedProvider
+      : (availableProviders[0] ?? null);
 
   const recurringAvailable = useMemo(
     () =>
-      selectedProvider
-        ? Boolean(session.providerAvailability[selectedProvider]?.autoRenew)
+      effectiveProvider
+        ? Boolean(session.providerAvailability[effectiveProvider]?.autoRenew)
         : false,
-    [session.providerAvailability, selectedProvider],
+    [session.providerAvailability, effectiveProvider],
   );
 
   const handleConfirm = useCallback(
     async (options: { forceNewAttempt?: boolean } = {}) => {
-      if (!selectedProvider || confirming) return;
+      if (!effectiveProvider || confirming) return;
       setConfirming(true);
       setError(null);
       try {
@@ -114,7 +109,7 @@ export function CheckoutPage({ initialSession, workspaceName }: Props) {
             'Idempotency-Key': crypto.randomUUID(),
           },
           body: JSON.stringify({
-            provider: selectedProvider,
+            provider: effectiveProvider,
             autoRenew,
             agreementAcceptedVersion: autoRenew ? AUTO_RENEW_AGREEMENT_VERSION : null,
             forceNewAttempt: options.forceNewAttempt ?? false,
@@ -143,7 +138,7 @@ export function CheckoutPage({ initialSession, workspaceName }: Props) {
         setConfirming(false);
       }
     },
-    [selectedProvider, confirming, session.id, autoRenew, refreshSession],
+    [effectiveProvider, confirming, session.id, autoRenew, refreshSession],
   );
 
   const handleApplyCoupon = useCallback(
@@ -179,7 +174,7 @@ export function CheckoutPage({ initialSession, workspaceName }: Props) {
   }, [session.id]);
 
   const modifiable = session.status === 'ready';
-  const canConfirm = modifiable && Boolean(selectedProvider) && !confirming;
+  const canConfirm = modifiable && Boolean(effectiveProvider) && !confirming;
   const lastAttemptFailed =
     session.payment && ['failed', 'canceled', 'expired'].includes(session.payment.status);
 
@@ -257,7 +252,7 @@ export function CheckoutPage({ initialSession, workspaceName }: Props) {
               <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>支付方式</h2>
               <PaymentMethods
                 availability={session.providerAvailability}
-                selected={selectedProvider}
+                selected={effectiveProvider}
                 onSelect={(provider) => {
                   setSelectedProvider(provider);
                   setAutoRenew(false);

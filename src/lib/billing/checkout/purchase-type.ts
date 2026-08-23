@@ -85,7 +85,7 @@ export function resolvePurchaseType(params: {
 export async function loadCurrentSubscriptionSnapshot(
   prisma: {
     subscription: {
-      findFirst: Function;
+      findFirst: (args: unknown) => Promise<unknown>;
     };
   },
   params: { userId: string; workspaceId: string; module: string; now: Date },
@@ -111,12 +111,21 @@ export async function loadCurrentSubscriptionSnapshot(
 
   if (!subscription) return null;
 
+  const row = subscription as {
+    id: string;
+    billingCycle: string;
+    status: string;
+    autoRenew?: boolean | null;
+    currentPeriodEnd: Date;
+    billingPlan?: { key?: string } | null;
+  };
+
   return {
-    id: subscription.id,
-    billingPlanKey: (subscription as { billingPlan?: { key?: string } | null }).billingPlan?.key ?? null,
-    billingCycle: subscription.billingCycle,
-    status: subscription.status,
-    autoRenew: subscription.autoRenew ?? false,
-    currentPeriodEnd: subscription.currentPeriodEnd,
+    id: row.id,
+    billingPlanKey: row.billingPlan?.key ?? null,
+    billingCycle: row.billingCycle,
+    status: row.status,
+    autoRenew: row.autoRenew ?? false,
+    currentPeriodEnd: row.currentPeriodEnd,
   };
 }

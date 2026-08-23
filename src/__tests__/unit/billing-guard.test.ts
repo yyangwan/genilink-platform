@@ -37,7 +37,7 @@ describe('requireBilling', () => {
 
   it('should not throw when subscription is active', async () => {
     (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { module: 'suite', billingPlan: { key: 'suite-lite-monthly' } },
+      { module: 'suite', status: 'active', currentPeriodEnd: new Date('2026-12-31'), gracePeriodEnd: null, billingPlan: { key: 'suite-lite-monthly' } },
     ]);
 
     // Should resolve without throwing
@@ -46,34 +46,44 @@ describe('requireBilling', () => {
 
   it('should not throw when subscription is trialing', async () => {
     (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { module: 'suite', billingPlan: { key: 'suite-lite-monthly' } },
+      { module: 'suite', status: 'trialing', currentPeriodEnd: new Date('2026-12-31'), gracePeriodEnd: null, billingPlan: { key: 'suite-lite-monthly' } },
     ]);
 
     await expect(requireBilling(userId, workspaceId, module)).resolves.toMatchObject({ tier: 'lite' });
   });
 
-  it('should throw BillingError when subscription is past_due', async () => {
-    (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+  it('keeps access during the past_due grace window but not after it (remediation §4.7)', async () => {
+    (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { module: 'suite', status: 'past_due', currentPeriodEnd: new Date('2026-08-20'), gracePeriodEnd: new Date(Date.now() + 86_400_000), billingPlan: { key: 'suite-lite-monthly' } },
+    ]);
+    await expect(requireBilling(userId, workspaceId, module)).resolves.toMatchObject({ tier: 'lite' });
 
+    (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { module: 'suite', status: 'past_due', currentPeriodEnd: new Date('2026-08-20'), gracePeriodEnd: new Date(Date.now() - 86_400_000), billingPlan: { key: 'suite-lite-monthly' } },
+    ]);
     await expect(requireBilling(userId, workspaceId, module)).rejects.toThrow(BillingError);
   });
 
   it('should query with correct composite key', async () => {
     (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { module: 'suite', billingPlan: { key: 'suite-lite-monthly' } },
+      { module: 'suite', status: 'active', currentPeriodEnd: new Date('2026-12-31'), gracePeriodEnd: null, billingPlan: { key: 'suite-lite-monthly' } },
     ]);
 
     await requireBilling(userId, workspaceId, module);
 
+    // past_due rows are fetched and entitlement-filtered in code
+    // (remediation §4.7) instead of being dropped by the query.
     expect(prisma.subscription.findMany).toHaveBeenCalledWith({
       where: {
         workspaceId,
-        status: { in: ['active', 'trialing'] },
-        currentPeriodEnd: { gt: expect.any(Date) },
+        status: { in: ['active', 'trialing', 'past_due'] },
       },
       select: {
         module: true,
         billingPlan: { select: { key: true } },
+        status: true,
+        currentPeriodEnd: true,
+        gracePeriodEnd: true,
       },
     });
   });

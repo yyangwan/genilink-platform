@@ -177,21 +177,32 @@ export async function hasPriorPurchase(
 
 export async function countRedemptions(
   prisma: PrismaClient | Tx,
-  params: { couponId: string; userId: string; workspaceId: string },
+  params: { couponId: string; promotionId: string; userId: string; workspaceId: string },
 ): Promise<RedemptionCounts> {
+  // Caps belong to the PROMOTION (remediation §4.6.6): counting per coupon
+  // code let multi-code promotions bypass promotion.maxRedemptions and the
+  // per-user / per-workspace limits.
   const statusFilter = { in: ['reserved', 'redeemed'] as string[] };
+  const scope = { coupon: { promotionId: params.promotionId }, status: statusFilter };
   const [total, byUser, byWorkspace] = await Promise.all([
+    (prisma as PrismaClient).couponRedemption.count({ where: scope }),
     (prisma as PrismaClient).couponRedemption.count({
-      where: { couponId: params.couponId, status: statusFilter },
+      where: { ...scope, userId: params.userId },
     }),
     (prisma as PrismaClient).couponRedemption.count({
-      where: { couponId: params.couponId, userId: params.userId, status: statusFilter },
-    }),
-    (prisma as PrismaClient).couponRedemption.count({
-      where: { couponId: params.couponId, workspaceId: params.workspaceId, status: statusFilter },
+      where: { ...scope, workspaceId: params.workspaceId },
     }),
   ]);
   return { totalReservedOrRedeemed: total, byUser, byWorkspace };
+}
+
+/** Release a single reserved redemption (coupon switch / removal,
+ * remediation §4.6.4/§4.6.5). Must run inside the caller's transaction. */
+export async function releaseReservation(tx: Tx, redemptionId: string): Promise<void> {
+  await tx.couponRedemption.update({
+    where: { id: redemptionId, status: 'reserved' },
+    data: { status: 'released', releasedAt: new Date() },
+  });
 }
 
 /**
@@ -239,6 +250,7 @@ export async function reserveRedemption(
   const priorPurchase = await hasPriorPurchase(tx, { userId: session.userId });
   const counts = await countRedemptions(tx, {
     couponId: coupon.id,
+    promotionId: coupon.promotion.id,
     userId: session.userId,
     workspaceId: session.workspaceId,
   });

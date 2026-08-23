@@ -37,13 +37,14 @@ import { wechatPayAdapter } from '@/lib/billing/payments/wechatpay';
 
 vi.mock('@/lib/billing/gateways', () => ({
   isPaymentProviderConfigured: vi.fn(() => false),
+  isSuccessfulProviderStatus: vi.fn((_provider: string, status: string | null) => status === 'SUCCESS' || status === 'TRADE_SUCCESS' || status === 'TRADE_FINISHED'),
   verifyAlipayNotificationSignature: vi.fn(() => true),
   verifyWechatNotificationSignature: vi.fn(() => true),
   decryptWechatResource: vi.fn(() => ({
     out_trade_no: 'order-1',
     transaction_id: 'wx-txn-1',
     trade_state: 'SUCCESS',
-    amount: { total: 319920 },
+    amount: { total: 319920, currency: 'CNY' },
     success_time: '2026-08-22T10:05:00.000Z',
     appid: 'wx-app',
     mchid: 'mch-1',
@@ -94,10 +95,18 @@ function createDb(seed: { orders?: Row[]; sessions?: Row[]; subscriptions?: Row[
       findUnique: async ({ where }: any) => {
         const order = db.orders.find((row) => matches(row, where));
         if (!order) return null;
+        const attempt = order.orderType === 'renewal' || db.attempts.some((a) => a.paymentOrderId === order.id)
+          ? db.attempts.find((a) => a.paymentOrderId === order.id) ?? null
+          : null;
         return {
           ...order,
           checkoutSession: order.checkoutSessionId ? db.sessions.find((s) => s.id === order.checkoutSessionId) : null,
-          renewalAttempt: order.orderType === 'renewal' ? db.attempts.find((a) => a.paymentOrderId === order.id) : null,
+          renewalAttempt: attempt
+            ? {
+                ...attempt,
+                subscription: db.subscriptions.find((s) => s.id === attempt.subscriptionId) ?? null,
+              }
+            : null,
         };
       },
       update: async ({ where, data }: any) => {
@@ -196,6 +205,22 @@ function createDb(seed: { orders?: Row[]; sessions?: Row[]; subscriptions?: Row[
       },
     },
     paymentEvent: {
+      findUnique: async ({ where }: any) => db.events.find((row) => matches(row, where)) ?? null,
+      create: async ({ data }: any) => {
+        const row = { id: `event-row-${db.events.length + 1}`, ...data };
+        db.events.push(row);
+        return row;
+      },
+      upsert: async ({ where, create, update }: any) => {
+        const existing = db.events.find((row) => matches(row, where));
+        if (existing) {
+          Object.assign(existing, update);
+          return existing;
+        }
+        const row = { id: `event-row-${db.events.length + 1}`, processedAt: null, ...create };
+        db.events.push(row);
+        return row;
+      },
       update: async ({ where, data }: any) => updateRow(db.events, where, data),
     },
     renewalAttempt: {
@@ -421,6 +446,42 @@ describe('reconcileCheckoutPayment (spec §11.2, single transaction)', () => {
     expect(subscription.discountRemainingCycles).toBe(2);
     expect(subscription.discountSnapshot.duration).toBe('repeating');
   });
+
+  it('parks a late paid notification on an expired session for review instead of failing (remediation §4.1)', async () => {
+    stateful.current = createDb({
+      orders: [seedOrder()],
+      sessions: [seedSession({ status: 'expired' })],
+      redemptions: [{ ...REDEMPTION }],
+      events: [{ providerEventId: 'event-1', status: 'received' }],
+    });
+
+    // The expired -> completed transition used to throw and 500-looped the
+    // webhook; now the captured payment lands in the manual review queue.
+    const outcome = await callReconcile();
+    expect(outcome).toBe('late_success_requires_review');
+    const { db } = stateful.current;
+    expect(db.orders[0].status).toBe('paid');
+    expect(db.sessions[0].status).toBe('requires_review');
+    expect(db.redemptions[0].status).toBe('redeemed');
+    expect(db.subscriptions).toHaveLength(0); // never auto-activated
+    expect(db.events[0].status).toBe('requires_review');
+  });
+
+  it('rejects a success event with a missing amount instead of trusting it (remediation §4.9)', async () => {
+    stateful.current = createDb({
+      orders: [seedOrder()],
+      sessions: [seedSession()],
+      redemptions: [{ ...REDEMPTION }],
+      events: [{ providerEventId: 'event-1', status: 'received' }],
+    });
+
+    const outcome = await callReconcile({ amountCents: null });
+    expect(outcome).toBe('amount_mismatch');
+    const { db } = stateful.current;
+    expect(db.orders[0].status).toBe('opened');
+    expect(db.subscriptions).toHaveLength(0);
+    expect(db.events[0].status).toBe('rejected');
+  });
 });
 
 describe('provider webhook parsing (spec §11.1: verify then read)', () => {
@@ -482,5 +543,127 @@ describe('provider webhook parsing (spec §11.1: verify then read)', () => {
       headers: {},
     });
     expect(parsed).toMatchObject({ error: 'MALFORMED_PAYLOAD' });
+  });
+});
+
+describe('webhook route dispatch (remediation §4.3/§4.9)', () => {
+  async function postWechatWebhook(body: Row) {
+    const { POST } = await import('@/app/api/billing/webhooks/[provider]/route');
+    const req = new Request('http://localhost/api/billing/webhooks/wechatpay', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: {
+        'wechatpay-timestamp': '1',
+        'wechatpay-nonce': 'n',
+        'wechatpay-signature': 's',
+      },
+    });
+    return POST(req as never, { params: Promise.resolve({ provider: 'wechatpay' }) } as never);
+  }
+
+  const renewalDbSeed = () => createDb({
+    orders: [seedOrder({
+      id: 'order-1',
+      checkoutSessionId: null,
+      orderType: 'renewal',
+      status: 'processing',
+      amountCents: 319920,
+    })],
+    subscriptions: [{
+      id: 'sub-1',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      module: 'suite',
+      status: 'active',
+      billingCycle: 'yearly',
+      provider: 'wechatpay',
+      renewalPriceCents: 399900,
+      discountSnapshot: null,
+      discountRemainingCycles: 0,
+      currentPeriodStart: new Date('2026-08-01T00:00:00.000Z'),
+      currentPeriodEnd: new Date('2027-08-01T00:00:00.000Z'),
+    }],
+    events: [],
+  });
+
+  function seedRenewalAttempt() {
+    const db = stateful.current.db;
+    const attempt = {
+      id: 'attempt-1',
+      subscriptionId: 'sub-1',
+      paymentOrderId: 'order-1',
+      periodStart: new Date('2027-08-01T00:00:00.000Z'),
+      periodEnd: new Date('2028-08-01T00:00:00.000Z'),
+      attemptNumber: 1,
+      amountCents: 319920,
+      status: 'processing',
+    };
+    db.attempts.push(attempt);
+    return attempt;
+  }
+
+  it('routes a renewal order webhook into the unified reconciliation entry (not legacy activation)', async () => {
+    vi.stubEnv('WECHATPAY_MCH_ID', 'mch-1');
+    vi.stubEnv('WECHATPAY_APP_ID', 'wx-app');
+    stateful.current = renewalDbSeed();
+    seedRenewalAttempt();
+
+    const response = await postWechatWebhook({
+      id: 'evt-renewal-1',
+      event_type: 'TRANSACTION.SUCCESS',
+      resource: { ciphertext: 'x', nonce: 'y' },
+    });
+
+    expect(response.status).toBe(200);
+    const { db } = stateful.current;
+    // The renewal was reconciled: order paid, attempt succeeded, period extended.
+    expect(db.orders[0].status).toBe('paid');
+    expect(db.attempts[0].status).toBe('succeeded');
+    expect(db.subscriptions[0].currentPeriodEnd.toISOString()).toBe('2028-08-01T00:00:00.000Z');
+  });
+
+  it('permanently rejects a success event whose merchant identity mismatches (remediation §4.9)', async () => {
+    vi.stubEnv('WECHATPAY_MCH_ID', 'different-mch');
+    vi.stubEnv('WECHATPAY_APP_ID', 'wx-app');
+    stateful.current = renewalDbSeed();
+
+    const response = await postWechatWebhook({
+      id: 'evt-bad-identity',
+      event_type: 'TRANSACTION.SUCCESS',
+      resource: { ciphertext: 'x', nonce: 'y' },
+    });
+
+    // Ack so the channel stops retrying, but the event is stored as rejected.
+    expect(response.status).toBe(200);
+    const { db } = stateful.current;
+    expect(db.orders[0].status).toBe('processing'); // untouched
+    expect(db.events[0].status).toBe('rejected');
+  });
+
+  it('permanently rejects a success event without an amount (remediation §4.9)', async () => {
+    vi.stubEnv('WECHATPAY_MCH_ID', 'mch-1');
+    vi.stubEnv('WECHATPAY_APP_ID', 'wx-app');
+    const { decryptWechatResource } = await import('@/lib/billing/gateways');
+    vi.mocked(decryptWechatResource).mockReturnValueOnce({
+      out_trade_no: 'order-1',
+      transaction_id: 'wx-txn-1',
+      trade_state: 'SUCCESS',
+      // amount intentionally missing
+      success_time: '2026-08-22T10:05:00.000Z',
+      appid: 'wx-app',
+      mchid: 'mch-1',
+    } as never);
+    stateful.current = renewalDbSeed();
+
+    const response = await postWechatWebhook({
+      id: 'evt-no-amount',
+      event_type: 'TRANSACTION.SUCCESS',
+      resource: { ciphertext: 'x', nonce: 'y' },
+    });
+
+    expect(response.status).toBe(200);
+    const { db } = stateful.current;
+    expect(db.orders[0].status).toBe('processing'); // never activated
+    expect(db.events[0].status).toBe('rejected');
   });
 });

@@ -17,7 +17,7 @@ import {
 import { calculateRenewalQuote } from '@/lib/billing/checkout/quote';
 import { expireStaleSessions } from '@/lib/billing/checkout/service';
 import { getAdapter } from '@/lib/billing/payments/provider';
-import type { ChargeAgreementResult } from '@/lib/billing/payments/provider';
+import type { ChargeAgreementResult, PaymentProviderAdapter } from '@/lib/billing/payments/provider';
 import { toBillingError } from '@/lib/billing/types';
 
 type Tx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
@@ -46,14 +46,21 @@ export function computeRenewalQuote(subscription: {
 }) {
   const snapshot = subscription.discountSnapshot as {
     discountCents?: number;
+    discountType?: string;
+    discountValue?: number;
+    maximumDiscountCents?: number | null;
     duration?: string;
     durationCycles?: number | null;
   } | null;
   return calculateRenewalQuote({
+    // renewalPriceCents is the undiscounted base (remediation §4.5).
     renewalPriceCents: subscription.renewalPriceCents ?? 0,
     discountSnapshot: snapshot
       ? {
           discountCents: snapshot.discountCents ?? 0,
+          discountType: snapshot.discountType,
+          discountValue: snapshot.discountValue,
+          maximumDiscountCents: snapshot.maximumDiscountCents ?? null,
           duration: snapshot.duration ?? 'once',
           durationCycles: snapshot.durationCycles ?? null,
         }
@@ -152,7 +159,7 @@ function isP2002(error: unknown): boolean {
   return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'P2002');
 }
 
-// ─── Claim via atomic lease (spec §12.2) ────────────────────────────────────
+// ─── Claim via atomic lease (spec §12.2 + remediation §4.4) ─────────────────
 
 const LEASE_MINUTES = 5;
 
@@ -160,6 +167,11 @@ export async function claimRenewalAttempts(
   workerId: string,
   batchSize = 50,
 ): Promise<RenewalAttemptRecord[]> {
+  // Takeover-aware claim (remediation §4.4): a crashed worker leaves the
+  // attempt in 'processing' with an expired lease — the old claim query only
+  // matched 'scheduled', so those attempts were stuck forever. Attempts
+  // waiting on an async charge result ('awaiting_confirmation') are also
+  // re-claimed after their lease lapses so the watchdog can reconcile them.
   const rows = await prisma.$queryRaw<Record<string, unknown>[]>(Prisma.sql`
     UPDATE "RenewalAttempt" AS ra
     SET "lockedBy" = ${workerId},
@@ -169,8 +181,11 @@ export async function claimRenewalAttempts(
         "updatedAt" = now()
     WHERE "id" IN (
       SELECT "id" FROM "RenewalAttempt"
-      WHERE "status" = 'scheduled'
-        AND "scheduledAt" <= now()
+      WHERE (
+          ("status" = 'scheduled' AND "scheduledAt" <= now())
+          OR ("status" = 'processing' AND "lockedUntil" IS NOT NULL AND "lockedUntil" < now())
+          OR ("status" = 'awaiting_confirmation' AND "lockedUntil" IS NOT NULL AND "lockedUntil" < now())
+        )
         AND ("lockedUntil" IS NULL OR "lockedUntil" < now())
       ORDER BY "scheduledAt" ASC
       LIMIT ${batchSize}
@@ -319,6 +334,76 @@ async function markEvent(
 
 // ─── Attempt execution ──────────────────────────────────────────────────────
 
+/**
+ * Pre-takeover channel check for attempts that already hold an order
+ * (remediation §4.4.2): query the channel by order id.
+ * - paid at the channel -> reconcile locally, never re-charge ('reconciled')
+ * - still unpaid / unknown after the lease window -> 'timeout' (retry path)
+ * - definitively not paid yet -> 'resubmit' (same idempotency key at the
+ *   channel makes the resubmission safe)
+ */
+async function takeoverPrecheck(
+  attempt: RenewalAttemptRecord,
+  provider: BillingProvider,
+  adapter: { queryPayment?: PaymentProviderAdapter['queryPayment'] },
+): Promise<'reconciled' | 'timeout' | 'resubmit'> {
+  if (typeof adapter.queryPayment !== 'function') return 'timeout';
+  const orderId = attempt.paymentOrder!.id;
+  billingLog('renewal_takeover_precheck', {
+    renewalAttemptId: attempt.id,
+    paymentOrderId: orderId,
+    provider,
+  });
+  try {
+    const query = await adapter.queryPayment({ orderId });
+    const paid =
+      query.status === 'SUCCESS' || query.status === 'TRADE_SUCCESS' || query.status === 'TRADE_FINISHED';
+    if (paid) {
+      const outcome = await prisma
+        .$transaction(async (tx: Tx) => {
+          await tx.$queryRaw`SELECT * FROM "PaymentOrder" WHERE "id" = ${orderId} FOR UPDATE`;
+          return reconcileRenewalPayment(tx, {
+            paymentOrderId: orderId,
+            provider,
+            providerTransactionId: query.providerTransactionId,
+            amountCents: query.amountCents ?? attempt.amountCents,
+            paidAt: query.paidAt,
+            paymentEventId: `renewal-takeover-${orderId}`,
+          });
+        })
+        .catch((error: unknown) => {
+          billingLog('renewal_takeover_reconcile_failed', {
+            paymentOrderId: orderId,
+            renewalAttemptId: attempt.id,
+            errorCode: error instanceof Error ? error.message : String(error),
+          });
+          return 'order_not_found' as const;
+        });
+      return outcome === 'renewal_activated' || outcome === 'renewal_already_processed'
+        ? 'reconciled'
+        : 'timeout';
+    }
+    // Not paid. A closed/expired channel order can never be paid — retry with
+    // a fresh attempt number; anything else is safe to resubmit.
+    if (query.status === 'CLOSED' || query.status === 'TRADE_CLOSED' || query.status === 'REVOKED') {
+      return 'timeout';
+    }
+    if (query.status === null) {
+      // Channel has no answer — after lease expiry treat as timeout so the
+      // attempt eventually reaches a terminal state instead of looping.
+      return 'timeout';
+    }
+    return 'resubmit';
+  } catch (error) {
+    billingLog('renewal_takeover_precheck_failed', {
+      paymentOrderId: orderId,
+      renewalAttemptId: attempt.id,
+      errorCode: error instanceof Error ? error.message : String(error),
+    });
+    return 'timeout';
+  }
+}
+
 export type RenewalExecutionOutcome =
   | 'succeeded'
   | 'pending_webhook'
@@ -332,9 +417,19 @@ export type RenewalExecutionOutcome =
  * The adapter is resolved from the subscription's provider; tests inject
  * fakes via `adapterOverride`.
  */
+export type RenewalAdapterOverride = {
+  chargeAgreement: (input: unknown) => Promise<ChargeAgreementResult>;
+  queryPayment?: (input: { orderId: string }) => Promise<{
+    status: string | null;
+    providerTransactionId: string | null;
+    paidAt: Date | null;
+    amountCents: number | null;
+  }>;
+};
+
 export async function executeRenewalAttempt(
   attempt: RenewalAttemptRecord,
-  options: { adapterOverride?: { chargeAgreement: (input: unknown) => Promise<ChargeAgreementResult> } } = {},
+  options: { adapterOverride?: RenewalAdapterOverride } = {},
 ): Promise<RenewalExecutionOutcome> {
   const subscription = attempt.subscription;
   const provider = (subscription.provider ?? 'wechatpay') as BillingProvider;
@@ -348,6 +443,21 @@ export async function executeRenewalAttempt(
 
   if (typeof adapter.chargeAgreement !== 'function') {
     return finalizeNonRetryable(attempt, 'AGREEMENT_CHARGE_NOT_SUPPORTED', 'channel does not support agreement charge');
+  }
+
+  // ─── Takeover pre-check (remediation §4.4.2) ──────────────────────────────
+  // This attempt already has an order — a previous worker crashed mid-flight
+  // or the async charge result never arrived. Query the channel FIRST: if the
+  // charge succeeded we reconcile locally; if not, this run resubmits under
+  // the SAME channel idempotency key, so the channel can never be charged
+  // twice for one attempt.
+  if (attempt.paymentOrder) {
+    const precheck = await takeoverPrecheck(attempt, provider, adapter);
+    if (precheck === 'reconciled') return 'succeeded';
+    if (precheck === 'timeout') {
+      return finalizeRetryable(attempt, 'CHARGE_CONFIRMATION_TIMEOUT', 'charge result not confirmed before lease expiry');
+    }
+    // 'resubmit' — fall through and execute normally.
   }
 
   // Short tx: create the renewal order linked to the attempt.
@@ -446,10 +556,19 @@ export async function executeRenewalAttempt(
   }
 
   if (result.outcome === 'pending') {
-    // Async result arrives via provider webhook (order stays processing).
+    // Async result arrives via provider webhook. The attempt waits in
+    // awaiting_confirmation; the lease expiring lets the watchdog re-claim
+    // and actively query the channel (remediation §4.4).
     await prisma.paymentOrder.update({
       where: { id: orderId },
       data: { status: 'processing' },
+    });
+    await prisma.renewalAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        status: 'awaiting_confirmation',
+        lockedUntil: new Date(Date.now() + LEASE_MINUTES * 60_000),
+      },
     });
     return 'pending_webhook';
   }
@@ -468,6 +587,30 @@ async function finalizeRetryable(
   const now = new Date();
   const subscription = attempt.subscription;
   const retryAt = nextRetryAt(attempt.periodStart, attempt.attemptNumber);
+
+  // No retry window left (past the D3 retry, attempt cap reached): park the
+  // attempt for manual handling instead of scheduling an impossible retry
+  // (remediation §4.4.5 — stuck tasks must converge to a terminal state).
+  if (!retryAt || attempt.attemptNumber >= RENEWAL_MAX_ATTEMPTS) {
+    await prisma.renewalAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        status: 'requires_review',
+        failureCode: code,
+        failureMessage: message.slice(0, 500),
+        lockedBy: null,
+        lockedUntil: null,
+        completedAt: now,
+      },
+    }).catch(() => undefined);
+    billingMetric('billing_renewal_failure_total', {
+      renewalAttemptId: attempt.id,
+      subscriptionId: subscription.id,
+      errorCode: code,
+      requiresReview: true,
+    });
+    return 'failed_non_retryable';
+  }
 
   await prisma.$transaction(async (tx: Tx) => {
     assertRenewalAttemptTransition('processing', 'retryable_failed');
@@ -617,11 +760,18 @@ export async function runRenewalBatch(workerId: string, batchSize = 50): Promise
       const outcome = await executeRenewalAttempt(attempt);
       results.push({ renewalAttemptId: attempt.id, outcome });
     } catch (error) {
+      // An execution crash must NOT leave the attempt stuck in 'processing'
+      // until manual surgery (remediation §4.4.5): route it into the retry
+      // path, or the review queue when no retry window remains.
+      const message = error instanceof Error ? error.message : String(error);
       billingLog('renewal_execution_error', {
         renewalAttemptId: attempt.id,
-        errorCode: (error as Error).message,
+        errorCode: message,
       });
-      results.push({ renewalAttemptId: attempt.id, outcome: 'skipped' });
+      const outcome = await finalizeRetryable(attempt, 'EXECUTION_ERROR', message).catch(() =>
+        'skipped' as const,
+      );
+      results.push({ renewalAttemptId: attempt.id, outcome });
     }
   }
 
@@ -680,10 +830,12 @@ export async function disableAutoRenew(params: {
     });
 
     if (subscription.paymentAgreementId) {
+      // remediation §4.2: 'revoking' = channel revoke still in flight — do
+      // NOT reuse 'pending' (that means awaiting sign-up); a watchdog retries.
       await tx.paymentAgreement.update({
         where: { id: subscription.paymentAgreementId },
         data: {
-          status: providerRevoked ? 'revoked' : 'pending',
+          status: providerRevoked ? 'revoked' : 'revoking',
           revokedAt: providerRevoked ? new Date() : null,
         },
       });

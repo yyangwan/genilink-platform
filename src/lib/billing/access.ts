@@ -67,6 +67,61 @@ export function resolveBillingAccess(subscriptions: AccessSubscription[]): Works
   };
 }
 
+// ─── Unified entitlement (remediation §4.7) ──────────────────────────────────
+
+export type SubscriptionEntitlementReason =
+  | 'active'
+  | 'trialing'
+  | 'past_due_grace'
+  | 'expired'
+  | 'canceled'
+  | 'inactive'
+  | 'grace_period_over'
+  | 'period_ended';
+
+export type SubscriptionEntitlement = {
+  entitled: boolean;
+  reason: SubscriptionEntitlementReason;
+};
+
+/**
+ * THE single source of truth for whether a subscription still grants paid
+ * features (remediation §4.7): a past_due subscription KEEPS access during
+ * its grace window so the first failed charge doesn't instantly cut off a
+ * paying user. All API/page/quota checks must go through this function —
+ * the frontend receives the resulting entitlement state, it never infers it.
+ */
+export function isSubscriptionEntitled(
+  subscription: {
+    status: string | null | undefined;
+    currentPeriodEnd: Date | null;
+    gracePeriodEnd: Date | null;
+  },
+  now: Date,
+): SubscriptionEntitlement {
+  switch (subscription.status) {
+    case 'active':
+    case 'trialing': {
+      if (subscription.currentPeriodEnd && subscription.currentPeriodEnd <= now) {
+        return { entitled: false, reason: 'period_ended' };
+      }
+      return { entitled: true, reason: subscription.status };
+    }
+    case 'past_due': {
+      if (subscription.gracePeriodEnd && subscription.gracePeriodEnd > now) {
+        return { entitled: true, reason: 'past_due_grace' };
+      }
+      return { entitled: false, reason: 'grace_period_over' };
+    }
+    case 'expired':
+      return { entitled: false, reason: 'expired' };
+    case 'canceled':
+      return { entitled: false, reason: 'canceled' };
+    default:
+      return { entitled: false, reason: 'inactive' };
+  }
+}
+
 export async function getWorkspaceBillingAccess(
   _userId: string,
   workspaceId: string,
@@ -76,18 +131,24 @@ export async function getWorkspaceBillingAccess(
     return { tier: 'max', modules: definition.modules, limits: definition.limits, capabilities: definition.capabilities };
   }
 
-  const subscriptions = await prisma.subscription.findMany({
+  const now = new Date();
+  // past_due rows are fetched too and filtered through isSubscriptionEntitled:
+  // the grace window keeps the workspace entitled (remediation §4.7).
+  const rows = await prisma.subscription.findMany({
     where: {
       workspaceId,
-      status: { in: ['active', 'trialing'] },
-      currentPeriodEnd: { gt: new Date() },
+      status: { in: ['active', 'trialing', 'past_due'] },
     },
     select: {
       module: true,
       billingPlan: { select: { key: true } },
+      status: true,
+      currentPeriodEnd: true,
+      gracePeriodEnd: true,
     },
   });
 
+  const subscriptions = rows.filter((row) => isSubscriptionEntitled(row, now).entitled);
   return resolveBillingAccess(subscriptions);
 }
 

@@ -6,14 +6,34 @@ import {
 
 const now = new Date('2026-08-22T10:00:00.000Z');
 
-const activeCoupon = {
+const activeCoupon: { code: string; isActive: boolean; startsAt: Date | null; endsAt: Date | null } = {
   code: 'WELCOME20',
   isActive: true,
   startsAt: null,
   endsAt: null,
 };
 
-const activePromotion = {
+// Explicit nullable-field types: literal inference narrows `null` fields to
+// the null type, which breaks partial overrides in the tests below.
+const activePromotion: {
+  id: string;
+  name: string;
+  discountType: string;
+  discountValue: number;
+  duration: string;
+  durationCycles: number | null;
+  minimumAmountCents: number | null;
+  maximumDiscountCents: number | null;
+  eligiblePlanKeys: string[] | null;
+  eligibleBillingCycles: string[] | null;
+  newCustomersOnly: boolean;
+  maxRedemptions: number | null;
+  maxPerUser: number;
+  maxPerWorkspace: number;
+  startsAt: Date;
+  endsAt: Date | null;
+  isActive: boolean;
+} = {
   id: 'promo-1',
   name: '首年优惠',
   discountType: 'percentage',
@@ -38,14 +58,14 @@ const noUse = { totalReservedOrRedeemed: 0, byUser: 0, byWorkspace: 0 };
 
 function validate(overrides: {
   coupon?: typeof activeCoupon;
-  promotion?: typeof activePromotion;
+  promotion?: Partial<typeof activePromotion>;
   plan?: typeof plan;
   counts?: typeof noUse;
   hasPriorPurchase?: boolean;
 } = {}) {
   return validateCouponEligibility({
     coupon: overrides.coupon ?? activeCoupon,
-    promotion: { ...activePromotion, ...(overrides.promotion ?? {}) } as typeof activePromotion,
+    promotion: { ...activePromotion, ...(overrides.promotion ?? {}) },
     plan: overrides.plan ?? plan,
     now,
     hasPriorPurchase: overrides.hasPriorPurchase ?? false,
@@ -124,5 +144,36 @@ describe('validateCouponEligibility (spec §7.4 order 1-8)', () => {
         promotion: { isActive: false, endsAt: new Date('2026-08-01T00:00:00.000Z') },
       }),
     ).toBe('COUPON_INACTIVE');
+  });
+});
+
+// ─── Remediation §4.6.6: caps are counted at the PROMOTION level ────────────
+
+describe('countRedemptions (promotion-level scope, remediation §4.6.6)', () => {
+  it('counts reserved+redeemed via coupon.promotionId — NOT per coupon code', async () => {
+    const { countRedemptions } = await import('@/lib/billing/promotions/service');
+    const { prisma } = await import('@/lib/db');
+    const { vi } = await import('vitest');
+    vi.mocked(prisma.couponRedemption.count).mockResolvedValue(0 as never);
+
+    await countRedemptions(prisma, {
+      couponId: 'coupon-A',
+      promotionId: 'promo-1',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    });
+
+    const calls = vi.mocked(prisma.couponRedemption.count).mock.calls;
+    expect(calls.length).toBe(3);
+    // Every count filters by the promotion through the coupon relation, so
+    // multiple codes under one promotion cannot bypass promotion.maxRedemptions
+    // or the per-user / per-workspace caps.
+    for (const [args] of calls) {
+      const where = (args as { where: Record<string, unknown> }).where;
+      expect((where.coupon as Record<string, unknown>).promotionId).toBe('promo-1');
+      expect(where.status).toEqual({ in: ['reserved', 'redeemed'] });
+    }
+    expect((calls[1][0] as { where: Record<string, unknown> }).where.userId).toBe('user-1');
+    expect((calls[2][0] as { where: Record<string, unknown> }).where.workspaceId).toBe('workspace-1');
   });
 });

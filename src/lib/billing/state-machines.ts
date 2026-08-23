@@ -20,12 +20,14 @@ export class BillingTransitionError extends Error {
   }
 }
 
-/** spec §13.1: ready -> processing -> completed; processing -> ready after payment failure. */
+/** spec §13.1 + remediation §6.1: expired -> requires_review on a late paid
+ * notification (money captured after local expiry — manual completion/refund). */
 const CHECKOUT_SESSION_TRANSITIONS: Record<CheckoutSessionStatus, CheckoutSessionStatus[]> = {
   ready: ['processing', 'expired', 'canceled'],
-  processing: ['ready', 'completed', 'failed', 'expired'],
+  processing: ['ready', 'completed', 'failed', 'expired', 'requires_review'],
   completed: [],
-  expired: [],
+  expired: ['requires_review'],
+  requires_review: ['completed', 'canceled'],
   canceled: [],
   failed: [],
 };
@@ -42,10 +44,11 @@ const PAYMENT_ORDER_TRANSITIONS: Record<PaymentOrderStatus, PaymentOrderStatus[]
   refunded: [],
 };
 
-/** spec §13.3 */
+/** spec §13.3 + remediation §4.2: revoking = channel revoke in flight (retryable) */
 const PAYMENT_AGREEMENT_TRANSITIONS: Record<PaymentAgreementStatus, PaymentAgreementStatus[]> = {
   pending: ['active', 'failed'],
-  active: ['revoked', 'expired'],
+  active: ['revoking', 'revoked', 'expired'],
+  revoking: ['revoked', 'failed'],
   revoked: [],
   expired: [],
   failed: [],
@@ -62,17 +65,21 @@ const SUBSCRIPTION_TRANSITIONS: Record<SubscriptionStatus, SubscriptionStatus[]>
 };
 
 /**
- * RenewalAttempt lifecycle (spec §6.1/§12): scheduled -> processing -> succeeded,
- * processing -> retryable_failed -> processing (retry), terminal failed/canceled.
+ * RenewalAttempt lifecycle (spec §6.1/§12 + remediation §4.4):
+ * scheduled -> processing -> awaiting_confirmation (charge submitted, waiting
+ * for webhook/active query) -> succeeded; lease-expired processing can be
+ * re-claimed; requires_review flags stuck attempts for manual handling.
  */
 const RENEWAL_ATTEMPT_TRANSITIONS: Record<RenewalAttemptStatus, RenewalAttemptStatus[]> = {
   scheduled: ['notifying', 'processing', 'canceled'],
   notifying: ['processing', 'canceled'],
-  processing: ['succeeded', 'retryable_failed', 'failed', 'canceled'],
+  processing: ['awaiting_confirmation', 'succeeded', 'retryable_failed', 'failed', 'canceled', 'requires_review'],
+  awaiting_confirmation: ['processing', 'succeeded', 'retryable_failed', 'failed', 'requires_review', 'canceled'],
   retryable_failed: ['processing', 'failed', 'canceled'],
   succeeded: [],
   failed: [],
   canceled: [],
+  requires_review: [],
 };
 
 function canTransition<T extends string>(

@@ -291,7 +291,7 @@ model Subscription {
 
 model CheckoutSession {
   id                       String    @id @default(cuid()) @db.Text
-  idempotencyKey           String    @unique @db.Text
+  idempotencyKey           String    @db.Text
   idempotencyRequestHash   String    @db.Text
   userId                   String    @db.Text
   user                     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -329,6 +329,9 @@ model CheckoutSession {
   @@index([userId, workspaceId, status])
   @@index([workspaceId, createdAt])
   @@index([expiresAt, status])
+  // Idempotency keys are scoped per owner (remediation §4.8) — a global
+  // unique key let one user replay into another user's session.
+  @@unique([userId, workspaceId, idempotencyKey])
 }
 
 model Promotion {

@@ -79,8 +79,12 @@ vi.mock('@/lib/db', () => {
       count: vi.fn(),
     },
     paymentEvent: {
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
       upsert: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     checkoutSession: {
       findUnique: vi.fn(),
@@ -151,7 +155,7 @@ vi.mock('@/lib/db', () => {
     },
     $queryRaw: vi.fn().mockResolvedValue([]),
     $executeRaw: vi.fn().mockResolvedValue(0),
+    $transaction: vi.fn((fn: (tx: unknown) => unknown) => fn(prisma)),
   };
-  prisma.$transaction = vi.fn((fn: (tx: unknown) => unknown) => fn(prisma));
   return { prisma };
 });

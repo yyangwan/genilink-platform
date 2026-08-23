@@ -25,6 +25,7 @@ import {
   hasPriorPurchase,
   promotionRuleInput,
   releaseRedemptionsForSessions,
+  releaseReservation,
   validateCouponEligibility,
 } from '@/lib/billing/promotions/service';
 import { listProviderAvailability } from '@/lib/billing/payments/provider';
@@ -75,14 +76,25 @@ export async function createCheckoutSession(params: {
 > {
   const now = new Date();
 
-  // Idempotency: same key + same body -> replay the stored session.
+  // Idempotency: same key + same body -> replay the stored session. The key is
+  // scoped to (userId, workspaceId) — a GLOBAL unique key could hand another
+  // user's session to whoever happens to collide on the same key
+  // (remediation §4.8).
   if (params.idempotencyKey) {
-    const existing = await prisma.checkoutSession.findUnique({
-      where: { idempotencyKey: params.idempotencyKey },
+    const existing = await prisma.checkoutSession.findFirst({
+      where: {
+        userId: params.userId,
+        workspaceId: params.workspaceId,
+        idempotencyKey: params.idempotencyKey,
+      },
       include: SESSION_INCLUDE,
     });
     if (existing) {
       if (existing.idempotencyRequestHash === hashRequest(params.requestBody)) {
+        // Defense in depth: never return a session the caller does not own.
+        if (existing.userId !== params.userId || existing.workspaceId !== params.workspaceId) {
+          throw toBillingError('NOT_FOUND');
+        }
         return { type: 'replay', session: existing };
       }
       throw toBillingError('IDEMPOTENCY_KEY_REUSED');
@@ -98,12 +110,17 @@ export async function createCheckoutSession(params: {
     throw toBillingError('PLAN_NOT_CONFIGURED', { planKey: params.planKey });
   }
 
-  const currentSubscription = await loadCurrentSubscriptionSnapshot(prisma, {
-    userId: params.userId,
-    workspaceId: params.workspaceId,
-    module: plan.module,
-    now,
-  });
+  // Structural adapter: the prisma client's overloaded findFirst doesn't match
+  // the loose `(args: unknown) => Promise<unknown>` signature directly.
+  const currentSubscription = await loadCurrentSubscriptionSnapshot(
+    prisma as unknown as Parameters<typeof loadCurrentSubscriptionSnapshot>[0],
+    {
+      userId: params.userId,
+      workspaceId: params.workspaceId,
+      module: plan.module,
+      now,
+    },
+  );
   const resolution = resolvePurchaseType({
     currentSubscription,
     targetPlanKey: plan.key,
@@ -122,6 +139,7 @@ export async function createCheckoutSession(params: {
 
     const counts = await countRedemptions(prisma, {
       couponId: coupon.id,
+      promotionId: coupon.promotion.id,
       userId: params.userId,
       workspaceId: params.workspaceId,
     });
@@ -185,13 +203,22 @@ export async function createCheckoutSession(params: {
     });
     return { type: 'created', session };
   } catch (error) {
-    // Lost an idempotency race — replay the winner.
+    // Lost an idempotency race — replay the winner (same owner scope only).
     if (params.idempotencyKey && isUniqueViolation(error)) {
-      const existing = await prisma.checkoutSession.findUnique({
-        where: { idempotencyKey: params.idempotencyKey },
+      const existing = await prisma.checkoutSession.findFirst({
+        where: {
+          userId: params.userId,
+          workspaceId: params.workspaceId,
+          idempotencyKey: params.idempotencyKey,
+        },
         include: SESSION_INCLUDE,
       });
-      if (existing && existing.idempotencyRequestHash === hashRequest(params.requestBody)) {
+      if (
+        existing &&
+        existing.userId === params.userId &&
+        existing.workspaceId === params.workspaceId &&
+        existing.idempotencyRequestHash === hashRequest(params.requestBody)
+      ) {
         return { type: 'replay', session: existing };
       }
     }
@@ -402,68 +429,107 @@ export async function applyCouponToSession(params: {
   workspaceId: string;
   code: string;
 }): Promise<CheckoutSessionRecord> {
-  const session = await loadOwnedCheckoutSession(params);
-  if (!session) throw toBillingError('NOT_FOUND');
-  await assertModifiable(session);
-
-  const coupon = await findCouponByCode(prisma, params.code);
-  if (!coupon) {
-    billingMetric('billing_coupon_rejected_total', { errorCode: 'COUPON_NOT_FOUND' });
-    throw toBillingError('COUPON_NOT_FOUND', { code: params.code });
-  }
+  // Ownership precheck (spec §8.2) — the authoritative re-check happens under
+  // the row lock below.
+  const owned = await loadOwnedCheckoutSession(params);
+  if (!owned) throw toBillingError('NOT_FOUND');
 
   const now = new Date();
-  const counts = await countRedemptions(prisma, {
-    couponId: coupon.id,
-    userId: params.userId,
-    workspaceId: params.workspaceId,
-  });
-  const priorPurchase = await hasPriorPurchase(prisma, { userId: params.userId });
-  const errorCode = validateCouponEligibility({
-    coupon,
-    promotion: coupon.promotion,
-    plan: {
-      key: session.billingPlan.key,
-      billingCycle: session.billingPlan.billingCycle,
-      priceCents: session.billingPlan.priceCents,
-    },
-    now,
-    hasPriorPurchase: priorPurchase,
-    counts,
-  });
-  if (errorCode) {
-    billingMetric('billing_coupon_rejected_total', { couponId: coupon.id, errorCode });
-    throw toBillingError(errorCode, { code: coupon.code });
-  }
 
-  const quote = calculateCheckoutQuote({
-    plan: {
-      key: session.billingPlan.key,
-      name: session.billingPlan.name,
-      billingCycle: session.billingPlan.billingCycle,
-      module: session.billingPlan.module,
-      priceCents: session.billingPlan.priceCents,
-      currency: session.billingPlan.currency,
-    },
-    promotion: promotionRuleInput(coupon.promotion),
-    coupon: { code: coupon.code },
-    purchaseType: session.purchaseType as PurchaseType,
-    now,
-  });
+  return prisma.$transaction(
+    async (tx: Tx) => {
+      // Serialize against concurrent confirm / coupon changes on the same
+      // session and re-read status under the lock (remediation §4.6.1/§4.6.2):
+      // only a ready, unexpired session may change its coupon.
+      await tx.$queryRaw`SELECT * FROM "CheckoutSession" WHERE "id" = ${owned.id} FOR UPDATE`;
+      const session = await tx.checkoutSession.findUnique({
+        where: { id: owned.id },
+        include: SESSION_INCLUDE,
+      });
+      if (!session) throw toBillingError('NOT_FOUND');
+      await assertModifiable(session);
+      if (session.expiresAt <= now) throw toBillingError('CHECKOUT_SESSION_EXPIRED');
 
-  const updated = await prisma.checkoutSession.update({
-    where: { id: session.id },
-    data: {
-      couponId: coupon.id,
-      discountCents: quote.discountCents,
-      amountDueCents: quote.amountDueCents,
-      renewalAmountCents: quote.renewalAmountCents,
-      discountSnapshot: (quote.discountSnapshot ?? undefined) as Prisma.InputJsonValue | undefined,
+      const coupon = await findCouponByCode(tx, params.code);
+      if (!coupon) {
+        billingMetric('billing_coupon_rejected_total', { errorCode: 'COUPON_NOT_FOUND' });
+        throw toBillingError('COUPON_NOT_FOUND', { code: params.code });
+      }
+
+      const counts = await countRedemptions(tx, {
+        couponId: coupon.id,
+        promotionId: coupon.promotion.id,
+        userId: params.userId,
+        workspaceId: params.workspaceId,
+      });
+      const priorPurchase = await hasPriorPurchase(tx, { userId: params.userId });
+      const errorCode = validateCouponEligibility({
+        coupon,
+        promotion: coupon.promotion,
+        plan: {
+          key: session.billingPlan.key,
+          billingCycle: session.billingPlan.billingCycle,
+          priceCents: session.billingPlan.priceCents,
+        },
+        now,
+        hasPriorPurchase: priorPurchase,
+        counts,
+      });
+      if (errorCode) {
+        billingMetric('billing_coupon_rejected_total', { couponId: coupon.id, errorCode });
+        throw toBillingError(errorCode, { code: coupon.code });
+      }
+
+      const quote = calculateCheckoutQuote({
+        plan: {
+          key: session.billingPlan.key,
+          name: session.billingPlan.name,
+          billingCycle: session.billingPlan.billingCycle,
+          module: session.billingPlan.module,
+          priceCents: session.billingPlan.priceCents,
+          currency: session.billingPlan.currency,
+        },
+        promotion: promotionRuleInput(coupon.promotion),
+        coupon: { code: coupon.code },
+        purchaseType: session.purchaseType as PurchaseType,
+        now,
+      });
+
+      // Switching coupons: atomically release the OLD reservation and point
+      // any existing redemption record at the NEW coupon so only B can be
+      // redeemed (remediation §4.6.4 — the record's couponId was never
+      // updated before).
+      if (
+        session.couponId &&
+        session.couponId !== coupon.id &&
+        session.redemption &&
+        session.redemption.status === 'reserved'
+      ) {
+        await releaseReservation(tx, session.redemption.id);
+      }
+      if (session.redemption && session.redemption.status === 'reserved' && session.couponId !== coupon.id) {
+        await tx.couponRedemption.update({
+          where: { id: session.redemption.id },
+          data: { couponId: coupon.id, discountCents: quote.discountCents },
+        });
+      }
+
+      const updated = await tx.checkoutSession.update({
+        where: { id: session.id },
+        data: {
+          couponId: coupon.id,
+          discountCents: quote.discountCents,
+          amountDueCents: quote.amountDueCents,
+          renewalAmountCents: quote.renewalAmountCents,
+          discountSnapshot: (quote.discountSnapshot ?? undefined) as Prisma.InputJsonValue | undefined,
+        },
+        include: SESSION_INCLUDE,
+      });
+      billingMetric('billing_coupon_apply_total', { couponId: coupon.id, checkoutSessionId: session.id });
+      return updated;
     },
-    include: SESSION_INCLUDE,
-  });
-  billingMetric('billing_coupon_apply_total', { couponId: coupon.id, checkoutSessionId: session.id });
-  return updated;
+    { timeout: 15_000 },
+  );
 }
 
 export async function removeCouponFromSession(params: {
@@ -471,22 +537,40 @@ export async function removeCouponFromSession(params: {
   userId: string;
   workspaceId: string;
 }): Promise<CheckoutSessionRecord> {
-  const session = await loadOwnedCheckoutSession(params);
-  if (!session) throw toBillingError('NOT_FOUND');
-  await assertModifiable(session);
+  const owned = await loadOwnedCheckoutSession(params);
+  if (!owned) throw toBillingError('NOT_FOUND');
 
-  const updated = await prisma.checkoutSession.update({
-    where: { id: session.id },
-    data: {
-      couponId: null,
-      discountCents: 0,
-      amountDueCents: session.subtotalCents,
-      renewalAmountCents: session.subtotalCents,
-      discountSnapshot: Prisma.JsonNull,
+  return prisma.$transaction(
+    async (tx: Tx) => {
+      await tx.$queryRaw`SELECT * FROM "CheckoutSession" WHERE "id" = ${owned.id} FOR UPDATE`;
+      const session = await tx.checkoutSession.findUnique({
+        where: { id: owned.id },
+        include: SESSION_INCLUDE,
+      });
+      if (!session) throw toBillingError('NOT_FOUND');
+      await assertModifiable(session);
+
+      // Releasing the hold is part of the same transaction as the quote reset
+      // (remediation §4.6.5 — the old implementation left the reservation
+      // dangling until session expiry).
+      if (session.redemption && session.redemption.status === 'reserved') {
+        await releaseReservation(tx, session.redemption.id);
+      }
+
+      return tx.checkoutSession.update({
+        where: { id: session.id },
+        data: {
+          couponId: null,
+          discountCents: 0,
+          amountDueCents: session.subtotalCents,
+          renewalAmountCents: session.subtotalCents,
+          discountSnapshot: Prisma.JsonNull,
+        },
+        include: SESSION_INCLUDE,
+      });
     },
-    include: SESSION_INCLUDE,
-  });
-  return updated;
+    { timeout: 15_000 },
+  );
 }
 
 // ─── Expiry sweep (opportunistic cron substitute) ───────────────────────────

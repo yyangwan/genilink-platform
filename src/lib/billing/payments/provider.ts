@@ -18,6 +18,11 @@ export type CreatePaymentInput = {
   description: string;
   idempotencyKey: string;
   requestOrigin?: string;
+  /** Channel-side expiry for the order. Adapters translate it into
+   * time_expire (wechat, RFC 3339) / timeout_express (alipay, minutes)
+   * so a stale QR or redirect link can no longer be paid
+   * (remediation §4.1). */
+  expiresAt?: Date;
 };
 
 export type CreatePaymentResult = {
@@ -34,6 +39,13 @@ export type ClosePaymentInput = {
   providerSessionId?: string | null;
 };
 
+/** Channel-agnostic close outcome (remediation §4.1): 'already_paid' tells the
+ * caller to reconcile (query + capture) instead of silently discarding. */
+export type ClosePaymentResult =
+  | { outcome: 'closed' }
+  | { outcome: 'already_paid' }
+  | { outcome: 'gone' };
+
 export type QueryPaymentInput = {
   orderId: string;
   providerSessionId?: string | null;
@@ -43,6 +55,9 @@ export type QueryPaymentResult = {
   status: string | null;
   providerTransactionId: string | null;
   paidAt: Date | null;
+  /** Channel-confirmed amount in cents, when the query response carries it —
+   * used by watchdog/close-check reconciliation (remediation §4.1/§4.4). */
+  amountCents: number | null;
 };
 
 export type RawWebhookInput = {
@@ -57,6 +72,9 @@ export type VerifiedProviderEvent = {
   providerOrderId: string | null;
   providerTransactionId: string | null;
   amountCents: number | null;
+  /** Channel currency code (e.g. CNY). Adapters fill it whenever the payload
+   * carries one; the webhook layer REQUIRES it on success events (remediation §4.9). */
+  currency: string | null;
   status: string | null;
   paidAt: Date | null;
   appId: string | null;
@@ -120,7 +138,7 @@ export interface PaymentProviderAdapter {
   getCapabilities(): ProviderCapabilities;
 
   createOneTimePayment(input: CreatePaymentInput): Promise<CreatePaymentResult>;
-  closePayment(input: ClosePaymentInput): Promise<void>;
+  closePayment(input: ClosePaymentInput): Promise<ClosePaymentResult>;
   queryPayment(input: QueryPaymentInput): Promise<QueryPaymentResult>;
   verifyWebhook(input: RawWebhookInput): Promise<VerifiedProviderEvent | WebhookParseError>;
 

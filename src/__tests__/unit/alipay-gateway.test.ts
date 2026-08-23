@@ -110,7 +110,7 @@ describe('Alipay billing gateway', () => {
     expect(result.providerSessionId).toBe('order-1');
   });
 
-  it('accepts a valid alipay notification and activates the order', async () => {
+  it('flags an unlinked paid order for review instead of silently activating it (remediation §4.3)', async () => {
     const { publicKey, privateKey } = createRsaKeyPair();
     vi.stubEnv('ALIPAY_PRIVATE_KEY', privateKey);
     vi.stubEnv('ALIPAY_PUBLIC_KEY', publicKey);
@@ -138,14 +138,13 @@ describe('Alipay billing gateway', () => {
       processedAt: null,
     });
     (prisma.paymentEvent.update as ReturnType<typeof vi.fn>).mockResolvedValue({});
+    (prisma.paymentEvent.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (prisma.paymentEvent.create as ReturnType<typeof vi.fn>).mockResolvedValue({});
     (prisma.paymentOrder.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: 'order-1',
       checkoutSessionId: null,
       orderType: 'initial',
-    });
-    (activateSubscriptionFromPayment as ReturnType<typeof vi.fn>).mockResolvedValue({
-      order: { id: 'order-1' },
-      subscription: { id: 'sub-1' },
+      renewalAttempt: null,
     });
 
     const req = new Request('http://localhost/api/billing/webhooks/alipay', {
@@ -157,31 +156,14 @@ describe('Alipay billing gateway', () => {
 
     expect(res.status).toBe(200);
     expect(await res.text()).toBe('success');
-    expect(activateSubscriptionFromPayment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        orderId: 'order-1',
-        provider: 'alipay',
-        providerSessionId: 'trade-1',
-        providerSubscriptionId: 'trade-1',
-        providerStatus: 'active',
-      }),
-    );
-    expect(prisma.paymentEvent.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { providerEventId: 'notify-1' },
-        create: expect.objectContaining({
-          provider: 'alipay',
-          providerEventId: 'notify-1',
-          eventType: 'TRADE_SUCCESS',
-          signatureVerified: true,
-        }),
-      }),
-    );
+    // An order with no checkout-session or renewal link must NEVER reach the
+    // legacy activation path — it is parked as requires_review instead.
+    expect(activateSubscriptionFromPayment).not.toHaveBeenCalled();
     expect(prisma.paymentEvent.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { providerEventId: 'notify-1' },
         data: expect.objectContaining({
-          status: 'processed',
+          status: 'requires_review',
           paymentOrderId: 'order-1',
         }),
       }),

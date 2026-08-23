@@ -97,8 +97,8 @@ function makeRequest(body: unknown, headers: Record<string, string> = {}) {
 describe('POST /api/billing/checkout-sessions (spec §8.1)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(prisma.billingPlan.findUnique).mockImplementation(async ({ where }: { where: { key: string } }) =>
-      (where.key === 'suite-pro-monthly' ? PLAN_MONTHLY : PLAN) as never,
+    vi.mocked(prisma.billingPlan.findUnique).mockImplementation((async ({ where }: { where: { key?: string } }) =>
+      (where.key === 'suite-pro-monthly' ? PLAN_MONTHLY : PLAN)) as never,
     );
     vi.mocked(prisma.billingPlan.updateMany).mockResolvedValue({ count: 0 } as never);
     vi.mocked(prisma.billingPlan.upsert).mockResolvedValue(PLAN as never);
@@ -142,7 +142,9 @@ describe('POST /api/billing/checkout-sessions (spec §8.1)', () => {
   });
 
   it('replays the stored session for the same key + body (spec §8)', async () => {
-    vi.mocked(prisma.checkoutSession.findUnique).mockResolvedValue(makeSession() as never);
+    // Owner-scoped lookup (remediation §4.8): the service queries by
+    // (userId, workspaceId, idempotencyKey) via findFirst.
+    vi.mocked(prisma.checkoutSession.findFirst).mockResolvedValueOnce(makeSession() as never);
     const response = await POST(
       makeRequest({ planKey: 'suite-pro-yearly' }, { 'Idempotency-Key': 'key-1' }),
     );
@@ -151,7 +153,7 @@ describe('POST /api/billing/checkout-sessions (spec §8.1)', () => {
   });
 
   it('returns 409 IDEMPOTENCY_KEY_REUSED when the key matches but the body differs', async () => {
-    vi.mocked(prisma.checkoutSession.findUnique).mockResolvedValue(
+    vi.mocked(prisma.checkoutSession.findFirst).mockResolvedValueOnce(
       makeSession({ idempotencyRequestHash: requestHash({ planKey: 'other-plan' }) }) as never,
     );
     const response = await POST(

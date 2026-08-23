@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { runRenewalBatch } from '@/lib/billing/renewals/service';
+import { closeExpiredSessionOrders } from '@/lib/billing/payments/orchestrator';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -38,5 +39,12 @@ export async function POST(req: NextRequest) {
 
   const workerId = `worker-${crypto.randomUUID().slice(0, 8)}`;
   const result = await runRenewalBatch(workerId, RENEWAL_BATCH_SIZE);
-  return NextResponse.json({ workerId, ...result });
+  // Retryable channel-close sweep for expired sessions runs on every cron
+  // pass until no stale QR/redirect remains payable (remediation §4.1).
+  const channelClose = await closeExpiredSessionOrders().catch(() => ({
+    closed: 0,
+    reconciled: 0,
+    failed: 0,
+  }));
+  return NextResponse.json({ workerId, ...result, channelClose });
 }

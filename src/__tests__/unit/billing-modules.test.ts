@@ -17,22 +17,26 @@ describe('getActiveModules', () => {
 
   it('includes trialing subscriptions when building the access cookie', async () => {
     (prisma.subscription.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { module: 'suite', billingPlan: { key: 'suite-pro-monthly' } },
+      { module: 'suite', status: 'trialing', currentPeriodEnd: new Date('2026-12-31'), gracePeriodEnd: null, billingPlan: { key: 'suite-pro-monthly' } },
     ]);
 
     const modules = await getActiveModules('user-1', 'workspace-1');
 
+    // past_due rows are also fetched and entitlement-filtered in code
+    // (remediation §4.7).
     expect(prisma.subscription.findMany).toHaveBeenCalledWith({
       where: {
         workspaceId: 'workspace-1',
         status: {
-          in: ['active', 'trialing'],
+          in: ['active', 'trialing', 'past_due'],
         },
-        currentPeriodEnd: { gt: expect.any(Date) },
       },
       select: {
         module: true,
         billingPlan: { select: { key: true } },
+        status: true,
+        currentPeriodEnd: true,
+        gracePeriodEnd: true,
       },
     });
     expect(modules).toEqual(['visibility', 'content']);

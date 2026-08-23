@@ -92,7 +92,7 @@ describe('POST confirm (spec §8.5)', () => {
       failureMessage: null,
       metadata: {},
     } as never);
-    vi.mocked(prisma.paymentOrder.update).mockImplementation(async ({ data }) => ({
+    vi.mocked(prisma.paymentOrder.update).mockImplementation((async ({ data }: { data?: Record<string, unknown> }) => ({
       id: 'order-1',
       provider: 'wechatpay',
       status: (data as { status?: string }).status ?? 'opened',
@@ -101,7 +101,7 @@ describe('POST confirm (spec §8.5)', () => {
       failureCode: null,
       failureMessage: null,
       metadata: (data as { metadata?: unknown }).metadata ?? {},
-    }) as never);
+    })) as never);
     vi.mocked(prisma.paymentAgreement.upsert).mockResolvedValue({ id: 'agr-1', status: 'pending' } as never);
     vi.mocked(prisma.coupon.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.couponRedemption.findUnique).mockResolvedValue(null as never);
@@ -128,13 +128,13 @@ describe('POST confirm (spec §8.5)', () => {
     });
   });
 
-  it('rejects autoRenew when the channel lacks recurring capability (spec §3 degradation)', async () => {
+  it('rejects autoRenew when the channel lacks recurring capability (remediation §4.2)', async () => {
     const response = await POST(
       postRequest({ provider: 'wechatpay', autoRenew: true }, { 'Idempotency-Key': 'k1' }),
       routeCtx(),
     );
     expect(response.status).toBe(400);
-    expect((await response.json()).error.code).toBe('AUTO_RENEW_NOT_SUPPORTED');
+    expect((await response.json()).error.code).toBe('RECURRING_NOT_AVAILABLE');
   });
 
   it('requires an agreement version when autoRenew is enabled on a recurring channel', async () => {
@@ -255,7 +255,7 @@ describe('POST confirm (spec §8.5)', () => {
 
   it('replays the stored attempt for the same confirm idempotency key', async () => {
     const { requestHash } = await import('@/lib/billing/idempotency');
-    vi.mocked(prisma.paymentOrder.findUnique).mockImplementation(async ({ where }: { where: { idempotencyKey: string } }) => {
+    vi.mocked(prisma.paymentOrder.findUnique).mockImplementation((async ({ where }: { where: { idempotencyKey?: string } }) => {
       if (where.idempotencyKey === 'confirm:session-1:k1') {
         return {
           id: 'order-1',
@@ -270,7 +270,7 @@ describe('POST confirm (spec §8.5)', () => {
         } as never;
       }
       return null as never;
-    });
+    }) as never);
     const response = await POST(
       postRequest({ provider: 'wechatpay', autoRenew: false }, { 'Idempotency-Key': 'k1' }),
       routeCtx(),

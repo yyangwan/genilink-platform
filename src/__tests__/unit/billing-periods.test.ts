@@ -1,3 +1,4 @@
+import { isSubscriptionEntitled } from '@/lib/billing/access';
 import { describe, expect, it } from 'vitest';
 import {
   addBillingCycle,
@@ -90,5 +91,35 @@ describe('grace period (spec §3: 7 days)', () => {
     } finally {
       delete process.env.BILLING_GRACE_PERIOD_DAYS;
     }
+  });
+});
+
+// ─── Unified entitlement (remediation §4.7) ─────────────────────────────────
+
+describe('isSubscriptionEntitled (remediation §4.7)', () => {  const now = new Date('2026-08-23T00:00:00.000Z');
+
+  it('grants access for active and trialing subscriptions', () => {
+    expect(isSubscriptionEntitled({ status: 'active', currentPeriodEnd: new Date('2026-12-31'), gracePeriodEnd: null }, now))
+      .toEqual({ entitled: true, reason: 'active' });
+    expect(isSubscriptionEntitled({ status: 'trialing', currentPeriodEnd: new Date('2026-12-31'), gracePeriodEnd: null }, now))
+      .toEqual({ entitled: true, reason: 'trialing' });
+  });
+
+  it('KEEPS access during the past_due grace window — first failed charge must not cut off a paying user', () => {
+    expect(isSubscriptionEntitled({ status: 'past_due', currentPeriodEnd: new Date('2026-08-20'), gracePeriodEnd: new Date('2026-08-27') }, now))
+      .toEqual({ entitled: true, reason: 'past_due_grace' });
+  });
+
+  it('cuts access once the grace window is over', () => {
+    expect(isSubscriptionEntitled({ status: 'past_due', currentPeriodEnd: new Date('2026-08-20'), gracePeriodEnd: new Date('2026-08-22') }, now))
+      .toEqual({ entitled: false, reason: 'grace_period_over' });
+  });
+
+  it('denies expired/canceled/inactive subscriptions and ended periods', () => {
+    expect(isSubscriptionEntitled({ status: 'expired', currentPeriodEnd: null, gracePeriodEnd: null }, now).entitled).toBe(false);
+    expect(isSubscriptionEntitled({ status: 'canceled', currentPeriodEnd: null, gracePeriodEnd: null }, now).entitled).toBe(false);
+    expect(isSubscriptionEntitled({ status: null, currentPeriodEnd: null, gracePeriodEnd: null }, now).entitled).toBe(false);
+    expect(isSubscriptionEntitled({ status: 'active', currentPeriodEnd: new Date('2026-08-01'), gracePeriodEnd: null }, now))
+      .toEqual({ entitled: false, reason: 'period_ended' });
   });
 });

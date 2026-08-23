@@ -18,18 +18,21 @@ type Props = {
 };
 
 function useCountdown(expiresAt: string | null): number | null {
+  // The remaining time lives in state and is only updated from async
+  // callbacks (rAF first frame + 1s ticker) — no synchronous setState in the
+  // effect body and no impure Date.now() during render (remediation §4.11.3).
   const [remaining, setRemaining] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!expiresAt) {
-      setRemaining(null);
-      return;
-    }
+    if (!expiresAt) return;
     const target = new Date(expiresAt).getTime();
     const update = () => setRemaining(Math.max(0, Math.floor((target - Date.now()) / 1000)));
-    update();
+    const raf = requestAnimationFrame(update);
     const timer = setInterval(update, 1000);
-    return () => clearInterval(timer);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearInterval(timer);
+    };
   }, [expiresAt]);
 
   return remaining;
@@ -47,7 +50,10 @@ export function PaymentStage({
   onRefresh,
   onContinueAlipay,
 }: Props) {
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  // QR image generation is async; the effective value is derived at render
+  // time so a missing/switched codeUrl needs no synchronous setState reset
+  // (remediation §4.11.3).
+  const [generatedQr, setGeneratedQr] = useState<{ codeUrl: string; dataUrl: string } | null>(null);
   const remaining = useCountdown(expiresAt);
   const expired = remaining !== null && remaining <= 0;
 
@@ -56,16 +62,19 @@ export function PaymentStage({
     if (presentation === 'qr_code' && codeUrl) {
       QRCode.toDataURL(codeUrl, { margin: 1, width: 280 })
         .then((url) => {
-          if (active) setQrDataUrl(url);
+          if (active) setGeneratedQr({ codeUrl, dataUrl: url });
         })
         .catch(() => undefined);
-    } else {
-      setQrDataUrl(null);
     }
     return () => {
       active = false;
     };
   }, [presentation, codeUrl]);
+
+  const qrDataUrl =
+    presentation === 'qr_code' && codeUrl && generatedQr?.codeUrl === codeUrl
+      ? generatedQr.dataUrl
+      : null;
 
   const countdownLabel = useMemo(() => {
     if (remaining === null) return null;

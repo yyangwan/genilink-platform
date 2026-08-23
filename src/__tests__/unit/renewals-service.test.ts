@@ -227,7 +227,7 @@ function seedAttempt(overrides: Row = {}): RenewalAttemptRecord {
     paymentOrder: null,
     ...overrides,
     subscription: seedSubscription(overrides.subscription ?? {}),
-  } as RenewalAttemptRecord;
+  } as unknown as RenewalAttemptRecord;
 }
 
 function baseAttemptRow(overrides: Row = {}): Row {
@@ -352,6 +352,92 @@ describe('ensureRenewalAttempts', () => {
 });
 
 describe('executeRenewalAttempt', () => {
+  it('takes over a crashed attempt whose charge already succeeded — reconciles without re-charging (remediation §4.4)', async () => {
+    stateful.current = createDb({
+      subscriptions: [seedSubscription()],
+      agreements: [ACTIVE_AGREEMENT],
+      attempts: [baseAttemptRow({ paymentOrderId: 'order-9' })],
+      orders: [{
+        id: 'order-9',
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        billingPlanId: 'plan-1',
+        module: 'suite',
+        billingCycle: 'yearly',
+        provider: 'wechatpay',
+        orderType: 'renewal',
+        status: 'processing',
+        amountCents: 319920,
+        currency: 'CNY',
+        attemptNumber: 1,
+      }],
+    });
+
+    const charge = vi.fn();
+    const outcome = await executeRenewalAttempt(
+      seedAttempt({
+        paymentOrderId: 'order-9',
+        paymentOrder: { id: 'order-9', status: 'processing' },
+      }),
+      {
+        adapterOverride: {
+          chargeAgreement: charge,
+          queryPayment: vi.fn(async () => ({
+            status: 'SUCCESS',
+            providerTransactionId: 'wx-txn-takeover',
+            paidAt: NOW_PAST_DUE,
+            amountCents: 319920,
+          })),
+        } as never,
+      },
+    );
+
+    expect(outcome).toBe('succeeded');
+    expect(charge).not.toHaveBeenCalled(); // NEVER double-charge a taken-over attempt
+    const { db } = stateful.current;
+    expect(db.orders[0].status).toBe('paid');
+    expect(db.attempts[0].status).toBe('succeeded');
+    expect(db.subscriptions[0].currentPeriodEnd.toISOString()).toBe(PERIOD_END.toISOString());
+  });
+
+  it('treats an unknown channel answer on takeover as a retryable timeout (remediation §4.4)', async () => {
+    stateful.current = createDb({
+      subscriptions: [seedSubscription()],
+      agreements: [ACTIVE_AGREEMENT],
+      attempts: [baseAttemptRow({ paymentOrderId: 'order-9', attemptNumber: 1 })],
+      orders: [{
+        id: 'order-9',
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        billingPlanId: 'plan-1',
+        module: 'suite',
+        billingCycle: 'yearly',
+        provider: 'wechatpay',
+        orderType: 'renewal',
+        status: 'processing',
+        amountCents: 319920,
+        currency: 'CNY',
+        attemptNumber: 1,
+      }],
+    });
+
+    const outcome = await executeRenewalAttempt(
+      seedAttempt({
+        paymentOrderId: 'order-9',
+        paymentOrder: { id: 'order-9', status: 'processing' },
+      }),
+      {
+        adapterOverride: {
+          chargeAgreement: vi.fn(),
+          queryPayment: vi.fn(async () => ({ status: null, providerTransactionId: null, paidAt: null, amountCents: null })),
+        } as never,
+      },
+    );
+
+    expect(outcome).toBe('retry_scheduled');
+    expect(stateful.current.db.attempts[0].status).toBe('retryable_failed');
+  });
+
   it('extends from the original period end and decrements discount cycles on success (spec §12.5)', async () => {
     stateful.current = createDb({
       subscriptions: [seedSubscription()],

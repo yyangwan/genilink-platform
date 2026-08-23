@@ -31,9 +31,16 @@ export class BillingCapabilityError extends Error {
 
 const ENTITLED_STATUSES = new Set(['active', 'trialing']);
 
+/**
+ * Status-only check kept for callers without period data. Prefer
+ * isSubscriptionEntitled (remediation §4.7) — it is the only check that
+ * honors the past_due grace window.
+ */
 export function isEntitledSubscriptionStatus(status: string | null | undefined): boolean {
   return status ? ENTITLED_STATUSES.has(status) : false;
 }
+
+export { isSubscriptionEntitled } from '@/lib/billing/access';
 
 export async function requireBilling(
   userId: string,

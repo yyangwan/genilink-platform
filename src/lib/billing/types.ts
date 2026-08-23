@@ -6,6 +6,7 @@ export type CheckoutSessionStatus =
   | 'processing'
   | 'completed'
   | 'expired'
+  | 'requires_review'
   | 'canceled'
   | 'failed';
 
@@ -14,6 +15,7 @@ export type PurchaseType = 'new' | 'upgrade' | 'manual_renewal';
 export type PaymentAgreementStatus =
   | 'pending'
   | 'active'
+  | 'revoking'
   | 'revoked'
   | 'expired'
   | 'failed';
@@ -22,10 +24,12 @@ export type RenewalAttemptStatus =
   | 'scheduled'
   | 'notifying'
   | 'processing'
+  | 'awaiting_confirmation'
   | 'succeeded'
   | 'retryable_failed'
   | 'failed'
-  | 'canceled';
+  | 'canceled'
+  | 'requires_review';
 
 export type DiscountType = 'fixed_amount' | 'percentage';
 export type DiscountDuration = 'once' | 'repeating';
@@ -52,6 +56,7 @@ export type BillingErrorCode =
   | 'PLAN_DOWNGRADE_NOT_SUPPORTED'
   | 'AUTO_RENEW_ALREADY_ENABLED'
   | 'AUTO_RENEW_NOT_SUPPORTED'
+  | 'RECURRING_NOT_AVAILABLE'
   | 'AGREEMENT_VERSION_REQUIRED'
   | 'CHECKOUT_SESSION_EXPIRED'
   | 'CHECKOUT_SESSION_NOT_MODIFIABLE'
@@ -123,6 +128,7 @@ const ERROR_STATUS: Partial<Record<BillingErrorCode, number>> = {
   PLAN_DOWNGRADE_NOT_SUPPORTED: 422,
   AUTO_RENEW_ALREADY_ENABLED: 409,
   AUTO_RENEW_NOT_SUPPORTED: 400,
+  RECURRING_NOT_AVAILABLE: 400,
   AGREEMENT_VERSION_REQUIRED: 400,
   CHECKOUT_SESSION_EXPIRED: 409,
   CHECKOUT_SESSION_NOT_MODIFIABLE: 409,
@@ -149,6 +155,7 @@ const ERROR_MESSAGE_ZH: Partial<Record<BillingErrorCode, string>> = {
   PLAN_DOWNGRADE_NOT_SUPPORTED: '暂不支持降级套餐',
   AUTO_RENEW_ALREADY_ENABLED: '已开启自动续期，请在订阅管理中操作',
   AUTO_RENEW_NOT_SUPPORTED: '当前支付渠道暂不支持自动续期',
+  RECURRING_NOT_AVAILABLE: '自动续期功能暂未开放，当前为手动续费',
   AGREEMENT_VERSION_REQUIRED: '开启自动续期需要先同意代扣协议',
   CHECKOUT_SESSION_EXPIRED: '结算会话已过期',
   CHECKOUT_SESSION_NOT_MODIFIABLE: '当前状态下不能修改优惠码',

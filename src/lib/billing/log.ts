@@ -59,7 +59,8 @@ export type BillingMetricName =
   | 'billing_agreement_active_total'
   | 'billing_renewal_success_total'
   | 'billing_renewal_failure_total'
-  | 'billing_renewal_recovered_total';
+  | 'billing_renewal_recovered_total'
+  | 'billing_channel_close_sweep';
 
 export function billingMetric(name: BillingMetricName, fields: Record<string, unknown> = {}): void {
   billingLog('metric', { metric: name, ...fields });

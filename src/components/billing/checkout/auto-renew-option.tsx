@@ -18,7 +18,8 @@ type Props = {
 /**
  * Auto-renew opt-in (spec §12.1): user action + explicit agreement acceptance.
  * Rendered ONLY when the selected channel supports recurring charges — never
- * pre-checked (spec §15).
+ * pre-checked (spec §15). While recurring is not available the cashier shows
+ * a manual-renewal notice instead (remediation §4.2).
  */
 export function AutoRenewOption({
   available,
@@ -28,7 +29,13 @@ export function AutoRenewOption({
   renewalAmountCents,
   nextBillingDateLabel,
 }: Props) {
-  if (!available) return null;
+  if (!available) {
+    return (
+      <p className="text-xs leading-5" style={{ color: 'var(--text-muted)' }}>
+        当前为手动续费：到期后不会自动扣款，可随时再次订阅续期。
+      </p>
+    );
+  }
 
   return (
     <div

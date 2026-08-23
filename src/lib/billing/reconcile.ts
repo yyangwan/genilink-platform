@@ -113,6 +113,7 @@ export type ReconcileOutcome =
   | 'already_paid'
   | 'amount_mismatch'
   | 'duplicate_success_anomaly'
+  | 'late_success_requires_review'
   | 'order_not_found'
   | 'renewal_activated'
   | 'renewal_already_processed';
@@ -199,8 +200,12 @@ export async function reconcileCheckoutPayment(params: {
         return 'duplicate_success_anomaly';
       }
 
+      const now = params.paidAt ?? new Date();
+
       // 5. Verify the paid amount matches the frozen quote (spec §11.2 step 5).
-      if (params.amountCents !== null && params.amountCents !== session.amountDueCents) {
+      // A missing amount on a success event is a rejection, not a pass
+      // (remediation §4.9 — the route normally guarantees it is non-null).
+      if (params.amountCents === null || params.amountCents !== session.amountDueCents) {
         billingLog('alert', {
           eventType: 'payment_amount_mismatch',
           checkoutSessionId: session.id,
@@ -213,14 +218,54 @@ export async function reconcileCheckoutPayment(params: {
           where: { id: order.id },
           data: {
             failureCode: 'AMOUNT_MISMATCH',
-            failureMessage: `expected ${session.amountDueCents} got ${params.amountCents}`,
+            failureMessage: `expected ${session.amountDueCents} got ${params.amountCents ?? 'null'}`,
           },
         });
-        await markEvent(tx, params.paymentEventId, 'processed', order.id);
+        await markEvent(tx, params.paymentEventId, 'rejected', order.id);
         return 'amount_mismatch';
       }
 
-      const now = params.paidAt ?? new Date();
+      // 4b. Late success after local expiry: the channel captured the money
+      // after we expired the session. Park it for manual completion or refund
+      // instead of failing the transition expired -> completed (remediation §4.1).
+      if (session.status === 'expired' || session.status === 'canceled' || session.status === 'failed') {
+        if (order.status === 'pending') {
+          assertPaymentOrderTransition('pending', 'opened');
+          await tx.paymentOrder.update({ where: { id: order.id }, data: { status: 'opened' } });
+        }
+        assertPaymentOrderTransition(order.status as 'opened' | 'processing', 'paid');
+        await tx.paymentOrder.update({
+          where: { id: order.id },
+          data: {
+            status: 'paid',
+            paidAt: now,
+            providerTransactionId: params.providerTransactionId ?? order.providerTransactionId,
+          },
+        });
+        assertCheckoutSessionTransition(session.status, 'requires_review');
+        await tx.checkoutSession.update({
+          where: { id: session.id },
+          data: { status: 'requires_review' },
+        });
+        if (session.redemption && session.redemption.status === 'reserved') {
+          await tx.couponRedemption.update({
+            where: { id: session.redemption.id },
+            data: { status: 'redeemed', redeemedAt: now },
+          });
+        }
+        billingLog('refund_queue', {
+          eventType: 'late_success_requires_review',
+          checkoutSessionId: session.id,
+          paymentOrderId: order.id,
+          provider: params.provider,
+          providerTransactionId: params.providerTransactionId,
+          amountCents: params.amountCents,
+          sessionStatus: session.status,
+          reason: 'paid after local session expiry — manual completion or refund required',
+        });
+        await markEvent(tx, params.paymentEventId, 'requires_review', order.id);
+        return 'late_success_requires_review';
+      }
 
       // 6. Order -> paid (defensively pass through opened if still pending).
       if (order.status === 'pending') {
@@ -297,7 +342,11 @@ export async function reconcileCheckoutPayment(params: {
         currentPeriodEnd: periods.currentPeriodEnd,
         nextBillingAt: autoRenew ? periods.currentPeriodEnd : null,
         gracePeriodEnd: null,
-        renewalPriceCents: session.renewalAmountCents,
+        // The renewal BASE must be the undiscounted standard price
+        // (remediation §4.5): renewalAmountCents is the discounted display
+        // price under a repeating promotion — storing it as the base and then
+        // subtracting the snapshot discount again double-discounted renewals.
+        renewalPriceCents: session.subtotalCents,
         priceSnapshot: session.planSnapshot as Prisma.InputJsonValue,
         discountSnapshot: (repeating
           ? (session.discountSnapshot as Prisma.InputJsonValue)
@@ -357,7 +406,7 @@ export async function reconcileCheckoutPayment(params: {
 async function markEvent(
   tx: Tx,
   providerEventId: string,
-  status: 'processed' | 'ignored',
+  status: 'processed' | 'ignored' | 'rejected' | 'requires_review',
   paymentOrderId: string | null,
 ): Promise<void> {
   await tx.paymentEvent.update({

@@ -1,9 +1,12 @@
 // Alipay adapter — wraps the existing page-pay URL builder (spec §9).
-// Cycle-pay (周期扣款) agreement methods are stubs until merchant approval (spec §22).
+// Cycle-pay (周期扣款) agreement methods are stubs until merchant approval;
+// recurring capability stays hardcoded OFF (remediation §4.2).
 
 import {
+  closeAlipayTrade,
   createAlipayCheckoutUrl,
   isPaymentProviderConfigured,
+  queryAlipayTrade,
   verifyAlipayNotificationSignature,
 } from '@/lib/billing/gateways';
 import { billingMetric } from '@/lib/billing/log';
@@ -11,6 +14,7 @@ import type {
   ChargeAgreementInput,
   ChargeAgreementResult,
   ClosePaymentInput,
+  ClosePaymentResult,
   CreateAgreementInput,
   CreateAgreementResult,
   CreatePaymentInput,
@@ -32,14 +36,6 @@ function envString(key: string): string | null {
   return value ? value : null;
 }
 
-export function alipayRecurringConfigured(): boolean {
-  return Boolean(
-    envString('ALIPAY_RECURRING_ENABLED') === 'true' &&
-    isPaymentProviderConfigured('alipay') &&
-    envString('ALIPAY_AGREEMENT_PRODUCT_CODE'),
-  );
-}
-
 function notConfigured(method: string): never {
   throw new Error(`ALIPAY_RECURRING_NOT_CONFIGURED: ${method} requires merchant approval and ALIPAY_AGREEMENT_PRODUCT_CODE (spec §22)`);
 }
@@ -48,12 +44,12 @@ export const alipayAdapter: PaymentProviderAdapter = {
   provider: 'alipay',
 
   getCapabilities(): ProviderCapabilities {
-    const oneTimePayment = isPaymentProviderConfigured('alipay');
-    const recurringPayment = alipayRecurringConfigured();
+    // Recurring is hardcoded OFF until the full 周期扣款 implementation ships
+    // AND merchant approval lands (remediation §4.2).
     return {
-      oneTimePayment,
-      recurringPayment,
-      payAndSign: recurringPayment,
+      oneTimePayment: isPaymentProviderConfigured('alipay'),
+      recurringPayment: false,
+      payAndSign: false,
     };
   },
 
@@ -70,6 +66,7 @@ export const alipayAdapter: PaymentProviderAdapter = {
         provider: 'alipay',
       } as unknown as Parameters<typeof createAlipayCheckoutUrl>[0]['plan'],
       requestOrigin: input.requestOrigin,
+      expiresAt: input.expiresAt,
     });
 
     return {
@@ -80,15 +77,26 @@ export const alipayAdapter: PaymentProviderAdapter = {
     };
   },
 
-  async closePayment(_input: ClosePaymentInput): Promise<void> {
-    // Alipay page-pay orders expire on their own; no synchronous close API is
-    // wired in v1. Kept as a no-op so the orchestrator's flow stays uniform.
+  async closePayment(input: ClosePaymentInput): Promise<ClosePaymentResult> {
+    // alipay.trade.close (remediation §4.1) — previously a no-op, which let a
+    // stale redirect link stay payable after the session expired.
+    const outcome = await closeAlipayTrade(input.orderId);
+    return { outcome };
   },
 
-  async queryPayment(_input: QueryPaymentInput): Promise<QueryPaymentResult> {
-    // Server-side active query (alipay.trade.query) is not wired in v1; async
-    // notify is the source of truth. Return unknown so callers fall back.
-    return { status: null, providerTransactionId: null, paidAt: null };
+  async queryPayment(input: QueryPaymentInput): Promise<QueryPaymentResult> {
+    // Active query (alipay.trade.query) for watchdog takeover & late checks.
+    try {
+      const result = await queryAlipayTrade(input.orderId);
+      return {
+        status: result.status,
+        providerTransactionId: result.providerTransactionId,
+        paidAt: result.paidAt,
+        amountCents: result.amountCents,
+      };
+    } catch {
+      return { status: null, providerTransactionId: null, paidAt: null, amountCents: null };
+    }
   },
 
   async verifyWebhook(input: RawWebhookInput): Promise<VerifiedProviderEvent | WebhookParseError> {
@@ -108,19 +116,27 @@ export const alipayAdapter: PaymentProviderAdapter = {
       return { error: 'INVALID_SIGNATURE', message: 'Invalid alipay signature' };
     }
 
+    // notify_id is what makes Alipay event de-duplication reliable — a payload
+    // without it cannot be safely stored (remediation §4.9).
+    if (!form.notify_id) {
+      return { error: 'MALFORMED_PAYLOAD', message: 'Missing alipay notify_id' };
+    }
+
     const totalAmountYuan = typeof form.total_amount === 'string' ? Number.parseFloat(form.total_amount) : NaN;
     const amountCents = Number.isFinite(totalAmountYuan) ? Math.round(totalAmountYuan * 100) : null;
 
     return {
-      providerEventId: form.notify_id ?? form.trade_no ?? form.out_trade_no ?? `alipay-${Date.now()}`,
+      providerEventId: form.notify_id,
       eventType: form.trade_status ?? 'unknown',
       providerOrderId: form.out_trade_no ?? null,
       providerTransactionId: form.trade_no ?? null,
       amountCents,
+      // Alipay CNY notifications carry no currency field; RMB is implied.
+      currency: 'CNY',
       status: form.trade_status ?? null,
       paidAt: form.notify_time ? new Date(form.notify_time.replace('+08:00', 'Z').replace(' ', 'T')) : new Date(),
       appId: form.auth_app_id ?? form.app_id ?? null,
-      mchId: null,
+      mchId: form.seller_id ?? null,
       raw: { ...form },
     };
   },

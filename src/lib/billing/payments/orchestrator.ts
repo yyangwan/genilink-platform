@@ -16,6 +16,7 @@ import {
 } from '@/lib/billing/checkout/service';
 import { promotionRuleInput, reserveRedemption } from '@/lib/billing/promotions/service';
 import { getAdapter } from '@/lib/billing/payments/provider';
+import { reconcileCheckoutPayment } from '@/lib/billing/reconcile';
 import type { BillingProvider } from '@/types/billing';
 
 type Tx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
@@ -83,8 +84,10 @@ export async function createPaymentAttempt(params: {
     throw toBillingError('PAYMENT_PROVIDER_NOT_CONFIGURED', { provider: params.provider });
   }
   if (params.autoRenew) {
+    // Remediation §4.2: recurring is not implemented at any channel yet, so
+    // ANY autoRenew=true submission is rejected before a payment is created.
     if (!capabilities.recurringPayment) {
-      throw toBillingError('AUTO_RENEW_NOT_SUPPORTED', { provider: params.provider });
+      throw toBillingError('RECURRING_NOT_AVAILABLE', { provider: params.provider });
     }
     if (!params.agreementAcceptedVersion) {
       throw toBillingError('AGREEMENT_VERSION_REQUIRED');
@@ -284,7 +287,16 @@ export async function createPaymentAttempt(params: {
   // ─── After commit: channel call, then mark opened/failed ──────────────────
   if (supersededAttempt) {
     try {
-      await adapter.closePayment({ orderId: supersededAttempt.id });
+      const closeResult = await adapter.closePayment({ orderId: supersededAttempt.id });
+      if (closeResult.outcome === 'already_paid') {
+        // The replaced attempt was actually paid at the channel — reconcile it
+        // instead of losing the money (remediation §4.1).
+        billingLog('payment_close_already_paid', {
+          paymentOrderId: supersededAttempt.id,
+          provider: supersededAttempt.provider,
+        });
+        await reconcileSupersededPaidAttempt(supersededAttempt.id, params.provider);
+      }
     } catch (error) {
       billingLog('payment_close_failed', {
         paymentOrderId: supersededAttempt.id,
@@ -303,6 +315,7 @@ export async function createPaymentAttempt(params: {
       description: session.billingPlan.name,
       idempotencyKey: order.order.idempotencyKey ?? order.order.id,
       requestOrigin: params.requestOrigin ?? undefined,
+      expiresAt: session.expiresAt,
     });
 
     const expiresAt = session.expiresAt;
@@ -360,6 +373,156 @@ export async function createPaymentAttempt(params: {
       { provider: params.provider },
     );
   }
+}
+
+/**
+ * A superseded/being-closed attempt turned out to be PAID at the channel.
+ * Confirm via active query and run the standard reconciliation so the money is
+ * never lost (remediation §4.1: expired sessions with captured payments go to
+ * the review queue instead of being discarded).
+ */
+export async function reconcilePaidAttemptByQuery(params: {
+  orderId: string;
+  provider: BillingProvider;
+  eventReason: string;
+}): Promise<'reconciled' | 'not_paid' | 'order_missing'> {
+  const adapter = getAdapter(params.provider);
+  const query = await adapter.queryPayment({ orderId: params.orderId });
+  const paid =
+    query.status === 'SUCCESS' || query.status === 'TRADE_SUCCESS' || query.status === 'TRADE_FINISHED';
+  if (!paid) return 'not_paid';
+
+  const order = await prisma.paymentOrder.findUnique({ where: { id: params.orderId } });
+  if (!order) return 'order_missing';
+
+  const eventId = `${params.eventReason}:${params.orderId}:${query.providerTransactionId ?? 'unknown'}`;
+  await prisma.paymentEvent.upsert({
+    where: { providerEventId: eventId },
+    create: {
+      provider: params.provider,
+      providerEventId: eventId,
+      eventType: 'PAYMENT_CONFIRMED_BY_ACTIVE_QUERY',
+      status: 'received',
+      signatureVerified: true,
+      payload: {
+        reason: params.eventReason,
+        orderId: params.orderId,
+        providerTransactionId: query.providerTransactionId,
+        status: query.status,
+        amountCents: query.amountCents,
+      } as Prisma.InputJsonValue,
+    },
+    update: {},
+  });
+
+  await reconcileCheckoutPayment({
+    paymentEventId: eventId,
+    paymentOrderId: params.orderId,
+    provider: params.provider,
+    providerTransactionId: query.providerTransactionId,
+    amountCents: query.amountCents ?? order.amountCents,
+    paidAt: query.paidAt,
+  });
+  return 'reconciled';
+}
+
+/** Close-check on a superseded attempt that reported already_paid. */
+async function reconcileSupersededPaidAttempt(orderId: string, provider: BillingProvider): Promise<void> {
+  await reconcilePaidAttemptByQuery({ orderId, provider, eventReason: 'superseded-close-check' }).catch(
+    (error: unknown) => {
+      billingLog('payment_close_reconcile_failed', {
+        paymentOrderId: orderId,
+        provider,
+        errorCode: error instanceof Error ? error.message : String(error),
+      });
+    },
+  );
+}
+
+/**
+ * Retryable channel-close sweep for expired checkout sessions
+ * (remediation §4.1.6/§4.1.7): expireStaleSessions only flips LOCAL state;
+ * this task closes every still-open channel order under those sessions.
+ * Failures are recorded on the order (retry count + last error) and retried
+ * on the next cron pass — local expiry is never rolled back.
+ */
+export async function closeExpiredSessionOrders(
+  limit = 100,
+): Promise<{ closed: number; reconciled: number; failed: number }> {
+  const orders = await prisma.paymentOrder.findMany({
+    where: {
+      status: { in: ['pending', 'opened', 'processing'] },
+      checkoutSession: { status: 'expired' },
+    },
+    orderBy: { createdAt: 'asc' },
+    take: limit,
+  });
+
+  let closed = 0;
+  let reconciled = 0;
+  let failed = 0;
+
+  for (const order of orders) {
+    const adapter = getAdapter(order.provider);
+    try {
+      const result = await adapter.closePayment({
+        orderId: order.id,
+        providerSessionId: order.providerSessionId,
+      });
+      if (result.outcome === 'already_paid') {
+        // Money was captured despite local expiry — reconcile into the
+        // requires_review queue via an active query.
+        const outcome = await reconcilePaidAttemptByQuery({
+          orderId: order.id,
+          provider: order.provider as BillingProvider,
+          eventReason: 'expiry-close-check',
+        });
+        if (outcome === 'reconciled') {
+          reconciled += 1;
+        } else {
+          closed += 1;
+        }
+        continue;
+      }
+      // 'closed' or 'gone' — both mean the channel can no longer be paid.
+      if (order.status === 'pending') {
+        // Never reached the channel (or its creation failed) — mark failed.
+        await prisma.paymentOrder.update({
+          where: { id: order.id },
+          data: { status: 'failed', failureCode: 'SESSION_EXPIRED', closedAt: new Date() },
+        });
+      } else {
+        await prisma.paymentOrder.update({
+          where: { id: order.id },
+          data: { status: 'expired', closedAt: new Date() },
+        });
+      }
+      closed += 1;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const metadata = { ...(order.metadata as object), ...{}, } as Record<string, unknown>;
+      const retries = Number(metadata.closeRetries ?? 0) + 1;
+      metadata.closeRetries = retries;
+      metadata.lastCloseError = message.slice(0, 200);
+      metadata.lastCloseAttemptAt = new Date().toISOString();
+      await prisma.paymentOrder.update({
+        where: { id: order.id },
+        data: { metadata: metadata as Prisma.InputJsonValue },
+      });
+      billingLog('payment_close_retry_scheduled', {
+        paymentOrderId: order.id,
+        provider: order.provider,
+        errorCode: message.slice(0, 200),
+        retryCount: retries,
+      });
+      failed += 1;
+    }
+  }
+
+  if (closed + reconciled + failed > 0) {
+    billingMetric('billing_channel_close_sweep', { closed, reconciled, failed });
+  }
+  return { closed, reconciled, failed };
 }
 
 export function serializeConfirmResult(

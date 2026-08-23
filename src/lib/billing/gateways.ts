@@ -204,6 +204,9 @@ export function buildWechatNativeOrderRequest(params: {
   order: PaymentOrder;
   plan: BillingPlanRecord;
   notifyUrl: string;
+  /** Order expiry (RFC 3339, timezone included) so the QR stops being payable
+   * in lockstep with the local checkout session (remediation §4.1). */
+  timeExpire?: Date;
 }) {
   const appid = envString('WECHATPAY_APP_ID');
   const mchid = envString('WECHATPAY_MCH_ID');
@@ -217,6 +220,7 @@ export function buildWechatNativeOrderRequest(params: {
     description: params.plan.name,
     out_trade_no: params.order.id,
     notify_url: params.notifyUrl,
+    ...(params.timeExpire ? { time_expire: params.timeExpire.toISOString() } : {}),
     amount: {
       total: params.order.amountCents,
       currency: params.order.currency,
@@ -233,10 +237,17 @@ export async function createWechatNativeCheckout(params: {
   order: PaymentOrder;
   plan: BillingPlanRecord;
   requestOrigin?: string;
+  /** Passed through to time_expire so the channel order dies with the session. */
+  expiresAt?: Date;
 }) {
   const baseUrl = getAppBaseUrl(params.requestOrigin);
   const notifyUrl = envString('WECHATPAY_NOTIFY_URL') ?? new URL('/api/billing/webhooks/wechatpay', baseUrl).toString();
-  const payload = buildWechatNativeOrderRequest({ order: params.order, plan: params.plan, notifyUrl });
+  const payload = buildWechatNativeOrderRequest({
+    order: params.order,
+    plan: params.plan,
+    notifyUrl,
+    timeExpire: params.expiresAt,
+  });
   const body = JSON.stringify(payload);
   const response = await fetch('https://api.mch.weixin.qq.com/v3/pay/transactions/native', {
     method: 'POST',
@@ -304,6 +315,9 @@ export function createAlipayCheckoutUrl(params: {
   order: PaymentOrder;
   plan: BillingPlanRecord;
   requestOrigin?: string;
+  /** Channel-side expiry translated to timeout_express minutes (min 1m),
+   * aligned with the local checkout session (remediation §4.1). */
+  expiresAt?: Date;
 }) {
   const appId = envString('ALIPAY_APP_ID');
   const privateKey = envString('ALIPAY_PRIVATE_KEY');
@@ -317,11 +331,19 @@ export function createAlipayCheckoutUrl(params: {
     throw new Error('Alipay credentials are not configured');
   }
 
+  let timeoutExpress: string | undefined;
+  if (params.expiresAt) {
+    const remainingMinutes = Math.ceil((params.expiresAt.getTime() - Date.now()) / 60_000);
+    // Alipay's minimum meaningful window is 1 minute.
+    timeoutExpress = `${Math.max(1, remainingMinutes)}m`;
+  }
+
   const bizContent = {
     out_trade_no: params.order.id,
     product_code: 'FAST_INSTANT_TRADE_PAY',
     total_amount: (params.order.amountCents / 100).toFixed(2),
     subject: params.plan.name,
+    ...(timeoutExpress ? { timeout_express: timeoutExpress } : {}),
   };
 
   const baseParams: Record<string, string> = {
@@ -400,4 +422,106 @@ export function isSuccessfulProviderStatus(provider: PaymentProvider, status: st
   }
 
   return status === 'TRADE_SUCCESS' || status === 'TRADE_FINISHED';
+}
+
+// ─── Alipay signed OpenAPI calls (close/query, remediation §4.1) ────────────
+
+export type AlipayApiResult = {
+  ok: boolean;
+  code: string;
+  msg: string;
+  subCode: string | null;
+  data: Record<string, unknown>;
+};
+
+/** Signed alipay openapi call (form POST). Mirrors createAlipayCheckoutUrl's
+ * signing: canonical sorted params signed with RSA2. */
+export async function callAlipayOpenApi(params: {
+  method: string;
+  bizContent: Record<string, unknown>;
+}): Promise<AlipayApiResult> {
+  const appId = envString('ALIPAY_APP_ID');
+  const privateKey = envString('ALIPAY_PRIVATE_KEY');
+  const gateway = envString('ALIPAY_GATEWAY_URL') ?? 'https://openapi.alipay.com/gateway.do';
+  if (!appId || !privateKey) {
+    throw new Error('Alipay credentials are not configured');
+  }
+
+  const baseParams: Record<string, string> = {
+    app_id: appId,
+    method: params.method,
+    format: 'JSON',
+    charset: 'utf-8',
+    sign_type: 'RSA2',
+    timestamp: formatAlipayTimestamp(new Date()),
+    version: '1.0',
+    biz_content: JSON.stringify(params.bizContent),
+  };
+  const canonical = sortObjectEntries(baseParams)
+    .map(([key, value]) => `${key}=${value}`)
+    .join('&');
+  const sign = signWithRsaSha256(canonical, privateKey);
+  const body = sortObjectEntries({ ...baseParams, sign })
+    .map(([key, value]) => `${key}=${encodeAlipayValue(value)}`)
+    .join('&');
+
+  const response = await fetch(gateway, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Alipay ${params.method} failed: ${response.status} ${text.slice(0, 300)}`);
+  }
+
+  const envelope = JSON.parse(text) as Record<string, unknown>;
+  const key = `${params.method.replace(/\./g, '_')}_response`;
+  const data = (envelope[key] ?? {}) as Record<string, unknown>;
+  const code = typeof data.code === 'string' ? data.code : 'UNKNOWN';
+  const msg = typeof data.msg === 'string' ? data.msg : '';
+  const subCode = typeof data.sub_code === 'string' ? data.sub_code : null;
+  return { ok: code === '10000', code, msg, subCode, data };
+}
+
+/** Close an unpaid alipay order (alipay.trade.close). */
+export async function closeAlipayTrade(outTradeNo: string): Promise<'closed' | 'already_paid' | 'gone'> {
+  const result = await callAlipayOpenApi({
+    method: 'alipay.trade.close',
+    bizContent: { out_trade_no: outTradeNo },
+  });
+  if (result.ok) return 'closed';
+  if (result.subCode === 'ACQ.TRADE_NOT_EXIST') return 'gone';
+  // TRADE_STATUS_ERROR on close means the trade is already in a final state
+  // (typically paid) — treat as captured and let the caller reconcile.
+  if (result.subCode === 'ACQ.TRADE_STATUS_ERROR') return 'already_paid';
+  throw new Error(`Alipay trade.close failed: ${result.code} ${result.subCode ?? ''} ${result.msg}`);
+}
+
+/** Active order query (alipay.trade.query). */
+export async function queryAlipayTrade(outTradeNo: string): Promise<{
+  status: string | null;
+  providerTransactionId: string | null;
+  paidAt: Date | null;
+  amountCents: number | null;
+}> {
+  const result = await callAlipayOpenApi({
+    method: 'alipay.trade.query',
+    bizContent: { out_trade_no: outTradeNo },
+  });
+  if (!result.ok) {
+    if (result.subCode === 'ACQ.TRADE_NOT_EXIST') {
+      return { status: null, providerTransactionId: null, paidAt: null, amountCents: null };
+    }
+    throw new Error(`Alipay trade.query failed: ${result.code} ${result.subCode ?? ''}`);
+  }
+  const tradeStatus = typeof result.data.trade_status === 'string' ? result.data.trade_status : null;
+  const sendPayDate = typeof result.data.send_pay_date === 'string' ? result.data.send_pay_date : null;
+  const totalAmount = typeof result.data.total_amount === 'string' ? Number.parseFloat(result.data.total_amount) : NaN;
+  return {
+    status: tradeStatus,
+    providerTransactionId: typeof result.data.trade_no === 'string' ? result.data.trade_no : null,
+    paidAt: sendPayDate ? new Date(sendPayDate.replace('+08:00', 'Z').replace(' ', 'T')) : null,
+    amountCents: Number.isFinite(totalAmount) ? Math.round(totalAmount * 100) : null,
+  };
 }
