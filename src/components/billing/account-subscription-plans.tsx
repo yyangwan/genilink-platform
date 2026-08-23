@@ -2,23 +2,17 @@
 
 import { ArrowUpRight, Check, CheckCircle2, Loader2, ShieldCheck } from 'lucide-react';
 import { SUBSCRIPTION_PLAN_MATRIX, SUBSCRIPTION_TIERS, getTierDefinition, isUpgrade } from '@/lib/billing/tiers';
-import type { BillingCycle, BillingProvider, SubscriptionTier } from '@/types/billing';
-import {
-  formatSubscriptionPrice,
-  PAYMENT_PROVIDER_LABELS,
-  type SubscriptionPlanView,
-} from './subscription-plan-content';
+import type { BillingCycle, SubscriptionTier } from '@/types/billing';
+import { formatSubscriptionPrice, type SubscriptionPlanView } from './subscription-plan-content';
 
 type Props = {
   plans: SubscriptionPlanView[];
   billingCycle: BillingCycle;
   onBillingCycleChange: (cycle: BillingCycle) => void;
   currentTier: SubscriptionTier | null;
+  currentBillingCycle?: BillingCycle | null;
   billingDisabled?: boolean;
   pendingPlanKey?: string | null;
-  providerAvailability?: Partial<Record<BillingProvider, boolean>>;
-  selectedProviders: Record<string, BillingProvider>;
-  onProviderChange: (planKey: string, provider: BillingProvider) => void;
   onCheckout: (planKey: string) => void;
 };
 
@@ -27,11 +21,9 @@ export function AccountSubscriptionPlans({
   billingCycle,
   onBillingCycleChange,
   currentTier,
+  currentBillingCycle = null,
   billingDisabled = false,
   pendingPlanKey = null,
-  providerAvailability,
-  selectedProviders,
-  onProviderChange,
   onCheckout,
 }: Props) {
   const plansByTier = new Map(
@@ -70,33 +62,45 @@ export function AccountSubscriptionPlans({
       <div className="mt-5 grid gap-4 xl:grid-cols-3">
         {SUBSCRIPTION_TIERS.map((tier) => {
           const plan = plansByTier.get(tier.key);
-          const isCurrent = currentTier === tier.key;
+          const sameTierSameCycle =
+            currentTier === tier.key && (!currentBillingCycle || currentBillingCycle === billingCycle);
+          const sameTierSwitchCycle =
+            currentTier === tier.key && currentBillingCycle && currentBillingCycle !== billingCycle;
+          // Yearly -> monthly on the same tier is a rejected downgrade (spec §7.7).
+          const isDowngradeCycle = sameTierSwitchCycle && currentBillingCycle === 'yearly' && billingCycle === 'monthly';
           const canUpgrade = isUpgrade(currentTier, tier.key);
-          const isIncluded = Boolean(currentTier && !isCurrent && !canUpgrade);
+          const isIncluded = Boolean(currentTier && !sameTierSameCycle && !sameTierSwitchCycle && !canUpgrade);
           const isPending = pendingPlanKey === plan?.key;
-          const disabled = billingDisabled || !plan?.configured || isCurrent || isIncluded || isPending;
-          const providerOptions = (['wechatpay', 'alipay'] as const).filter(
-            (provider) => providerAvailability?.[provider],
-          );
+
+          const disabled =
+            billingDisabled || !plan?.configured || isIncluded || isDowngradeCycle || isPending;
+
           const actionLabel = isPending
-            ? '正在创建订单'
-            : isCurrent
-              ? '当前版本'
-              : isIncluded
-                ? '已包含在当前版本'
+            ? '正在进入收银台'
+            : isIncluded
+              ? '已包含在当前版本'
+              : isDowngradeCycle
+                ? '暂不支持降级'
                 : billingDisabled || !plan?.configured
                   ? '待配置'
-                  : currentTier
-                    ? `升级到${tier.name}`
-                    : `开通${tier.name}`;
+                  : sameTierSameCycle && currentTier
+                    ? '续费套餐'
+                    : sameTierSwitchCycle
+                      ? `升级到${billingCycle === 'yearly' ? '年付' : '月付'}`
+                      : currentTier
+                        ? '升级套餐'
+                        : '立即订阅';
 
           return (
             <article
               key={tier.key}
               className="flex flex-col rounded-xl border p-5"
               style={{
-                borderColor: isCurrent ? 'var(--color-primary)' : 'var(--border)',
-                background: isCurrent ? 'color-mix(in srgb, var(--color-primary) 7%, var(--bg-card))' : 'var(--bg-card)',
+                borderColor: sameTierSameCycle && currentTier ? 'var(--color-primary)' : 'var(--border)',
+                background:
+                  sameTierSameCycle && currentTier
+                    ? 'color-mix(in srgb, var(--color-primary) 7%, var(--bg-card))'
+                    : 'var(--bg-card)',
               }}
             >
               <div className="flex items-start justify-between gap-3">
@@ -104,8 +108,8 @@ export function AccountSubscriptionPlans({
                   <span className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--color-primary)' }}>{tier.eyebrow}</span>
                   <h3 className="mt-1 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{tier.name}</h3>
                 </div>
-                <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ color: isCurrent ? '#0b0d14' : 'var(--color-primary)', background: isCurrent ? 'var(--color-primary)' : 'color-mix(in srgb, var(--color-primary) 12%, transparent)' }}>
-                  {isCurrent ? '当前套餐' : tier.badge}
+                <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ color: sameTierSameCycle && currentTier ? '#0b0d14' : 'var(--color-primary)', background: sameTierSameCycle && currentTier ? 'var(--color-primary)' : 'color-mix(in srgb, var(--color-primary) 12%, transparent)' }}>
+                  {sameTierSameCycle && currentTier ? '当前套餐' : tier.badge}
                 </span>
               </div>
 
@@ -134,24 +138,6 @@ export function AccountSubscriptionPlans({
                 ))}
               </ul>
 
-              {plan && providerOptions.length > 0 && canUpgrade ? (
-                <div className="mt-5 grid grid-cols-2 gap-2" aria-label={`${tier.name}支付方式`}>
-                  {providerOptions.map((provider) => (
-                    <button
-                      key={provider}
-                      type="button"
-                      className="cursor-pointer rounded-lg border px-2 py-2 text-xs font-semibold"
-                      style={selectedProviders[plan.key] === provider
-                        ? { borderColor: 'var(--color-primary)', color: 'var(--text-primary)', background: 'color-mix(in srgb, var(--color-primary) 9%, transparent)' }
-                        : { borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
-                      onClick={() => onProviderChange(plan.key, provider)}
-                    >
-                      {PAYMENT_PROVIDER_LABELS[provider]}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-
               <button
                 type="button"
                 className="mt-5 inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
@@ -162,8 +148,8 @@ export function AccountSubscriptionPlans({
                 onClick={() => plan && onCheckout(plan.key)}
               >
                 {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {isCurrent ? <CheckCircle2 className="h-4 w-4" /> : null}
-                {!plan?.configured && !isCurrent ? <ShieldCheck className="h-4 w-4" /> : null}
+                {sameTierSameCycle && currentTier ? <CheckCircle2 className="h-4 w-4" /> : null}
+                {!plan?.configured && !(sameTierSameCycle && currentTier) ? <ShieldCheck className="h-4 w-4" /> : null}
                 {actionLabel}
                 {!disabled ? <ArrowUpRight className="h-4 w-4" /> : null}
               </button>

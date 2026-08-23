@@ -41,8 +41,8 @@ vi.mock('@/lib/auth/config', () => ({
 }));
 
 // Mock Prisma
-vi.mock('@/lib/db', () => ({
-  prisma: {
+vi.mock('@/lib/db', () => {
+  const prisma = {
     user: {
       findUnique: vi.fn(),
       create: vi.fn(),
@@ -56,8 +56,12 @@ vi.mock('@/lib/db', () => ({
     },
     subscription: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       findMany: vi.fn(),
       upsert: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
     },
     billingPlan: {
       findUnique: vi.fn(),
@@ -69,11 +73,65 @@ vi.mock('@/lib/db', () => ({
       create: vi.fn(),
       findUnique: vi.fn(),
       findFirst: vi.fn(),
+      findMany: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
+      count: vi.fn(),
     },
     paymentEvent: {
       upsert: vi.fn(),
       update: vi.fn(),
+    },
+    checkoutSession: {
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+      upsert: vi.fn(),
+    },
+    promotion: {
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    coupon: {
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    couponRedemption: {
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+      count: vi.fn(),
+    },
+    paymentAgreement: {
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      upsert: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    renewalAttempt: {
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
     },
     workspaceMember: {
       findFirst: vi.fn(),
@@ -91,6 +149,9 @@ vi.mock('@/lib/db', () => ({
       findUnique: vi.fn(),
       count: vi.fn(),
     },
-    $transaction: vi.fn((fn) => fn()),
-  },
-}));
+    $queryRaw: vi.fn().mockResolvedValue([]),
+    $executeRaw: vi.fn().mockResolvedValue(0),
+  };
+  prisma.$transaction = vi.fn((fn: (tx: unknown) => unknown) => fn(prisma));
+  return { prisma };
+});

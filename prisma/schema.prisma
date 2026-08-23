@@ -27,6 +27,9 @@ model User {
   accounts      Account[]
   paymentOrders PaymentOrder[]
   subscriptions Subscription[]
+  checkoutSessions  CheckoutSession[]
+  paymentAgreements PaymentAgreement[]
+  couponRedemptions CouponRedemption[]
 }
 
 model Account {
@@ -73,6 +76,9 @@ model Workspace {
   paymentOrders PaymentOrder[]
   subscriptions Subscription[]
   usageEvents   UsageEvent[]
+  checkoutSessions  CheckoutSession[]
+  paymentAgreements PaymentAgreement[]
+  couponRedemptions CouponRedemption[]
 }
 
 model WorkspaceMember {
@@ -178,6 +184,7 @@ model BillingPlan {
 
   orders PaymentOrder[]
   subscriptions Subscription[]
+  checkoutSessions CheckoutSession[]
 }
 
 model PaymentOrder {
@@ -203,14 +210,27 @@ model PaymentOrder {
   metadata             Json?
   paidAt               DateTime?
   expiredAt            DateTime?
+  checkoutSessionId    String?   @db.Text
+  checkoutSession      CheckoutSession? @relation(fields: [checkoutSessionId], references: [id], onDelete: SetNull)
+  orderType            String    @default("initial") @db.Text // initial | renewal
+  attemptNumber        Int       @default(1)
+  idempotencyKey       String?   @unique @db.Text
+  idempotencyRequestHash String? @db.Text
+  providerTransactionId String?  @unique @db.Text
+  failureCode          String?   @db.Text
+  failureMessage       String?   @db.Text
+  closedAt             DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
   subscription Subscription?
   events       PaymentEvent[]
+  renewalAttempt RenewalAttempt?
 
+  @@unique([checkoutSessionId, attemptNumber])
   @@index([userId, workspaceId, module, status])
   @@index([provider, providerSessionId])
+  @@index([checkoutSessionId, status])
 }
 
 model PaymentEvent {
@@ -250,10 +270,182 @@ model Subscription {
   currentPeriodStart DateTime
   currentPeriodEnd   DateTime
   trialEnd           DateTime?
+  autoRenew          Boolean   @default(false)
+  cancelAtPeriodEnd  Boolean   @default(false)
+  paymentAgreementId String?   @db.Text
+  paymentAgreement   PaymentAgreement? @relation(fields: [paymentAgreementId], references: [id], onDelete: SetNull)
+  nextBillingAt      DateTime?
+  gracePeriodEnd     DateTime?
+  renewalPriceCents  Int?
+  priceSnapshot      Json?
+  discountSnapshot   Json?
+  discountRemainingCycles Int @default(0)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
+  checkoutSessions CheckoutSession[] @relation("CheckoutSourceSubscription")
+  renewalAttempts  RenewalAttempt[]
+
   @@unique([userId, workspaceId, module])
+}
+
+model CheckoutSession {
+  id                       String    @id @default(cuid()) @db.Text
+  idempotencyKey           String    @unique @db.Text
+  idempotencyRequestHash   String    @db.Text
+  userId                   String    @db.Text
+  user                     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId              String    @db.Text
+  workspace                Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  billingPlanId            String    @db.Text
+  billingPlan              BillingPlan @relation(fields: [billingPlanId], references: [id])
+  sourceSubscriptionId     String?   @db.Text
+  sourceSubscription       Subscription? @relation("CheckoutSourceSubscription", fields: [sourceSubscriptionId], references: [id], onDelete: SetNull)
+  purchaseType             String    @db.Text
+  status                   String    @default("ready") @db.Text
+  currency                 String    @default("CNY") @db.Text
+  subtotalCents            Int
+  discountCents            Int       @default(0)
+  amountDueCents           Int
+  renewalAmountCents       Int
+  planSnapshot             Json
+  discountSnapshot         Json?
+  couponId                 String?   @db.Text
+  coupon                   Coupon?   @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  autoRenew                Boolean   @default(false)
+  agreementAcceptedVersion String?   @db.Text
+  agreementAcceptedAt      DateTime?
+  agreementAcceptedIp      String?   @db.Text
+  agreementAcceptedUa      String?   @db.Text
+  expiresAt                DateTime
+  completedAt              DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  paymentOrders PaymentOrder[]
+  redemption    CouponRedemption?
+  paymentAgreement PaymentAgreement?
+
+  @@index([userId, workspaceId, status])
+  @@index([workspaceId, createdAt])
+  @@index([expiresAt, status])
+}
+
+model Promotion {
+  id                    String   @id @default(cuid()) @db.Text
+  name                  String   @unique @db.Text
+  description           String?  @db.Text
+  discountType          String   @db.Text
+  discountValue         Int
+  duration              String   @default("once") @db.Text
+  durationCycles        Int?
+  minimumAmountCents    Int?
+  maximumDiscountCents  Int?
+  eligiblePlanKeys      Json?
+  eligibleBillingCycles Json?
+  newCustomersOnly      Boolean  @default(false)
+  maxRedemptions        Int?
+  maxPerUser            Int      @default(1)
+  maxPerWorkspace       Int      @default(1)
+  startsAt              DateTime
+  endsAt                DateTime?
+  isActive              Boolean  @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  coupons Coupon[]
+}
+
+model Coupon {
+  id          String    @id @default(cuid()) @db.Text
+  promotionId String    @db.Text
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  code        String    @unique @db.Text
+  isActive    Boolean   @default(true)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  checkoutSessions CheckoutSession[]
+  redemptions      CouponRedemption[]
+}
+
+model CouponRedemption {
+  id                String    @id @default(cuid()) @db.Text
+  couponId          String    @db.Text
+  coupon            Coupon    @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  checkoutSessionId String    @unique @db.Text
+  checkoutSession   CheckoutSession @relation(fields: [checkoutSessionId], references: [id], onDelete: Restrict)
+  userId            String    @db.Text
+  user              User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  workspaceId       String    @db.Text
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  status            String    @default("reserved") @db.Text
+  discountCents     Int
+  reservedAt        DateTime  @default(now())
+  redeemedAt        DateTime?
+  releasedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([couponId, status])
+  @@index([userId, couponId, status])
+  @@index([workspaceId, couponId, status])
+}
+
+model PaymentAgreement {
+  id                         String    @id @default(cuid()) @db.Text
+  userId                     String    @db.Text
+  user                       User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  workspaceId                String    @db.Text
+  workspace                  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  checkoutSessionId          String?   @unique @db.Text
+  checkoutSession            CheckoutSession? @relation(fields: [checkoutSessionId], references: [id], onDelete: SetNull)
+  provider                   String    @db.Text
+  status                     String    @default("pending") @db.Text
+  providerAgreementId        String?   @unique @db.Text
+  providerUserId             String?   @db.Text
+  providerTemplateId         String?   @db.Text
+  agreementVersion           String    @db.Text
+  signedAt                   DateTime?
+  revokedAt                  DateTime?
+  expiresAt                  DateTime?
+  providerPayload            Json?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  subscriptions Subscription[]
+
+  @@index([userId, workspaceId, provider, status])
+}
+
+model RenewalAttempt {
+  id                 String    @id @default(cuid()) @db.Text
+  subscriptionId     String    @db.Text
+  subscription       Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  paymentOrderId     String?   @unique @db.Text
+  paymentOrder       PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+  periodStart        DateTime
+  periodEnd          DateTime
+  scheduledAt        DateTime
+  attemptNumber      Int       @default(1)
+  amountCents        Int
+  currency           String    @default("CNY") @db.Text
+  status             String    @default("scheduled") @db.Text
+  failureCode        String?   @db.Text
+  failureMessage     String?   @db.Text
+  nextRetryAt        DateTime?
+  lockedBy           String?   @db.Text
+  lockedUntil        DateTime?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([subscriptionId, periodStart, attemptNumber])
+  @@index([status, scheduledAt])
+  @@index([status, nextRetryAt])
 }
 
 model UsageEvent {

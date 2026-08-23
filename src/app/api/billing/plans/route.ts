@@ -4,6 +4,7 @@ import { getWorkspaceId } from '@/lib/auth/get-workspace';
 import { BILLING_PLAN_SEEDS } from '@/lib/billing/catalog';
 import { isPaymentProviderConfigured } from '@/lib/billing/gateways';
 import { syncBillingPlans } from '@/lib/billing/service';
+import { syncPromotions } from '@/lib/billing/promotions/service';
 import { prisma } from '@/lib/db';
 import { getTierFromPlanKey } from '@/lib/billing/tiers';
 
@@ -46,6 +47,7 @@ export async function GET() {
   }
 
   await syncBillingPlans();
+  await syncPromotions();
 
   const plans = await prisma.billingPlan.findMany({
     where: { isActive: true },
@@ -90,6 +92,10 @@ export async function GET() {
       billingPlanId: true,
       billingPlan: { select: { key: true } },
       paymentOrderId: true,
+      autoRenew: true,
+      cancelAtPeriodEnd: true,
+      nextBillingAt: true,
+      gracePeriodEnd: true,
       updatedAt: true,
     },
     orderBy: { createdAt: 'asc' },
@@ -107,6 +113,8 @@ export async function GET() {
       currentPeriodStart: subscription.currentPeriodStart.toISOString(),
       currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
       trialEnd: subscription.trialEnd?.toISOString() ?? null,
+      nextBillingAt: subscription.nextBillingAt?.toISOString() ?? null,
+      gracePeriodEnd: subscription.gracePeriodEnd?.toISOString() ?? null,
       updatedAt: subscription.updatedAt.toISOString(),
     })),
   });

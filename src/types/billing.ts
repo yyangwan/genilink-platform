@@ -1,10 +1,10 @@
 export type ModuleType = 'visibility' | 'content' | 'api_access';
 export type BillingProductType = 'suite';
 export type SubscriptionTier = 'lite' | 'pro' | 'max';
-export type SubscriptionStatus = 'active' | 'inactive' | 'trialing' | 'past_due' | 'canceled';
+export type SubscriptionStatus = 'active' | 'inactive' | 'trialing' | 'past_due' | 'canceled' | 'expired';
 export type BillingCycle = 'monthly' | 'yearly';
 export type BillingProvider = 'wechatpay' | 'alipay';
-export type PaymentOrderStatus = 'pending' | 'opened' | 'paid' | 'expired' | 'failed' | 'canceled' | 'refunded';
+export type PaymentOrderStatus = 'pending' | 'opened' | 'processing' | 'paid' | 'expired' | 'failed' | 'canceled' | 'refunded';
 export type PaymentEventStatus = 'received' | 'processed' | 'ignored' | 'failed';
 
 export interface Subscription {
@@ -23,6 +23,12 @@ export interface Subscription {
   providerSubscriptionId?: string | null;
   billingPlanId?: string | null;
   paymentOrderId?: string | null;
+  autoRenew?: boolean;
+  cancelAtPeriodEnd?: boolean;
+  nextBillingAt?: string | null;
+  gracePeriodEnd?: string | null;
+  renewalPriceCents?: number | null;
+  discountRemainingCycles?: number;
 }
 
 export interface BillingPlan {

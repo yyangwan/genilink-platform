@@ -65,16 +65,13 @@ describe('BillingSettingsPage', () => {
         billingCycle="monthly"
         onBillingCycleChange={vi.fn()}
         currentTier="lite"
-        providerAvailability={{ wechatpay: true, alipay: true }}
-        selectedProviders={{ 'suite-pro-monthly': 'wechatpay' }}
-        onProviderChange={vi.fn()}
         onCheckout={vi.fn()}
       />,
     );
 
     expect(screen.getByRole('button', { name: '月付' }).className).toContain('cursor-pointer');
-    expect(screen.getByRole('button', { name: '微信支付' }).className).toContain('cursor-pointer');
-    expect(screen.getByRole('button', { name: '升级到专业版' }).className).toContain('cursor-pointer');
+    expect(screen.getByRole('button', { name: /升级套餐/ }).className).toContain('cursor-pointer');
+    expect(screen.queryByRole('button', { name: '微信支付' })).toBeNull();
     expect(screen.getByLabelText('完整套餐权益对照')).toBeTruthy();
     expect(screen.getByText('AI 可见性审计')).toBeTruthy();
     expect(screen.getByText('SEO 优化')).toBeTruthy();

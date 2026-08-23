@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ShieldCheck, Sparkles } from 'lucide-react';
+import { Loader2, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
 import { AccountSubscriptionPlans } from '@/components/billing/account-subscription-plans';
 import type { SubscriptionPlanView } from '@/components/billing/subscription-plan-content';
 import { formatDateInTimeZone } from '@/lib/time';
 import { getTierDefinition, highestTier } from '@/lib/billing/tiers';
-import type { BillingCycle, BillingProvider, SubscriptionTier } from '@/types/billing';
+import { formatCents } from '@/lib/billing/format';
+import type { BillingCycle, SubscriptionTier } from '@/types/billing';
 
 type Subscription = {
   id: string;
@@ -17,6 +18,11 @@ type Subscription = {
   billingCycle: BillingCycle;
   currentPeriodEnd: string;
   provider: string | null;
+  autoRenew?: boolean;
+  cancelAtPeriodEnd?: boolean;
+  nextBillingAt?: string | null;
+  gracePeriodEnd?: string | null;
+  renewalPriceCents?: number | null;
 };
 
 type BillingOverview = {
@@ -24,7 +30,6 @@ type BillingOverview = {
   plans: SubscriptionPlanView[];
   subscriptions: Subscription[];
   billingDisabled: boolean;
-  providerAvailability?: Partial<Record<BillingProvider, boolean>>;
 };
 
 const MODULE_LABELS: Record<string, string> = {
@@ -32,6 +37,14 @@ const MODULE_LABELS: Record<string, string> = {
   visibility: '智见',
   content: '智创',
   api_access: 'API',
+};
+
+const ERROR_MESSAGES: Record<string, string> = {
+  PLAN_DOWNGRADE_NOT_SUPPORTED: '暂不支持降级套餐。年付切换到月付请于到期后操作。',
+  AUTO_RENEW_ALREADY_ENABLED: '该订阅已开启自动续期，无需手动续费；可在下方订阅管理中关闭。',
+  ACTIVE_SUBSCRIPTION_EXISTS: '已有有效订阅。',
+  PAYMENT_PROVIDER_NOT_CONFIGURED: '支付渠道尚未配置，请联系管理员。',
+  QUOTE_MISMATCH: '价格已更新，请刷新后重试。',
 };
 
 export default function BillingSettingsPage() {
@@ -42,7 +55,8 @@ export default function BillingSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [checkoutPendingKey, setCheckoutPendingKey] = useState<string | null>(null);
-  const [selectedProviders, setSelectedProviders] = useState<Record<string, BillingProvider>>({});
+  const [revokingSubscriptionId, setRevokingSubscriptionId] = useState<string | null>(null);
+  const [renewalNotice, setRenewalNotice] = useState<string | null>(null);
   const accessSyncAttemptedRef = useRef(false);
 
   const loadOverview = useCallback(() => {
@@ -55,20 +69,6 @@ export default function BillingSettingsPage() {
       .then((data) => {
         setOverview(data);
         setError(null);
-        setSelectedProviders((current) => {
-          const next = { ...current };
-          for (const plan of data.plans) {
-            if (next[plan.key]) continue;
-            next[plan.key] = data.providerAvailability?.[plan.provider]
-              ? plan.provider
-              : data.providerAvailability?.wechatpay
-                ? 'wechatpay'
-                : data.providerAvailability?.alipay
-                  ? 'alipay'
-                  : plan.provider;
-          }
-          return next;
-        });
       })
       .catch((fetchError: Error) => {
         if (fetchError.name !== 'AbortError') setError('订阅数据加载失败');
@@ -84,12 +84,16 @@ export default function BillingSettingsPage() {
 
   const activeSubscriptions = useMemo(
     () => (overview?.subscriptions ?? []).filter((subscription) =>
-      subscription.status === 'active' || subscription.status === 'trialing'),
+      subscription.status === 'active' || subscription.status === 'trialing' || subscription.status === 'past_due'),
     [overview],
   );
   const currentTier = useMemo(() => highestTier([
     ...activeSubscriptions.map((subscription) => subscription.tier),
   ]), [activeSubscriptions]);
+  const currentBillingCycle = useMemo(
+    () => activeSubscriptions.find((subscription) => subscription.tier === currentTier)?.billingCycle ?? null,
+    [activeSubscriptions, currentTier],
+  );
 
   const checkoutState = searchParams.get('checkout');
 
@@ -105,33 +109,57 @@ export default function BillingSettingsPage() {
       .catch(() => { accessSyncAttemptedRef.current = false; });
   }, [checkoutState, overview?.workspaceId, loadOverview, router]);
 
+  // Unified checkout entry (spec §10.1): create a session, then jump to the
+  // standalone cashier. Channel selection happens on the cashier page.
   const handleCheckout = async (planKey: string) => {
     setCheckoutPendingKey(planKey);
     setError(null);
     try {
-      const response = await fetch('/api/billing/checkout', {
+      const response = await fetch('/api/billing/checkout-sessions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planKey, provider: selectedProviders[planKey] }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': crypto.randomUUID(),
+        },
+        body: JSON.stringify({ planKey }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        if (data?.code === 'PLAN_NOT_AN_UPGRADE') {
-          setError('只能选择高于当前版本的订阅方案。');
+      if (!response.ok || !data?.checkoutSession?.id) {
+        const code = data?.error?.code as string | undefined;
+        if (code && ERROR_MESSAGES[code]) {
+          setError(ERROR_MESSAGES[code]);
           return;
         }
-        if (response.status === 503) {
-          setError('价格或收款配置尚未完成。');
-          return;
-        }
-        throw new Error(data?.error ?? 'checkout failed');
+        throw new Error(data?.error?.message ?? 'checkout failed');
       }
-      if (!data?.checkoutUrl) throw new Error('missing checkout url');
-      window.location.assign(data.checkoutUrl);
+      router.push(`/checkout/${data.checkoutSession.id}`);
     } catch {
-      setError('创建收款链接失败');
+      setError('创建结算会话失败，请重试。');
     } finally {
       setCheckoutPendingKey(null);
+    }
+  };
+
+  const handleDisableAutoRenew = async (subscriptionId: string) => {
+    setRevokingSubscriptionId(subscriptionId);
+    setRenewalNotice(null);
+    try {
+      const response = await fetch(`/api/billing/subscriptions/${subscriptionId}/auto-renew`, {
+        method: 'DELETE',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 202) {
+        setRenewalNotice('正在关闭自动续期，关闭完成后将不再扣款。');
+      } else if (response.ok) {
+        setRenewalNotice('已关闭自动续期，当前周期继续有效。');
+      } else {
+        setRenewalNotice(data?.error?.message ?? '关闭自动续期失败，请稍后重试。');
+      }
+      loadOverview();
+    } catch {
+      setRenewalNotice('关闭自动续期失败，请稍后重试。');
+    } finally {
+      setRevokingSubscriptionId(null);
     }
   };
 
@@ -165,32 +193,71 @@ export default function BillingSettingsPage() {
           billingCycle={billingCycle}
           onBillingCycleChange={setBillingCycle}
           currentTier={currentTier}
+          currentBillingCycle={currentBillingCycle}
           billingDisabled={overview?.billingDisabled}
           pendingPlanKey={checkoutPendingKey}
-          providerAvailability={overview?.providerAvailability}
-          selectedProviders={selectedProviders}
-          onProviderChange={(planKey, provider) => setSelectedProviders((current) => ({ ...current, [planKey]: provider }))}
           onCheckout={handleCheckout}
         />
       )}
 
       {!loading && activeSubscriptions.length > 0 ? (
         <section className="dashboard-surface dashboard-surface--padded">
-          <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>当前有效订阅</h2>
+          <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>订阅管理</h2>
+          {renewalNotice ? (
+            <div className="mt-3 rounded-lg border px-4 py-2.5 text-sm" style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>
+              {renewalNotice}
+            </div>
+          ) : null}
           <div className="mt-4 grid gap-3">
             {activeSubscriptions.map((subscription) => (
-              <div key={subscription.id} className="dashboard-surface flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div key={subscription.id} className="dashboard-surface flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
                   {subscription.tier ? getTierDefinition(subscription.tier).name : MODULE_LABELS[subscription.module] ?? subscription.module}
                   {' · '}{subscription.billingCycle === 'monthly' ? '月付' : '年付'}
+                  {subscription.status === 'past_due' ? (
+                    <span className="ml-2 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ color: 'var(--color-error)', background: 'color-mix(in srgb, var(--color-error) 12%, transparent)' }}>
+                      宽限期
+                    </span>
+                  ) : null}
                 </div>
-                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  有效至 {formatDateInTimeZone(subscription.currentPeriodEnd, { includeTime: false, includeYear: true })}
-                  {' · '}{subscription.provider ?? 'unknown'}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <span>
+                    有效至 {formatDateInTimeZone(subscription.currentPeriodEnd, { includeTime: false, includeYear: true })}
+                  </span>
+                  <span>
+                    {subscription.autoRenew
+                      ? subscription.nextBillingAt
+                        ? `下次自动扣款 ${formatDateInTimeZone(subscription.nextBillingAt, { includeTime: false, includeYear: true })}${
+                            subscription.renewalPriceCents ? `（${formatCents(subscription.renewalPriceCents)}）` : ''
+                          }`
+                        : '已开启自动续期'
+                      : subscription.cancelAtPeriodEnd
+                        ? '自动续期关闭中，到期后不再扣款'
+                        : '未开启自动续期'}
+                  </span>
+                  {subscription.autoRenew ? (
+                    <button
+                      type="button"
+                      className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{ borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+                      disabled={revokingSubscriptionId === subscription.id}
+                      onClick={() => void handleDisableAutoRenew(subscription.id)}
+                    >
+                      {revokingSubscriptionId === subscription.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      )}
+                      关闭自动续期
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ))}
           </div>
+          <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+            关闭自动续期后当前周期继续有效，到期后不再扣款；可随时重新订阅或手动续费。
+          </p>
         </section>
       ) : null}
     </div>

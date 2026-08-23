@@ -138,6 +138,11 @@ describe('Alipay billing gateway', () => {
       processedAt: null,
     });
     (prisma.paymentEvent.update as ReturnType<typeof vi.fn>).mockResolvedValue({});
+    (prisma.paymentOrder.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'order-1',
+      checkoutSessionId: null,
+      orderType: 'initial',
+    });
     (activateSubscriptionFromPayment as ReturnType<typeof vi.fn>).mockResolvedValue({
       order: { id: 'order-1' },
       subscription: { id: 'sub-1' },
