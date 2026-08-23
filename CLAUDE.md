@@ -2,7 +2,7 @@
 
 ## Current Status
 
-全平台 QA 已通过 (29/29 OK + 1 SKIP)。Phase 6 (ContentOS projectId header) 已确认完成。下一步是 Phase 7 E2E 验证（启动三服务）。进度: `~/.gstack/projects/genilink-platform/progress.md`
+Billing 独立收银台 v1 已实现并提交 (461eec1, spec: docs/billing-checkout-implementation-spec.md)：335 测试全过、本地 smoke test 全过、迁移链已补齐可重放。下一步: M5 真实小额支付验证 + 代扣审批后开启自动续期；Phase 7 E2E 仍待做。进度: `~/.gstack/projects/genilink-platform/progress.md`
 
 ## ContentOS JWT Integration (done)
 
