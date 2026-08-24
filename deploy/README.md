@@ -1,5 +1,10 @@
 # GeniLink 运维手册
 
+> 前端生产发布已经改为 GitHub Actions 构建镜像并执行蓝绿容器切换。不要再在
+> 生产服务器执行 `npm run build`。流程、回滚和 Secrets 说明见
+> [`CONTAINER_DEPLOYMENT.md`](./CONTAINER_DEPLOYMENT.md)。本文其余 PM2 命令仅用于
+> 迁移期间的旧服务和独立的 ContentOS 服务。
+
 服务器: `8.147.56.119`
 域名: `genilink.cn`
 更新时间: `2026-06-14`
@@ -8,7 +13,7 @@
 
 | 组件 | 位置 | 地址/端口 | 管理方式 |
 | --- | --- | --- | --- |
-| 智链前台 | `/opt/genilink-platform` | `3001` | PM2 |
+| 智链前台 | GHCR 镜像，宿主机蓝绿槽位 | `3002` / `3003` | GitHub Actions + Docker |
 | 智创 / ContentOS | `/opt/genilink-platform/content` | `4002` | PM2 |
 | Higress 网关 | `/opt/higress-standalone/compose` | `8080` / `8081` / `8443` / `8848` / `8888` / `15020` | systemd + `docker compose` |
 | 智见 / Visibility | `root@8.147.56.119:/root/geo-visibility-analyze` | `http://127.0.0.1:8000` on host, exposed via `https://genilink.cn/visibility` | SSH + `docker compose` |
