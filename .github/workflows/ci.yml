@@ -114,19 +114,24 @@ jobs:
           printf '%s\n' "$PROD_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Pull and deploy verified image
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Transfer and deploy verified image
         shell: bash
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
           PROD_USER: ${{ secrets.PROD_USER }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IMAGE: ghcr.io/yyangwan/genilink-platform:${{ github.sha }}
         run: |
-          logout_registry() {
-            ssh "$PROD_USER@$PROD_HOST" "docker logout ghcr.io >/dev/null 2>&1 || true"
-          }
-          trap logout_registry EXIT
-          printf '%s' "$GHCR_TOKEN" | ssh "$PROD_USER@$PROD_HOST" \
-            "docker login ghcr.io -u '${{ github.actor }}' --password-stdin >/dev/null"
-          ssh "$PROD_USER@$PROD_HOST" \
-            "git -C /opt/genilink-platform pull --ff-only origin main && /opt/genilink-platform/deploy/deploy-container.sh '$IMAGE'"
+          SSH_OPTIONS=(-o ServerAliveInterval=30 -o ServerAliveCountMax=20)
+          docker pull "$IMAGE"
+          docker save "$IMAGE" | gzip -1 | \
+            ssh "${SSH_OPTIONS[@]}" "$PROD_USER@$PROD_HOST" \
+              "gzip -dc | docker load >/dev/null"
+          ssh "${SSH_OPTIONS[@]}" "$PROD_USER@$PROD_HOST" \
+            "git -C /opt/genilink-platform pull --ff-only origin main && SKIP_IMAGE_PULL=1 /opt/genilink-platform/deploy/deploy-container.sh '$IMAGE'"
