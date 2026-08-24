@@ -9,7 +9,7 @@ vi.mock('@/lib/db', () => {
     'user', 'workspace', 'workspaceMember', 'project', 'wechatLoginSession',
     'subscription', 'billingPlan', 'paymentOrder', 'paymentEvent',
     'checkoutSession', 'promotion', 'coupon', 'couponRedemption',
-    'paymentAgreement', 'renewalAttempt',
+    'paymentAgreement', 'renewalAttempt', 'billingNotification',
   ];
   const METHODS = ['$transaction', '$queryRaw', '$executeRaw'];
   const prisma: Record<string, unknown> = {};
@@ -67,6 +67,7 @@ function createDb(seed: { subscriptions?: Row[]; attempts?: Row[]; agreements?: 
     agreements: seed.agreements ?? [],
     events: [] as Row[],
     sessions: [] as Row[],
+    notifications: [] as Row[],
   };
 
   const updateRow = (list: Row[], where: Row, data: Row): Row | null => {
@@ -175,6 +176,21 @@ function createDb(seed: { subscriptions?: Row[]; attempts?: Row[]; agreements?: 
       updateMany: async () => ({ count: 0 }),
     },
     couponRedemption: { count: async () => 0, updateMany: async () => ({ count: 0 }) },
+    billingNotification: {
+      upsert: async ({ where, create }: any) => {
+        const key = where.subscriptionId_type_periodEnd;
+        const existing = db.notifications.find((row) =>
+          row.subscriptionId === key.subscriptionId &&
+          row.type === key.type &&
+          row.periodEnd.getTime() === key.periodEnd.getTime(),
+        );
+        if (existing) return existing;
+        const row = { id: `notification-${db.notifications.length + 1}`, ...create };
+        db.notifications.push(row);
+        return row;
+      },
+      updateMany: async () => ({ count: 0 }),
+    },
     $transaction: async (fn: (tx: unknown) => unknown) => fn(stateful.current),
     $queryRaw: async () => [],
   };

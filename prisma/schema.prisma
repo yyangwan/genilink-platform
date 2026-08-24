@@ -20,6 +20,7 @@ model User {
   wechatUnionid       String?  @unique @db.Text
   onboardingCompleted Boolean  @default(false)
   onboardingStep      String   @default("welcome") @db.Text
+  renewalReminderSmsEnabled Boolean @default(true)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -30,6 +31,8 @@ model User {
   checkoutSessions  CheckoutSession[]
   paymentAgreements PaymentAgreement[]
   couponRedemptions CouponRedemption[]
+  smsVerifications SmsVerificationCode[]
+  billingNotifications BillingNotification[]
 }
 
 model Account {
@@ -58,6 +61,53 @@ model WechatLoginSession {
   token     String?  @unique @db.Text
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+model SmsVerificationCode {
+  id           String    @id @default(cuid()) @db.Text
+  phone        String    @db.Text
+  codeHash     String    @db.Text
+  purpose      String    @default("login") @db.Text
+  provider     String    @default("aliyun") @db.Text
+  ipHash       String    @db.Text
+  attempts     Int       @default(0)
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  userId       String?   @db.Text
+  user         User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt    DateTime  @default(now())
+
+  @@index([phone, purpose, createdAt])
+  @@index([ipHash, createdAt])
+  @@index([expiresAt])
+}
+
+model BillingNotification {
+  id                String       @id @default(cuid()) @db.Text
+  subscriptionId    String       @db.Text
+  subscription      Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  userId            String       @db.Text
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String       @db.Text
+  periodEnd         DateTime
+  scheduledAt       DateTime
+  status            String       @default("scheduled") @db.Text
+  provider          String       @default("aliyun") @db.Text
+  templateCode      String?      @db.Text
+  phoneMasked       String?      @db.Text
+  phoneHash         String?      @db.Text
+  providerMessageId String?      @db.Text
+  attempts          Int          @default(0)
+  lastError         String?      @db.Text
+  sentAt            DateTime?
+  lockedBy          String?      @db.Text
+  lockedUntil       DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@unique([subscriptionId, type, periodEnd])
+  @@index([status, scheduledAt])
+  @@index([userId, createdAt])
 }
 
 // ─── Multi-tenancy ──────────────────────────────────────────────────
@@ -285,6 +335,7 @@ model Subscription {
 
   checkoutSessions CheckoutSession[] @relation("CheckoutSourceSubscription")
   renewalAttempts  RenewalAttempt[]
+  billingNotifications BillingNotification[]
 
   @@unique([userId, workspaceId, module])
 }

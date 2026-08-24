@@ -30,6 +30,10 @@ type BillingOverview = {
   plans: SubscriptionPlanView[];
   subscriptions: Subscription[];
   billingDisabled: boolean;
+  billingContact?: {
+    phoneMasked: string;
+    renewalReminderSmsEnabled: boolean;
+  };
 };
 
 const MODULE_LABELS: Record<string, string> = {
@@ -57,6 +61,7 @@ export default function BillingSettingsPage() {
   const [checkoutPendingKey, setCheckoutPendingKey] = useState<string | null>(null);
   const [revokingSubscriptionId, setRevokingSubscriptionId] = useState<string | null>(null);
   const [renewalNotice, setRenewalNotice] = useState<string | null>(null);
+  const [preferencePending, setPreferencePending] = useState(false);
   const accessSyncAttemptedRef = useRef(false);
 
   const loadOverview = useCallback(() => {
@@ -163,6 +168,25 @@ export default function BillingSettingsPage() {
     }
   };
 
+  const handleReminderPreference = async (enabled: boolean) => {
+    setPreferencePending(true);
+    setRenewalNotice(null);
+    try {
+      const response = await fetch('/api/billing/notification-preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ renewalReminderSmsEnabled: enabled }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await loadOverview();
+      setRenewalNotice(enabled ? '已开启订阅到期前短信提醒。' : '已关闭订阅到期前短信提醒。');
+    } catch {
+      setRenewalNotice('短信提醒设置更新失败，请稍后重试。');
+    } finally {
+      setPreferencePending(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -203,6 +227,39 @@ export default function BillingSettingsPage() {
       {!loading && activeSubscriptions.length > 0 ? (
         <section className="dashboard-surface dashboard-surface--padded">
           <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>订阅管理</h2>
+          <div className="mt-4 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: 'var(--border)' }}>
+            <div>
+              <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                续费短信提醒
+              </div>
+              <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                提醒发送至登录手机号 {overview?.billingContact?.phoneMasked ?? '未绑定'}。支付结果、到期和服务暂停等必要通知仍会发送。
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={overview?.billingContact?.renewalReminderSmsEnabled ?? true}
+              disabled={preferencePending || overview?.billingContact?.phoneMasked === '未绑定'}
+              onClick={() => void handleReminderPreference(!(overview?.billingContact?.renewalReminderSmsEnabled ?? true))}
+              className="relative h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                background: (overview?.billingContact?.renewalReminderSmsEnabled ?? true)
+                  ? 'var(--color-primary)'
+                  : 'var(--border)',
+              }}
+            >
+              <span
+                className="absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
+                style={{
+                  left: '4px',
+                  transform: (overview?.billingContact?.renewalReminderSmsEnabled ?? true)
+                    ? 'translateX(20px)'
+                    : 'translateX(0)',
+                }}
+              />
+            </button>
+          </div>
           {renewalNotice ? (
             <div className="mt-3 rounded-lg border px-4 py-2.5 text-sm" style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>
               {renewalNotice}

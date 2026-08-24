@@ -36,8 +36,14 @@ logs/
 
 # local agent skills and generated design/motion process artifacts
 .agents/
+.claude/
 motion/
+prototypes/
 skills-lock.json
+
+# local browser/app automation captures
+.tmp-*
+/智链品牌图标.jpg
 
 # env files (can opt-in for committing if needed)
 .env*
@@ -60,6 +66,3 @@ next-env.d.ts
 # keys (RSA key pair for JWT)
 .keys/
 .gstack/
-
-# claude local settings (contains per-machine permissions)
-.claude/settings.local.json

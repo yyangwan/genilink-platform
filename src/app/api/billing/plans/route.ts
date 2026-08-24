@@ -7,6 +7,7 @@ import { syncBillingPlans } from '@/lib/billing/service';
 import { syncPromotions } from '@/lib/billing/promotions/service';
 import { prisma } from '@/lib/db';
 import { getTierFromPlanKey } from '@/lib/billing/tiers';
+import { maskPhone, normalizePhone } from '@/lib/auth/phone';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,16 @@ export async function GET() {
   await syncBillingPlans();
   await syncPromotions();
 
+  const billingUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { phone: true, renewalReminderSmsEnabled: true },
+  });
+  const billingPhone = normalizePhone(billingUser?.phone);
+  const billingContact = {
+    phoneMasked: billingPhone ? maskPhone(billingPhone) : '未绑定',
+    renewalReminderSmsEnabled: billingUser?.renewalReminderSmsEnabled ?? true,
+  };
+
   const plans = await prisma.billingPlan.findMany({
     where: { isActive: true },
     orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
@@ -68,6 +79,7 @@ export async function GET() {
       workspaceId: null,
       billingDisabled: process.env.BILLING_DISABLED === 'true',
       providerAvailability,
+      billingContact,
       plans: serializePlans,
       subscriptions: [],
     });
@@ -105,6 +117,7 @@ export async function GET() {
     workspaceId,
     billingDisabled: process.env.BILLING_DISABLED === 'true',
     providerAvailability,
+    billingContact,
     plans: serializePlans,
     subscriptions: subscriptions.map((subscription) => ({
       ...subscription,

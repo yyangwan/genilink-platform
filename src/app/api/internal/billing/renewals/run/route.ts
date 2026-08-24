@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { runRenewalBatch } from '@/lib/billing/renewals/service';
 import { closeExpiredSessionOrders } from '@/lib/billing/payments/orchestrator';
+import { runBillingNotificationBatch } from '@/lib/billing/notifications/service';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -46,5 +47,8 @@ export async function POST(req: NextRequest) {
     reconciled: 0,
     failed: 0,
   }));
-  return NextResponse.json({ workerId, ...result, channelClose });
+  const notifications = await runBillingNotificationBatch(RENEWAL_BATCH_SIZE).catch((error) => ({
+    error: error instanceof Error ? error.message : String(error),
+  }));
+  return NextResponse.json({ workerId, ...result, channelClose, notifications });
 }

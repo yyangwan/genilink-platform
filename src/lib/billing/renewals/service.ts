@@ -19,6 +19,7 @@ import { expireStaleSessions } from '@/lib/billing/checkout/service';
 import { getAdapter } from '@/lib/billing/payments/provider';
 import type { ChargeAgreementResult, PaymentProviderAdapter } from '@/lib/billing/payments/provider';
 import { toBillingError } from '@/lib/billing/types';
+import { enqueueSubscriptionPaymentNotification } from '@/lib/billing/notifications/service';
 
 type Tx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
@@ -329,6 +330,14 @@ export async function reconcileRenewalPayment(
       gracePeriodEnd: null,
       discountRemainingCycles: quote.remainingCyclesAfter,
     },
+  });
+
+  await enqueueSubscriptionPaymentNotification(tx, {
+    subscriptionId: subscription.id,
+    userId: subscription.userId,
+    periodEnd: newPeriodEnd,
+    purchaseType: 'manual_renewal',
+    now,
   });
 
   assertRenewalAttemptTransition(

@@ -3,7 +3,6 @@
 import React, { Suspense, useState, useCallback, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import Image from "next/image";
 import { BrandMark } from "@/components/brand/brand-mark";
 
@@ -27,8 +26,10 @@ function LoginContent() {
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
   const errorParam = searchParams.get("error");
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [sendingCode, setSendingCode] = useState(false);
+  const [countdown, setCountdown] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,7 +43,7 @@ function LoginContent() {
 
   const urlErrorMessage =
     errorParam === "CredentialsSignin"
-      ? "邮箱或密码不正确"
+      ? "手机号或验证码不正确"
       : errorParam === "SessionRequired"
         ? "请先登录"
         : null;
@@ -58,21 +59,59 @@ function LoginContent() {
 
     window.location.assign(target);
   }, [router]);
-  // ─── Email/password login ────────────────────────────────────
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = window.setInterval(() => {
+      setCountdown((value) => Math.max(0, value - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [countdown]);
+
+  const handleSendCode = async () => {
+    if (!/^1[3-9]\d{9}$/.test(phone.trim())) {
+      setError("请输入正确的中国大陆手机号");
+      return;
+    }
+
+    setError(null);
+    setSendingCode(true);
+    try {
+      const response = await fetch("/api/auth/sms/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || "验证码发送失败，请稍后重试");
+        if (response.status === 429 && data.retryAfterSeconds) {
+          setCountdown(Math.min(Number(data.retryAfterSeconds), 3600));
+        }
+        return;
+      }
+      setCountdown(data.retryAfterSeconds || 60);
+    } catch {
+      setError("验证码发送失败，请检查网络后重试");
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  // ─── Phone verification-code login ───────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-      const result = await signIn("credentials", {
-        email,
-        password,
+      const result = await signIn("phone", {
+        phone,
+        code,
         redirect: false,
       });
 
       if (result?.error) {
-        setError("邮箱或密码不正确");
+        setError("手机号或验证码不正确，或验证码已过期");
         return;
       }
 
@@ -263,25 +302,29 @@ function LoginContent() {
         </div>
       )}
 
-      {/* Email/password form */}
+      {/* Phone verification-code form */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label
-            htmlFor="email"
+            htmlFor="phone"
             className="block text-sm font-medium mb-1.5"
             style={{
               color: "var(--text-secondary)",
               fontFamily: "var(--font-body)",
             }}
           >
-            邮箱
+            手机号
           </label>
           <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="your@email.com"
+            id="phone"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel-national"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
+            placeholder="请输入手机号"
+            pattern="1[3-9][0-9]{9}"
+            maxLength={11}
             required
             style={inputStyle}
             onFocus={(e) =>
@@ -295,30 +338,51 @@ function LoginContent() {
 
         <div>
           <label
-            htmlFor="password"
+            htmlFor="code"
             className="block text-sm font-medium mb-1.5"
             style={{
               color: "var(--text-secondary)",
               fontFamily: "var(--font-body)",
             }}
           >
-            密码
+            验证码
           </label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="输入密码"
-            required
-            style={inputStyle}
-            onFocus={(e) =>
-              (e.currentTarget.style.borderColor = "var(--color-primary)")
-            }
-            onBlur={(e) =>
-              (e.currentTarget.style.borderColor = "var(--border)")
-            }
-          />
+          <div className="flex gap-2">
+            <input
+              id="code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="6位验证码"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              required
+              style={inputStyle}
+              onFocus={(e) =>
+                (e.currentTarget.style.borderColor = "var(--color-primary)")
+              }
+              onBlur={(e) =>
+                (e.currentTarget.style.borderColor = "var(--border)")
+              }
+            />
+            <button
+              type="button"
+              onClick={handleSendCode}
+              disabled={sendingCode || countdown > 0}
+              className="shrink-0 px-3 rounded-lg text-sm font-medium"
+              style={{
+                minWidth: "104px",
+                border: "1px solid var(--border)",
+                background: "var(--bg-elevated)",
+                color: countdown > 0 ? "var(--text-muted)" : "var(--color-primary)",
+                cursor: sendingCode || countdown > 0 ? "not-allowed" : "pointer",
+              }}
+            >
+              {sendingCode ? "发送中..." : countdown > 0 ? `${countdown}秒后重发` : "获取验证码"}
+            </button>
+          </div>
         </div>
 
         <button type="submit" disabled={loading} style={buttonStyle}>
@@ -326,7 +390,6 @@ function LoginContent() {
         </button>
       </form>
 
-      {/* Register link */}
       <p
         className="mt-4 text-center text-sm"
         style={{
@@ -334,17 +397,7 @@ function LoginContent() {
           fontFamily: "var(--font-body)",
         }}
       >
-        没有账号？
-        <Link
-          href="/auth/register"
-          style={{
-            color: "var(--color-primary)",
-            fontWeight: 500,
-            textDecoration: "none",
-          }}
-        >
-          注册
-        </Link>
+        未注册手机号验证后将自动创建账号
       </p>
 
       {/* Divider */}

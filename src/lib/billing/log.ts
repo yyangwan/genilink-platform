@@ -23,6 +23,8 @@ const KNOWN_FIELDS = new Set([
   'metric',
   'count',
   'durationMs',
+  'notificationId',
+  'notificationType',
   'reason',
 ]);
 
@@ -60,6 +62,7 @@ export type BillingMetricName =
   | 'billing_renewal_success_total'
   | 'billing_renewal_failure_total'
   | 'billing_renewal_recovered_total'
+  | 'billing_sms_sent_total'
   | 'billing_channel_close_sweep';
 
 export function billingMetric(name: BillingMetricName, fields: Record<string, unknown> = {}): void {

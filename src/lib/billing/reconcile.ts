@@ -13,6 +13,7 @@ import {
 import { addBillingCycle } from '@/lib/billing/periods';
 import { computePeriods } from '@/lib/billing/checkout/service';
 import { reconcileRenewalPayment } from '@/lib/billing/renewals/service';
+import { enqueueSubscriptionPaymentNotification } from '@/lib/billing/notifications/service';
 
 type Tx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
@@ -422,6 +423,14 @@ export async function reconcileCheckoutPayment(params: {
           ...subscriptionData,
         },
         update: subscriptionData,
+      });
+
+      await enqueueSubscriptionPaymentNotification(tx, {
+        subscriptionId: subscription.id,
+        userId: session.userId,
+        periodEnd: periods.currentPeriodEnd,
+        purchaseType,
+        now,
       });
 
       billingMetric('billing_payment_success_total', {
