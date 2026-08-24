@@ -139,8 +139,14 @@ deploy_image() {
   local target_container
   target_container="$(container_for_slot "$target_slot")"
 
-  log "pulling $image"
-  docker pull "$image"
+  if [ "${SKIP_IMAGE_PULL:-0}" = "1" ]; then
+    docker image inspect "$image" >/dev/null 2>&1 \
+      || fail "preloaded image not found: $image"
+    log "using preloaded image $image"
+  else
+    log "pulling $image"
+    docker pull "$image"
+  fi
 
   if docker container inspect "$target_container" >/dev/null 2>&1; then
     docker rm -f "$target_container" >/dev/null

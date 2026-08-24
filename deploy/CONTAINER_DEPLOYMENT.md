@@ -7,8 +7,8 @@ immutable image. Production does not run `npm ci` or `next build`.
 
 1. A push to `main` runs type checking, lint, tests, and the Next.js build.
 2. CI builds and pushes both the commit SHA tag and `latest` to GHCR.
-3. The deploy job connects to production, fast-forwards the deployment scripts,
-   and pulls the exact SHA-tagged image.
+3. The deploy job pulls the exact SHA-tagged image on the GitHub runner, streams
+   it to production over SSH, and fast-forwards the deployment scripts.
 4. `deploy-container.sh` starts the inactive blue/green slot on port 3002 or
    3003, then waits for `/api/health`.
 5. After the local health check passes, the script atomically changes the Nginx
@@ -31,8 +31,9 @@ The repository needs these Actions secrets:
 - `PROD_SSH_KEY`
 - `PROD_KNOWN_HOSTS`
 
-The workflow uses its short-lived `GITHUB_TOKEN` only to authenticate the
-production host for the image pull, then logs the host out of GHCR.
+The workflow uses its short-lived `GITHUB_TOKEN` only on the ephemeral GitHub
+runner. Production receives the verified image over SSH and stores no registry
+credential.
 
 ## Operations
 
