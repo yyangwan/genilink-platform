@@ -67,7 +67,9 @@ bootstrap_nginx() {
   fi
 
   if grep -Fq 'server 127.0.0.1:3001;' "$NGINX_SITE"; then
-    local backup="${NGINX_SITE}.pre-container.$(date +%Y%m%d%H%M%S)"
+    local nginx_backup_dir="$STATE_DIR/nginx-backups"
+    mkdir -p "$nginx_backup_dir"
+    local backup="$nginx_backup_dir/genilink.conf.pre-container.$(date +%Y%m%d%H%M%S)"
     cp "$NGINX_SITE" "$backup"
     sed -i \
       's|^[[:space:]]*server 127\.0\.0\.1:3001;[[:space:]]*$|    include /etc/nginx/conf.d/genilink-frontend-upstream.inc;|' \
