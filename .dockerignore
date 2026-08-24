@@ -1,9 +1,16 @@
 node_modules
 .next
+.next-runtime
 .git
 *.md
-.env*.local
+.env*
 __tests__
 .claude
 .gstack
+.keys
 keys
+.deploy-backups
+.run-logs
+.tmp*
+test-results
+playwright-report
