@@ -92,6 +92,7 @@ bootstrap_nginx() {
 
 switch_upstream() {
   local port="$1"
+  local expected_version="$2"
   local previous
   previous="$(cat "$UPSTREAM_FILE")"
   write_upstream "$port"
@@ -104,7 +105,20 @@ switch_upstream() {
   fi
 
   systemctl reload nginx
-  if ! curl --fail --silent --show-error --max-time 10 "$PUBLIC_HEALTH_URL" >/dev/null; then
+  local attempt
+  local health_body
+  local public_healthy=0
+  for ((attempt = 1; attempt <= 15; attempt++)); do
+    health_body="$(curl --fail --silent --max-time 10 \
+      "${PUBLIC_HEALTH_URL}?deployment=${expected_version}" 2>/dev/null || true)"
+    if printf '%s' "$health_body" \
+      | grep -Fq "\"deployment\":\"${expected_version}\""; then
+      public_healthy=1
+      break
+    fi
+    sleep 2
+  done
+  if [ "$public_healthy" -ne 1 ]; then
     printf '%s\n' "$previous" >"$UPSTREAM_FILE"
     nginx -t
     systemctl reload nginx
@@ -179,7 +193,7 @@ deploy_image() {
   fi
 
   log "switching nginx to $target_slot ($target_port)"
-  if ! switch_upstream "$target_port"; then
+  if ! switch_upstream "$target_port" "${image##*:}"; then
     docker rm -f "$target_container" >/dev/null || true
     fail "nginx switch failed; new container removed"
   fi
@@ -219,7 +233,10 @@ rollback() {
 
   local current_slot
   current_slot="$(cat "$STATE_DIR/active-slot")"
-  switch_upstream "$previous_port"
+  [ -f "$STATE_DIR/previous-image" ] || fail "no previous image recorded"
+  local previous_image
+  previous_image="$(cat "$STATE_DIR/previous-image")"
+  switch_upstream "$previous_port" "${previous_image##*:}"
   docker stop --time 20 "$(container_for_slot "$current_slot")" >/dev/null || true
 
   printf '%s\n' "$current_slot" >"$STATE_DIR/previous-slot"
