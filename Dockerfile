@@ -1,16 +1,17 @@
 FROM node:22-alpine AS base
+RUN apk add --no-cache libc6-compat openssl
 
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-COPY packages/design-tokens/package.json ./packages/design-tokens/package.json
-RUN npm ci
+COPY packages/design-tokens/package.json packages/design-tokens/package-lock.json ./packages/design-tokens/
+RUN npm ci && npm --prefix packages/design-tokens ci
 
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/design-tokens/node_modules ./packages/design-tokens/node_modules
 COPY . .
 
 RUN npx prisma generate
