@@ -4,6 +4,7 @@ import {
   verifySignature,
   parseXML,
 } from '@/lib/wechat/token';
+import { isWechatLoginServerEnabled } from '@/lib/auth/wechat-login-server';
 
 const MP_TOKEN = process.env.WECHAT_MP_TOKEN || 'genilink_mp_verify';
 
@@ -26,6 +27,10 @@ export async function GET(req: NextRequest) {
 
 // POST — WeChat event callback (SCAN, subscribe via QR)
 export async function POST(req: NextRequest) {
+  if (!isWechatLoginServerEnabled()) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   const body = await req.text();
   const data = parseXML(body);
 

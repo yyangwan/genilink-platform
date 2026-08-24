@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { isWechatLoginServerEnabled } from '@/lib/auth/wechat-login-server';
 
 export async function GET(req: NextRequest) {
+  if (!isWechatLoginServerEnabled()) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   const scene = req.nextUrl.searchParams.get('scene');
 
   if (!scene) {

@@ -20,6 +20,7 @@ describe('POST /api/auth/wechat/verify', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('WECHAT_LOGIN_ENABLED', 'true');
     vi.stubEnv('AUTH_SECRET', 'test-secret');
 
     (prisma.wechatLoginSession.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({

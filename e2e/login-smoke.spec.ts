@@ -8,4 +8,5 @@ test('login page renders the core auth controls', async ({ page }) => {
   await expect(page.getByLabel(/验证码|code/i)).toBeVisible();
   await expect(page.getByRole('button', { name: /获取验证码/i })).toBeVisible();
   await expect(page.locator('form').getByRole('button', { name: /登录|login/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /微信扫码登录/i })).toHaveCount(0);
 });

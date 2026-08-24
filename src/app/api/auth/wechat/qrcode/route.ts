@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAccessToken } from '@/lib/wechat/token';
+import { isWechatLoginServerEnabled } from '@/lib/auth/wechat-login-server';
 import crypto from 'crypto';
 
 function isDevelopmentWechatFallbackEnabled(): boolean {
@@ -66,6 +67,10 @@ async function createDevelopmentLoginSession(scene: string, token: string) {
 }
 
 export async function GET() {
+  if (!isWechatLoginServerEnabled()) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   try {
     const APP_ID = process.env.WECHAT_MP_APPID;
     const APP_SECRET = process.env.WECHAT_MP_SECRET;

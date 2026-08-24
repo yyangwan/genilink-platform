@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { encode } from 'next-auth/jwt';
+import { isWechatLoginServerEnabled } from '@/lib/auth/wechat-login-server';
 
 function getAuthSecret(): string {
   return process.env.AUTH_SECRET || 'change-me-to-a-secure-random-string';
@@ -17,6 +18,10 @@ function getSessionCookieDomain(): string | undefined {
 }
 
 export async function POST(req: NextRequest) {
+  if (!isWechatLoginServerEnabled()) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   const { token } = await req.json();
 
   if (!token) {

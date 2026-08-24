@@ -5,12 +5,17 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { BrandMark } from "@/components/brand/brand-mark";
+import { isWechatLoginEnabled } from "@/lib/auth/wechat-login-feature";
 
 type WechatQRState = {
   url: string;
   scene: string;
   expiresAt: number;
 } | null;
+
+const WECHAT_LOGIN_ENABLED = isWechatLoginEnabled(
+  process.env.NEXT_PUBLIC_WECHAT_LOGIN_ENABLED,
+);
 
 export default function LoginPage() {
   return (
@@ -400,125 +405,129 @@ function LoginContent() {
         未注册手机号验证后将自动创建账号
       </p>
 
-      {/* Divider */}
-      <div className="flex items-center gap-3 my-6">
-        <div
-          className="flex-1 h-px"
-          style={{ background: "var(--border)" }}
-        />
-        <span
-          className="text-xs"
-          style={{
-            color: "var(--text-muted)",
-            fontFamily: "var(--font-body)",
-          }}
-        >
-          或
-        </span>
-        <div
-          className="flex-1 h-px"
-          style={{ background: "var(--border)" }}
-        />
-      </div>
-
-      {/* WeChat QR code section */}
-      <div className="text-center">
-        {!qrData && qrStatus !== "expired" && (
-          <button
-            onClick={fetchQRCode}
-            disabled={qrLoading}
-            className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors"
-            style={{
-              background: "var(--bg-elevated)",
-              color: "var(--text-secondary)",
-              border: "1px solid var(--border)",
-              fontFamily: "var(--font-body)",
-              cursor: qrLoading ? "wait" : "pointer",
-            }}
-          >
-            {qrLoading ? "生成二维码中..." : "微信扫码登录"}
-          </button>
-        )}
-
-        {qrData && qrStatus !== "expired" && (
-          <div>
+      {WECHAT_LOGIN_ENABLED && (
+        <>
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-6">
             <div
-              className="mx-auto mb-3 rounded-lg overflow-hidden"
+              className="flex-1 h-px"
+              style={{ background: "var(--border)" }}
+            />
+            <span
+              className="text-xs"
               style={{
-                width: "200px",
-                height: "200px",
-                background: "#fff",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <Image
-                src={qrData.url}
-                alt="微信登录二维码"
-                width={200}
-                height={200}
-                unoptimized
-              />
-            </div>
-            <p
-              className="text-sm"
-              style={{
-                color:
-                  qrStatus === "scanned"
-                    ? "var(--color-success)"
-                    : "var(--text-secondary)",
+                color: "var(--text-muted)",
                 fontFamily: "var(--font-body)",
               }}
             >
-              {qrStatus === "scanned"
-                ? "扫描成功，请在手机上确认"
-                : "请使用微信扫描二维码"}
-            </p>
+              或
+            </span>
+            <div
+              className="flex-1 h-px"
+              style={{ background: "var(--border)" }}
+            />
           </div>
-        )}
 
-        {qrStatus === "expired" && (
-          <div>
-            <p
-              className="text-sm mb-3"
-              style={{
-                color: "var(--color-error)",
-                fontFamily: "var(--font-body)",
-              }}
-            >
-              二维码已过期
-            </p>
-            <button
-              onClick={() => {
-                setQrData(null);
-                setQrStatus("idle");
-                fetchQRCode();
-              }}
-              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-              style={{
-                background: "var(--bg-elevated)",
-                color: "var(--text-secondary)",
-                border: "1px solid var(--border)",
-                fontFamily: "var(--font-body)",
-                cursor: "pointer",
-              }}
-            >
-              刷新二维码
-            </button>
+          {/* WeChat QR code section */}
+          <div className="text-center">
+            {!qrData && qrStatus !== "expired" && (
+              <button
+                onClick={fetchQRCode}
+                disabled={qrLoading}
+                className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  background: "var(--bg-elevated)",
+                  color: "var(--text-secondary)",
+                  border: "1px solid var(--border)",
+                  fontFamily: "var(--font-body)",
+                  cursor: qrLoading ? "wait" : "pointer",
+                }}
+              >
+                {qrLoading ? "生成二维码中..." : "微信扫码登录"}
+              </button>
+            )}
+
+            {qrData && qrStatus !== "expired" && (
+              <div>
+                <div
+                  className="mx-auto mb-3 rounded-lg overflow-hidden"
+                  style={{
+                    width: "200px",
+                    height: "200px",
+                    background: "#fff",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  <Image
+                    src={qrData.url}
+                    alt="微信登录二维码"
+                    width={200}
+                    height={200}
+                    unoptimized
+                  />
+                </div>
+                <p
+                  className="text-sm"
+                  style={{
+                    color:
+                      qrStatus === "scanned"
+                        ? "var(--color-success)"
+                        : "var(--text-secondary)",
+                    fontFamily: "var(--font-body)",
+                  }}
+                >
+                  {qrStatus === "scanned"
+                    ? "扫描成功，请在手机上确认"
+                    : "请使用微信扫描二维码"}
+                </p>
+              </div>
+            )}
+
+            {qrStatus === "expired" && (
+              <div>
+                <p
+                  className="text-sm mb-3"
+                  style={{
+                    color: "var(--color-error)",
+                    fontFamily: "var(--font-body)",
+                  }}
+                >
+                  二维码已过期
+                </p>
+                <button
+                  onClick={() => {
+                    setQrData(null);
+                    setQrStatus("idle");
+                    fetchQRCode();
+                  }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  style={{
+                    background: "var(--bg-elevated)",
+                    color: "var(--text-secondary)",
+                    border: "1px solid var(--border)",
+                    fontFamily: "var(--font-body)",
+                    cursor: "pointer",
+                  }}
+                >
+                  刷新二维码
+                </button>
+              </div>
+            )}
+
+            {qrError && (
+              <p
+                className="mt-2 text-sm"
+                style={{
+                  color: "var(--color-error)",
+                  fontFamily: "var(--font-body)",
+                }}
+              >
+                {qrError}
+              </p>
+            )}
           </div>
-        )}
-
-        {qrError && (
-          <p
-            className="mt-2 text-sm"
-            style={{
-              color: "var(--color-error)",
-              fontFamily: "var(--font-body)",
-            }}
-          >
-            {qrError}
-          </p>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }

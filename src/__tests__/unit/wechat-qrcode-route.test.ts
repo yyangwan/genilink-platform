@@ -9,6 +9,7 @@ describe('GET /api/auth/wechat/qrcode', () => {
     vi.stubEnv('WECHAT_MP_APPID', '');
     vi.stubEnv('WECHAT_MP_SECRET', '');
     vi.stubEnv('WECHAT_MP_TOKEN', '');
+    vi.stubEnv('WECHAT_LOGIN_ENABLED', 'true');
     vi.stubEnv('AUTH_SECRET', 'test-secret');
 
     (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
