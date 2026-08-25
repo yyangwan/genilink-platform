@@ -56,6 +56,9 @@ jobs:
           DATABASE_URL: postgresql://genilink:genilink_dev@localhost:5432/genilink
           AUTH_SECRET: test-secret
 
+      - name: Test deployment environment normalization
+        run: bash deploy/test-prepare-docker-env.sh
+
       - name: Build
         run: NODE_OPTIONS="--max-old-space-size=4096" npm run build
         env:

@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 APP_ROOT="${APP_ROOT:-/opt/genilink-platform}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${ENV_FILE:-$APP_ROOT/.env}"
 KEYS_DIR="${KEYS_DIR:-$APP_ROOT/.keys}"
 STATE_DIR="${STATE_DIR:-/opt/genilink-deploy}"
@@ -10,6 +11,7 @@ UPSTREAM_FILE="${UPSTREAM_FILE:-/etc/nginx/conf.d/genilink-frontend-upstream.inc
 PUBLIC_HEALTH_URL="${PUBLIC_HEALTH_URL:-https://genilink.cn/api/health}"
 IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/yyangwan/genilink-platform:}"
 HEALTH_ATTEMPTS="${HEALTH_ATTEMPTS:-45}"
+RUNTIME_ENV_FILE=""
 
 BLUE_PORT=3002
 GREEN_PORT=3003
@@ -22,6 +24,14 @@ fail() {
   log "ERROR: $*"
   exit 1
 }
+
+cleanup() {
+  if [ -n "$RUNTIME_ENV_FILE" ]; then
+    rm -f "$RUNTIME_ENV_FILE"
+  fi
+}
+
+trap cleanup EXIT
 
 require_root() {
   [ "$(id -u)" -eq 0 ] || fail "run as root"
@@ -139,6 +149,10 @@ deploy_image() {
   exec 9>"$STATE_DIR/deploy.lock"
   flock -n 9 || fail "another deployment is running"
 
+  RUNTIME_ENV_FILE="$(mktemp "$STATE_DIR/runtime-env.XXXXXX")"
+  bash "$SCRIPT_DIR/prepare-docker-env.sh" "$ENV_FILE" "$RUNTIME_ENV_FILE"
+  log "runtime configuration normalized and validated"
+
   bootstrap_nginx
 
   local active_slot="legacy"
@@ -171,7 +185,7 @@ deploy_image() {
     --name "$target_container"
     --network host
     --restart unless-stopped
-    --env-file "$ENV_FILE"
+    --env-file "$RUNTIME_ENV_FILE"
     --env "PORT=$target_port"
     --env "HOSTNAME=0.0.0.0"
     --env "DEPLOYMENT_VERSION=${image##*:}"
