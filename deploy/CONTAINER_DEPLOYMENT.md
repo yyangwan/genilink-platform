@@ -18,7 +18,10 @@ immutable image. Production does not run `npm ci` or `next build`.
 
 Runtime configuration remains on the server:
 
-- `/opt/genilink-platform/.env` is passed with `--env-file`.
+- `/opt/genilink-platform/.env` remains the source of truth. Before `docker run`,
+  `prepare-docker-env.sh` writes a mode-0600 temporary Docker env file, removes
+  dotenv-style outer quotes, and validates the selected SMS provider's required
+  settings. The temporary file is deleted when deployment exits.
 - `/opt/genilink-platform/.keys` is mounted read-only at `/app/.keys`.
 - Neither file is copied into the image or uploaded to GHCR.
 
