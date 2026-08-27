@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0.1] - 2026-08-28
+
+### Changed
+- First-time users now see guided project setup states on the dashboard, brand voice, and content template pages instead of blank or indefinitely loading content.
+- Empty brand management now explains how the first brand powers audits, competitor comparisons, and content creation.
+
+### Fixed
+- Project-scoped dashboard requests no longer run before a project is selected.
+- Users with existing projects but no active selection are prompted to choose a project instead of being shown misleading empty data.
+
 ## [0.2.0.0] - 2026-08-21
 
 ### Added

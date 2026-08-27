@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useMemo, Suspense } from "react";
-import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import {
   DashboardCard,
@@ -11,6 +10,7 @@ import {
 } from "@/components/dashboard/widgets";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { useProject } from "@/components/project/project-context";
+import { ProjectSetupState } from "@/components/project/project-setup-state";
 import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 import type {
   VisibilitySummary,
@@ -413,17 +413,22 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
-  const { currentProjectId, currentProject } = useProject();
+  const {
+    currentProjectId,
+    projects,
+    loading: projectsLoading,
+    openWizard,
+  } = useProject();
 
   // Section-based data fetching
   const visibility = useSectionFetch<VisibilitySummary>(
-    currentProjectId ? `/api/dashboard/visibility?project=${currentProjectId}` : "/api/dashboard/visibility"
+    currentProjectId ? `/api/dashboard/visibility?project=${currentProjectId}` : null
   );
   const geo = useSectionFetch<GeoSummary>(
-    currentProjectId ? `/api/dashboard/geo?project=${currentProjectId}` : "/api/dashboard/geo"
+    currentProjectId ? `/api/dashboard/geo?project=${currentProjectId}` : null
   );
   const content = useSectionFetch<ContentSummary>(
-    currentProjectId ? `/api/dashboard/content?project=${currentProjectId}` : "/api/dashboard/content"
+    currentProjectId ? `/api/dashboard/content?project=${currentProjectId}` : null
   );
   const optimizationTasks = useMemo<OptimizationTask[]>(() => {
     const geoTasks = geo.data?.optimizationTasks ?? [];
@@ -438,11 +443,38 @@ function DashboardContent() {
       }));
   }, [geo.data?.optimizationTasks, visibility.data?.suggestions]);
 
+  if (projectsLoading) {
+    return (
+      <div className="space-y-8">
+        <PageHeader title="工作台" subtitle="正在准备你的工作空间…" />
+        <div className="dashboard-surface dashboard-skeleton h-64 rounded-xl animate-skeleton-pulse" />
+      </div>
+    );
+  }
+
+  if (!currentProjectId) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          title="工作台"
+          subtitle={projects.length > 0 ? "选择项目后查看最新业务数据" : "从第一个项目开始建立品牌数据"}
+        />
+        <ProjectSetupState
+          hasProjects={projects.length > 0}
+          featureName="工作台"
+          onCreateProject={openWizard}
+          createDescription="创建项目后，这里会展示 AI 可见性、优化建议和内容进展。"
+          selectionDescription="请从顶部项目菜单选择一个项目，即可查看对应的业务数据。"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <PageHeader
         title="工作台"
-        subtitle={currentProjectId ? "项目概览 — 实时数据监控" : "全局概览 — 实时数据监控"}
+        subtitle="项目概览 — 实时数据监控"
         actions={
           <div className="flex items-center gap-2">
             <HealthBadge
@@ -456,38 +488,6 @@ function DashboardContent() {
           </div>
         }
       />
-
-      {/* ─── Welcome CTA (shown when no data) ──────────────── */}
-      {!currentProjectId && !visibility.loading && !visibility.data?.overallScore && (
-        <div className="dashboard-surface dashboard-surface--padded flex items-center justify-between gap-4">
-          <div>
-            <h3
-              className="text-base font-semibold mb-1"
-              style={{
-                color: "var(--text-primary)",
-                fontFamily: "var(--font-display)",
-              }}
-            >
-              开始你的第一次 AI 可见性分析
-            </h3>
-            <p
-              className="text-sm"
-              style={{
-                color: "var(--text-secondary)",
-                fontFamily: "var(--font-body)",
-              }}
-            >
-              创建项目，追踪你的品牌在 DeepSeek、Kimi、通义千问等平台上的可见性
-            </p>
-          </div>
-          <Link
-            href="/projects"
-            className="dashboard-button dashboard-button--primary shrink-0"
-          >
-            创建项目
-          </Link>
-        </div>
-      )}
 
       {/* ─── Overview: Gauge + compact KPIs + visibility trend ─────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(360px,0.9fr)_minmax(520px,1.35fr)] gap-6">

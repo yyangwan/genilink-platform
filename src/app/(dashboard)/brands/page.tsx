@@ -333,8 +333,8 @@ function BrandsContent() {
           emptyContent={
             <EmptyState
               icon={Tag}
-              title="还没有品牌"
-              description="添加品牌以追踪自有品牌和竞品"
+              title="添加你的第一个品牌"
+              description="品牌档案会用于后续的可见性审计、竞品对比和内容创作。"
               actionLabel="添加第一个品牌"
               onAction={() => {
                 setAdding(true);
