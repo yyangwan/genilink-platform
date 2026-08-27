@@ -4,6 +4,7 @@
 import React, { Suspense, useCallback, useState } from "react";
 import { Plus, Pencil, Trash2, X, Loader2, LayoutTemplate } from "lucide-react";
 import { useProject } from "@/components/project/project-context";
+import { ProjectSetupState } from "@/components/project/project-setup-state";
 
 interface Template {
   id: string;
@@ -38,7 +39,12 @@ const inputStyle: React.CSSProperties = {
 const CATEGORIES = ["社交媒体", "博客文章", "产品描述", "广告文案", "邮件营销", "其他"] as const;
 
 function TemplatesInner() {
-  const { currentProjectId } = useProject();
+  const {
+    currentProjectId,
+    projects,
+    loading: projectsLoading,
+    openWizard,
+  } = useProject();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +61,12 @@ function TemplatesInner() {
   const [submitting, setSubmitting] = useState(false);
 
   const fetchTemplates = useCallback(async () => {
-    if (!currentProjectId) return;
+    if (!currentProjectId) {
+      setTemplates([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -152,13 +163,22 @@ function TemplatesInner() {
             创建可复用的内容模板，支持变量占位符
           </p>
         </div>
-        <button onClick={() => { resetForm(); setShowForm(true); }}
-          className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg"
-          style={{ background: "var(--color-primary)", color: "white", border: "none", fontFamily: "var(--font-body)", cursor: "pointer" }}
-        >
-          <Plus size={14} />
-          新建模板
-        </button>
+        {(currentProjectId || projects.length === 0) && (
+          <button onClick={() => {
+            if (!currentProjectId) {
+              openWizard();
+              return;
+            }
+            resetForm();
+            setShowForm(true);
+          }}
+            className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg"
+            style={{ background: "var(--color-primary)", color: "white", border: "none", fontFamily: "var(--font-body)", cursor: "pointer" }}
+          >
+            <Plus size={14} />
+            {currentProjectId ? "新建模板" : "创建项目"}
+          </button>
+        )}
       </div>
 
       {/* Category filters */}
@@ -276,12 +296,18 @@ function TemplatesInner() {
       )}
 
       {/* List */}
-      {loading ? (
+      {projectsLoading || (currentProjectId && loading) ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-28 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
           ))}
         </div>
+      ) : !currentProjectId ? (
+        <ProjectSetupState
+          hasProjects={projects.length > 0}
+          featureName="内容模板"
+          onCreateProject={openWizard}
+        />
       ) : error ? (
         <div style={card} className="text-center py-8">
           <p className="text-sm" style={{ color: "var(--color-error)", fontFamily: "var(--font-body)" }}>{error}</p>

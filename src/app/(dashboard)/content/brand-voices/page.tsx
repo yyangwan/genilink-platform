@@ -4,6 +4,7 @@
 import React, { Suspense, useCallback, useState } from "react";
 import { Plus, Pencil, Trash2, X, Loader2, Mic } from "lucide-react";
 import { useProject } from "@/components/project/project-context";
+import { ProjectSetupState } from "@/components/project/project-setup-state";
 
 interface BrandVoice {
   id: string;
@@ -41,7 +42,12 @@ const inputStyle: React.CSSProperties = {
 };
 
 function BrandVoicesInner() {
-  const { currentProjectId } = useProject();
+  const {
+    currentProjectId,
+    projects,
+    loading: projectsLoading,
+    openWizard,
+  } = useProject();
   const [voices, setVoices] = useState<BrandVoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +64,12 @@ function BrandVoicesInner() {
   const [brands, setBrands] = useState<BrandOption[]>([]);
 
   const fetchVoices = useCallback(async () => {
-    if (!currentProjectId) return;
+    if (!currentProjectId) {
+      setVoices([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -164,20 +175,29 @@ function BrandVoicesInner() {
             管理 AI 生成内容时使用的品牌语调和风格
           </p>
         </div>
-        <button
-          onClick={() => { resetForm(); setShowForm(true); }}
-          className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg"
-          style={{
-            background: "var(--color-primary)",
-            color: "white",
-            border: "none",
-            fontFamily: "var(--font-body)",
-            cursor: "pointer",
-          }}
-        >
-          <Plus size={14} />
-          新建声音
-        </button>
+        {(currentProjectId || projects.length === 0) && (
+          <button
+            onClick={() => {
+              if (!currentProjectId) {
+                openWizard();
+                return;
+              }
+              resetForm();
+              setShowForm(true);
+            }}
+            className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg"
+            style={{
+              background: "var(--color-primary)",
+              color: "white",
+              border: "none",
+              fontFamily: "var(--font-body)",
+              cursor: "pointer",
+            }}
+          >
+            <Plus size={14} />
+            {currentProjectId ? "新建声音" : "创建项目"}
+          </button>
+        )}
       </div>
 
       {/* Create/Edit form */}
@@ -265,12 +285,18 @@ function BrandVoicesInner() {
       )}
 
       {/* List */}
-      {loading ? (
+      {projectsLoading || (currentProjectId && loading) ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-24 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />
           ))}
         </div>
+      ) : !currentProjectId ? (
+        <ProjectSetupState
+          hasProjects={projects.length > 0}
+          featureName="品牌声音"
+          onCreateProject={openWizard}
+        />
       ) : error ? (
         <div style={card} className="text-center py-8">
           <p className="text-sm" style={{ color: "var(--color-error)", fontFamily: "var(--font-body)" }}>{error}</p>
