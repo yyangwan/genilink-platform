@@ -25,6 +25,9 @@ RUN DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build" \
     npm run build && \
     rm -rf /app/.next/standalone/.keys
 
+FROM deps AS migration-deps
+RUN npm prune --omit=dev
+
 FROM base AS runner
 WORKDIR /app
 
@@ -37,6 +40,9 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=migration-deps /app/node_modules /prisma-runtime/node_modules
+COPY prisma /prisma-runtime/prisma
+COPY prisma.config.ts /prisma-runtime/prisma.config.ts
 RUN mkdir -p /app/.next/cache && chown -R nextjs:nodejs /app/.next
 
 USER nextjs

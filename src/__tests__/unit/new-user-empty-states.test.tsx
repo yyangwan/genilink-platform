@@ -66,6 +66,7 @@ describe("new user empty states", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "创建第一个项目" }));
     expect(mocks.openWizard).toHaveBeenCalledOnce();
+    expect(mocks.openWizard).toHaveBeenCalledWith();
   });
 
   it.each([

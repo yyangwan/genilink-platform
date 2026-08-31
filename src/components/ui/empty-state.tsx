@@ -35,7 +35,7 @@ export function EmptyState({ icon: Icon, title, description, actionLabel, action
           </Link>
         ) : (
           <button
-            onClick={onAction}
+            onClick={() => onAction?.()}
             className="dashboard-button dashboard-button--secondary"
             style={{ color: "var(--color-primary)" }}
           >

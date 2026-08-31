@@ -15,11 +15,20 @@ type MessageState = {
 export default function AccountSettingsPage() {
   const { data: session, update } = useSession();
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [credentialsConfigured, setCredentialsConfigured] = useState<boolean | null>(null);
+  const [credentialsLoadFailed, setCredentialsLoadFailed] = useState(false);
+  const [credentialsReloadKey, setCredentialsReloadKey] = useState(0);
+  const [setupPassword, setSetupPassword] = useState("");
+  const [setupPasswordConfirm, setSetupPasswordConfirm] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [sendingCode, setSendingCode] = useState(false);
+  const [resendSeconds, setResendSeconds] = useState(0);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
+  const [savingCredentials, setSavingCredentials] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [message, setMessage] = useState<MessageState>(null);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
@@ -27,7 +36,6 @@ export default function AccountSettingsPage() {
   useEffect(() => {
     if (session?.user) {
       setName(session.user.name || "");
-      setEmail(session.user.email || "");
     }
 
     const themeCookie = document.cookie
@@ -39,6 +47,36 @@ export default function AccountSettingsPage() {
       setTheme(val === "light" ? "light" : "dark");
     }
   }, [session]);
+
+  useEffect(() => {
+    let active = true;
+    setCredentialsLoadFailed(false);
+    fetch("/api/user/login-credentials", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("LOAD_FAILED");
+        return response.json() as Promise<{ email: string | null; configured: boolean }>;
+      })
+      .then((data) => {
+        if (!active) return;
+        setLoginEmail(data.email || "");
+        setCredentialsConfigured(data.configured);
+      })
+      .catch(() => {
+        if (!active) return;
+        setCredentialsConfigured(null);
+        setCredentialsLoadFailed(true);
+        setMessage({ type: "error", text: "邮箱登录信息加载失败，请刷新后重试" });
+      });
+    return () => {
+      active = false;
+    };
+  }, [credentialsReloadKey]);
+
+  useEffect(() => {
+    if (resendSeconds <= 0) return;
+    const timer = window.setInterval(() => setResendSeconds((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [resendSeconds]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +103,60 @@ export default function AccountSettingsPage() {
     }
   };
 
+  const handleSetupCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (setupPassword !== setupPasswordConfirm) {
+      setMessage({ type: "error", text: "两次密码输入不一致" });
+      return;
+    }
+
+    setSavingCredentials(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/user/login-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: loginEmail, password: setupPassword, verificationCode }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage({ type: "error", text: data.error || "邮箱密码设置失败" });
+        return;
+      }
+
+      setLoginEmail(data.email);
+      setCredentialsConfigured(true);
+      await update({});
+      setSetupPassword("");
+      setSetupPasswordConfirm("");
+      setVerificationCode("");
+      setMessage({ type: "success", text: "邮箱密码登录已启用" });
+    } catch {
+      setMessage({ type: "error", text: "网络错误" });
+    } finally {
+      setSavingCredentials(false);
+    }
+  };
+
+  const handleSendVerificationCode = async () => {
+    setSendingCode(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/user/login-credentials", { method: "PUT" });
+      const data = await response.json();
+      if (response.ok || response.status === 429) {
+        setResendSeconds(Number(data.retryAfterSeconds) || 60);
+      }
+      setMessage(response.ok
+        ? { type: "success", text: "验证码已发送到当前账号绑定的手机号" }
+        : { type: "error", text: data.error || "验证码发送失败" });
+    } catch {
+      setMessage({ type: "error", text: "网络错误" });
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -82,7 +174,7 @@ export default function AccountSettingsPage() {
     setMessage(null);
 
     try {
-      const res = await fetch("/api/user/password", {
+      const res = await fetch("/api/user/login-credentials", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -121,11 +213,13 @@ export default function AccountSettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="账号设置"
-        subtitle="管理个人信息、密码和外观。"
+        subtitle="管理个人信息、登录方式和外观。"
       />
 
       {message && (
         <div
+          role={message.type === "error" ? "alert" : "status"}
+          aria-live={message.type === "error" ? "assertive" : "polite"}
           className="rounded-lg border px-3 py-2 text-sm"
           style={{
             background:
@@ -163,23 +257,6 @@ export default function AccountSettingsPage() {
             />
           </div>
 
-          <div className="space-y-1.5">
-            <label className="dashboard-field-label" htmlFor="email">
-              邮箱
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              disabled
-              className="dashboard-input"
-              style={{ opacity: 0.7, cursor: "not-allowed" }}
-            />
-            <p className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-              邮箱当前不支持修改
-            </p>
-          </div>
-
           <div className="flex items-center justify-end">
             <button
               type="submit"
@@ -193,8 +270,105 @@ export default function AccountSettingsPage() {
       </section>
 
       <section className="dashboard-surface dashboard-surface--padded">
-        <h2 className="dashboard-panel-title">修改密码</h2>
+        <h2 className="dashboard-panel-title">邮箱密码登录</h2>
+        {credentialsLoadFailed ? (
+          <div className="space-y-3">
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>暂时无法读取邮箱登录设置，请稍后重试。</p>
+            <button type="button" onClick={() => setCredentialsReloadKey((value) => value + 1)} className="dashboard-button dashboard-button--secondary">
+              重新加载
+            </button>
+          </div>
+        ) : credentialsConfigured === null ? (
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>正在加载登录设置...</p>
+        ) : !credentialsConfigured ? (
+          <form onSubmit={handleSetupCredentials} className="space-y-4">
+            <p className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+              注册仍需使用手机号。设置后可使用以下邮箱和密码直接登录当前账号。
+            </p>
+            <div className="space-y-1.5">
+              <label className="dashboard-field-label" htmlFor="loginEmail">登录邮箱</label>
+              <input
+                id="loginEmail"
+                type="email"
+                autoComplete="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                placeholder="name@example.com"
+                required
+                className="dashboard-input"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="dashboard-field-label" htmlFor="verificationCode">手机号验证码</label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  id="verificationCode"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="6 位验证码"
+                  pattern="[0-9]{6}"
+                  required
+                  className="dashboard-input min-w-0 flex-1"
+                />
+                <button type="button" onClick={handleSendVerificationCode} disabled={sendingCode || resendSeconds > 0} className="dashboard-button dashboard-button--secondary min-h-11 whitespace-nowrap">
+                  {sendingCode ? "发送中..." : resendSeconds > 0 ? `${resendSeconds} 秒后重发` : "获取验证码"}
+                </button>
+              </div>
+              <p className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                为保护账号安全，首次启用邮箱登录需要验证当前绑定手机号。
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="dashboard-field-label" htmlFor="setupPassword">登录密码</label>
+              <input
+                id="setupPassword"
+                type="password"
+                autoComplete="new-password"
+                value={setupPassword}
+                onChange={(e) => setSetupPassword(e.target.value)}
+                placeholder="至少 8 个字符"
+                minLength={8}
+                required
+                className="dashboard-input"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="dashboard-field-label" htmlFor="setupPasswordConfirm">确认密码</label>
+              <input
+                id="setupPasswordConfirm"
+                type="password"
+                autoComplete="new-password"
+                value={setupPasswordConfirm}
+                onChange={(e) => setSetupPasswordConfirm(e.target.value)}
+                minLength={8}
+                required
+                className="dashboard-input"
+              />
+            </div>
+            <div className="flex items-center justify-end">
+              <button type="submit" disabled={savingCredentials} className="dashboard-button dashboard-button--primary">
+                {savingCredentials ? "设置中..." : "启用邮箱密码登录"}
+              </button>
+            </div>
+          </form>
+        ) : (
         <form onSubmit={handleChangePassword} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="dashboard-field-label" htmlFor="configuredEmail">登录邮箱</label>
+            <input
+              id="configuredEmail"
+              type="email"
+              value={loginEmail}
+              disabled
+              className="dashboard-input"
+              style={{ opacity: 0.7, cursor: "not-allowed" }}
+            />
+            <p className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              登录邮箱绑定后不可自行修改，如需调整请联系管理员。
+            </p>
+          </div>
           <div className="space-y-1.5">
             <label className="dashboard-field-label" htmlFor="currentPassword">
               当前密码
@@ -250,6 +424,7 @@ export default function AccountSettingsPage() {
             </button>
           </div>
         </form>
+        )}
       </section>
 
       <section className="dashboard-surface dashboard-surface--padded">
