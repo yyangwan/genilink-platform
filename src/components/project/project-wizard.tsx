@@ -2,6 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { X, Plus, ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
 import { useProject, type ProjectSummary } from "./project-context";
 import { useToast } from "@/components/ui/toast-context";
@@ -29,7 +30,8 @@ const emptyForm: FormData = {
 };
 
 export function ProjectWizard() {
-  const { wizardOpen, wizardEditProject, closeWizard, refreshProjects, selectProject, projects } =
+  const router = useRouter();
+  const { wizardOpen, wizardEditProject, closeWizard, refreshProjects, selectProject, workspaceId } =
     useProject();
   const { addToast } = useToast();
 
@@ -134,17 +136,38 @@ export function ProjectWizard() {
         productUrl: form.productUrl.trim() || null,
       };
 
-      const res = isEdit
-        ? await fetch(`/api/projects/${wizardEditProject!.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          })
-        : await fetch("/api/projects", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          });
+      let res: Response;
+      if (isEdit) {
+        res = await fetch(`/api/projects/${wizardEditProject!.id}`, {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } else if (workspaceId) {
+        res = await fetch("/api/projects", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } else {
+        res = await fetch("/api/onboarding", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            workspaceName: body.name,
+            industry: body.industry,
+            projectName: body.name,
+            projectUrl: body.url,
+            productName: body.productName,
+            productKeywords: body.productKeywords,
+            productDescription: body.productDescription,
+            productUrl: body.productUrl,
+          }),
+        });
+      }
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -156,8 +179,12 @@ export function ProjectWizard() {
       await refreshProjects();
 
       // Auto-select newly created project
-      if (!isEdit && data.project?.id) {
-        selectProject(data.project.id);
+      const createdProjectId = data.project?.id ?? data.projectId;
+      if (!isEdit && createdProjectId) {
+        selectProject(createdProjectId);
+        if (!workspaceId) {
+          router.refresh();
+        }
       }
 
       addToast({
@@ -172,7 +199,7 @@ export function ProjectWizard() {
     } finally {
       setSubmitting(false);
     }
-  }, [form, isEdit, wizardEditProject, refreshProjects, selectProject, addToast, closeWizard]);
+  }, [form, isEdit, wizardEditProject, workspaceId, refreshProjects, selectProject, addToast, closeWizard, router]);
 
   const addKeyword = useCallback(() => {
     const trimmed = keywordInput.trim();

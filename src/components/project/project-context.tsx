@@ -18,6 +18,7 @@ interface ProjectContextValue {
   projects: ProjectSummary[];
   currentProject: ProjectSummary | null;
   currentProjectId: string | null;
+  workspaceId: string | null;
   loading: boolean;
   selectProject: (id: string | null) => void;
   refreshProjects: () => void;
@@ -152,6 +153,7 @@ export function ProjectProvider({ children, workspaceId }: ProjectProviderProps)
         projects,
         currentProject,
         currentProjectId,
+        workspaceId,
         loading,
         selectProject,
         refreshProjects,
