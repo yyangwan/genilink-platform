@@ -44,6 +44,11 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      - name: Validate and apply database migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://genilink:genilink_dev@localhost:5432/genilink
+
       - name: Type check
         run: npx tsc --noEmit
 
@@ -69,6 +74,20 @@ jobs:
     name: Build and publish production image
     needs: build
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: genilink
+          POSTGRES_PASSWORD: genilink_dev
+          POSTGRES_DB: genilink
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -87,6 +106,7 @@ jobs:
         with:
           context: .
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          load: ${{ github.event_name == 'pull_request' }}
           build-args: |
             DEPLOYMENT_VERSION=${{ github.sha }}
           tags: |
@@ -94,6 +114,14 @@ jobs:
             ghcr.io/yyangwan/genilink-platform:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Smoke test image migration runtime
+        if: github.event_name == 'pull_request'
+        run: |
+          docker run --rm --network host \
+            --env DATABASE_URL=postgresql://genilink:genilink_dev@127.0.0.1:5432/genilink \
+            ghcr.io/yyangwan/genilink-platform:${{ github.sha }} \
+            sh -c 'cd /prisma-runtime && node node_modules/prisma/build/index.js migrate deploy'
 
   deploy:
     name: Blue-green production deploy

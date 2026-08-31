@@ -31,8 +31,11 @@ function LoginContent() {
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
   const errorParam = searchParams.get("error");
 
+  const [loginMethod, setLoginMethod] = useState<"phone" | "email">("phone");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [sendingCode, setSendingCode] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -48,7 +51,7 @@ function LoginContent() {
 
   const urlErrorMessage =
     errorParam === "CredentialsSignin"
-      ? "手机号或验证码不正确"
+      ? "登录信息不正确"
       : errorParam === "SessionRequired"
         ? "请先登录"
         : null;
@@ -102,6 +105,32 @@ function LoginContent() {
     }
   };
 
+  const finishLogin = async () => {
+    // Auto-select first workspace after login
+    try {
+      const wsRes = await fetch("/api/workspaces", {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      if (wsRes.ok) {
+        const wsData = await wsRes.json();
+        const firstWs = wsData.workspaces?.[0];
+        if (firstWs) {
+          await fetch("/api/workspaces/switch", {
+            method: "POST",
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ workspaceId: firstWs.id }),
+          });
+        }
+      }
+    } catch {
+      // Non-critical; continue to dashboard
+    }
+    goToCallback(callbackUrl);
+  };
+
   // ─── Phone verification-code login ───────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,41 +138,31 @@ function LoginContent() {
     setLoading(true);
 
     try {
-      const result = await signIn("phone", {
-        phone,
-        code,
-        redirect: false,
-      });
-
+      const result = await signIn("phone", { phone, code, redirect: false });
       if (result?.error) {
         setError("手机号或验证码不正确，或验证码已过期");
         return;
       }
+      await finishLogin();
+    } catch {
+      setError("登录失败，请稍后重试");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      // Auto-select first workspace after login
-      try {
-        const wsRes = await fetch("/api/workspaces", {
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-        if (wsRes.ok) {
-          const wsData = await wsRes.json();
-          const firstWs = wsData.workspaces?.[0];
-          if (firstWs) {
-            await fetch("/api/workspaces/switch", {
-              method: "POST",
-              credentials: "same-origin",
-              cache: "no-store",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ workspaceId: firstWs.id }),
-            });
-          }
-        }
-      } catch {
-        // Non-critical; continue to dashboard
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const result = await signIn("email-password", { email, password, redirect: false });
+      if (result?.error) {
+        setError("邮箱或密码不正确");
+        return;
       }
-
-      goToCallback(callbackUrl);
+      await finishLogin();
     } catch {
       setError("登录失败，请稍后重试");
     } finally {
@@ -235,7 +254,6 @@ function LoginContent() {
     color: "var(--text-primary)",
     fontFamily: "var(--font-body)",
     fontSize: "14px",
-    outline: "none",
     transition: "border-color 0.15s",
   };
 
@@ -295,6 +313,7 @@ function LoginContent() {
       {/* Error banner */}
       {displayedError && (
         <div
+          role="alert"
           className="mb-4 px-3 py-2 rounded-lg text-sm"
           style={{
             background: "color-mix(in srgb, var(--color-error) 15%, transparent)",
@@ -307,103 +326,146 @@ function LoginContent() {
         </div>
       )}
 
-      {/* Phone verification-code form */}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label
-            htmlFor="phone"
-            className="block text-sm font-medium mb-1.5"
-            style={{
-              color: "var(--text-secondary)",
-              fontFamily: "var(--font-body)",
-            }}
-          >
-            手机号
-          </label>
-          <input
-            id="phone"
-            type="tel"
-            inputMode="numeric"
-            autoComplete="tel-national"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
-            placeholder="请输入手机号"
-            pattern="1[3-9][0-9]{9}"
-            maxLength={11}
-            required
-            style={inputStyle}
-            onFocus={(e) =>
-              (e.currentTarget.style.borderColor = "var(--color-primary)")
-            }
-            onBlur={(e) =>
-              (e.currentTarget.style.borderColor = "var(--border)")
-            }
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="code"
-            className="block text-sm font-medium mb-1.5"
-            style={{
-              color: "var(--text-secondary)",
-              fontFamily: "var(--font-body)",
-            }}
-          >
-            验证码
-          </label>
-          <div className="flex gap-2">
-            <input
-              id="code"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="6位验证码"
-              pattern="[0-9]{6}"
-              maxLength={6}
-              required
-              style={inputStyle}
-              onFocus={(e) =>
-                (e.currentTarget.style.borderColor = "var(--color-primary)")
-              }
-              onBlur={(e) =>
-                (e.currentTarget.style.borderColor = "var(--border)")
-              }
-            />
-            <button
-              type="button"
-              onClick={handleSendCode}
-              disabled={sendingCode || countdown > 0}
-              className="shrink-0 px-3 rounded-lg text-sm font-medium"
-              style={{
-                minWidth: "104px",
-                border: "1px solid var(--border)",
-                background: "var(--bg-elevated)",
-                color: countdown > 0 ? "var(--text-muted)" : "var(--color-primary)",
-                cursor: sendingCode || countdown > 0 ? "not-allowed" : "pointer",
-              }}
-            >
-              {sendingCode ? "发送中..." : countdown > 0 ? `${countdown}秒后重发` : "获取验证码"}
-            </button>
-          </div>
-        </div>
-
-        <button type="submit" disabled={loading} style={buttonStyle}>
-          {loading ? "登录中..." : "登录"}
-        </button>
-      </form>
-
-      <p
-        className="mt-4 text-center text-sm"
-        style={{
-          color: "var(--text-secondary)",
-          fontFamily: "var(--font-body)",
-        }}
+      <div
+        className="mb-5 grid grid-cols-2 rounded-lg p-1"
+        style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
       >
-        未注册手机号验证后将自动创建账号
-      </p>
+        {([['phone', '手机号登录'], ['email', '邮箱登录']] as const).map(([method, label]) => (
+          <button
+            key={method}
+            type="button"
+            aria-pressed={loginMethod === method}
+            onClick={() => {
+              setLoginMethod(method);
+              setError(null);
+            }}
+            className="rounded-md px-3 py-2 text-sm font-medium transition-colors"
+            style={{
+              background: loginMethod === method ? "var(--bg-hover)" : "transparent",
+              color: loginMethod === method ? "var(--color-primary)" : "var(--text-muted)",
+              fontFamily: "var(--font-body)",
+              cursor: "pointer",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {loginMethod === "phone" ? (
+        <>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium mb-1.5" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                手机号
+              </label>
+              <input
+                id="phone"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel-national"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                placeholder="请输入手机号"
+                pattern="1[3-9][0-9]{9}"
+                maxLength={11}
+                required
+                style={inputStyle}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+              />
+            </div>
+            <div>
+              <label htmlFor="code" className="block text-sm font-medium mb-1.5" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                验证码
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="code"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="6位验证码"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  required
+                  style={inputStyle}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+                />
+                <button
+                  type="button"
+                  onClick={handleSendCode}
+                  disabled={sendingCode || countdown > 0}
+                  className="shrink-0 px-3 rounded-lg text-sm font-medium"
+                  style={{
+                    minWidth: "104px",
+                    border: "1px solid var(--border)",
+                    background: "var(--bg-elevated)",
+                    color: countdown > 0 ? "var(--text-muted)" : "var(--color-primary)",
+                    cursor: sendingCode || countdown > 0 ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {sendingCode ? "发送中..." : countdown > 0 ? `${countdown}秒后重发` : "获取验证码"}
+                </button>
+              </div>
+            </div>
+            <button type="submit" disabled={loading} style={buttonStyle}>
+              {loading ? "登录中..." : "登录"}
+            </button>
+          </form>
+          <p className="mt-4 text-center text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+            未注册手机号验证后将自动创建账号
+          </p>
+        </>
+      ) : (
+        <>
+          <form onSubmit={handleEmailSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium mb-1.5" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                邮箱
+              </label>
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="请输入已绑定邮箱"
+                required
+                style={inputStyle}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium mb-1.5" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                密码
+              </label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="请输入密码"
+                required
+                style={inputStyle}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+              />
+            </div>
+            <button type="submit" disabled={loading} style={buttonStyle}>
+              {loading ? "登录中..." : "登录"}
+            </button>
+          </form>
+          <p className="mt-4 text-center text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+            邮箱登录需先通过手机号注册，并在账号设置中启用
+          </p>
+        </>
+      )}
 
       {WECHAT_LOGIN_ENABLED && (
         <>

@@ -12,6 +12,7 @@ datasource db {
 model User {
   id                  String   @id @default(cuid()) @db.Text
   email               String?  @unique @db.Text
+  loginEmail          String?  @unique @db.Text
   passwordHash        String?  @db.Text
   name                String   @db.Text
   phone               String?  @unique @db.Text
@@ -79,6 +80,15 @@ model SmsVerificationCode {
 
   @@index([phone, purpose, createdAt])
   @@index([ipHash, createdAt])
+  @@index([expiresAt])
+}
+
+model CredentialRateLimitBucket {
+  key       String   @id @db.Text
+  count     Int      @default(0)
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+
   @@index([expiresAt])
 }
 

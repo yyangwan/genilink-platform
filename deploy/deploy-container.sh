@@ -153,8 +153,6 @@ deploy_image() {
   bash "$SCRIPT_DIR/prepare-docker-env.sh" "$ENV_FILE" "$RUNTIME_ENV_FILE"
   log "runtime configuration normalized and validated"
 
-  bootstrap_nginx
-
   local active_slot="legacy"
   if [ -f "$STATE_DIR/active-slot" ]; then
     active_slot="$(cat "$STATE_DIR/active-slot")"
@@ -175,6 +173,16 @@ deploy_image() {
     log "pulling $image"
     docker pull "$image"
   fi
+
+  log "applying verified database migrations"
+  docker run --rm \
+    --network host \
+    --env-file "$RUNTIME_ENV_FILE" \
+    "$image" \
+    sh -c 'cd /prisma-runtime && node node_modules/prisma/build/index.js migrate deploy' \
+    || fail "database migration failed; active release was not changed"
+
+  bootstrap_nginx
 
   if docker container inspect "$target_container" >/dev/null 2>&1; then
     docker rm -f "$target_container" >/dev/null

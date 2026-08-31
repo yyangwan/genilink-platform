@@ -9,11 +9,14 @@ immutable image. Production does not run `npm ci` or `next build`.
 2. CI builds and pushes both the commit SHA tag and `latest` to GHCR.
 3. The deploy job pulls the exact SHA-tagged image on the GitHub runner, streams
    it to production over SSH, and fast-forwards the deployment scripts.
-4. `deploy-container.sh` starts the inactive blue/green slot on port 3002 or
+4. `deploy-container.sh` runs `prisma migrate deploy` from the immutable release
+   image using the server-owned runtime environment. A migration failure stops
+   the release before the inactive container or Nginx is changed.
+5. `deploy-container.sh` starts the inactive blue/green slot on port 3002 or
    3003, then waits for `/api/health`.
-5. After the local health check passes, the script atomically changes the Nginx
+6. After the local health check passes, the script atomically changes the Nginx
    upstream and checks the public health endpoint.
-6. If either Nginx validation or the public check fails, the old upstream stays
+7. If either Nginx validation or the public check fails, the old upstream stays
    live. On success, the previous container is stopped but retained for rollback.
 
 Runtime configuration remains on the server:
@@ -24,6 +27,13 @@ Runtime configuration remains on the server:
   settings. The temporary file is deleted when deployment exits.
 - `/opt/genilink-platform/.keys` is mounted read-only at `/app/.keys`.
 - Neither file is copied into the image or uploaded to GHCR.
+
+Database migrations in production must follow expand/contract compatibility:
+the migration deployed with a new image may only add or relax schema used by
+the currently active release. Destructive drops, renames, and incompatible
+constraint changes require a later release after all rollback candidates stop
+depending on the old schema. Container rollback changes application traffic;
+it does not reverse database migrations.
 
 ## GitHub Actions secrets
 

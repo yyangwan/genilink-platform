@@ -47,6 +47,7 @@ vi.mock('@/lib/db', () => {
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     wechatLoginSession: {
       findUnique: vi.fn(),
