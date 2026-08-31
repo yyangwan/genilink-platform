@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0.2] - 2026-08-31
+
+### Added
+- Users who registered by phone can enable a separate email-and-password login identifier after confirming their current phone by SMS.
+- Password authentication now has atomic account and IP rate limits shared across all application instances.
+- Production releases validate and apply Prisma migrations from the immutable container image before blue/green traffic switching.
+
+### Changed
+- Account login settings now provide clear loading, retry, SMS resend, mobile layout, and accessible status feedback.
+
+### Fixed
+- Creating a project from a first-use empty state no longer passes the click event as a project identifier and fails with `Project not found`.
+- Session refreshes now reload trusted profile fields from the database instead of accepting client-provided identity claims.
+- Expired credential rate-limit buckets are reclaimed safely without racing active login windows.
+
 ## [0.2.0.1] - 2026-08-28
 
 ### Changed
