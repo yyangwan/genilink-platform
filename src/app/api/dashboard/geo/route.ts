@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     suggestionLimit = suggestionResultLimit(billing.capabilities.optimizationAdvice);
   } catch (err) {
     if (err instanceof BillingError) {
-      return NextResponse.json({ websites: [], totalCitations: 0, avgAiScore: null, optimizationTasks: [] });
+      return NextResponse.json({ error: 'NO_SUBSCRIPTION', module: 'visibility' }, { status: 403 });
     }
     throw err;
   }

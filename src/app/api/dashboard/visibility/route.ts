@@ -52,7 +52,9 @@ export async function GET(req: NextRequest) {
   try {
     billing = await requireBilling(session.user.id, workspaceId, 'visibility');
   } catch (err) {
-    if (err instanceof BillingError) return NextResponse.json(EMPTY);
+    if (err instanceof BillingError) {
+      return NextResponse.json({ error: 'NO_SUBSCRIPTION', module: 'visibility' }, { status: 403 });
+    }
     throw err;
   }
   const canUseCompetitorPositioning = hasCapabilityLevel(billing.capabilities.competitorPositioning);

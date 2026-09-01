@@ -38,7 +38,9 @@ export async function GET(req: NextRequest) {
   try {
     await requireBilling(session.user.id, workspaceId, 'content');
   } catch (err) {
-    if (err instanceof BillingError) return NextResponse.json(emptyData);
+    if (err instanceof BillingError) {
+      return NextResponse.json({ error: 'NO_SUBSCRIPTION', module: 'content' }, { status: 403 });
+    }
     throw err;
   }
 

@@ -18,12 +18,14 @@ export function useAuditSnapshot(projectId: string | null) {
   const [auditPayload, setAuditPayload] = useState<AuditPayload | null>(null);
   const [loading, setLoading] = useState(Boolean(projectId));
   const [error, setError] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     if (!projectId) {
       setAuditPayload(null);
       setLoading(false);
       setError(false);
+      setLocked(false);
       return;
     }
 
@@ -31,6 +33,7 @@ export function useAuditSnapshot(projectId: string | null) {
     setAuditPayload(null);
     setLoading(true);
     setError(false);
+    setLocked(false);
     fetch(`/api/integration/audits?projectId=${projectId}`, {
       signal: controller.signal,
       credentials: "same-origin",
@@ -38,6 +41,10 @@ export function useAuditSnapshot(projectId: string | null) {
       headers: { Accept: "application/json" },
     })
       .then(async (response) => {
+        if (response.status === 403) {
+          setLocked(true);
+          return;
+        }
         if (!response.ok) throw new Error("Failed to fetch audits");
         setAuditPayload(await response.json() as AuditPayload);
       })
@@ -66,6 +73,7 @@ export function useAuditSnapshot(projectId: string | null) {
     audits,
     loading,
     error,
+    locked,
     selectedAuditId,
     latestAuditId,
     isLatestAudit: selectedAuditId !== null && selectedAuditId === latestAuditId,

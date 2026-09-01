@@ -5,6 +5,7 @@ import React, { Suspense, useCallback, useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, ExternalLink, GripVertical, Loader2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useProject } from "@/components/project/project-context";
+import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 import {
   formatDateInTimeZone,
   formatShanghaiDateTimeInput,
@@ -120,6 +121,7 @@ function CalendarInner() {
   const [sideLoading, setSideLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [selected, setSelected] = useState<CalendarEvent | null>(null);
   const [scheduleTarget, setScheduleTarget] = useState<ContentItem | null>(null);
@@ -151,6 +153,10 @@ function CalendarInner() {
       if (statusFilter !== "all") params.set("status", statusFilter);
 
       const res = await fetch(`/api/calendar/events?${params.toString()}`, { cache: "no-store" });
+      if (res.status === 403) {
+        setLocked(true);
+        return;
+      }
       if (!res.ok) throw new Error("load_failed");
       const json = await res.json();
       const rows: RawCalendarEvent[] = json.data ?? [];
@@ -173,6 +179,10 @@ function CalendarInner() {
     try {
       const params = new URLSearchParams({ projectId: currentProjectId, unscheduled: "true" });
       const res = await fetch(`/api/content?${params.toString()}`, { cache: "no-store" });
+      if (res.status === 403) {
+        setLocked(true);
+        return;
+      }
       if (!res.ok) throw new Error("load_failed");
       const json = await res.json();
       const data: ContentListData = json.data ?? { items: [], total: 0 };
@@ -185,6 +195,7 @@ function CalendarInner() {
   }, [currentProjectId]);
 
   const refresh = useCallback(async () => {
+    setLocked(false);
     await Promise.all([loadEvents(), loadUnscheduled()]);
   }, [loadEvents, loadUnscheduled]);
 
@@ -318,6 +329,24 @@ function CalendarInner() {
     const iso = localDateTimeToIso(localValue);
     if (iso) await scheduleContent(targetId, iso);
   };
+
+  if (locked && !loading && !sideLoading) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+            内容日历
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+            拖拽内容安排发布时间，管理已排期发布计划
+          </p>
+        </div>
+        <section className="dashboard-surface dashboard-surface--padded">
+          <SubscriptionRequiredState feature="内容日历" />
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

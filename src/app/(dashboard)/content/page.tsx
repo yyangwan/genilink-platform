@@ -17,6 +17,7 @@ import {
   contentBriefToSearchParams,
   type SuggestionForContentBrief,
 } from "@/lib/content/content-brief";
+import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 
 const metricStyle: React.CSSProperties = {
   display: "flex",
@@ -46,6 +47,10 @@ function DataBridge({ projectId }: { projectId: string }) {
         ))}
       </div>
     );
+  }
+
+  if (bridge.locked) {
+    return null;
   }
 
   if (bridge.error || !bridge.data || !bridge.data.length) {
@@ -342,6 +347,17 @@ function ContentContent() {
         <PageHeader title="智创" subtitle="AI 驱动的内容创作与管理" />
         <section className="dashboard-surface dashboard-surface--padded">
           <DiagnosticChecklist items={diagnosticItems} title="准备工作" />
+        </section>
+      </div>
+    );
+  }
+
+  if (content.locked) {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="智创" subtitle="AI 驱动的内容创作与管理" />
+        <section className="dashboard-surface dashboard-surface--padded">
+          <SubscriptionRequiredState feature="智创内容管理" />
         </section>
       </div>
     );

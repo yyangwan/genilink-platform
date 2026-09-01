@@ -539,7 +539,7 @@ function DashboardContent() {
           ) : visibility.error ? (
             <ErrorState onRetry={visibility.refetch} />
           ) : visibility.locked ? (
-            <EmptyState message="升级解锁品牌可见性趋势图表" actionLabel="联系销售" />
+            <EmptyState message="订阅套餐后即可查看品牌可见性趋势" actionLabel="查看订阅套餐" actionHref="/settings/billing" />
           ) : visibility.data?.trend && visibility.data.trend.length > 0 ? (
             <VisibilityTrendChart points={visibility.data.trend} />
           ) : (
@@ -557,7 +557,7 @@ function DashboardContent() {
           ) : visibility.error ? (
             <ErrorState onRetry={visibility.refetch} />
           ) : visibility.locked ? (
-            <EmptyState message="升级解锁AI平台覆盖分析" actionLabel="联系销售" />
+            <EmptyState message="订阅套餐后即可查看 AI 平台覆盖分析" actionLabel="查看订阅套餐" actionHref="/settings/billing" />
           ) : visibility.data?.platformCoverage &&
             visibility.data.platformCoverage.length > 0 ? (
             <div className="space-y-1">
@@ -581,7 +581,7 @@ function DashboardContent() {
           ) : geo.error && optimizationTasks.length === 0 ? (
             <ErrorState onRetry={geo.refetch} />
           ) : geo.locked && optimizationTasks.length === 0 ? (
-            <EmptyState message="升级解锁AI优化建议" actionLabel="联系销售" />
+            <EmptyState message="订阅套餐后即可查看 AI 优化建议" actionLabel="查看订阅套餐" actionHref="/settings/billing" />
           ) : optimizationTasks.length > 0 ? (
             <ul className="space-y-2">
               {optimizationTasks.map((task: OptimizationTask, i: number) => (

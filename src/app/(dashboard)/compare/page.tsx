@@ -19,6 +19,7 @@ import { AuditSnapshotSelector } from "@/components/audits/audit-snapshot-select
 import { useAuditSnapshot } from "@/components/audits/use-audit-snapshot";
 import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 import { getAiPlatformLabel } from "@/lib/ai-platforms";
+import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 interface Brand {
   id: number;
   name: string;
@@ -274,13 +275,13 @@ function CompareContent() {
     );
   }
 
-  if (locked) {
+  if (locked || auditSnapshot.locked) {
     return (
       <div className="space-y-6">
         <PageHeader title="竞品对比" subtitle="对比你与竞品在AI平台的可见性表现" />
         {auditSelector}
         <div className="dashboard-surface">
-          <EmptyState icon={GitCompare} title="需要升级后使用" description="竞品对比功能需要订阅智见专业版" />
+          <SubscriptionRequiredState feature="竞品对比" />
         </div>
       </div>
     );

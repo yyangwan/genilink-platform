@@ -22,6 +22,7 @@ import { useAuditSnapshot } from "@/components/audits/use-audit-snapshot";
 import SentimentPieChart from "@/components/charts/SentimentPieChart";
 import TopicRadarChart from "@/components/charts/TopicRadarChart";
 import AnswerStructureChart from "@/components/charts/AnswerStructureChart";
+import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 
 import type { ContentIntelligence } from "@/types/visibility";
 
@@ -151,6 +152,7 @@ function InsightsContent() {
   const ci = useSectionFetch<ContentIntelligence>(url);
   const pageLoading = auditSnapshot.loading || ci.loading;
   const pageError = auditSnapshot.error || ci.error;
+  const pageLocked = auditSnapshot.locked || ci.locked;
 
   // No project selected
   if (!loading && !currentProjectId) {
@@ -210,15 +212,21 @@ function InsightsContent() {
         </div>
       )}
 
+      {pageLocked && !pageLoading && (
+        <div className="dashboard-surface dashboard-surface--padded">
+          <SubscriptionRequiredState feature="内容洞察" />
+        </div>
+      )}
+
       {/* Error state */}
-      {pageError && !pageLoading && (
+      {pageError && !pageLoading && !pageLocked && (
         <div className="dashboard-surface dashboard-surface--padded">
           <ErrorState onRetry={() => window.location.reload()} />
         </div>
       )}
 
       {/* Content */}
-      {!pageLoading && !pageError && data && (
+      {!pageLoading && !pageError && !pageLocked && data && (
         <>
           {/* Stat cards */}
           <StatCards data={data} />

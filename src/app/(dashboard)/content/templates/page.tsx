@@ -5,6 +5,7 @@ import React, { Suspense, useCallback, useState } from "react";
 import { Plus, Pencil, Trash2, X, Loader2, LayoutTemplate } from "lucide-react";
 import { useProject } from "@/components/project/project-context";
 import { ProjectSetupState } from "@/components/project/project-setup-state";
+import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 
 interface Template {
   id: string;
@@ -48,6 +49,7 @@ function TemplatesInner() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
   const [filterCat, setFilterCat] = useState<string>("all");
 
   // Form state
@@ -69,8 +71,13 @@ function TemplatesInner() {
     }
     setLoading(true);
     setError(null);
+    setLocked(false);
     try {
       const res = await fetch(`/api/templates?projectId=${currentProjectId}`);
+      if (res.status === 403) {
+        setLocked(true);
+        return;
+      }
       if (!res.ok) throw new Error("加载失败");
       const json = await res.json();
       setTemplates(json.data ?? []);
@@ -163,7 +170,7 @@ function TemplatesInner() {
             创建可复用的内容模板，支持变量占位符
           </p>
         </div>
-        {(currentProjectId || projects.length === 0) && (
+        {!locked && (currentProjectId || projects.length === 0) && (
           <button onClick={() => {
             if (!currentProjectId) {
               openWizard();
@@ -308,6 +315,10 @@ function TemplatesInner() {
           featureName="内容模板"
           onCreateProject={openWizard}
         />
+      ) : locked ? (
+        <div style={card}>
+          <SubscriptionRequiredState feature="内容模板" />
+        </div>
       ) : error ? (
         <div style={card} className="text-center py-8">
           <p className="text-sm" style={{ color: "var(--color-error)", fontFamily: "var(--font-body)" }}>{error}</p>
