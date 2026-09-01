@@ -1,10 +1,10 @@
 import { cookies } from "next/headers";
 import { auth } from "@/lib/auth/config";
-import { prisma } from "@/lib/db";
 import Sidebar from "@/components/sidebar/sidebar";
 import { ProjectProviderWrapper } from "@/components/project/project-provider";
 import { ContextBar } from "@/components/project/context-bar";
 import { ProjectWizard } from "@/components/project/project-wizard";
+import { resolveWorkspaceId } from "@/lib/auth/get-workspace";
 
 export default async function DashboardLayout({
   children,
@@ -12,26 +12,13 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const cookieStore = await cookies();
-  let workspaceCookie = cookieStore.get("genilink-workspace");
-
-  // Auto-recover: if no workspace cookie but user is logged in, pick first workspace
-  // Note: cookieStore.set() is not allowed in SSR in Next.js 16+.
-  // We just resolve the workspace ID — the cookie gets set via POST /api/workspaces/switch.
-  if (!workspaceCookie?.value) {
-    const session = await auth();
-    if (session?.user?.id) {
-      const membership = await prisma.workspaceMember.findFirst({
-        where: { userId: session.user.id },
-        orderBy: { joinedAt: "asc" },
-        select: { workspaceId: true },
-      });
-      if (membership) {
-        workspaceCookie = { name: "genilink-workspace", value: membership.workspaceId };
-      }
-    }
-  }
-
-  const workspaceId = workspaceCookie?.value ?? null;
+  const session = await auth();
+  const workspaceId = session?.user?.id
+    ? await resolveWorkspaceId(
+        session.user.id,
+        cookieStore.get("genilink-workspace")?.value,
+      )
+    : null;
 
   return (
     <div className="min-h-screen flex" style={{ background: "var(--bg-base)" }}>
