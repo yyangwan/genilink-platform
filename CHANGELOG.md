@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0.4] - 2026-09-01
+
+### Fixed
+- Project creation now validates a saved workspace against the current account before deciding whether onboarding is required, preventing stale cookies from causing `No workspace selected` for newly registered users.
+
 ## [0.2.0.3] - 2026-08-31
 
 ### Changed
