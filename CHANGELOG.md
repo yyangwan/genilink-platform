@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0.5] - 2026-09-01
+
+### Added
+- Subscription-gated modules now show a consistent explanation with a direct link to subscription plans.
+
+### Changed
+- Dashboard visibility, GEO, and content summaries now preserve the `NO_SUBSCRIPTION` state instead of returning misleading empty data.
+- Audits, trends, content insights, optimization suggestions, competitor comparison, strategic intelligence, content management, calendar, brand voice, and template pages distinguish subscription access from system failures.
+
+### Fixed
+- First-project workspaces without an active plan no longer show generic loading failures across protected modules.
+
 ## [0.2.0.4] - 2026-09-01
 
 ### Fixed
