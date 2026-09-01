@@ -34,6 +34,7 @@ import type { VisibilitySummary } from "@/types";
 import { sectionCard } from "@/components/charts/shared";
 import { formatDateInTimeZone } from "@/lib/time";
 import { getAiPlatformLabel } from "@/lib/ai-platforms";
+import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 
 type AnalysisPhase = "idle" | "creating" | "collecting" | "analyzing" | "done" | "error";
 
@@ -508,11 +509,18 @@ function VisibilityContent() {
         subtitle={`AI搜索可见性分析与品牌监控${currentProject ? ` · ${currentProject.name}` : ""}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {currentProjectId && analysisPhase === "idle" && (
+            {currentProjectId && analysisPhase === "idle" && !visibility.loading && !visibility.locked && (
               <button onClick={handleStartAnalysis} className="dashboard-button dashboard-button--primary">
                 <Play className="h-3.5 w-3.5" />
                 开始 AI 分析
               </button>
+            )}
+
+            {visibility.locked && (
+              <Link href="/settings/billing" className="dashboard-button dashboard-button--primary">
+                查看订阅套餐
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
             )}
 
             {isAnalyzing && (
@@ -546,10 +554,10 @@ function VisibilityContent() {
                 </button>
               ))}
 
-            <button onClick={visibility.refetch} className="dashboard-button dashboard-button--secondary">
+            {!visibility.locked && <button onClick={visibility.refetch} className="dashboard-button dashboard-button--secondary">
               <RefreshCw className={`h-3.5 w-3.5 ${visibility.loading ? "animate-spin" : ""}`} />
               刷新
-            </button>
+            </button>}
           </div>
         }
       />
@@ -581,6 +589,9 @@ function VisibilityContent() {
       {!hasData && !isAnalyzing ? (
         /* Empty state — no data yet */
         <div className="dashboard-surface dashboard-surface--padded">
+          {visibility.locked ? (
+            <SubscriptionRequiredState feature="AI 可见性分析" />
+          ) : (
           <div className="flex flex-col items-center justify-center py-12">
             <AlertCircle className="w-10 h-10 mb-3" style={{ color: "var(--text-muted)" }} />
             <p className="text-sm mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
@@ -597,6 +608,7 @@ function VisibilityContent() {
               </button>
             )}
           </div>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">

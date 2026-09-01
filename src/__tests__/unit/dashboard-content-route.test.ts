@@ -37,6 +37,7 @@ vi.mock('@/lib/billing/guard', () => ({
 }));
 
 import { proxyRequest } from '@/lib/proxy/zhijian-client';
+import { BillingError, requireBilling } from '@/lib/billing/guard';
 import { GET } from '@/app/api/dashboard/content/route';
 
 describe('GET /api/dashboard/content', () => {
@@ -110,5 +111,15 @@ describe('GET /api/dashboard/content', () => {
       qualityAvg: null,
     });
     expect(proxyRequest).not.toHaveBeenCalled();
+  });
+
+  it('returns a subscription state instead of an empty summary when content access is not active', async () => {
+    vi.mocked(requireBilling).mockRejectedValueOnce(new BillingError('content'));
+
+    const req = new NextRequest('http://localhost/api/dashboard/content?project=project-1');
+    const res = await GET(req);
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ error: 'NO_SUBSCRIPTION', module: 'content' });
   });
 });

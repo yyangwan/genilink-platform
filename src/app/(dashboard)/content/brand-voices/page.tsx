@@ -5,6 +5,7 @@ import React, { Suspense, useCallback, useState } from "react";
 import { Plus, Pencil, Trash2, X, Loader2, Mic } from "lucide-react";
 import { useProject } from "@/components/project/project-context";
 import { ProjectSetupState } from "@/components/project/project-setup-state";
+import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 
 interface BrandVoice {
   id: string;
@@ -51,6 +52,7 @@ function BrandVoicesInner() {
   const [voices, setVoices] = useState<BrandVoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
 
   // Form state
   const [showForm, setShowForm] = useState(false);
@@ -72,8 +74,13 @@ function BrandVoicesInner() {
     }
     setLoading(true);
     setError(null);
+    setLocked(false);
     try {
       const res = await fetch(`/api/brand-voices?projectId=${currentProjectId}`);
+      if (res.status === 403) {
+        setLocked(true);
+        return;
+      }
       if (!res.ok) throw new Error("加载失败");
       const json = await res.json();
       setVoices(json.data ?? []);
@@ -175,7 +182,7 @@ function BrandVoicesInner() {
             管理 AI 生成内容时使用的品牌语调和风格
           </p>
         </div>
-        {(currentProjectId || projects.length === 0) && (
+        {!locked && (currentProjectId || projects.length === 0) && (
           <button
             onClick={() => {
               if (!currentProjectId) {
@@ -297,6 +304,10 @@ function BrandVoicesInner() {
           featureName="品牌声音"
           onCreateProject={openWizard}
         />
+      ) : locked ? (
+        <div style={card}>
+          <SubscriptionRequiredState feature="品牌声音" />
+        </div>
       ) : error ? (
         <div style={card} className="text-center py-8">
           <p className="text-sm" style={{ color: "var(--color-error)", fontFamily: "var(--font-body)" }}>{error}</p>

@@ -35,9 +35,11 @@ vi.mock('@/lib/billing/guard', () => ({
       optimizationAdvice: 'full',
     },
   }),
+  BillingError: class extends Error {},
 }));
 
 import { GET } from '@/app/api/dashboard/visibility/route';
+import { BillingError, requireBilling } from '@/lib/billing/guard';
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -63,6 +65,16 @@ describe('GET /api/dashboard/visibility', () => {
       trend: [],
     });
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('returns a subscription state instead of an empty summary when visibility access is not active', async () => {
+    vi.mocked(requireBilling).mockRejectedValueOnce(new BillingError('visibility'));
+
+    const req = new NextRequest('http://localhost/api/dashboard/visibility?project=project-1');
+    const res = await GET(req);
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ error: 'NO_SUBSCRIPTION', module: 'visibility' });
   });
 
   it('maps upstream visibility data for the selected project', async () => {

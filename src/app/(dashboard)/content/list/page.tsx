@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { useProject } from "@/components/project/project-context";
 import { formatDateInTimeZone } from "@/lib/time";
+import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 
 interface ContentItem {
   id: string;
@@ -62,7 +63,7 @@ function ContentListInner() {
   const listUrl = currentProjectId
     ? `/api/content?projectId=${currentProjectId}`
     : null;
-  const { data, loading, error, refetch } = useSectionFetch<{ data: ContentListData }>(listUrl);
+  const { data, loading, error, locked, refetch } = useSectionFetch<{ data: ContentListData }>(listUrl);
 
   const allItems = data?.data?.items ?? [];
   const total = data?.data?.total ?? 0;
@@ -368,6 +369,8 @@ function ContentListInner() {
               </div>
             ))}
           </div>
+        ) : locked ? (
+          <SubscriptionRequiredState feature="内容管理" className="py-4" />
         ) : error ? (
           <div className="py-12 text-center">
             <p className="text-sm" style={{ color: "var(--color-error)", fontFamily: "var(--font-body)" }}>

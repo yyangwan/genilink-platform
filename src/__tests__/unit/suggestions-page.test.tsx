@@ -15,6 +15,7 @@ vi.mock('@/components/audits/use-audit-snapshot', () => ({
     audits: [],
     loading: false,
     error: false,
+    locked: false,
     selectedAuditId: null,
     latestAuditId: null,
     isLatestAudit: false,
@@ -67,8 +68,8 @@ describe('/suggestions page locked state', () => {
 
     render(<SuggestionsPage />);
 
-    expect(screen.getByText('需要升级后使用')).toBeTruthy();
-    expect(screen.getByText('优化建议功能需要订阅智见专业版')).toBeTruthy();
+    expect(screen.getByText('订阅套餐后即可使用')).toBeTruthy();
+    expect(screen.getByText('优化建议属于订阅功能。选择适合的套餐后，即可开始使用并查看分析数据。')).toBeTruthy();
     expect(screen.queryByText('点击查看行动计划')).toBeNull();
   });
 

@@ -33,6 +33,23 @@ describe('useSectionFetch', () => {
   });
 
   describe('valid URL paths (pre-existing behavior)', () => {
+    it('classifies a subscription 403 as locked instead of a load error', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 403,
+      });
+
+      const { result } = renderHook(() => useSectionFetch('/api/dashboard/visibility?project=123'));
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(result.current.locked).toBe(true);
+      expect(result.current.error).toBe(false);
+      expect(result.current.data).toBeNull();
+    });
+
     it('should call fetch with the provided URL', async () => {
       mockFetch.mockResolvedValue({
         ok: true,

@@ -21,6 +21,7 @@ import type { AuditListItem } from "@/types/visibility";
 import { sectionCard } from "@/components/charts/shared";
 import { getAuditStatus, isAuditFinished } from "@/lib/audit-status";
 import { formatDateInTimeZone } from "@/lib/time";
+import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 
 const statusConfig: Record<string, { color: string; bg: string; label: string; Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }> = {
   completed: { color: "var(--color-success)", bg: "var(--color-success)20", label: "已完成", Icon: CheckCircle2 },
@@ -178,7 +179,11 @@ function AuditsContent() {
         }
       />
 
-      {audits.error ? (
+      {audits.locked ? (
+        <div style={sectionCard}>
+          <SubscriptionRequiredState feature="审计记录" />
+        </div>
+      ) : audits.error ? (
         <div style={sectionCard}>
           <ErrorState onRetry={audits.refetch} />
         </div>

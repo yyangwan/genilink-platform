@@ -24,6 +24,7 @@ import SourceAuthorityTrends from "@/components/charts/SourceAuthorityTrends";
 import CompetitorPositioningMap from "@/components/charts/CompetitorPositioningMap";
 import StructureEvolution from "@/components/charts/StructureEvolution";
 import { AiPlatformList } from "@/components/ui/ai-platform-label";
+import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 
 import type {
   AnswerStructureEvolution,
@@ -114,7 +115,7 @@ function SourceAuthorityTab({ projectId }: { projectId: string }) {
   const chartData = toSourceAuthorityPoints(data);
 
   if (loading) return <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />;
-  if (locked) return <div style={cardStyle}><EmptyState icon={Globe} title="需要升级" description="战略智能功能需要订阅智见专业版" /></div>;
+  if (locked) return <div style={cardStyle}><SubscriptionRequiredState feature="战略智能" /></div>;
   if (error) return <div style={cardStyle}><ErrorState onRetry={() => window.location.reload()} /></div>;
   if (chartData.length === 0) {
     return <div style={cardStyle}><EmptyState icon={Globe} title="暂无来源权威数据" description="完成审计后可查看最近最多 10 次审计的来源权威趋势" /></div>;
@@ -188,7 +189,7 @@ function CompetitorPositioningTab({ projectId }: { projectId: string }) {
   const chartData = toCompetitorPositions(data);
 
   if (loading) return <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />;
-  if (locked) return <div style={cardStyle}><EmptyState icon={Target} title="需要升级" description="战略智能功能需要订阅智见专业版" /></div>;
+  if (locked) return <div style={cardStyle}><SubscriptionRequiredState feature="战略智能" /></div>;
   if (error) return <div style={cardStyle}><ErrorState onRetry={() => window.location.reload()} /></div>;
   if (chartData.length === 0) {
     return <div style={cardStyle}><EmptyState icon={Target} title="暂无竞品定位数据" description="完成审计后可查看项目历史数据聚合的竞品定位" /></div>;
@@ -261,7 +262,7 @@ function StructureEvolutionTab({ projectId }: { projectId: string }) {
   const chartData = toStructureEvolutionPoints(data);
 
   if (loading) return <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />;
-  if (locked) return <div style={cardStyle}><EmptyState icon={BarChart3} title="需要升级" description="战略智能功能需要订阅智见专业版" /></div>;
+  if (locked) return <div style={cardStyle}><SubscriptionRequiredState feature="战略智能" /></div>;
   if (error) return <div style={cardStyle}><ErrorState onRetry={() => window.location.reload()} /></div>;
   if (chartData.length === 0) {
     return <div style={cardStyle}><EmptyState icon={BarChart3} title="暂无结构演变数据" description="运行多次审计后可查看结构演变趋势" /></div>;
@@ -443,7 +444,7 @@ function MultiAuditCompareTab({ projectId }: { projectId: string }) {
   };
 
   if (loadingHistory) return <div className="h-72 rounded-xl animate-skeleton-pulse" style={{ background: "var(--bg-hover)" }} />;
-  if (locked) return <div style={cardStyle}><EmptyState icon={GitCompare} title="需要升级" description="战略智能功能需要订阅智见专业版" /></div>;
+  if (locked) return <div style={cardStyle}><SubscriptionRequiredState feature="战略智能" /></div>;
   if (historyError) return <div style={cardStyle}><ErrorState onRetry={() => window.location.reload()} /></div>;
 
   const completedAudits = audits.filter((a) => a.status === "completed" || a.status === "partial");

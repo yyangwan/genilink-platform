@@ -20,6 +20,7 @@ import { getAuditStatus, isAuditFinished } from "@/lib/audit-status";
 import { formatDateInTimeZone } from "@/lib/time";
 import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 import { getAiPlatformLabel } from "@/lib/ai-platforms";
+import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 
 type Period = "daily" | "weekly" | "monthly";
 
@@ -183,7 +184,7 @@ function TrendsContent() {
   const trendsUrl = currentProjectId
     ? `/api/integration/trends?projectId=${currentProjectId}&period=${period}`
     : null;
-  const { data, loading: trendsLoading, error, refetch } = useSectionFetch<TrendsResponse>(trendsUrl);
+  const { data, loading: trendsLoading, error, locked, refetch } = useSectionFetch<TrendsResponse>(trendsUrl);
 
   const auditsUrl = currentProjectId
     ? `/api/integration/audits?projectId=${currentProjectId}`
@@ -263,6 +264,10 @@ function TrendsContent() {
               <line x1="0" y1="50" x2="100" y2="50" stroke="var(--border)" strokeWidth="0.3" />
             </svg>
           </div>
+        </div>
+      ) : locked ? (
+        <div style={sectionCard}>
+          <SubscriptionRequiredState feature="趋势分析" />
         </div>
       ) : error ? (
         <div style={sectionCard}>

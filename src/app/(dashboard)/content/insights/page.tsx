@@ -23,6 +23,7 @@ import { useAuditSnapshot } from "@/components/audits/use-audit-snapshot";
 import SentimentPieChart from "@/components/charts/SentimentPieChart";
 import TopicRadarChart from "@/components/charts/TopicRadarChart";
 import AnswerStructureChart from "@/components/charts/AnswerStructureChart";
+import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 
 import type { ContentIntelligence } from "@/types/visibility";
 
@@ -118,6 +119,7 @@ function InsightsContent() {
   const ci = useSectionFetch<ContentIntelligenceResponse>(url);
   const pageLoading = auditSnapshot.loading || ci.loading;
   const pageError = auditSnapshot.error || ci.error;
+  const pageLocked = auditSnapshot.locked || ci.locked;
   const data = ci.data;
 
   if (!loading && !currentProjectId) {
@@ -185,13 +187,19 @@ function InsightsContent() {
         </div>
       )}
 
-      {pageError && !pageLoading && (
+      {pageLocked && !pageLoading && (
+        <div className="dashboard-surface dashboard-surface--padded">
+          <SubscriptionRequiredState feature="内容洞察" />
+        </div>
+      )}
+
+      {pageError && !pageLoading && !pageLocked && (
         <div className="dashboard-surface dashboard-surface--padded">
           <ErrorState onRetry={() => window.location.reload()} />
         </div>
       )}
 
-      {!pageLoading && !pageError && data && (
+      {!pageLoading && !pageError && !pageLocked && data && (
         <>
           <StatCards data={data} />
 

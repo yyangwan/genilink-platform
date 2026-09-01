@@ -42,6 +42,7 @@ vi.mock('@/lib/billing/guard', () => ({
 }));
 
 import { proxyRequest } from '@/lib/proxy/zhijian-client';
+import { BillingError, requireBilling } from '@/lib/billing/guard';
 import { GET } from '@/app/api/dashboard/geo/route';
 
 describe('GET /api/dashboard/geo', () => {
@@ -89,5 +90,15 @@ describe('GET /api/dashboard/geo', () => {
       optimizationTasks: [],
     });
     expect(proxyRequest).not.toHaveBeenCalled();
+  });
+
+  it('returns a subscription state instead of an empty summary when visibility access is not active', async () => {
+    vi.mocked(requireBilling).mockRejectedValueOnce(new BillingError('visibility'));
+
+    const req = new NextRequest('http://localhost/api/dashboard/geo?project=project-1');
+    const res = await GET(req);
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ error: 'NO_SUBSCRIPTION', module: 'visibility' });
   });
 });

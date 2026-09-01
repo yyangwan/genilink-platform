@@ -2,6 +2,7 @@
 
 import React from "react";
 import { RefreshCw } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 // ─── DashboardCard ──────────────────────────────────────────
@@ -47,10 +48,11 @@ export function DashboardCard({
 interface EmptyStateProps {
   message: string;
   actionLabel?: string;
+  actionHref?: string;
   onAction?: () => void;
 }
 
-export function EmptyState({ message, actionLabel, onAction }: EmptyStateProps) {
+export function EmptyState({ message, actionLabel, actionHref, onAction }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-12 gap-4">
       <p
@@ -62,7 +64,20 @@ export function EmptyState({ message, actionLabel, onAction }: EmptyStateProps) 
       >
         {message}
       </p>
-      {actionLabel && onAction && (
+      {actionLabel && actionHref ? (
+        <Link
+          href={actionHref}
+          className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          style={{
+            background: "var(--color-primary-dim)",
+            color: "var(--color-primary)",
+            fontFamily: "var(--font-display)",
+            textDecoration: "none",
+          }}
+        >
+          {actionLabel}
+        </Link>
+      ) : actionLabel && onAction ? (
         <button
           onClick={onAction}
           className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
@@ -80,7 +95,7 @@ export function EmptyState({ message, actionLabel, onAction }: EmptyStateProps) 
         >
           {actionLabel}
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

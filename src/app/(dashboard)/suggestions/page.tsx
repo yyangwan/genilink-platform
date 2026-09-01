@@ -27,6 +27,7 @@ import { sectionCard } from "@/components/charts/shared";
 import { AuditSnapshotSelector } from "@/components/audits/audit-snapshot-selector";
 import { useAuditSnapshot } from "@/components/audits/use-audit-snapshot";
 import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
+import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 
 interface Suggestion {
   id: string;
@@ -539,7 +540,7 @@ function SuggestionsContent() {
   const suggestions = useSectionFetch<Suggestion[]>(suggestionsUrl);
 
   const refetch = suggestions.refetch;
-  const locked = suggestions.locked;
+  const locked = suggestions.locked || auditSnapshot.locked;
 
   const handleResolve = useCallback(
     async (id: string) => {
@@ -673,24 +674,20 @@ function SuggestionsContent() {
       )}
 
       {/* Error state */}
-      {(suggestions.error || auditSnapshot.error) && !suggestions.loading && !auditSnapshot.loading && (
+      {(suggestions.error || auditSnapshot.error) && !suggestions.loading && !auditSnapshot.loading && !locked && (
         <div style={sectionCard}>
           <ErrorState onRetry={() => window.location.reload()} />
         </div>
       )}
 
-      {suggestions.locked && !suggestions.loading && (
+      {locked && !suggestions.loading && !auditSnapshot.loading && (
         <div style={sectionCard}>
-          <EmptyState
-            icon={Lightbulb}
-            title="需要升级后使用"
-            description="优化建议功能需要订阅智见专业版"
-          />
+          <SubscriptionRequiredState feature="优化建议" />
         </div>
       )}
 
       {/* Suggestion cards */}
-      {!suggestions.loading && !suggestions.error && !auditSnapshot.error && !suggestions.locked && filtered.length > 0 && (
+      {!suggestions.loading && !suggestions.error && !auditSnapshot.error && !locked && filtered.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filtered.map((s) => {
             const prio = PRIORITY_CONFIG[s.priority] || PRIORITY_CONFIG.medium;
@@ -855,7 +852,7 @@ function SuggestionsContent() {
       )}
 
       {/* Empty state */}
-      {!suggestions.loading && !suggestions.error && !auditSnapshot.error && !suggestions.locked && filtered.length === 0 && (
+      {!suggestions.loading && !suggestions.error && !auditSnapshot.error && !locked && filtered.length === 0 && (
         <div style={sectionCard}>
           <EmptyState
             icon={Lightbulb}
