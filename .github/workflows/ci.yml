@@ -64,6 +64,9 @@ jobs:
       - name: Test deployment environment normalization
         run: bash deploy/test-prepare-docker-env.sh
 
+      - name: Test container key permission preparation
+        run: sudo bash deploy/test-container-key-access.sh
+
       - name: Build
         run: NODE_OPTIONS="--max-old-space-size=4096" npm run build
         env:
@@ -122,6 +125,23 @@ jobs:
             --env DATABASE_URL=postgresql://genilink:genilink_dev@127.0.0.1:5432/genilink \
             ghcr.io/yyangwan/genilink-platform:${{ github.sha }} \
             sh -c 'cd /prisma-runtime && node node_modules/prisma/build/index.js migrate deploy'
+
+      - name: Smoke test image signing-key access
+        if: github.event_name == 'pull_request'
+        run: |
+          . deploy/container-runtime.env
+          KEY_DIR="$(mktemp -d)"
+          trap 'sudo rm -rf "$KEY_DIR"' EXIT
+          openssl genpkey -algorithm RSA -out "$KEY_DIR/private.pem" -pkeyopt rsa_keygen_bits:2048
+          openssl pkey -in "$KEY_DIR/private.pem" -pubout -out "$KEY_DIR/public.pem"
+          sudo chown "root:$FRONTEND_KEYS_GID" "$KEY_DIR" "$KEY_DIR/private.pem" "$KEY_DIR/public.pem"
+          sudo chmod 0750 "$KEY_DIR"
+          sudo chmod 0640 "$KEY_DIR/private.pem" "$KEY_DIR/public.pem"
+          DEPLOY_CONTAINER_LIB_ONLY=1
+          KEYS_DIR="$KEY_DIR"
+          source deploy/deploy-container.sh
+          trap 'sudo rm -rf "$KEY_DIR"' EXIT
+          verify_image_key_access ghcr.io/yyangwan/genilink-platform:${{ github.sha }}
 
   deploy:
     name: Blue-green production deploy
