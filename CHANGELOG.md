@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0.6] - 2026-09-02
+
+### Fixed
+- Unsubscribed workspaces can reach the subscription guidance flow reliably after container signing-key permissions are normalized and validated during deployment.
+
 ## [0.2.0.5] - 2026-09-01
 
 ### Added
