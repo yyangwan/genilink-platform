@@ -35,7 +35,12 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+COPY deploy/container-runtime.env /tmp/container-runtime.env
+RUN . /tmp/container-runtime.env && \
+    actual_gid="$(awk -F: -v group="$FRONTEND_KEYS_GROUP" '$1 == group { print $3 }' /etc/group)" && \
+    [ "$actual_gid" = "$FRONTEND_KEYS_GID" ] && \
+    adduser --system --uid 1001 --ingroup "$FRONTEND_KEYS_GROUP" nextjs && \
+    rm /tmp/container-runtime.env
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./

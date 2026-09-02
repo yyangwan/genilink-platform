@@ -3,6 +3,13 @@ set -Eeuo pipefail
 
 APP_ROOT="${APP_ROOT:-/opt/genilink-platform}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RUNTIME_CONTRACT_FILE="$SCRIPT_DIR/container-runtime.env"
+[ -f "$RUNTIME_CONTRACT_FILE" ] || {
+  printf '[genilink-deploy] ERROR: runtime contract not found: %s\n' "$RUNTIME_CONTRACT_FILE" >&2
+  exit 1
+}
+# shellcheck source=container-runtime.env
+source "$RUNTIME_CONTRACT_FILE"
 ENV_FILE="${ENV_FILE:-$APP_ROOT/.env}"
 KEYS_DIR="${KEYS_DIR:-$APP_ROOT/.keys}"
 STATE_DIR="${STATE_DIR:-/opt/genilink-deploy}"
@@ -47,6 +54,40 @@ port_for_slot() {
 
 container_for_slot() {
   printf 'genilink-frontend-%s' "$1"
+}
+
+prepare_key_permissions() {
+  local private_key="$KEYS_DIR/private.pem"
+  local public_key="$KEYS_DIR/public.pem"
+
+  [ -d "$KEYS_DIR" ] || fail "runtime keys directory not found: $KEYS_DIR"
+  [ ! -L "$KEYS_DIR" ] || fail "runtime keys directory must not be a symlink: $KEYS_DIR"
+
+  local key_file
+  for key_file in "$private_key" "$public_key"; do
+    [ -f "$key_file" ] || fail "runtime key not found: $key_file"
+    [ ! -L "$key_file" ] || fail "runtime key must not be a symlink: $key_file"
+    [ -s "$key_file" ] || fail "runtime key is empty: $key_file"
+  done
+
+  chown "root:$FRONTEND_KEYS_GID" "$KEYS_DIR" "$private_key" "$public_key"
+  chmod 0750 "$KEYS_DIR"
+  chmod 0640 "$private_key" "$public_key"
+  log "runtime key permissions prepared for frontend key-access GID $FRONTEND_KEYS_GID"
+}
+
+verify_image_key_access() {
+  local image="$1"
+
+  docker run --rm \
+    --interactive \
+    --volume "$KEYS_DIR:/app/.keys:ro" \
+    "$image" \
+    sh -c 'cd /app && node --input-type=module' \
+    <"$SCRIPT_DIR/verify-container-keys.mjs" \
+    >/dev/null \
+    || fail "image runtime user cannot read and validate the mounted signing key pair"
+  log "image runtime user validated the mounted signing key pair"
 }
 
 wait_for_health() {
@@ -174,6 +215,9 @@ deploy_image() {
     docker pull "$image"
   fi
 
+  prepare_key_permissions
+  verify_image_key_access "$image"
+
   log "applying verified database migrations"
   docker run --rm \
     --network host \
@@ -200,9 +244,7 @@ deploy_image() {
     --label "cn.genilink.role=frontend"
     --label "cn.genilink.slot=$target_slot"
   )
-  if [ -d "$KEYS_DIR" ]; then
-    docker_args+=(--volume "$KEYS_DIR:/app/.keys:ro")
-  fi
+  docker_args+=(--volume "$KEYS_DIR:/app/.keys:ro")
   docker_args+=("$image")
 
   log "starting $target_container on port $target_port"
@@ -250,14 +292,15 @@ rollback() {
   previous_container="$(container_for_slot "$previous_slot")"
   local previous_port
   previous_port="$(port_for_slot "$previous_slot")"
+  [ -f "$STATE_DIR/previous-image" ] || fail "no previous image recorded"
+  local previous_image
+  previous_image="$(cat "$STATE_DIR/previous-image")"
+  verify_image_key_access "$previous_image"
   docker start "$previous_container" >/dev/null
   wait_for_health "$previous_port" || fail "previous container did not become healthy"
 
   local current_slot
   current_slot="$(cat "$STATE_DIR/active-slot")"
-  [ -f "$STATE_DIR/previous-image" ] || fail "no previous image recorded"
-  local previous_image
-  previous_image="$(cat "$STATE_DIR/previous-image")"
   switch_upstream "$previous_port" "${previous_image##*:}"
   docker stop --time 20 "$(container_for_slot "$current_slot")" >/dev/null || true
 
@@ -272,9 +315,11 @@ rollback() {
   log "rollback complete: $previous_slot is live"
 }
 
-require_root
-case "${1:-}" in
-  rollback) rollback ;;
-  "") fail "usage: $0 <image-ref> | rollback" ;;
-  *) deploy_image "$1" ;;
-esac
+if [ "${DEPLOY_CONTAINER_LIB_ONLY:-0}" != "1" ]; then
+  require_root
+  case "${1:-}" in
+    rollback) rollback ;;
+    "") fail "usage: $0 <image-ref> | rollback" ;;
+    *) deploy_image "$1" ;;
+  esac
+fi
