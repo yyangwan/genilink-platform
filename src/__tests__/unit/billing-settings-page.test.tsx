@@ -76,5 +76,7 @@ describe('BillingSettingsPage', () => {
     expect(screen.getByText('AI 可见性审计')).toBeTruthy();
     expect(screen.getByText('SEO 优化')).toBeTruthy();
     expect(screen.getByText('最近 30 天')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '定制方案' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /联系客服定制/ }).getAttribute('href')).toMatch(/^mailto:support@genilink\.cn/);
   });
 });

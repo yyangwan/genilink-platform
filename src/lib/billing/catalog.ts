@@ -30,13 +30,6 @@ const envString = (key: string): string | null => {
   return value ? value : null;
 };
 
-const envInt = (key: string): number | null => {
-  const raw = process.env[key]?.trim();
-  if (!raw) return null;
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
-};
-
 const defaultCurrency = envString('BILLING_CURRENCY') ?? 'CNY';
 
 const tierPlan = (
@@ -62,12 +55,12 @@ const tierPlan = (
 };
 
 export const BILLING_PLAN_SEEDS: BillingPlanSeed[] = [
-  tierPlan('lite', 'monthly', envInt('BILLING_LITE_MONTHLY_CENTS') ?? getTierDefinition('lite').monthlyPriceCents, 10),
-  tierPlan('lite', 'yearly', envInt('BILLING_LITE_YEARLY_CENTS') ?? getTierDefinition('lite').yearlyPriceCents, 20),
-  tierPlan('pro', 'monthly', envInt('BILLING_PRO_MONTHLY_CENTS') ?? getTierDefinition('pro').monthlyPriceCents, 30),
-  tierPlan('pro', 'yearly', envInt('BILLING_PRO_YEARLY_CENTS') ?? getTierDefinition('pro').yearlyPriceCents, 40),
-  tierPlan('max', 'monthly', envInt('BILLING_MAX_MONTHLY_CENTS') ?? getTierDefinition('max').monthlyPriceCents, 50),
-  tierPlan('max', 'yearly', envInt('BILLING_MAX_YEARLY_CENTS') ?? getTierDefinition('max').yearlyPriceCents, 60),
+  tierPlan('lite', 'monthly', getTierDefinition('lite').monthlyPriceCents, 10),
+  tierPlan('lite', 'yearly', getTierDefinition('lite').yearlyPriceCents, 20),
+  tierPlan('pro', 'monthly', getTierDefinition('pro').monthlyPriceCents, 30),
+  tierPlan('pro', 'yearly', getTierDefinition('pro').yearlyPriceCents, 40),
+  tierPlan('max', 'monthly', getTierDefinition('max').monthlyPriceCents, 50),
+  tierPlan('max', 'yearly', getTierDefinition('max').yearlyPriceCents, 60),
 ];
 
 export function isBillingPlanConfigured(plan: BillingPlanSeed): boolean {

@@ -449,8 +449,8 @@ export function LandingPage() {
         </div>
         <div className={styles.pricingNote}>
           {pricingOverview?.billingDisabled
-            ? "当前处于订阅关闭模式，页面仅展示方案结构。"
-            : "登录后可选择微信支付或支付宝；未完成价格或收款配置的方案会保持不可点击。"}
+            ? "你可以先比较各版本的适用场景与权益，选择最符合当前阶段的方案。"
+            : "从适合当前阶段的版本开始，随着项目和团队成长再升级；如有特殊需求，可联系我们定制。"}
         </div>
       </section>
 

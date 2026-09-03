@@ -22,6 +22,7 @@ describe('subscription tiers', () => {
       'suite-max-monthly',
       'suite-max-yearly',
     ]);
+    expect(BILLING_PLAN_SEEDS.every((plan) => plan.priceCents === 100)).toBe(true);
   });
 
   it('orders upgrades from lite to pro to max', () => {
@@ -84,8 +85,8 @@ describe('subscription tiers', () => {
     const row = (label: string) => rows.find((item) => item.label === label)?.values;
 
     expect(rows).toHaveLength(33);
-    expect(row('月付价格')).toEqual({ lite: '¥99/月', pro: '¥399/月', max: '¥1299/月' });
-    expect(row('年付价格')).toEqual({ lite: '¥999/年', pro: '¥3999/年', max: '¥12999/年' });
+    expect(row('月付价格')).toEqual({ lite: '¥1/月', pro: '¥1/月', max: '¥1/月' });
+    expect(row('年付价格')).toEqual({ lite: '¥1/年', pro: '¥1/年', max: '¥1/年' });
     expect(row('AI 可见性审计')).toEqual({ lite: '3 次/月', pro: '30 次/月', max: '200 次/月' });
     expect(row('审计报告')).toEqual({ lite: '基础报告', pro: '完整报告', max: '高级报告' });
     expect(row('趋势历史')).toEqual({ lite: '最近 30 天', pro: '最近 12 个月', max: '最近 24 个月' });

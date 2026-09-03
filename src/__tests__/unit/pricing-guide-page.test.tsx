@@ -13,6 +13,9 @@ describe('PricingGuidePage', () => {
     expect(screen.getByText(/每次最多展示 3 条优先建议/)).toBeTruthy();
     expect(screen.getByText(/标准内容生成、Genie 创作及从优化建议生成内容简报/)).toBeTruthy();
     expect(screen.getByText(/当前所有套餐均未开放公开 API/)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '定制方案' })).toBeTruthy();
+    expect(screen.getByText(/托管运营按结果付费、私有化部署/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: /联系客服定制/ }).getAttribute('href')).toMatch(/^mailto:support@genilink\.cn/);
     expect(screen.getByRole('link', { name: /查看套餐矩阵/ }).getAttribute('href')).toBe('/#pricing');
   });
 });

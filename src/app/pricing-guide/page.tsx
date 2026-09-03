@@ -10,11 +10,12 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { SUBSCRIPTION_TIERS } from '@/lib/billing/tiers';
+import { CUSTOM_PLAN_CONTACT_HREF, CUSTOM_SUBSCRIPTION_PLAN } from '@/lib/billing/custom-plan';
 import styles from './page.module.css';
 
 export const metadata: Metadata = {
   title: '套餐权益说明 - 智链',
-  description: '详细了解智链入门版、专业版和高级版的功能范围、额度计算、报告等级与订阅规则。',
+  description: '详细了解智链入门版、专业版、高级版与定制方案的功能范围、额度计算、报告等级与订阅规则。',
 };
 
 const levelRows = [
@@ -129,6 +130,19 @@ export default function PricingGuidePage() {
                 </ul>
               </article>
             ))}
+            <article className={styles.customTierCard}>
+              <div>
+                <span>{CUSTOM_SUBSCRIPTION_PLAN.eyebrow}</span>
+                <h3>{CUSTOM_SUBSCRIPTION_PLAN.name}</h3>
+                <p>{CUSTOM_SUBSCRIPTION_PLAN.description}</p>
+              </div>
+              <ul>
+                {CUSTOM_SUBSCRIPTION_PLAN.highlights.map((feature) => (
+                  <li key={feature}><CheckCircle2 size={15} />{feature}</li>
+                ))}
+              </ul>
+              <Link href={CUSTOM_PLAN_CONTACT_HREF}>联系客服定制 <ArrowRight size={16} /></Link>
+            </article>
           </div>
         </section>
 
@@ -175,10 +189,12 @@ export default function PricingGuidePage() {
             <div><span>05</span><h2>订阅、升级与支付规则</h2></div>
           </div>
           <div className={styles.billingGrid}>
+            <article><h3>内测价格</h3><p>产品内测期间，入门版、专业版和高级版的月付与年付价格均为 1 元，用于真实支付与订阅流程测试。</p></article>
             <article><h3>月付与年付</h3><p>月付和年付的功能权益相同，区别在价格和订阅周期。年付不会额外减少月度功能额度。</p></article>
             <article><h3>套餐升级</h3><p>平台当前支持向上升级。升级后使用更高套餐的项目容量、功能等级和月度额度。</p></article>
             <article><h3>支付方式</h3><p>已配置的套餐支持微信支付和支付宝。支付完成并确认后，系统会自动更新工作区订阅权益。</p></article>
             <article><h3>额度用尽</h3><p>达到额度后，对应新增或生成操作会暂停，并提示套餐限制；已有项目、报告和内容仍可按权限查看。</p></article>
+            <article><h3>定制合作</h3><p>托管运营按结果付费、私有化部署、专属能力与系统集成不通过标准收银台购买，请联系客服评估需求与报价。</p></article>
           </div>
         </section>
 

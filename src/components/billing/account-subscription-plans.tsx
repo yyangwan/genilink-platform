@@ -1,7 +1,9 @@
 'use client';
 
-import { ArrowUpRight, Check, CheckCircle2, Loader2, ShieldCheck } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowUpRight, Check, CheckCircle2, Headphones, Loader2, ShieldCheck } from 'lucide-react';
 import { SUBSCRIPTION_PLAN_MATRIX, SUBSCRIPTION_TIERS, getTierDefinition, isUpgrade } from '@/lib/billing/tiers';
+import { CUSTOM_PLAN_CONTACT_HREF, CUSTOM_SUBSCRIPTION_PLAN } from '@/lib/billing/custom-plan';
 import type { BillingCycle, SubscriptionTier } from '@/types/billing';
 import { formatSubscriptionPrice, type SubscriptionPlanView } from './subscription-plan-content';
 
@@ -38,7 +40,7 @@ export function AccountSubscriptionPlans({
         <div>
           <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>选择升级方案</h2>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            套餐卡片展示核心权益，完整能力与额度见下方对照表。
+            内测期间所有标准套餐均为 1 元，完整能力与额度见下方对照表。
           </p>
         </div>
         <div className="inline-flex rounded-full border p-1" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }} role="group" aria-label="订阅周期">
@@ -157,6 +159,44 @@ export function AccountSubscriptionPlans({
           );
         })}
       </div>
+
+      <article
+        className="mt-4 grid gap-5 rounded-xl border p-5 lg:grid-cols-[minmax(240px,1fr)_minmax(320px,1.25fr)_auto] lg:items-center"
+        style={{
+          borderColor: 'color-mix(in srgb, var(--color-primary) 38%, var(--border))',
+          background: 'color-mix(in srgb, var(--color-primary) 7%, var(--bg-card))',
+        }}
+        aria-label="定制方案"
+      >
+        <div>
+          <span className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--color-primary)' }}>
+            {CUSTOM_SUBSCRIPTION_PLAN.eyebrow}
+          </span>
+          <h3 className="mt-1 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+            {CUSTOM_SUBSCRIPTION_PLAN.name}
+          </h3>
+          <p className="mt-2 text-sm leading-6" style={{ color: 'var(--text-secondary)' }}>
+            {CUSTOM_SUBSCRIPTION_PLAN.description}
+          </p>
+        </div>
+        <ul className="grid gap-2">
+          {CUSTOM_SUBSCRIPTION_PLAN.highlights.map((feature) => (
+            <li key={feature} className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+              <Check className="h-4 w-4 shrink-0" style={{ color: 'var(--color-primary)' }} />
+              {feature}
+            </li>
+          ))}
+        </ul>
+        <Link
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold"
+          style={{ color: '#0b0d14', background: 'var(--color-primary)' }}
+          href={CUSTOM_PLAN_CONTACT_HREF}
+        >
+          <Headphones className="h-4 w-4" />
+          联系客服定制
+          <ArrowUpRight className="h-4 w-4" />
+        </Link>
+      </article>
 
       <div className="mt-6 overflow-x-auto rounded-xl border" style={{ borderColor: 'var(--border)' }} aria-label="完整套餐权益对照">
         <div className="min-w-[760px]">
