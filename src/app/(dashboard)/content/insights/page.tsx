@@ -20,6 +20,10 @@ interface AnalyticsData {
   recentActivity: Array<{ date: string; count: number }>;
 }
 
+interface AnalyticsResponse {
+  data: AnalyticsData;
+}
+
 const STATUS_LABELS: Record<string, string> = {
   draft: "草稿",
   review: "审核中",
@@ -107,7 +111,7 @@ function BreakdownList({
 
 function InsightsContent() {
   const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
-  const analytics = useSectionFetch<AnalyticsData>(
+  const analytics = useSectionFetch<AnalyticsResponse>(
     currentProjectId ? `/api/analytics?projectId=${currentProjectId}` : null,
   );
 
@@ -135,7 +139,7 @@ function InsightsContent() {
     );
   }
 
-  const data = analytics.data;
+  const data = analytics.data?.data ?? null;
   const statusItems = data?.statusBreakdown.map((item) => ({ key: item.status, count: item.count })) ?? [];
   const platformItems = data?.platformBreakdown.map((item) => ({ key: item.platform, count: item.count })) ?? [];
 

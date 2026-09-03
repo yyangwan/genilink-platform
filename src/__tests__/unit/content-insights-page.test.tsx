@@ -19,23 +19,21 @@ vi.mock("@/components/project/project-context", () => ({
   }),
 }));
 
-vi.mock("@/components/audits/use-audit-snapshot", () => ({
-  useAuditSnapshot: () => ({
-    audits: [],
-    selectedAuditId: "audit-1",
-    latestAuditId: "audit-1",
-    loading: false,
-    error: false,
-    locked: false,
-    selectAudit: vi.fn(),
-  }),
-}));
-
 vi.mock("@/components/dashboard/use-section-fetch", () => ({
   useSectionFetch: (url: string | null) => {
     mocks.useSectionFetch(url);
     return {
-      data: null,
+      data: {
+        data: {
+          totalContent: 12,
+          publishedCount: 7,
+          avgQuality: 86.5,
+          platformBreakdown: [{ platform: "微信公众号", count: 4 }],
+          statusBreakdown: [{ status: "published", count: 7 }],
+          topPerforming: [{ id: "content-1", title: "高质量内容示例", score: 92 }],
+          recentActivity: [],
+        },
+      },
       loading: false,
       error: false,
       locked: false,
@@ -57,6 +55,10 @@ describe("智创内容洞察页面", () => {
     render(<ContentInsightsPage />);
 
     expect(screen.getByText("分析内容表现和质量趋势")).toBeTruthy();
+    expect(screen.getByText("12")).toBeTruthy();
+    expect(screen.getByText("86.5")).toBeTruthy();
+    expect(screen.getByText("微信公众号")).toBeTruthy();
+    expect(screen.getByText("高质量内容示例")).toBeTruthy();
     expect(mocks.useSectionFetch).toHaveBeenCalledWith(
       "/api/analytics?projectId=project-1",
     );
