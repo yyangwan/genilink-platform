@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0.7] - 2026-09-03
+
+### Added
+- Subscription pages now offer a custom plan for managed operations, outcome-based cooperation, private deployment, and tailored integrations, with a direct customer-service contact path.
+
+### Changed
+- All Lite, Pro, and Max monthly and yearly plans use a CNY 1 internal-beta price for end-to-end purchase testing.
+- Public pricing copy now helps customers choose a plan by team stage and use case instead of describing internal payment or configuration details.
+
 ## [0.2.0.6] - 2026-09-02
 
 ### Fixed
