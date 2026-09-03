@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0.9] - 2026-09-04
+
+### Fixed
+- Zhichuang content insights now shows content-production performance, quality, status, and publishing-platform data instead of opening Zhijian audit intelligence.
+
 ## [0.2.0.8] - 2026-09-03
 
 ### Fixed
