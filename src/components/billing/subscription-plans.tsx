@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, BookOpenText, Check, ShieldCheck, X } from 'lucide-react';
+import { ArrowRight, BookOpenText, Check, Headphones, ShieldCheck, X } from 'lucide-react';
 import type { BillingCycle, SubscriptionTier } from '@/types/billing';
 import { SUBSCRIPTION_PLAN_MATRIX, SUBSCRIPTION_TIERS, getTierDefinition } from '@/lib/billing/tiers';
+import { CUSTOM_PLAN_CONTACT_HREF, CUSTOM_SUBSCRIPTION_PLAN } from '@/lib/billing/custom-plan';
 import { formatSubscriptionPrice, type SubscriptionPlanView } from './subscription-plan-content';
 import styles from './subscription-plans.module.css';
 
@@ -46,13 +47,14 @@ export function LandingSubscriptionPlans({
     <section className={styles.section}>
       <div className={styles.heading}>
         <div>
-          <span className={styles.kicker}>统一订阅方案</span>
-          <h2>一个版本，同时决定可用模块与使用额度</h2>
-          <p>从轻量版开始，按团队成长升级到专业版或高级版；升级只会解锁更多能力，不会减少已有权益。</p>
+          <span className={styles.kicker}>内测特惠 · 选择适合你的方案</span>
+          <h2>按你的团队阶段，选择最合适的版本</h2>
+          <p>个人或小团队可从入门版验证机会，持续开展 AI 搜索增长选择专业版，多项目规模化运营选择高级版。</p>
         </div>
         <div className={styles.trust} aria-label="订阅说明">
-          <span>智见 + 智创统一管理</span>
-          <span>仅支持向上升级</span>
+          <span>内测期间各套餐仅 ¥1</span>
+          <span>覆盖个人到规模化团队</span>
+          <span>特殊需求可专属定制</span>
         </div>
       </div>
 
@@ -137,6 +139,29 @@ export function LandingSubscriptionPlans({
           );
         })}
       </div>
+
+      <article className={styles.customCard} aria-label="定制方案">
+        <div className={styles.customIntro}>
+          <div className={styles.cardTop}>
+            <div>
+              <span className={styles.eyebrow}>{CUSTOM_SUBSCRIPTION_PLAN.eyebrow}</span>
+              <h3>{CUSTOM_SUBSCRIPTION_PLAN.name}</h3>
+            </div>
+            <span className={styles.badge}>{CUSTOM_SUBSCRIPTION_PLAN.badge}</span>
+          </div>
+          <p>{CUSTOM_SUBSCRIPTION_PLAN.description}</p>
+        </div>
+        <ul className={styles.customFeatures}>
+          {CUSTOM_SUBSCRIPTION_PLAN.highlights.map((feature) => (
+            <li key={feature}><Check size={16} /><span>{feature}</span></li>
+          ))}
+        </ul>
+        <Link className={styles.customCta} href={CUSTOM_PLAN_CONTACT_HREF}>
+          <Headphones size={17} />
+          联系客服定制
+          <ArrowRight size={16} />
+        </Link>
+      </article>
 
       <div className={styles.guideCallout}>
         <div>
