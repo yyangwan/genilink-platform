@@ -1,65 +1,60 @@
 "use client";
 
 import React, { Suspense } from "react";
-import Link from "next/link";
-import {
-  Brain,
-  MessageSquare,
-  TrendingUp,
-  ExternalLink,
-  Globe,
-  Hash,
-  BarChart3,
-} from "lucide-react";
+import { BarChart3, FileText, PenLine, Send, Sparkles, Trophy } from "lucide-react";
 import { useSectionFetch } from "@/components/dashboard/use-section-fetch";
 import { useProject } from "@/components/project/project-context";
+import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { DiagnosticChecklist, type DiagnosticItem } from "@/components/ui/diagnostic-checklist";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { MetricExplanation } from "@/components/ui/metric-explanation";
-import { AuditSnapshotSelector } from "@/components/audits/audit-snapshot-selector";
-import { useAuditSnapshot } from "@/components/audits/use-audit-snapshot";
-import SentimentPieChart from "@/components/charts/SentimentPieChart";
-import TopicRadarChart from "@/components/charts/TopicRadarChart";
-import AnswerStructureChart from "@/components/charts/AnswerStructureChart";
-import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 
-import type { ContentIntelligence } from "@/types/visibility";
+interface AnalyticsData {
+  totalContent: number;
+  publishedCount: number;
+  avgQuality: number | null;
+  platformBreakdown: Array<{ platform: string; count: number }>;
+  statusBreakdown: Array<{ status: string; count: number }>;
+  topPerforming: Array<{ id: string; title: string; score: number }>;
+  recentActivity: Array<{ date: string; count: number }>;
+}
 
-type ContentIntelligenceResponse = ContentIntelligence & {
-  entitlementLevel?: "basic" | "full" | "advanced";
+const STATUS_LABELS: Record<string, string> = {
+  draft: "草稿",
+  review: "审核中",
+  scheduled: "已排期",
+  published: "已发布",
+  failed: "发布失败",
 };
 
-const SENTIMENT_COLORS = {
-  positive: "var(--color-success)",
-  neutral: "var(--color-warning)",
-  negative: "var(--color-error)",
+const STATUS_COLORS: Record<string, string> = {
+  draft: "var(--text-secondary)",
+  review: "var(--color-warning)",
+  scheduled: "var(--color-primary)",
+  published: "var(--color-success)",
+  failed: "var(--color-error)",
 };
 
-function StatCards({ data }: { data: ContentIntelligence }) {
-  const totalMentions = data.topics.reduce((sum, t) => sum + t.count, 0);
-  const topTopic = data.topics.length > 0
-    ? data.topics.reduce((a, b) => (a.count > b.count ? a : b)).topic
-    : "-";
-  const positiveRate = data.sentiment.positive + data.sentiment.neutral + data.sentiment.negative > 0
-    ? Math.round((data.sentiment.positive / (data.sentiment.positive + data.sentiment.neutral + data.sentiment.negative)) * 100)
-    : 0;
-
+function StatCards({ data }: { data: AnalyticsData }) {
   const stats = [
-    { icon: Hash, label: "话题总数", value: data.topics.length, color: "var(--color-primary)" },
-    { icon: MessageSquare, label: "总提及数", value: totalMentions, color: "var(--color-primary)" },
-    { icon: TrendingUp, label: "正面情感率", value: `${positiveRate}%`, color: "var(--color-success)" },
-    { icon: Globe, label: "最热话题", value: topTopic, color: "var(--color-warning)" },
+    { icon: FileText, label: "内容总数", value: data.totalContent, color: "var(--color-primary)" },
+    { icon: Send, label: "已发布", value: data.publishedCount, color: "var(--color-success)" },
+    {
+      icon: Sparkles,
+      label: "平均质量分",
+      value: data.avgQuality == null ? "—" : data.avgQuality.toFixed(1),
+      color: "var(--color-warning)",
+    },
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       {stats.map((stat) => (
         <div key={stat.label} className="dashboard-stat-card">
-          <div className="flex items-center gap-2 mb-2">
-            <stat.icon style={{ width: 16, height: 16, color: stat.color }} />
-            <span className="text-xs font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+          <div className="mb-2 flex items-center gap-2">
+            <stat.icon className="h-4 w-4" style={{ color: stat.color }} />
+            <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
               {stat.label}
             </span>
           </div>
@@ -70,38 +65,40 @@ function StatCards({ data }: { data: ContentIntelligence }) {
   );
 }
 
-function SourceAuthorityList({ sources }: { sources: ContentIntelligence["sources"] }) {
-  if (!sources || sources.length === 0) {
-    return <div className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>暂无来源数据</div>;
+function BreakdownList({
+  items,
+  getLabel,
+  getColor,
+}: {
+  items: Array<{ key: string; count: number }>;
+  getLabel: (key: string) => string;
+  getColor: (key: string) => string;
+}) {
+  const maxCount = Math.max(...items.map((item) => item.count), 1);
+
+  if (items.length === 0) {
+    return <p className="text-sm" style={{ color: "var(--text-muted)" }}>暂无数据</p>;
   }
 
   return (
-    <div className="space-y-2">
-      {sources.slice(0, 8).map((src, i) => (
-        <div
-          key={i}
-          className="flex items-center gap-3 rounded-lg px-3 py-2"
-          style={{ background: "var(--bg-hover)" }}
-        >
-          <span className="w-5 shrink-0 text-center text-[11px] font-semibold" style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-            {i + 1}
+    <div className="space-y-3">
+      {items.map((item) => (
+        <div key={item.key} className="flex items-center gap-3">
+          <span className="w-20 shrink-0 truncate text-sm" style={{ color: "var(--text-secondary)" }}>
+            {getLabel(item.key)}
           </span>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
-              {src.domain}
-            </div>
-            <div className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-              提及 {src.mention_count} 次
-            </div>
+          <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: "var(--bg-hover)" }}>
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.max((item.count / maxCount) * 100, item.count > 0 ? 4 : 0)}%`,
+                background: getColor(item.key),
+              }}
+            />
           </div>
-          <div className="w-12 text-right">
-            <span className="text-sm font-semibold" style={{
-              fontFamily: "var(--font-mono)",
-              color: src.authority_score >= 80 ? "var(--color-success)" : src.authority_score >= 50 ? "var(--color-warning)" : "var(--text-muted)",
-            }}>
-              {src.authority_score}
-            </span>
-          </div>
+          <span className="w-8 text-right text-sm font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
+            {item.count}
+          </span>
         </div>
       ))}
     </div>
@@ -110,17 +107,9 @@ function SourceAuthorityList({ sources }: { sources: ContentIntelligence["source
 
 function InsightsContent() {
   const { currentProjectId, currentProject, loading, openWizard, projects } = useProject();
-  const auditSnapshot = useAuditSnapshot(currentProjectId);
-
-  const url = currentProjectId && auditSnapshot.selectedAuditId
-    ? `/api/integration/content-intelligence?projectId=${currentProjectId}&auditId=${auditSnapshot.selectedAuditId}`
-    : null;
-
-  const ci = useSectionFetch<ContentIntelligenceResponse>(url);
-  const pageLoading = auditSnapshot.loading || ci.loading;
-  const pageError = auditSnapshot.error || ci.error;
-  const pageLocked = auditSnapshot.locked || ci.locked;
-  const data = ci.data;
+  const analytics = useSectionFetch<AnalyticsData>(
+    currentProjectId ? `/api/analytics?projectId=${currentProjectId}` : null,
+  );
 
   if (!loading && !currentProjectId) {
     const checklistItems: DiagnosticItem[] = [
@@ -140,162 +129,113 @@ function InsightsContent() {
 
     return (
       <div className="space-y-6">
-        <PageHeader title="内容洞察" subtitle="按单次审计查看 AI 回答的内容特征" />
+        <PageHeader title="内容洞察" subtitle="分析内容表现和质量趋势" />
         <DiagnosticChecklist items={checklistItems} title="准备工作" />
       </div>
     );
   }
 
-  const topicRadarData = data?.topics?.map((t) => ({ topic: t.topic, count: t.count })) ?? [];
-  const sentimentData = data
-    ? [
-        { name: "正面", value: data.sentiment.positive, fill: SENTIMENT_COLORS.positive },
-        { name: "中性", value: data.sentiment.neutral, fill: SENTIMENT_COLORS.neutral },
-        { name: "负面", value: data.sentiment.negative, fill: SENTIMENT_COLORS.negative },
-      ]
-    : [];
-  const answerStructureData = data?.answerStructure ?? [];
-  const hasRestrictedInsights = data?.entitlementLevel === "basic";
+  const data = analytics.data;
+  const statusItems = data?.statusBreakdown.map((item) => ({ key: item.status, count: item.count })) ?? [];
+  const platformItems = data?.platformBreakdown.map((item) => ({ key: item.platform, count: item.count })) ?? [];
 
   return (
     <div className="space-y-6">
-      <PageHeader title="内容洞察" subtitle="按单次审计查看 AI 回答的内容特征" />
+      <PageHeader title="内容洞察" subtitle="分析内容表现和质量趋势" />
 
-      {currentProjectId && (
-        <AuditSnapshotSelector
-          audits={auditSnapshot.audits}
-          selectedAuditId={auditSnapshot.selectedAuditId}
-          latestAuditId={auditSnapshot.latestAuditId}
-          projectId={currentProjectId}
-          loading={auditSnapshot.loading}
-          onChange={auditSnapshot.selectAudit}
-        />
-      )}
-
-      {pageLoading && (
+      {analytics.loading && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="dashboard-skeleton h-20 rounded-xl animate-skeleton-pulse" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {[1, 2, 3].map((item) => (
+              <div key={item} className="dashboard-skeleton h-24 rounded-xl animate-skeleton-pulse" />
             ))}
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {[1, 2].map((i) => (
-              <div key={i} className="dashboard-skeleton h-72 rounded-xl animate-skeleton-pulse" />
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {[1, 2].map((item) => (
+              <div key={item} className="dashboard-skeleton h-64 rounded-xl animate-skeleton-pulse" />
             ))}
           </div>
         </div>
       )}
 
-      {pageLocked && !pageLoading && (
+      {analytics.locked && !analytics.loading && (
         <div className="dashboard-surface dashboard-surface--padded">
-          <SubscriptionRequiredState feature="内容洞察" />
+          <SubscriptionRequiredState feature="智创内容洞察" />
         </div>
       )}
 
-      {pageError && !pageLoading && !pageLocked && (
+      {analytics.error && !analytics.loading && !analytics.locked && (
         <div className="dashboard-surface dashboard-surface--padded">
-          <ErrorState onRetry={() => window.location.reload()} />
+          <ErrorState onRetry={analytics.refetch} />
         </div>
       )}
 
-      {!pageLoading && !pageError && !pageLocked && data && (
+      {!analytics.loading && !analytics.error && !analytics.locked && data && (
         <>
           <StatCards data={data} />
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <section className="dashboard-surface dashboard-surface--padded">
               <div className="dashboard-panel-title">
-                <Hash className="h-4 w-4" style={{ color: "var(--color-primary)" }} />
-                话题分布
-              </div>
-              <div className="h-[280px]">
-                {topicRadarData.length > 0 ? (
-                  <TopicRadarChart data={topicRadarData} />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                    暂无话题数据
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="dashboard-surface dashboard-surface--padded">
-              <div className="dashboard-panel-title">
-                <MessageSquare className="h-4 w-4" style={{ color: "var(--color-primary)" }} />
-                情感分布
-              </div>
-              <div className="h-[280px]">
-                {sentimentData.some((d) => d.value > 0) ? (
-                  <SentimentPieChart data={sentimentData} />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                    暂无情感数据
-                  </div>
-                )}
-              </div>
-            </section>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <section className="dashboard-surface dashboard-surface--padded">
-              <div className="dashboard-panel-title">
                 <BarChart3 className="h-4 w-4" style={{ color: "var(--color-primary)" }} />
-                回答结构分布
+                内容状态分布
               </div>
-              <MetricExplanation>
-                回答结构指 AI 组织答案的呈现方式，例如列表式、对比式、问答式或叙述式；占比越高，表示该方式在本次审计中越常见。
-              </MetricExplanation>
-              <div className="h-[280px]">
-                {answerStructureData.length > 0 ? (
-                  <AnswerStructureChart data={answerStructureData} />
-                ) : hasRestrictedInsights ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                    <span>回答结构分析未包含在当前版本中</span>
-                    <Link href="/settings/billing" className="text-xs font-medium" style={{ color: "var(--color-primary)" }}>查看升级方案</Link>
-                  </div>
-                ) : (
-                  <div className="flex h-full items-center justify-center text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                    暂无结构数据
-                  </div>
-                )}
-              </div>
+              <BreakdownList
+                items={statusItems}
+                getLabel={(status) => STATUS_LABELS[status] ?? status}
+                getColor={(status) => STATUS_COLORS[status] ?? "var(--color-primary)"}
+              />
             </section>
 
             <section className="dashboard-surface dashboard-surface--padded">
               <div className="dashboard-panel-title">
-                <ExternalLink className="h-4 w-4" style={{ color: "var(--color-primary)" }} />
-                来源权威度
+                <PenLine className="h-4 w-4" style={{ color: "var(--color-primary)" }} />
+                发布平台分布
               </div>
-              {hasRestrictedInsights ? (
-                <div className="flex min-h-40 flex-col items-center justify-center gap-2 text-center text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                  <span>来源权威度未包含在当前版本中</span>
-                  <Link href="/settings/billing" className="text-xs font-medium" style={{ color: "var(--color-primary)" }}>查看升级方案</Link>
-                </div>
-              ) : (
-                <SourceAuthorityList sources={data.sources} />
-              )}
+              <BreakdownList
+                items={platformItems}
+                getLabel={(platform) => platform}
+                getColor={() => "var(--color-primary)"}
+              />
             </section>
           </div>
 
-          <section className="dashboard-surface flex items-center gap-2 px-6 py-3">
-            <Brain className="h-4 w-4" style={{ color: "var(--color-primary)" }} />
-            <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-              基于最新审计数据生成 · 分析覆盖 {data.topics.length} 个话题
-              {!hasRestrictedInsights && ` · ${data.sources.length} 个引用来源`}
-            </span>
+          <section className="dashboard-surface dashboard-surface--padded">
+            <div className="dashboard-panel-title">
+              <Trophy className="h-4 w-4" style={{ color: "var(--color-warning)" }} />
+              高质量内容
+            </div>
+            {data.topPerforming.length > 0 ? (
+              <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+                {data.topPerforming.map((item, index) => (
+                  <div key={item.id} className="flex items-center gap-3 py-3">
+                    <span className="w-6 text-center text-xs font-semibold" style={{ color: "var(--color-primary)" }}>
+                      {index + 1}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm" style={{ color: "var(--text-primary)" }}>
+                      {item.title || "无标题内容"}
+                    </span>
+                    <span className="text-sm font-semibold" style={{ color: "var(--color-success)", fontFamily: "var(--font-mono)" }}>
+                      {item.score.toFixed(0)} 分
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>暂无质量评分数据</p>
+            )}
           </section>
         </>
       )}
 
-      {!pageLoading && !pageError && !data && (
+      {!analytics.loading && !analytics.error && !analytics.locked && !data && (
         <div className="dashboard-surface dashboard-surface--padded">
           <EmptyState
-            icon={Brain}
+            icon={BarChart3}
             title="暂无内容洞察"
-            description="运行 AI 审计以获取内容分析数据"
-            actionLabel="前往可见性分析"
-            actionHref="/visibility"
+            description="创建并完善内容后，这里会展示内容数量、发布状态和质量表现"
+            actionLabel="创建内容"
+            actionHref="/content/new"
           />
         </div>
       )}
@@ -303,19 +243,10 @@ function InsightsContent() {
   );
 }
 
-export default function InsightsPage() {
+export default function ContentInsightsPage() {
   return (
     <Suspense
-      fallback={
-        <div className="space-y-6">
-          <div className="dashboard-skeleton h-10 w-48 rounded animate-skeleton-pulse" />
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="dashboard-skeleton h-20 rounded-xl animate-skeleton-pulse" />
-            ))}
-          </div>
-        </div>
-      }
+      fallback={<div className="dashboard-skeleton h-64 rounded-xl animate-skeleton-pulse" />}
     >
       <InsightsContent />
     </Suspense>
