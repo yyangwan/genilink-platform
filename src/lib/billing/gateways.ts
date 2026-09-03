@@ -66,7 +66,7 @@ export function getProviderDisplayName(provider: PaymentProvider): string {
 }
 
 function normalizePemKey(pem: string): string {
-  return pem.includes('BEGIN') ? pem : pem.replace(/\\n/g, '\n');
+  return pem.replace(/\\n/g, '\n');
 }
 
 function getPemCandidates(pem: string, type: 'private' | 'public'): string[] {

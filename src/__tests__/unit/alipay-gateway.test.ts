@@ -1,7 +1,11 @@
 import crypto from 'crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { POST } from '@/app/api/billing/webhooks/[provider]/route';
-import { createAlipayCheckoutUrl, verifyAlipayNotificationSignature } from '@/lib/billing/gateways';
+import {
+  buildWechatAuthorizationHeader,
+  createAlipayCheckoutUrl,
+  verifyAlipayNotificationSignature,
+} from '@/lib/billing/gateways';
 import { activateSubscriptionFromPayment } from '@/lib/billing/reconcile';
 import { prisma } from '@/lib/db';
 
@@ -15,6 +19,10 @@ function createRsaKeyPair() {
     publicKeyEncoding: { type: 'spki', format: 'pem' },
     privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
   });
+}
+
+function escapePem(pem: string) {
+  return pem.replace(/\n/g, '\\n');
 }
 
 function sortParams(params: Record<string, string>) {
@@ -41,6 +49,90 @@ describe('Alipay billing gateway', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://genilink.cn');
     vi.stubEnv('ALIPAY_APP_ID', '2016000000000000');
     vi.stubEnv('ALIPAY_NOTIFY_URL', 'https://genilink.cn/api/billing/webhooks/alipay');
+  });
+
+  it('signs WeChat Pay requests with an escaped PEM private key', () => {
+    const { publicKey, privateKey } = createRsaKeyPair();
+    vi.stubEnv('WECHATPAY_MCH_ID', 'merchant-1');
+    vi.stubEnv('WECHATPAY_MCH_SERIAL_NO', 'serial-1');
+    vi.stubEnv('WECHATPAY_MCH_PRIVATE_KEY', escapePem(privateKey));
+
+    const body = JSON.stringify({ out_trade_no: 'order-1' });
+    const authorization = buildWechatAuthorizationHeader({
+      method: 'POST',
+      path: '/v3/pay/transactions/native',
+      body,
+    });
+    const timestamp = authorization.match(/timestamp="([^"]+)"/)?.[1];
+    const nonce = authorization.match(/nonce_str="([^"]+)"/)?.[1];
+    const signature = authorization.match(/signature="([^"]+)"/)?.[1];
+
+    expect(timestamp).toBeTruthy();
+    expect(nonce).toBeTruthy();
+    expect(signature).toBeTruthy();
+
+    const verifier = crypto.createVerify('RSA-SHA256');
+    verifier.update(`POST\n/v3/pay/transactions/native\n${timestamp}\n${nonce}\n${body}\n`);
+    verifier.end();
+    expect(verifier.verify(publicKey, signature!, 'base64')).toBe(true);
+  });
+
+  it('accepts an escaped, generically labelled PKCS#1 private key for Alipay', () => {
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+    });
+    const productionStyleKey = privateKey
+      .replace('BEGIN RSA PRIVATE KEY', 'BEGIN PRIVATE KEY')
+      .replace('END RSA PRIVATE KEY', 'END PRIVATE KEY');
+    vi.stubEnv('ALIPAY_PRIVATE_KEY', escapePem(productionStyleKey));
+
+    const result = createAlipayCheckoutUrl({
+      order: {
+        id: 'order-escaped-key',
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        billingPlanId: 'plan-1',
+        module: 'suite',
+        billingCycle: 'monthly',
+        provider: 'alipay',
+        status: 'opened',
+        amountCents: 100,
+        currency: 'CNY',
+      },
+      plan: {
+        id: 'plan-1',
+        key: 'suite-pro-monthly',
+        module: 'suite',
+        billingCycle: 'monthly',
+        name: 'Content Monthly',
+        description: 'Content monthly plan',
+        priceCents: 100,
+        currency: 'CNY',
+        provider: 'alipay',
+        checkoutUrl: null,
+        sortOrder: 1,
+        isActive: true,
+        providerPriceId: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      requestOrigin: 'https://genilink.cn',
+    });
+
+    const url = new URL(result.checkoutUrl);
+    const signature = url.searchParams.get('sign');
+    const payload = Object.fromEntries(
+      [...url.searchParams.entries()].filter(([key]) => key !== 'sign'),
+    );
+    const canonical = sortParams(payload)
+      .map(([key, value]) => `${key}=${value}`)
+      .join('&');
+    const verifier = crypto.createVerify('RSA-SHA256');
+    verifier.update(canonical);
+    verifier.end();
+    expect(verifier.verify(publicKey, signature!, 'base64')).toBe(true);
   });
 
   it('builds a signed checkout url for page pay', () => {
@@ -172,7 +264,7 @@ describe('Alipay billing gateway', () => {
 
   it('reports configuration for notification signature verification', () => {
     const { publicKey, privateKey } = createRsaKeyPair();
-    vi.stubEnv('ALIPAY_PUBLIC_KEY', publicKey);
+    vi.stubEnv('ALIPAY_PUBLIC_KEY', escapePem(publicKey));
 
     const params = {
       out_trade_no: 'order-1',
