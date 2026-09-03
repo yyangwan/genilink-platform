@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0.8] - 2026-09-03
+
+### Fixed
+- WeChat Pay and Alipay can now sign requests when payment keys are configured with escaped newline characters, preventing checkout from failing with an OpenSSL decoder error.
+
 ## [0.2.0.7] - 2026-09-03
 
 ### Added
