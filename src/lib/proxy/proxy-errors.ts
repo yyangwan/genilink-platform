@@ -13,7 +13,13 @@ export function handleProxyError(err: unknown, fallbackMessage = 'Failed to conn
   const message = (err as Error).message;
   const mapped = ERROR_MAP[message];
   if (mapped) {
-    return NextResponse.json({ error: mapped.error }, { status: mapped.status });
+    const upstreamMessage = (err as { upstreamMessage?: unknown }).upstreamMessage;
+    const customerMessage = message === 'PLATFORM_PUBLISH_FAILED'
+      && typeof upstreamMessage === 'string'
+      && upstreamMessage.trim()
+      ? upstreamMessage.trim().slice(0, 300)
+      : mapped.error;
+    return NextResponse.json({ error: customerMessage }, { status: mapped.status });
   }
   return NextResponse.json({ error: fallbackMessage }, { status: 502 });
 }
