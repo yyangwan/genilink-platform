@@ -52,4 +52,23 @@ describe('zhijian client proxyRequest', () => {
     expect(request.headers.get('content-type')).toBe('application/json');
     expect(request.headers.get('x-genilink-project-id')).toBe('proj-456');
   });
+
+  it('distinguishes expired publishing-platform authorization from service auth failure', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: vi.fn().mockResolvedValue({
+        error: 'No access token. Please authenticate with the platform.',
+        needsAuth: true,
+        platform: 'wechat',
+      }),
+    });
+
+    await expect(proxyRequest({
+      projectId: 'proj-456',
+      service: 'content',
+      path: '/api/publish/content-1',
+      method: 'POST',
+    })).rejects.toThrow('PLATFORM_AUTH_REQUIRED');
+  });
 });

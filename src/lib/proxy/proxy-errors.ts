@@ -4,6 +4,7 @@ const ERROR_MAP: Record<string, { error: string; status: number }> = {
   TIMEOUT: { error: 'Upstream timeout', status: 504 },
   NOT_FOUND: { error: 'Not found', status: 404 },
   AUTH_EXPIRED: { error: 'Service auth expired', status: 502 },
+  PLATFORM_AUTH_REQUIRED: { error: '发布平台授权已失效，请前往“发布平台”检查凭证或刷新授权。', status: 400 },
   ACCESS_DENIED: { error: 'Access denied', status: 403 },
 };
 
