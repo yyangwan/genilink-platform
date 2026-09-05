@@ -15,6 +15,16 @@ type UpstreamErrorBody = {
   needsAuth?: unknown;
 };
 
+export class UpstreamRequestError extends Error {
+  constructor(
+    code: string,
+    public readonly upstreamMessage?: string,
+  ) {
+    super(code);
+    this.name = 'UpstreamRequestError';
+  }
+}
+
 const SERVICE_URLS: Record<ProxyRequestOptions['service'], string> = {
   visibility: process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000',
   content: process.env.CONTENT_SERVICE_URL || 'http://127.0.0.1:4003',
@@ -39,7 +49,9 @@ function getHeaders(
   return headers;
 }
 
-async function classifyUpstreamError(res: Response): Promise<string> {
+async function classifyUpstreamError(
+  res: Response,
+): Promise<{ code: string; upstreamMessage?: string }> {
   let body: UpstreamErrorBody = {};
   try {
     body = await res.json() as UpstreamErrorBody;
@@ -48,13 +60,18 @@ async function classifyUpstreamError(res: Response): Promise<string> {
   }
 
   if (body.code === 'PLATFORM_AUTH_REQUIRED' || body.needsAuth === true) {
-    return 'PLATFORM_AUTH_REQUIRED';
+    return { code: 'PLATFORM_AUTH_REQUIRED' };
   }
-  if (body.code === 'PLATFORM_PUBLISH_FAILED') return 'PLATFORM_PUBLISH_FAILED';
-  if (res.status === 401) return 'AUTH_EXPIRED';
-  if (res.status === 403) return 'ACCESS_DENIED';
-  if (res.status === 404) return 'NOT_FOUND';
-  return `UPSTREAM_ERROR_${res.status}`;
+  if (body.code === 'PLATFORM_PUBLISH_FAILED') {
+    return {
+      code: 'PLATFORM_PUBLISH_FAILED',
+      upstreamMessage: typeof body.error === 'string' ? body.error : undefined,
+    };
+  }
+  if (res.status === 401) return { code: 'AUTH_EXPIRED' };
+  if (res.status === 403) return { code: 'ACCESS_DENIED' };
+  if (res.status === 404) return { code: 'NOT_FOUND' };
+  return { code: `UPSTREAM_ERROR_${res.status}` };
 }
 
 export async function proxyRequest<T = unknown>(opts: ProxyRequestOptions): Promise<T> {
@@ -71,7 +88,10 @@ export async function proxyRequest<T = unknown>(opts: ProxyRequestOptions): Prom
 
     clearTimeout(timer);
 
-    if (!res.ok) throw new Error(await classifyUpstreamError(res));
+    if (!res.ok) {
+      const upstreamError = await classifyUpstreamError(res);
+      throw new UpstreamRequestError(upstreamError.code, upstreamError.upstreamMessage);
+    }
 
     return (await res.json()) as T;
   } catch (err) {

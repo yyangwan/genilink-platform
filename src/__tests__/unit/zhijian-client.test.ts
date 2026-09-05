@@ -88,6 +88,9 @@ describe('zhijian client proxyRequest', () => {
       service: 'content',
       path: '/api/publish/content-1',
       method: 'POST',
-    })).rejects.toThrow('PLATFORM_PUBLISH_FAILED');
+    })).rejects.toMatchObject({
+      message: 'PLATFORM_PUBLISH_FAILED',
+      upstreamMessage: '微信公众号封面上传失败',
+    });
   });
 });
