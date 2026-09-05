@@ -22,3 +22,4 @@ For a routine user request such as “提交部署” or “提交并上线”, 
 - After merge, watch the single `main` workflow through deployment. Avoid repeated status polling and intermediate narration when state has not changed.
 - Perform production verification once after the workflow completes, report only the commit SHA, workflow result, active slot, health result, resource status, and rollback readiness.
 - Keep user updates to meaningful transitions: local gates complete, PR/CI running, and deployment verified.
+- For coordinated frontend and ContentOS changes, gate each repository once, create one PR per repository, deploy ContentOS first, deploy the frontend second, then perform one combined production verification.

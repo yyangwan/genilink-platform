@@ -9,6 +9,12 @@ export interface ProxyRequestOptions {
   timeoutMs?: number;
 }
 
+type UpstreamErrorBody = {
+  error?: unknown;
+  code?: unknown;
+  needsAuth?: unknown;
+};
+
 const SERVICE_URLS: Record<ProxyRequestOptions['service'], string> = {
   visibility: process.env.VISIBILITY_SERVICE_URL || 'http://127.0.0.1:8000',
   content: process.env.CONTENT_SERVICE_URL || 'http://127.0.0.1:4003',
@@ -33,6 +39,23 @@ function getHeaders(
   return headers;
 }
 
+async function classifyUpstreamError(res: Response): Promise<string> {
+  let body: UpstreamErrorBody = {};
+  try {
+    body = await res.json() as UpstreamErrorBody;
+  } catch {
+    // Upstream error bodies are not guaranteed to be JSON.
+  }
+
+  if (body.code === 'PLATFORM_AUTH_REQUIRED' || body.needsAuth === true) {
+    return 'PLATFORM_AUTH_REQUIRED';
+  }
+  if (res.status === 401) return 'AUTH_EXPIRED';
+  if (res.status === 403) return 'ACCESS_DENIED';
+  if (res.status === 404) return 'NOT_FOUND';
+  return `UPSTREAM_ERROR_${res.status}`;
+}
+
 export async function proxyRequest<T = unknown>(opts: ProxyRequestOptions): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? TIMEOUT_MS);
@@ -47,10 +70,7 @@ export async function proxyRequest<T = unknown>(opts: ProxyRequestOptions): Prom
 
     clearTimeout(timer);
 
-    if (res.status === 401) throw new Error('AUTH_EXPIRED');
-    if (res.status === 403) throw new Error('ACCESS_DENIED');
-    if (res.status === 404) throw new Error('NOT_FOUND');
-    if (!res.ok) throw new Error(`UPSTREAM_ERROR_${res.status}`);
+    if (!res.ok) throw new Error(await classifyUpstreamError(res));
 
     return (await res.json()) as T;
   } catch (err) {
