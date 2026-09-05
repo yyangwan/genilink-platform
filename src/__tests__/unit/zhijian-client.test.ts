@@ -71,4 +71,23 @@ describe('zhijian client proxyRequest', () => {
       method: 'POST',
     })).rejects.toThrow('PLATFORM_AUTH_REQUIRED');
   });
+
+  it('distinguishes platform publishing failures from service connectivity failures', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: vi.fn().mockResolvedValue({
+        error: '微信公众号封面上传失败',
+        code: 'PLATFORM_PUBLISH_FAILED',
+        needsAuth: false,
+      }),
+    });
+
+    await expect(proxyRequest({
+      projectId: 'proj-456',
+      service: 'content',
+      path: '/api/publish/content-1',
+      method: 'POST',
+    })).rejects.toThrow('PLATFORM_PUBLISH_FAILED');
+  });
 });

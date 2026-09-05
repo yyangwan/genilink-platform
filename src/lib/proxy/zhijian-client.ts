@@ -50,6 +50,7 @@ async function classifyUpstreamError(res: Response): Promise<string> {
   if (body.code === 'PLATFORM_AUTH_REQUIRED' || body.needsAuth === true) {
     return 'PLATFORM_AUTH_REQUIRED';
   }
+  if (body.code === 'PLATFORM_PUBLISH_FAILED') return 'PLATFORM_PUBLISH_FAILED';
   if (res.status === 401) return 'AUTH_EXPIRED';
   if (res.status === 403) return 'ACCESS_DENIED';
   if (res.status === 404) return 'NOT_FOUND';
