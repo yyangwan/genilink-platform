@@ -1,5 +1,9 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Project Documentation
+
+- [智见优化建议到智创内容创建链路技术设计](docs/zhijian-to-zhichuang-content-workflow-design.md)
+
 ## Getting Started
 
 First, run the development server:
