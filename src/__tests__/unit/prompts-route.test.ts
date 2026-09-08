@@ -23,6 +23,7 @@ describe('GET /api/integration/prompts', () => {
         session: { user: { id: 'user-1' } },
         workspaceId: 'workspace-1',
         projectId: 'project-1',
+        role: 'member',
         serviceToken: 'token-1',
         upstreamUrl: (path: string) => `http://upstream${path}`,
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-1' },

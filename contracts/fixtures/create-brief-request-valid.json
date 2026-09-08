@@ -1,0 +1,38 @@
+{
+  "sourceType": "visibility_suggestion",
+  "sourceSnapshot": {
+    "schemaVersion": 1,
+    "suggestionId": "154",
+    "text": "建立品牌百科词条，提升 DeepSeek 等主流 AI 助手对品牌信息的引用",
+    "description": "当前主流 AI 助手在回答品牌相关问题时缺少可引用的结构化资料，建议补齐官方百科与 FAQ 资产。",
+    "category": "引用可见性",
+    "priority": "high",
+    "actionType": "content_publish",
+    "typeTags": ["百科", "引用"],
+    "keywords": ["AI 搜索", "品牌可见性"],
+    "contentOutline": "品牌定位、核心能力、应用场景、常见问题",
+    "evidenceSummary": "DeepSeek 检索测试中 12 个品牌相关问题仅 2 个引用了官方资料。",
+    "auditFindings": ["DeepSeek 未引用自有内容"],
+    "acceptanceCriteria": ["百科词条上线并被至少一个 AI 助手引用"],
+    "expectedResult": "品牌核心信息在 AI 助手回答中的出现频率提升。",
+    "successMetric": "AI 助手引用率观察值提升",
+    "measurementPlan": "每周固定问题集检索并记录引用来源。",
+    "evidenceSources": ["https://example.com/audit/deepseek-brand"],
+    "actionSources": ["https://baike.example.com/brand"],
+    "requestedChannels": ["wechat", "zhihu"]
+  },
+  "projectSnapshot": {
+    "schemaVersion": 1,
+    "projectId": "project_123",
+    "name": "示例项目",
+    "url": "https://example.com",
+    "industry": "企业服务",
+    "productName": "示例产品",
+    "productKeywords": ["AI 搜索优化", "品牌可见性"],
+    "productDescription": "示例产品帮助企业追踪并优化品牌在 AI 搜索场景下的表现。"
+  },
+  "suggestionRef": {
+    "reportId": "88",
+    "auditId": "31"
+  }
+}
