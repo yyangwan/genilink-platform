@@ -26,6 +26,8 @@ interface ChatResponse {
   choices?: ChatChoice[];
 }
 
+const CONTENT_BRIEF_TIMEOUT_MS = 45_000;
+
 function llmConfig() {
   const apiKey = process.env.CONTENT_BRIEF_LLM_API_KEY || process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
   const baseUrl = process.env.CONTENT_BRIEF_LLM_BASE_URL || process.env.LLM_BASE_URL || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
@@ -105,6 +107,12 @@ function normalizeBrief(candidate: unknown, fallback: ContentBrief, allowedRefer
     mustMention: stringArray(record.mustMention, 8),
     avoid: stringArray(record.avoid, 8),
   };
+}
+
+function hasUsableBriefShape(candidate: unknown) {
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return false;
+  const record = candidate as Record<string, unknown>;
+  return safeString(record.topic).length > 0 && stringArray(record.keyPoints, 8).length > 0;
 }
 
 function buildPrompt(project: ProjectBriefContext, suggestion: SuggestionForContentBrief, allowedReferences: string[]) {
@@ -188,7 +196,7 @@ export async function generateContentBriefFromSuggestion(
         temperature: 0.2,
         response_format: { type: "json_object" },
       }),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(CONTENT_BRIEF_TIMEOUT_MS),
     });
 
     if (!res.ok) {
@@ -206,8 +214,13 @@ export async function generateContentBriefFromSuggestion(
       return fallbackWithReason("invalid_llm_json");
     }
 
+    const candidate = JSON.parse(json);
+    if (!hasUsableBriefShape(candidate)) {
+      return fallbackWithReason("invalid_llm_schema");
+    }
+
     return {
-      ...normalizeBrief(JSON.parse(json), fallback, allowedReferences),
+      ...normalizeBrief(candidate, fallback, allowedReferences),
       generatedBy: "llm",
     };
   } catch (err) {
