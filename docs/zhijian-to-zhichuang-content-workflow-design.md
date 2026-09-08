@@ -17,12 +17,12 @@
 本文同时作为以下工作的共同依据：
 
 - GeniLink Portal 与 ContentOS 的接口改造；
-- ContentOS 数据库迁移与生成任务执行；
+- ContentOS 新数据结构与生成任务执行；
 - 智见建议结构的后续升级；
 - 前端交互和客户文案；
-- 联调、回归、灰度、监控与回滚。
+- 联调、回归、上线验证、监控与回滚。
 
-本文描述的是目标设计。现有接口和数据结构仅作为迁移起点，不代表目标契约。
+本文描述的是目标设计。平台尚未正式对外开放，本方案按一次性切换设计，不包含历史业务数据迁移、旧接口兼容或新旧链路并行。
 
 ## 2. 背景与现状
 
@@ -79,7 +79,7 @@ Brief 序列化进 URL 查询参数
 - 额度预占、提交、释放和内容工作流使用同一操作 ID；
 - 所有跨服务输入执行运行时校验、长度限制和枚举校验；
 - 使用数据库状态与租约作为任务真相，不依赖浏览器连接；
-- 支持独立部署两个服务，并允许兼容期内安全回滚。
+- 支持两个服务按明确顺序完成一次性切换，并保留故障停用能力。
 
 ### 3.3 成功指标
 
@@ -101,11 +101,18 @@ Brief 序列化进 URL 查询参数
 
 - 自动发布到外部平台；
 - 自动确认 Brief 并跳过用户检查；
-- 对所有历史内容反向补齐来源建议；
+- 保留或回填内测阶段产生的 Brief、内容和额度测试数据；
 - 第一版同时新增知乎和今日头条生成器；
 - 引入新的外部消息队列产品；
 - 在一次工作流中生成多篇不同主题的内容；
 - 使用 AI 自动修改不可覆盖的事实与合规限制。
+
+### 4.1 内测期切换前提
+
+- 新链路上线时直接停止旧链路，不保留旧 URL、旧创建接口或双写逻辑；
+- 内测产生的 Brief、ContentPiece、平台生成结果和额度测试记录可以按测试数据处理，不做业务迁移；
+- 新表和字段仍通过正式数据库变更脚本创建，以保证环境可重复部署；
+- 本方案中的回滚只用于上线故障处置，不承担恢复旧业务数据或维持双版本运行的责任。
 
 ## 5. 冻结的设计决策
 
@@ -468,7 +475,7 @@ interface VisibilitySuggestionSnapshotV1 {
 
 ### 8.6 ContentOS 数据模型草案
 
-以下 Prisma 结构是实施参考，最终迁移名称按 ContentOS 规范确定。
+以下 Prisma 结构是实施参考，最终数据库变更名称按 ContentOS 规范确定。
 
 ```prisma
 model ContentBrief {
@@ -513,6 +520,7 @@ model ContentWorkflow {
   briefId                String
   brief                   ContentBrief @relation(fields: [briefId], references: [id])
   briefRevision          Int
+  briefSnapshot          Json
   contentPieceId         String?  @unique
   usageOperationId       String   @unique
   idempotencyKey         String
@@ -552,7 +560,7 @@ model ContentGenerationRun {
 }
 ```
 
-`ContentPiece.brief` 在兼容期继续写入 `effectiveBrief` 的 JSON 字符串，保证现有编辑器和提示词构建器可工作。同时新增可空的 `workflowId` 或通过 `ContentWorkflow.contentPieceId` 关联。完成迁移后，生成代码以 `ContentBrief` 为准，`ContentPiece.brief` 只保留快照用途。
+新链路直接把生成输入切换到 `ContentBrief` 与 `ContentWorkflow.briefRevision`。`ContentWorkflow` 在创建时保存不可变的 `briefSnapshot`，用于重试、审计和结果复现；`ContentPiece.brief` 不再作为新链路的事实来源。现有编辑器、提示词构建器和生成接口在同一次改造中改为读取工作流快照，不做双写或旧格式兼容。内测旧记录无需回填，可以在上线前清理对应测试数据。
 
 ### 8.7 Portal 额度模型扩展
 
@@ -570,7 +578,7 @@ model UsageEvent {
 }
 ```
 
-迁移使用部分唯一索引保证非空操作 ID 唯一：
+数据库变更使用部分唯一索引保证非空操作 ID 唯一：
 
 ```sql
 CREATE UNIQUE INDEX usage_event_operation_unique
@@ -578,7 +586,7 @@ ON "UsageEvent" ("workspaceId", feature, "operationId")
 WHERE "operationId" IS NOT NULL;
 ```
 
-历史 UsageEvent 默认状态为 `committed`，不需要生成 operationId。
+现有内测 UsageEvent 不做 operationId 回填。新链路启用前可清理内容生成测试额度记录；其他计费模块的数据不在本次清理范围内。
 
 ## 9. 状态机
 
@@ -1228,7 +1236,7 @@ src/app/api/capabilities/content-generation/route.ts
 需要调整：
 
 - `Brief` 保存完整 `GenerationContext`；
-- `ContentPiece.brief` 兼容写入完整有效 Brief；
+- 现有编辑器和生成逻辑一次性改为读取工作流保存的 Brief 快照；
 - 生成提示词必须消费 `mustMention`、`avoidMention`、claims 和来源；
 - 平台 normalize 遇到不支持的值返回 422，禁止默认微信；
 - 生成从请求同步调用改为数据库任务；
@@ -1354,7 +1362,7 @@ ContentOS：
 - 平台能力接口；
 - ContentOS 四平台严格校验；
 - 契约测试进入两个仓库 CI；
-- 功能开关 `CONTENT_BRIEF_WORKFLOW_V1`，默认关闭。
+- 上线控制开关 `CONTENT_BRIEF_WORKFLOW_V1`，联调完成前关闭。
 
 退出条件：两个仓库对相同示例和平台枚举测试通过。
 
@@ -1365,10 +1373,10 @@ ContentOS：
 - ContentOS ContentBrief 表和 API；
 - Portal 规范建议 loader；
 - 浏览器只提交 suggestionId；
-- 基础规则转换器迁移到 ContentOS；
+- 基础规则转换器移动到 ContentOS；
 - `/content/new?briefId=...`；
 - 项目绑定、版本编辑和完整约束展示；
-- 旧 URL 入口只保留兼容读取，不再生成新链接。
+- 删除旧 URL Brief 序列化、解析和浏览器创建编排代码。
 
 退出条件：规则版在 LLM 完全不可用时仍可完成创建前确认，且 URL 不包含业务正文。
 
@@ -1396,44 +1404,30 @@ ContentOS：
 
 退出条件：重复点击、响应丢失、worker 崩溃和部分平台失败测试全部通过。
 
-### Phase 4：灰度迁移
+### Phase 4：一次性上线
 
-1. 先部署 ContentOS 的兼容数据库和新 API；
-2. 验证旧 Portal 仍能使用旧接口；
-3. 部署 Portal，但保持开关关闭；
-4. 内部项目开启 10% 灰度；
-5. 检查 24 小时 Brief 回退率、重复率、额度对账和失败恢复；
-6. 扩大至 50%，再运行 24 小时；
-7. 全量启用；
-8. 稳定一个发布周期后停止创建旧 URL Brief；
-9. 再稳定一个发布周期后删除旧浏览器编排代码。
+1. 清理仅与本链路相关的内测 Brief、内容工作流和内容生成额度测试数据；
+2. 部署 ContentOS 新数据结构、API 和 worker，保持入口开关关闭；
+3. 验证 ContentOS 健康检查、能力接口、数据库结构和 worker 领取机制；
+4. 部署 Portal 新接口和前端；
+5. 执行跨服务契约、鉴权、额度和故障恢复 smoke test；
+6. 全量打开 `CONTENT_BRIEF_WORKFLOW_V1`；
+7. 观察 24 小时 Brief 回退率、重复率、额度对账和失败恢复；
+8. 确认稳定后删除不再使用的旧接口代码和相关测试夹具。
 
-部署顺序必须为 ContentOS 在前、Portal 在后。每个仓库分别通过本地 gate、PR CI 和正式发布流程。
+部署顺序必须为 ContentOS 在前、Portal 在后。两个仓库分别通过本地 gate、PR CI 和正式发布流程；不运行新旧两条业务链路并行灰度。
 
-## 21. 回滚策略
+## 21. 故障停用与恢复
 
-### 21.1 应用回滚
+平台未对外开放，不建设旧链路兼容回滚。上线故障按以下方式处理：
 
-- 新表和新增字段在兼容期只增不删；
-- Portal 开关关闭后恢复旧入口，但不得回滚数据库迁移；
-- ContentOS 新 API 在 Portal 完全回滚前保持兼容；
-- 已创建的新工作流继续由新 worker 完成，不能因前端回滚而丢弃；
-- 回滚后禁止创建新的 V1 工作流，但允许查询已有状态。
+1. 关闭 `CONTENT_BRIEF_WORKFLOW_V1`，停止新的 Brief 和工作流提交；
+2. 暂停 worker 领取新任务，但保留数据库中的任务状态；
+3. 修复并重新部署 ContentOS 或 Portal；
+4. 恢复 worker，由租约机制继续处理未完成任务；
+5. 重新执行跨服务 smoke test 后恢复入口。
 
-### 21.2 数据回滚
-
-不对已生成内容做自动删除。异常工作流标记 `needs_review`，由管理员确认重试、终止或保留。UsageEvent 只通过补偿状态转换处理，禁止直接删除账本记录。
-
-### 21.3 开关
-
-| 开关 | 作用 |
-|---|---|
-| `CONTENT_BRIEF_WORKFLOW_V1` | Portal 是否使用 briefId 链路 |
-| `CONTENT_BRIEF_ASYNC_REFINEMENT` | 是否启用 AI 异步提炼 |
-| `CONTENT_GENERATION_WORKER_V1` | 是否由 worker 执行平台生成 |
-| `CONTENT_USAGE_RESERVATION_V1` | 是否启用额度预占和回调 |
-
-开关依赖顺序与表中顺序一致，不允许后置能力在前置能力关闭时单独开启。
+`CONTENT_BRIEF_WORKFLOW_V1` 是上线控制和故障停用开关，不用于维持新旧业务链路并行。已经提交额度的 UsageEvent 只能通过明确的补偿状态转换处理，禁止直接删除账本记录。仅当确认都是内测数据且已核对目标表时，才可以清理新链路的 Brief、Workflow、Run 和 ContentPiece 测试记录。
 
 ## 22. 验收标准
 
@@ -1455,14 +1449,14 @@ ContentOS：
 ### 22.2 工程验收
 
 - [ ] 两个仓库契约 hash 和消费者/提供者测试通过；
-- [ ] 数据库迁移支持前后版本并行；
+- [ ] 新数据库结构可在空数据环境重复创建并通过约束检查；
 - [ ] Worker 租约、崩溃接管和最大尝试次数经过测试；
 - [ ] 所有外部调用有全生命周期超时；
 - [ ] 结构化日志包含完整关联 ID，不包含业务正文和密钥；
 - [ ] 额度对账无超过 10 分钟的未决记录；
-- [ ] 灰度期间重复内容和重复扣额均为 0；
+- [ ] 内部上线验证期间重复内容和重复扣额均为 0；
 - [ ] ContentOS 先部署、Portal 后部署，并完成组合 smoke test；
-- [ ] 回滚演练能够关闭新入口并继续查询已创建工作流。
+- [ ] 故障演练能够关闭新入口、暂停 worker，并在修复后恢复未完成工作流。
 
 ### 22.3 客户体验验收
 
@@ -1486,9 +1480,9 @@ ContentOS：
 | 6 | Portal | UsageEvent 预占、提交、释放和对账 | 无 |
 | 7 | ContentOS | Workflow、平台运行、worker、额度回调 | PR 3、6 |
 | 8 | Portal | 工作流 UI、状态查询、平台重试 | PR 7 |
-| 9 | 两仓库 | 故障注入、E2E、灰度指标与运行手册 | 前述全部 |
+| 9 | 两仓库 | 故障注入、E2E、上线指标与运行手册 | 前述全部 |
 
-每个 PR 都应保持向后兼容并独立通过各自的 `release:check`。跨仓库联调在 ContentOS 新接口部署到测试环境后进行。
+每个 PR 都应独立通过各自的 `release:check`。跨仓库联调在 ContentOS 新接口部署到测试环境后进行；最终上线采用同一发布窗口的一次性切换。
 
 ## 24. 设计取舍
 
@@ -1519,6 +1513,6 @@ ContentOS 已使用关系数据库且当前没有消息队列依赖。数据库�
 1. 数据契约、API、状态机和额度语义均已实现，而非只有转换文案；
 2. Portal 与 ContentOS 的发布版本通过跨服务契约测试；
 3. 故障注入证明断网、超时、重复提交和 worker 崩溃可恢复；
-4. 灰度监控证明没有重复内容、重复扣额和跨项目读取；
+4. 内部上线监控证明没有重复内容、重复扣额和跨项目读取；
 5. 客户从建议进入内容创建时看到经过提炼的创作方案，并能理解和控制最终生成结果；
-6. 正式运行手册包含部署顺序、开关、对账、告警和回滚步骤。
+6. 正式运行手册包含部署顺序、入口停用、worker 暂停与恢复、对账和告警步骤。
