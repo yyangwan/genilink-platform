@@ -31,7 +31,11 @@ function llmConfig() {
   const baseUrl = process.env.CONTENT_BRIEF_LLM_BASE_URL || process.env.LLM_BASE_URL || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = process.env.CONTENT_BRIEF_LLM_MODEL || process.env.LLM_MODEL || "gpt-4o-mini";
   if (!apiKey) return null;
-  return { apiKey, baseUrl: baseUrl.replace(/\/$/, ""), model };
+  const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
+  const completionUrl = /\/v1$/i.test(normalizedBaseUrl)
+    ? `${normalizedBaseUrl}/chat/completions`
+    : `${normalizedBaseUrl}/v1/chat/completions`;
+  return { apiKey, completionUrl, model };
 }
 
 function extractJson(text: string) {
@@ -103,19 +107,19 @@ function normalizeBrief(candidate: unknown, fallback: ContentBrief, allowedRefer
   };
 }
 
-function buildPrompt(project: ProjectBriefContext, suggestion: SuggestionForContentBrief, allowedReferences: string[], fallback: ContentBrief) {
+function buildPrompt(project: ProjectBriefContext, suggestion: SuggestionForContentBrief, allowedReferences: string[]) {
   return [
     {
       role: "system",
       content:
-        "You are a senior Chinese content strategist. Convert visibility optimization suggestions into a practical content creation brief. Return strict JSON only. Do not invent facts, customers, metrics, or URLs. References must be selected only from the allowedReferences list.",
+        "Transform the supplied project and suggestion data into one practical Chinese content-brief JSON object. Use only supplied facts. Do not research, add facts, add URLs, explain, or use Markdown. References must be selected only from allowedReferences.",
     },
     {
       role: "user",
       content: JSON.stringify({
         instructions: {
           language: "zh-CN",
-          goal: "Analyze the suggestion deeply and produce fields for AI content creation, not a mechanical field split.",
+          goal: "Produce structured fields that can directly initialize AI content creation.",
           requiredJsonShape: {
             topic: "A publishable content topic, specific to the project/product and the visibility gap.",
             contentType: "faq | guide | comparison | case_study | thought_leadership | checklist | explainer",
@@ -141,7 +145,6 @@ function buildPrompt(project: ProjectBriefContext, suggestion: SuggestionForCont
         },
         suggestion,
         allowedReferences,
-        deterministicFallback: fallback,
       }),
     },
   ];
@@ -173,7 +176,7 @@ export async function generateContentBriefFromSuggestion(
   }
 
   try {
-    const res = await fetch(`${config.baseUrl}/chat/completions`, {
+    const res = await fetch(config.completionUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -181,8 +184,9 @@ export async function generateContentBriefFromSuggestion(
       },
       body: JSON.stringify({
         model: config.model,
-        messages: buildPrompt(project, suggestion, allowedReferences, fallback),
+        messages: buildPrompt(project, suggestion, allowedReferences),
         temperature: 0.2,
+        response_format: { type: "json_object" },
       }),
       signal: AbortSignal.timeout(30_000),
     });
