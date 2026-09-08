@@ -109,10 +109,19 @@ function normalizeBrief(candidate: unknown, fallback: ContentBrief, allowedRefer
   };
 }
 
-function hasUsableBriefShape(candidate: unknown) {
+function hasUsableBriefShape(candidate: unknown, suggestion: SuggestionForContentBrief) {
   if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return false;
   const record = candidate as Record<string, unknown>;
-  return safeString(record.topic).length > 0 && stringArray(record.keyPoints, 8).length > 0;
+  const topic = safeString(record.topic);
+  const keyPoints = stringArray(record.keyPoints, 8);
+  const sourceText = safeString(suggestion.text).toLowerCase();
+  const topicText = topic.toLowerCase();
+  return topic.length > 0
+    && keyPoints.length >= 4
+    && (sourceText.length === 0 || (
+      !topicText.includes(sourceText)
+      && !keyPoints.some((point) => point.toLowerCase().includes(sourceText))
+    ));
 }
 
 function buildPrompt(project: ProjectBriefContext, suggestion: SuggestionForContentBrief, allowedReferences: string[]) {
@@ -120,7 +129,7 @@ function buildPrompt(project: ProjectBriefContext, suggestion: SuggestionForCont
     {
       role: "system",
       content:
-        "Transform the supplied project and suggestion data into one practical Chinese content-brief JSON object. Use only supplied facts. Do not research, add facts, add URLs, explain, or use Markdown. References must be selected only from allowedReferences.",
+        "Transform the supplied internal optimization suggestion into one reader-facing, publishable Chinese content brief. Do not copy the suggestion title, audit finding, task wording, acceptance criteria, or expected result into topic/keyPoints. Rewrite them into an editorial angle and article structure that make sense without the reader seeing the source suggestion. Use only supplied facts. Do not research, add facts, add URLs, explain, or use Markdown. References must be selected only from allowedReferences.",
     },
     {
       role: "user",
@@ -129,10 +138,10 @@ function buildPrompt(project: ProjectBriefContext, suggestion: SuggestionForCont
           language: "zh-CN",
           goal: "Produce structured fields that can directly initialize AI content creation.",
           requiredJsonShape: {
-            topic: "A publishable content topic, specific to the project/product and the visibility gap.",
+            topic: "A reader-facing publishable title or topic, not an optimization task or audit recommendation.",
             contentType: "faq | guide | comparison | case_study | thought_leadership | checklist | explainer",
             intent: "The user/search intent this content should satisfy.",
-            keyPoints: ["4-8 concrete arguments or sections"],
+            keyPoints: ["4-8 reader-facing article sections or arguments, rewritten from the strategy rather than copied from source fields"],
             references: ["Only concrete article/page URLs from allowedReferences. Use [] if none."],
             notes: "Writing constraints, project/product boundary, audit context, success metric, and what to avoid.",
             platforms: ["wechat | weibo | douyin | xiaohongshu | toutiao | zhihu"],
@@ -162,7 +171,7 @@ export async function generateContentBriefFromSuggestion(
   project: ProjectBriefContext,
   suggestion: SuggestionForContentBrief,
 ): Promise<ContentBrief & { generatedBy: "llm" | "rules"; fallbackReason?: string }> {
-  const baseFallback = createContentBriefFromSuggestion(suggestion);
+  const baseFallback = createContentBriefFromSuggestion(suggestion, project);
   const allowedReferences = filterSpecificReferenceUrls([
     ...(suggestion.action_sources ?? []),
     ...(suggestion.evidence_sources ?? []),
@@ -215,7 +224,7 @@ export async function generateContentBriefFromSuggestion(
     }
 
     const candidate = JSON.parse(json);
-    if (!hasUsableBriefShape(candidate)) {
+    if (!hasUsableBriefShape(candidate, suggestion)) {
       return fallbackWithReason("invalid_llm_schema");
     }
 

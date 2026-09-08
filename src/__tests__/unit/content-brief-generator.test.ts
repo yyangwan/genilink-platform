@@ -31,7 +31,12 @@ describe('generateContentBriefFromSuggestion', () => {
               topic: 'How Product A improves AI search visibility',
               contentType: 'guide',
               intent: 'Help buyers solve recommendation-query visibility gaps.',
-              keyPoints: ['Explain the gap', 'Show product proof'],
+              keyPoints: [
+                'Explain the visibility gap in reader terms',
+                'Introduce the product capability that addresses it',
+                'Show how a team can apply the workflow',
+                'Close with practical evaluation criteria',
+              ],
               references: [
                 'https://brand.com/blog/ai-search',
                 'https://invented.example/article',
@@ -88,7 +93,7 @@ describe('generateContentBriefFromSuggestion', () => {
 
     expect(brief.generatedBy).toBe('rules');
     expect(brief.fallbackReason).toBe('missing_llm_config');
-    expect(brief.topic).toBe('Publish FAQ：AI search');
+    expect(brief.topic).toBe('Project A（Product A）常见问题：AI search的理解与应用');
     expect(brief.references).toBe('https://brand.com/blog/ai-search');
   });
 
@@ -107,6 +112,6 @@ describe('generateContentBriefFromSuggestion', () => {
 
     expect(brief.generatedBy).toBe('rules');
     expect(brief.fallbackReason).toBe('invalid_llm_schema');
-    expect(brief.topic).toBe('Publish FAQ：AI search');
+    expect(brief.topic).toBe('Project A（Product A）常见问题：AI search的理解与应用');
   });
 });

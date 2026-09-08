@@ -35,6 +35,14 @@ export interface ContentBrief {
   avoid?: string[];
 }
 
+export interface ContentBriefProjectContext {
+  name?: string | null;
+  industry?: string | null;
+  productName?: string | null;
+  productKeywords?: string[];
+  productDescription?: string | null;
+}
+
 const SUPPORTED_PLATFORMS = new Set(["wechat", "weibo", "douyin", "xiaohongshu", "toutiao", "zhihu"]);
 
 const CHANNEL_TO_PLATFORM: Record<string, string> = {
@@ -55,6 +63,11 @@ const CHANNEL_TO_PLATFORM: Record<string, string> = {
 
 function cleanText(value?: string | null) {
   return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function shortPhrase(value?: string | null, limit = 36) {
+  const firstSentence = cleanText(value).split(/[。！？.!?；;]/)[0]?.trim() ?? "";
+  return firstSentence.length > limit ? `${firstSentence.slice(0, limit)}…` : firstSentence;
 }
 
 function unique(values: string[], limit?: number) {
@@ -95,13 +108,6 @@ export function filterSpecificReferenceUrls(values: string[], limit = 5) {
   return unique(values.map(normalizeUrl).filter(isSpecificReferenceUrl), limit);
 }
 
-function outlineItems(outline?: string) {
-  return (outline ?? "")
-    .split(/\r?\n|[;；]/)
-    .map((item) => item.replace(/^[-*•\d.\s]+/, "").trim())
-    .filter(Boolean);
-}
-
 function detectPlatforms(suggestion: SuggestionForContentBrief) {
   const rawChannels = [
     ...(suggestion.action_channels ?? []),
@@ -116,41 +122,68 @@ function detectPlatforms(suggestion: SuggestionForContentBrief) {
   );
 }
 
-export function createContentBriefFromSuggestion(suggestion: SuggestionForContentBrief): ContentBrief {
-  const keywords = unique(suggestion.keywords ?? [], 3);
-  const topicParts = [
-    cleanText(suggestion.action_type),
-    keywords.length > 0 ? keywords.join(" / ") : "",
-    cleanText(suggestion.text),
-  ].filter(Boolean);
-  const topic = topicParts.length > 0 ? topicParts.slice(0, 2).join("：") : cleanText(suggestion.text);
+function editorialTopic(suggestion: SuggestionForContentBrief, project?: ContentBriefProjectContext) {
+  const brand = cleanText(project?.name) || cleanText(project?.productName) || "品牌";
+  const product = cleanText(project?.productName);
+  const keywords = unique(project?.productKeywords?.length ? project.productKeywords : suggestion.keywords ?? [], 2);
+  const signal = [suggestion.text, suggestion.description, suggestion.action_type, ...(suggestion.type_tags ?? [])]
+    .map(cleanText)
+    .join(" ")
+    .toLowerCase();
+  const keywordLabel = keywords.join("与");
 
-  const weeklyTasks = (suggestion.weekly_tasks ?? []).flatMap((week) => week.tasks);
-  const keyPoints = unique(
-    [
-      ...outlineItems(suggestion.content_outline),
-      ...(suggestion.audit_findings ?? []),
-      ...(suggestion.acceptance_criteria ?? []),
-      ...weeklyTasks,
-      suggestion.expected_result ?? "",
-      suggestion.success_metric ?? "",
-      suggestion.competitor_reference ?? "",
-      ...keywords.map((keyword) => `覆盖关键词：${keyword}`),
-    ],
-    8,
-  );
+  if (/百科|词条|encyclop/.test(signal)) {
+    const positioning = shortPhrase(project?.productDescription);
+    return positioning
+      ? `${brand}是什么？${positioning}的定位、核心能力与应用场景`
+      : `${brand}是什么？品牌定位、核心能力与应用场景`;
+  }
+  if (/faq|问答|常见问题/.test(signal)) {
+    return `${brand}${product && product !== brand ? `（${product}）` : ""}常见问题：${keywordLabel || "核心能力"}的理解与应用`;
+  }
+  if (/对比|比较|选型|comparison/.test(signal)) {
+    return `${keywordLabel || product || brand}选型指南：关键能力、适用场景与评估方法`;
+  }
+  if (/引用|推荐|可见性|citation|visibility/.test(signal)) {
+    return `${brand}如何通过${keywordLabel || "高质量内容"}提升品牌可见性与可信度`;
+  }
+  return `${brand}${product && product !== brand ? `（${product}）` : ""}：核心价值、适用场景与实践方法`;
+}
+
+function editorialKeyPoints(suggestion: SuggestionForContentBrief, project?: ContentBriefProjectContext) {
+  const brand = cleanText(project?.name) || cleanText(project?.productName) || "品牌/产品";
+  const product = cleanText(project?.productName);
+  const industry = cleanText(project?.industry);
+  const description = cleanText(project?.productDescription);
+  const keywords = unique(project?.productKeywords?.length ? project.productKeywords : suggestion.keywords ?? [], 3);
+  const keywordLabel = keywords.join("、");
+
+  return unique([
+    `先回答读者最关心的问题：${brand}${product && product !== brand ? `与${product}` : ""}是什么、解决什么问题`,
+    industry ? `说明${industry}场景下的典型痛点，以及为什么需要关注${keywordLabel || "这一能力"}` : `说明目标用户面临的典型问题，以及为什么需要关注${keywordLabel || "这一能力"}`,
+    description ? `基于已确认信息拆解核心定位与能力：${description}` : `拆解核心能力、工作方式和适用边界，避免空泛宣传`,
+    `用具体使用场景说明${brand}能为用户带来的价值，不虚构案例或效果数据`,
+    `围绕${keywordLabel || "产品与行业主题"}回答常见疑问，并给出清晰、可执行的理解路径`,
+    `总结选择或评估相关方案时应关注的指标、证据和下一步行动`,
+  ], 8);
+}
+
+export function createContentBriefFromSuggestion(
+  suggestion: SuggestionForContentBrief,
+  project?: ContentBriefProjectContext,
+): ContentBrief {
+  const keywords = unique(suggestion.keywords ?? [], 3);
+  const topic = editorialTopic(suggestion, project);
+  const keyPoints = editorialKeyPoints(suggestion, project);
 
   const referenceLines = filterSpecificReferenceUrls([...(suggestion.action_sources ?? []), ...(suggestion.evidence_sources ?? [])]);
 
   const noteLines = unique([
-    suggestion.description ?? "",
-    suggestion.evidence_summary ? `审计依据：${suggestion.evidence_summary}` : "",
-    suggestion.action_type ? `建议动作：${suggestion.action_type}` : "",
-    suggestion.expected_result ? `预期结果：${suggestion.expected_result}` : "",
-    suggestion.success_metric ? `成功指标：${suggestion.success_metric}` : "",
-    suggestion.measurement_plan ? `复盘方式：${suggestion.measurement_plan}` : "",
-    suggestion.platform ? `来源平台：${suggestion.platform}` : "",
-    suggestion.text ? `原始建议：${suggestion.text}` : "",
+    `创作目的：将内部优化建议转化为面向目标读者的独立内容，不在正文中复述任务或审计话术。`,
+    suggestion.expected_result ? `期望影响：${cleanText(suggestion.expected_result)}` : "",
+    suggestion.success_metric ? `发布后观察：${cleanText(suggestion.success_metric)}` : "",
+    keywords.length > 0 ? `自然融入关键词：${keywords.join("、")}，避免堆砌。` : "",
+    `事实要求：只使用已确认的项目、产品与参考资料；缺少证据的案例、数据和结论不得编造。`,
   ]);
 
   return {
