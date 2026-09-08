@@ -20,7 +20,7 @@ describe('generateContentBriefFromSuggestion', () => {
 
   it('uses the LLM when configured and filters references to allowed specific URLs', async () => {
     vi.stubEnv('CONTENT_BRIEF_LLM_API_KEY', 'test-key');
-    vi.stubEnv('CONTENT_BRIEF_LLM_BASE_URL', 'https://llm.example/v1');
+    vi.stubEnv('CONTENT_BRIEF_LLM_BASE_URL', 'https://llm.example');
     vi.stubEnv('CONTENT_BRIEF_LLM_MODEL', 'brief-model');
 
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
@@ -63,6 +63,13 @@ describe('generateContentBriefFromSuggestion', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer test-key' }),
       }),
     );
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const requestBody = JSON.parse(String(request.body));
+    const userPayload = JSON.parse(requestBody.messages[1].content);
+    expect(requestBody.response_format).toEqual({ type: 'json_object' });
+    expect(requestBody.messages[0].content).toContain('Do not research');
+    expect(userPayload).not.toHaveProperty('deterministicFallback');
+    expect(userPayload.suggestion.text).toBe('Improve citation coverage');
     expect(brief.generatedBy).toBe('llm');
     expect(brief.topic).toBe('How Product A improves AI search visibility');
     expect(brief.references).toBe('https://brand.com/blog/ai-search');
