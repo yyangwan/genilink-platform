@@ -18,6 +18,7 @@ import {
   type SuggestionForContentBrief,
 } from "@/lib/content/content-brief";
 import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
+import { useToast } from "@/components/ui/toast-context";
 
 const metricStyle: React.CSSProperties = {
   display: "flex",
@@ -31,6 +32,7 @@ function DataBridge({ projectId }: { projectId: string }) {
   const bridgeUrl = projectId ? `/api/integration/suggestions?projectId=${projectId}` : null;
   const bridge = useSectionFetch<SuggestionForContentBrief[]>(bridgeUrl);
   const router = useRouter();
+  const { addToast } = useToast();
   const [loadingSuggestionId, setLoadingSuggestionId] = useState<string | null>(null);
 
   if (bridge.loading) {
@@ -70,9 +72,17 @@ function DataBridge({ projectId }: { projectId: string }) {
       });
       if (res.ok) {
         const json = await res.json();
-        if (json.data?.generatedBy !== "llm") {
-          alert("AI 分析服务暂不可用，未生成内容创建信息。请稍后重试。");
+        if (!json.data) {
+          alert("暂时无法生成创作信息，请稍后重试");
           return;
+        }
+        if (json.data?.generatedBy !== "llm") {
+          addToast({
+            type: "info",
+            title: "已生成基础创作信息",
+            description: "你可以在下一步继续完善内容方向和写作要求。",
+            duration: 5000,
+          });
         }
         router.push(`/content/new?${contentBriefToSearchParams(json.data).toString()}`);
         return;

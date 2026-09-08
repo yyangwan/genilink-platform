@@ -91,4 +91,22 @@ describe('generateContentBriefFromSuggestion', () => {
     expect(brief.topic).toBe('Publish FAQ：AI search');
     expect(brief.references).toBe('https://brand.com/blog/ai-search');
   });
+
+  it('uses the deterministic brief when the model returns an unrelated JSON schema', async () => {
+    vi.stubEnv('CONTENT_BRIEF_LLM_API_KEY', 'test-key');
+    vi.stubEnv('CONTENT_BRIEF_LLM_BASE_URL', 'https://llm.example/v1');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({ project_title: 'Unrelated research output' }) } }],
+    }), { status: 200, headers: { 'content-type': 'application/json' } })));
+
+    const brief = await generateContentBriefFromSuggestion(project, {
+      text: 'Improve citation coverage',
+      action_type: 'Publish FAQ',
+      keywords: ['AI search'],
+    });
+
+    expect(brief.generatedBy).toBe('rules');
+    expect(brief.fallbackReason).toBe('invalid_llm_schema');
+    expect(brief.topic).toBe('Publish FAQ：AI search');
+  });
 });
