@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const push = vi.fn();
 const addToast = vi.fn();
@@ -37,28 +37,83 @@ vi.mock('@/components/ui/toast-context', () => ({ useToast: () => ({ addToast })
 
 import ContentPage from '@/app/(dashboard)/content/page';
 
-describe('/content AI generation', () => {
-  it('continues to content creation with transparent fallback guidance when deep analysis times out', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      data: {
-        generatedBy: 'rules',
-        fallbackReason: 'The operation was aborted due to timeout',
-        topic: '建立百度百科词条获得DeepSeek引用',
-        keyPoints: ['说明平台定位与核心能力'],
-        references: '',
-        notes: '围绕当前项目展开',
-        platforms: ['zhihu'],
-      },
-    }), { status: 200, headers: { 'content-type': 'application/json' } })));
+describe('/content 智见建议 → 创作方案', () => {
+  beforeEach(() => {
+    push.mockClear();
+    addToast.mockClear();
+  });
+
+  it('sends only suggestionId and navigates by briefId', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: { id: 'brief_abc', refinement: { status: 'queued' } },
+          meta: { replayed: false },
+        }),
+        { status: 201, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
 
     render(<ContentPage />);
-    fireEvent.click(screen.getByRole('button', { name: 'AI 生成' }));
+    fireEvent.click(screen.getByRole('button', { name: /AI 生成/ }));
 
     await waitFor(() => expect(push).toHaveBeenCalledOnce());
-    expect(push.mock.calls[0][0]).toContain('/content/new?');
+    expect(push.mock.calls[0][0]).toBe('/content/new?briefId=brief_abc');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain('/api/content/briefs/from-suggestion?projectId=project-1');
+    expect(init.method).toBe('POST');
+    expect(init.headers['Idempotency-Key']).toMatch(/^[0-9a-f-]{36}$/);
+    expect(JSON.parse(init.body)).toEqual({ projectId: 'project-1', suggestionId: '68' });
     expect(addToast).toHaveBeenCalledWith(expect.objectContaining({
       type: 'info',
-      title: '已生成基础创作信息',
+      title: '已生成基础创作方案',
     }));
+    vi.unstubAllGlobals();
+  });
+
+  it('shows an ineligible toast and stays on the page on 422', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: { code: 'SUGGESTION_NOT_CONTENT_ELIGIBLE', message: '该建议属于技术/运营任务' } }),
+        { status: 422, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ContentPage />);
+    fireEvent.click(screen.getByRole('button', { name: /AI 生成/ }));
+
+    await waitFor(() =>
+      expect(addToast).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'error',
+        title: '创建创作方案失败',
+      })),
+    );
+    expect(push).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps the idempotency key and shows 正在确认 on network failure', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('network down'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ContentPage />);
+    fireEvent.click(screen.getByRole('button', { name: /AI 生成/ }));
+
+    await waitFor(() =>
+      expect(addToast).toHaveBeenCalledWith(expect.objectContaining({ title: '正在确认' })),
+    );
+    expect(push).not.toHaveBeenCalled();
+
+    // 网络恢复后重试：复用同一幂等键，不生成第二个键。
+    fetchMock.mockRejectedValueOnce(new TypeError('network down'));
+    fireEvent.click(screen.getByRole('button', { name: /AI 生成/ }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const key1 = fetchMock.mock.calls[0][1].headers['Idempotency-Key'];
+    const key2 = fetchMock.mock.calls[1][1].headers['Idempotency-Key'];
+    expect(key2).toBe(key1);
+    vi.unstubAllGlobals();
   });
 });
