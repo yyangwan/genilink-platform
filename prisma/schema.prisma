@@ -521,8 +521,14 @@ model UsageEvent {
   quantity    Int       @default(1)
   periodStart DateTime
   metadata    Json?
+  // 额度预占账本（设计 §8.7）：operationId 关联 ContentOS 工作流对账。
+  operationId String?   @db.Text
+  requestHash String?   @db.Text
+  status      String    @default("committed") @db.Text
+  expiresAt   DateTime?
   createdAt   DateTime  @default(now())
 
-  @@index([workspaceId, feature, periodStart])
+  @@index([workspaceId, feature, periodStart, status])
+  @@index([status, expiresAt])
   @@index([createdAt])
 }
