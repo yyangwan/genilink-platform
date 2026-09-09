@@ -127,6 +127,8 @@ function NewContentInner() {
   const [submitting, setSubmitting] = useState(false);
   const [refinementStatus, setRefinementStatus] = useState<string | null>(null);
   const dirtyRef = useRef(false);
+  // 工作流提交幂等键：结果不确定（超时）时保留，重试复用同一键。
+  const submitKeyRef = useRef<string | null>(null);
 
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [voices, setVoices] = useState<BrandVoiceOption[]>([]);
@@ -327,7 +329,8 @@ function NewContentInner() {
     }
   }, [detail, briefId, currentProjectId, saving, editorValue, selectedPlatforms, applyDetail, addToast]);
 
-  // 提交：PR4 过渡期创建草稿（无生成）；工作流入口在 PR8 接入。
+  // 提交：有 Brief 时走内容工作流（预占额度 → ContentOS 异步生成 → 进度页）；
+  // 手工模式（无 briefId）创建草稿进入编辑器，生成入口仍是工作流。
   const handleSubmit = useCallback(async () => {
     if (!currentProjectId || submitting || projectMismatch) return;
     if (!editorValue.topic.trim()) {
@@ -340,6 +343,109 @@ function NewContentInner() {
     }
     setSubmitting(true);
     try {
+      if (briefId && detail) {
+        let currentRevision = detail.revision;
+        // 有未保存的编辑时先保存，保证工作流使用最新 revision。
+        if (dirtyRef.current) {
+          const saved = await fetch(
+            `/api/content/briefs/${encodeURIComponent(briefId)}?projectId=${currentProjectId}`,
+            {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+                "Idempotency-Key": crypto.randomUUID(),
+              },
+              body: JSON.stringify({
+                expectedRevision: detail.revision,
+                editorial: {
+                  topic: editorValue.topic.trim() || detail.brief?.topic || "未命名主题",
+                  titleCandidates: editorValue.titleCandidates,
+                  outline: editorValue.outline.filter((s) => s.heading.trim() || s.purpose.trim()),
+                  keywords: editorValue.keywords,
+                  references: editorValue.references,
+                  notes: editorValue.notes,
+                },
+                selectedPlatforms,
+              }),
+            },
+          );
+          const savedJson = await saved.json().catch(() => ({}));
+          if (saved.status === 409) {
+            addToast({
+              type: "error",
+              title: "创作方案已在其他页面更新",
+              description: "请刷新后继续。",
+            });
+            return;
+          }
+          if (!saved.ok) {
+            addToast({
+              type: "error",
+              title: "保存失败",
+              description: savedJson?.error?.message ?? "请稍后重试。",
+            });
+            return;
+          }
+          const savedDetail = savedJson.data as BriefDetail | null;
+          if (savedDetail?.revision) currentRevision = savedDetail.revision;
+          dirtyRef.current = false;
+          setDirty(false);
+          applyDetail(savedDetail ?? detail, true);
+        }
+
+        submitKeyRef.current = submitKeyRef.current ?? crypto.randomUUID();
+        const res = await fetch(`/api/content/workflows?projectId=${currentProjectId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": submitKeyRef.current,
+          },
+          body: JSON.stringify({
+            briefId,
+            briefRevision: currentRevision,
+            platforms: selectedPlatforms,
+            templateId: selectedTemplate || undefined,
+            brandVoiceId: selectedVoice || undefined,
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && json.meta?.uncertain) {
+          // 结果不确定：保留幂等键，重试复用（设计 §13.3）。
+          addToast({
+            type: "info",
+            title: "正在确认",
+            description: "请求结果确认中，请勿重复提交。",
+            duration: 6000,
+          });
+          return;
+        }
+        submitKeyRef.current = null;
+        if (res.status === 402) {
+          addToast({
+            type: "error",
+            title: "本月生成额度已用完",
+            description: "可在设置中升级套餐。",
+          });
+          return;
+        }
+        if (!res.ok) {
+          submitKeyRef.current = null;
+          addToast({
+            type: "error",
+            title: "提交失败",
+            description: json?.error?.message ?? "请稍后重试。",
+          });
+          return;
+        }
+        submitKeyRef.current = null;
+        const workflowId = (json.data as { id?: string } | null)?.id;
+        if (workflowId) {
+          router.push(`/content/workflows/${workflowId}`);
+        }
+        return;
+      }
+
+      // 手工模式：仅创建草稿。
       const res = await fetch(`/api/content?projectId=${currentProjectId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -371,7 +477,7 @@ function NewContentInner() {
     } finally {
       setSubmitting(false);
     }
-  }, [currentProjectId, submitting, projectMismatch, editorValue, selectedPlatforms, selectedTemplate, selectedVoice, router, addToast]);
+  }, [currentProjectId, submitting, projectMismatch, editorValue, selectedPlatforms, selectedTemplate, selectedVoice, router, addToast, briefId, detail, applyDetail]);
 
   const refinementLabel =
     refinementStatus === "succeeded"
