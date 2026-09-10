@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Billing 审查整改已完成并提交 (7a8b5c7, 方案: docs/billing-checkout-review-remediation-plan.md v1.1)：9 项 P1 全部修复，tsc/lint/352 测试/build 全绿，幂等作用域迁移已应用。待办: 二次审查 → 生产演练 (先跑 scripts/billing-premigration-check.sh) → 真实小额支付验证 → 渠道代扣审批后实施阶段四。进度: `~/.gstack/projects/genilink-platform/progress.md`
+内容工作流 v1 评审整改完成（branch codex/content-workflow-v1，报告 docs/content-workflow-v1-implementation-review.md，R1–R14 全修 + §8.3/§8.6/§16.2 覆盖缺口补齐）。两仓门禁全绿（Portal 529/529、ContentOS 530/530、tsc/lint 0 错误），改动未提交。待办: 两仓提交 → PR CI → ContentOS 先 Portal 后发布 → 上线核实 cron/回调密钥/停用开关演练。Billing 整改已提交 (7a8b5c7)，待二次审查与生产演练。进度: `~/.gstack/projects/genilink-platform/progress.md`
 
 ## ContentOS JWT Integration (done)
 

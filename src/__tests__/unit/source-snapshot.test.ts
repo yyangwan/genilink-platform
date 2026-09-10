@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   assertSnapshotLimits,
+  assertSourceInputLimits,
   buildProjectSnapshot,
   buildSourceSnapshot,
   computeSourceHash,
@@ -132,6 +133,30 @@ describe('computeSourceHash', () => {
     const b = buildSourceSnapshot(baseSuggestion());
     b.text = '修改后的建议';
     expect(computeSourceHash(a)).not.toBe(computeSourceHash(b));
+  });
+});
+
+describe('assertSourceInputLimits（§8.3 超限输入 422，不得静默截断）', () => {
+  it('accepts normal suggestions', () => {
+    expect(assertSourceInputLimits(baseSuggestion())).toEqual([]);
+  });
+
+  it('flags over-limit arrays instead of silently truncating them', () => {
+    const s = baseSuggestion();
+    s.audit_findings = Array.from({ length: 25 }, (_, i) => `发现 ${i}`);
+    expect(assertSourceInputLimits(s)).toContain('auditFindings');
+  });
+
+  it('flags over-limit array items instead of silently dropping them', () => {
+    const s = baseSuggestion();
+    s.keywords = ['a'.repeat(300)];
+    expect(assertSourceInputLimits(s)).toContain('keywords');
+  });
+
+  it('flags over-limit text fields before normalization could hide them', () => {
+    const s = baseSuggestion();
+    s.description = 'x'.repeat(4001);
+    expect(assertSourceInputLimits(s)).toContain('description');
   });
 });
 

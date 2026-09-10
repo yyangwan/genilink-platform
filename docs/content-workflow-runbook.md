@@ -24,6 +24,7 @@
 | 仓库 | 变量 | 说明 |
 |---|---|---|
 | 两仓库 | `CONTENT_USAGE_CALLBACK_SECRET` | 共享密钥（必须同值）。缺失时额度回调 fail-closed（503/不生成） |
+| 两仓库 | `CONTENT_WORKFLOW_DISABLED` | 故障停用开关。设为 `true` 时：拒绝新提交（Brief/工作流/人工重试 503）+ 暂停领取（cron 与 inline kick 空转）。删除该变量或置 false 恢复，已保存数据不动 |
 | ContentOS | `GENILINK_PORTAL_URL` | Portal 地址（如 `http://127.0.0.1:3001`） |
 | ContentOS | `CRON_SECRET` | cron 路由鉴权（已存在） |
 | Portal | `CONTENT_SERVICE_URL` | ContentOS 地址。**注意 `.env` 默认 4003，本地 `start-all.sh` 起 4002**，联调时在 `.env.local` 覆盖为 `http://127.0.0.1:4002` |
@@ -32,7 +33,19 @@
 
 ## 3. 数据库
 
-- ContentOS（MySQL，schema-first `db push` 惯例）：新增 `ContentBrief`、`ContentWorkflow`、`ContentGenerationRun`。**注意：远端库存在存量备份表 `platformapiconfig_backup_20260821`（1 行），`db push` 会要求删除它——处理前先与负责人确认**。本次已用精确 SQL 建表，绕过该漂移。
+- ContentOS（MySQL，schema-first `db push` 惯例）：新增 `ContentBrief`、`ContentWorkflow`、`ContentGenerationRun`。**注意：远端库存在存量备份表 `platformapiconfig_backup_20260821`（1 行），`db push` 会要求删除它——已确认保留不动，禁止对本库执行 `db push`**。所有变更用精确 SQL：
+  - 建表（2026-09-09，首次部署）
+  - 评审整改加列（2026-09-10，均已应用）：
+    ```sql
+    ALTER TABLE ContentBrief
+      ADD COLUMN refinementBaseRevision INT NULL,
+      ADD COLUMN refinementBaseBrief MEDIUMTEXT NULL,
+      ADD COLUMN lastPatchKey VARCHAR(64) NULL,
+      ADD COLUMN lastPatchHash VARCHAR(64) NULL,
+      ADD COLUMN lastPatchResponse MEDIUMTEXT NULL;
+    ALTER TABLE ContentWorkflow
+      ADD COLUMN templateId VARCHAR(64) NULL;
+    ```
 - Portal（PG，迁移文件）：`20260909113411_usage_reservation_ledger`（UsageEvent 预占字段 + 部分唯一索引）。部署时随 release 流程执行 `prisma migrate deploy`。
 
 ## 4. 部署顺序（必须 ContentOS 先、Portal 后）
@@ -75,8 +88,10 @@
 | 生成全部卡在 queued | 检查 cron 是否在调 `/api/cron/generate`；查 `content_generation.failed_*` 的 failureCode |
 | 大量 `USAGE_COMMIT_UNAVAILABLE` | Portal 内部回调不可达：查 `CONTENT_USAGE_CALLBACK_SECRET` 两仓库是否一致、`GENILINK_PORTAL_URL` 是否正确。任务会自动重试，不需人工干预 |
 | 提炼一直 fallback | 查 `refinementLastError`（gate-违规代码或 LLM 错误）；规则版仍可用，不影响创建 |
-| 结果不确定的提交 | 客户端保留幂等键重试即安全；后台对账每分钟收敛 `pending_reconcile` |
-| 紧急停用生成 | 停掉 `/api/cron/generate` 调度即可（创建后的 kick 也会因额度回调失败而不调模型）；无需回滚数据库 |
+| 结果不确定的提交 | 客户端保留幂等键并持久化到 sessionStorage，刷新后自动同键重放找回；后台对账每分钟收敛 `pending_reconcile` |
+| 单平台 `PROVIDER_RESULT_UNCONFIRMED` | 进程在模型请求后中断，结果无法确认（不能自动重跑，避免重复消耗）。用户在进度页点「确认并重试」即人工确认重跑 |
+| **紧急停用（入口+领取）** | ① 两仓库生产环境设 `CONTENT_WORKFLOW_DISABLED=true` 并重启/重载进程（Portal 容器 + ContentOS pm2）→ 新提交 503、cron/inline kick 空转；② 如需彻底停调度，再停外部 cron 对 `/api/cron/generate` 与 `/api/cron/refine-briefs` 的调用。**只停 cron 不够**：inline kick 仍会领取已有任务（这是本开关存在的原因）。额度回调密钥与数据库无需动 |
+| 恢复 | 删除 `CONTENT_WORKFLOW_DISABLED`（或置 false）并重载；已创建的工作流/预占额度原样保留，worker 恢复领取，租约过期的 generating 会被自动接管或标记 `PROVIDER_RESULT_UNCONFIRMED` 待人工确认 |
 
 ## 8. 回滚
 

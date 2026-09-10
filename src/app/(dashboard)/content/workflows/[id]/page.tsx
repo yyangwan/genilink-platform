@@ -5,7 +5,7 @@
  * 2.5 秒轮询，终态停止；单请求 10 秒超时。
  */
 
-import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -28,7 +28,9 @@ function WorkflowInner() {
   const [data, setData] = useState<WorkflowData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const terminalRef = useRef(false);
+  // 轮询世代（R11）：人工重试成功后自增，effect 重启轮询——
+  // 此前终态后不再安排定时器，重试成功页面永远显示“排队中”。
+  const [pollNonce, setPollNonce] = useState(0);
 
   const fetchWorkflow = useCallback(async (): Promise<WorkflowData | null> => {
     const controller = new AbortController();
@@ -54,6 +56,8 @@ function WorkflowInner() {
   useEffect(() => {
     if (!workflowId || !currentProjectId) return;
     let cancelled = false;
+    // 终态是本世代的局部状态：重试成功 → pollNonce 变化 → 新世代重新轮询（R11）。
+    let terminal = false;
 
     const poll = async () => {
       const next = await fetchWorkflow();
@@ -62,11 +66,11 @@ function WorkflowInner() {
         setData(next);
         setLoadError(null);
         if (isTerminalStatus(next.status)) {
-          terminalRef.current = true;
+          terminal = true;
         }
       }
       setLoading(false);
-      if (!terminalRef.current && !cancelled) {
+      if (!terminal && !cancelled) {
         setTimeout(poll, POLL_INTERVAL_MS);
       }
     };
@@ -74,7 +78,7 @@ function WorkflowInner() {
     return () => {
       cancelled = true;
     };
-  }, [workflowId, currentProjectId, fetchWorkflow]);
+  }, [workflowId, currentProjectId, fetchWorkflow, pollNonce]);
 
   const handleRetry = useCallback(
     async (platform: string) => {
@@ -98,8 +102,9 @@ function WorkflowInner() {
           });
           return;
         }
-        terminalRef.current = false;
         setData(json.data as WorkflowData);
+        // 重试成功：推进轮询世代，恢复进度刷新（R11）。
+        setPollNonce((n) => n + 1);
         addToast({ type: "info", title: "已重新排队", description: "该平台将自动重新生成。" });
       } catch {
         addToast({ type: "error", title: "网络错误", description: "请稍后重试。" });

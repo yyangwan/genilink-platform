@@ -137,7 +137,10 @@ export function WorkflowProgress({
               </span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {run.status === "failed_retryable" && (
+              {(run.status === "failed_retryable" ||
+                // 人工确认状态（R1）：供应商结果不确定的终态失败，重试即确认重跑。
+                (run.status === "failed_terminal" &&
+                  run.error?.code === "PROVIDER_RESULT_UNCONFIRMED")) && (
                 <button
                   onClick={() => handleRetry(run.platform)}
                   disabled={retrying !== null}
@@ -156,7 +159,11 @@ export function WorkflowProgress({
                   ) : (
                     <RefreshCw size={12} />
                   )}
-                  {retrying === run.platform ? "重试中" : "重试"}
+                  {retrying === run.platform
+                    ? "重试中"
+                    : run.error?.code === "PROVIDER_RESULT_UNCONFIRMED"
+                      ? "确认并重试"
+                      : "重试"}
                 </button>
               )}
               {run.status === "succeeded" && data.contentPieceId && (

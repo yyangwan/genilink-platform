@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * Brief 编辑器（设计 §16.2）：展示并编辑创作主题、结构、关键词、备注。
- * locked 约束与来源只读展示；候选标题只读（由规则/AI 生成供参考）。
+ * Brief 编辑器（设计 §16.2）：展示并编辑创作主题、创作目的/读者、结构、关键词、备注。
+ * locked 约束只读展示；editable 约束用户可编辑（评审覆盖审计 §16.2 缺口）。
+ * 候选标题只读（由规则/AI 生成供参考）；intent/contentType 来自建议锚点，只读展示。
  */
 
 import React from "react";
@@ -15,15 +16,25 @@ export interface BriefOutlineItem {
   evidenceRefs: string[];
 }
 
+export interface BriefStrategyValue {
+  objective: string;
+  audience: string;
+  intent: string;
+  contentType: string;
+}
+
 export interface BriefEditorValue {
   topic: string;
   titleCandidates: string[];
+  strategy: BriefStrategyValue;
   outline: BriefOutlineItem[];
   keywords: string[];
   references: Array<{ id: string; url: string; label?: string; source: string }>;
   notes: string;
-  mustMention: string[];
-  avoidMention: string[];
+  lockedMust: string[];
+  lockedAvoid: string[];
+  editableMust: string[];
+  editableAvoid: string[];
 }
 
 const inputStyle: React.CSSProperties = {
@@ -99,6 +110,46 @@ export function BriefEditor({
             ))}
           </div>
         )}
+      </div>
+
+      <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <div>
+          <label className="dashboard-field-label">创作目的</label>
+          <textarea
+            value={value.strategy.objective}
+            disabled={disabled}
+            onChange={(e) => onChange({ ...value, strategy: { ...value.strategy, objective: e.target.value } })}
+            placeholder="这篇内容要达成什么目标"
+            rows={2}
+            maxLength={2000}
+            className="dashboard-input px-3 py-2 text-sm"
+            style={{ ...inputStyle, resize: "vertical" }}
+            onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
+            onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+          />
+        </div>
+        <div>
+          <label className="dashboard-field-label">目标读者</label>
+          <input
+            value={value.strategy.audience}
+            disabled={disabled}
+            onChange={(e) => onChange({ ...value, strategy: { ...value.strategy, audience: e.target.value } })}
+            placeholder="例如：关注 AI 搜索的市场负责人"
+            maxLength={500}
+            className="dashboard-input px-3 py-2 text-sm"
+            style={inputStyle}
+            onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
+            onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+          />
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <span className="dashboard-chip text-xs" style={{ color: "var(--text-secondary)", border: "1px solid var(--border)" }}>
+              意图：{value.strategy.intent || "—"}
+            </span>
+            <span className="dashboard-chip text-xs" style={{ color: "var(--text-secondary)", border: "1px solid var(--border)" }}>
+              类型：{value.strategy.contentType || "—"}
+            </span>
+          </div>
+        </div>
       </div>
 
       <div>
@@ -214,11 +265,55 @@ export function BriefEditor({
       <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
         <div>
           <label className="dashboard-field-label">必须提及（服务端锁定）</label>
-          <TagList items={value.mustMention} tone="must" />
+          <TagList items={value.lockedMust} tone="must" />
+          <label className="dashboard-field-label" style={{ marginTop: 12 }}>
+            我的必须提及
+          </label>
+          <input
+            value={value.editableMust.join("、")}
+            disabled={disabled}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                editableMust: e.target.value
+                  .split(/[、,，\s]+/)
+                  .map((k) => k.trim())
+                  .filter(Boolean)
+                  .slice(0, 20),
+              })
+            }
+            placeholder="用顿号或逗号分隔，可自行补充"
+            className="dashboard-input px-3 py-2 text-sm"
+            style={inputStyle}
+            onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
+            onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+          />
         </div>
         <div>
           <label className="dashboard-field-label">需要避免（服务端锁定）</label>
-          <TagList items={value.avoidMention} tone="avoid" />
+          <TagList items={value.lockedAvoid} tone="avoid" />
+          <label className="dashboard-field-label" style={{ marginTop: 12 }}>
+            我的需要避免
+          </label>
+          <input
+            value={value.editableAvoid.join("、")}
+            disabled={disabled}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                editableAvoid: e.target.value
+                  .split(/[、,，\s]+/)
+                  .map((k) => k.trim())
+                  .filter(Boolean)
+                  .slice(0, 20),
+              })
+            }
+            placeholder="用顿号或逗号分隔，可自行补充"
+            className="dashboard-input px-3 py-2 text-sm"
+            style={inputStyle}
+            onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-primary)")}
+            onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+          />
         </div>
       </div>
 

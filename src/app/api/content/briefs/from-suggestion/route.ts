@@ -12,6 +12,7 @@ import { getIdempotencyKey } from '@/lib/billing/idempotency';
 import { loadCanonicalSuggestion } from '@/lib/content/canonical-suggestion';
 import {
   assertSnapshotLimits,
+  assertSourceInputLimits,
   buildProjectSnapshot,
   buildSourceSnapshot,
   computeSourceHash,
@@ -26,6 +27,11 @@ function errorResponse(status: number, code: string, message: string, extra?: Re
 }
 
 export const POST = withContentAuth(async (ctx, req: NextRequest) => {
+  // 故障停用（runbook §7）：拒绝新提交（Brief 创建也在停用范围）。
+  if (process.env.CONTENT_WORKFLOW_DISABLED === 'true') {
+    return errorResponse(503, 'CONTENT_WORKFLOW_DISABLED', '内容功能维护中，请稍后重试');
+  }
+
   const idempotencyKey = getIdempotencyKey(req);
   if (!idempotencyKey) {
     return errorResponse(400, 'IDEMPOTENCY_KEY_REQUIRED', '缺少 Idempotency-Key 请求头');
@@ -86,7 +92,9 @@ export const POST = withContentAuth(async (ctx, req: NextRequest) => {
 
   const sourceSnapshot = buildSourceSnapshot(loaded.suggestion);
   const projectSnapshot = buildProjectSnapshot(project);
-  const violations = assertSnapshotLimits(sourceSnapshot);
+  // 先对原始输入断言（§8.3：超限 422，不得静默截断后继续），再对构造结果兜底断言。
+  const inputViolations = assertSourceInputLimits(loaded.suggestion);
+  const violations = [...new Set([...inputViolations, ...assertSnapshotLimits(sourceSnapshot)])];
   if (violations.length > 0) {
     // 超限不得静默截断（设计 §8.3）。
     return errorResponse(

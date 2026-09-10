@@ -19,6 +19,7 @@ import {
   ContentOSWorkflowError,
   createContentWorkflow,
 } from '@/lib/content/content-workflow-client';
+import { lookupWorkflowByOperation } from '@/lib/content/contentos-internal-client';
 import type { SupportedGenerationPlatform } from '@/contracts/content-creation-brief-v1';
 
 interface BrowserWorkflowBody {
@@ -34,6 +35,11 @@ function errorResponse(status: number, code: string, message: string, extra?: Re
 }
 
 export const POST = withContentAuth(async (ctx: ContentAuthContext, req: NextRequest) => {
+  // 故障停用（runbook §7）：入口拒绝新提交，预占额度之前直接返回。
+  if (process.env.CONTENT_WORKFLOW_DISABLED === 'true') {
+    return errorResponse(503, 'CONTENT_WORKFLOW_DISABLED', '内容功能维护中，请稍后重试');
+  }
+
   const idempotencyKey = getIdempotencyKey(req);
   if (!idempotencyKey) {
     return errorResponse(400, 'IDEMPOTENCY_KEY_REQUIRED', '缺少 Idempotency-Key 请求头');
@@ -140,7 +146,24 @@ export const POST = withContentAuth(async (ctx: ContentAuthContext, req: NextReq
       );
     }
     if (err instanceof ContentOSWorkflowError && err.status >= 400 && err.status < 500) {
-      // 明确拒绝：释放预占，不扣额度。
+      // 4xx 不能直接证明“从未受理”（评审 R4）：释放前必须确认该操作确实
+      // 没有已创建的工作流，否则会误释放已受理工作流的额度，worker 永远无法提交。
+      const lookup = await lookupWorkflowByOperation(operationId);
+      if (lookup.found) {
+        // 操作已受理：保留预占（worker 会提交），提示用户稍后恢复，不得重试新键。
+        console.error('[content/workflows] rejected but workflow exists', { operationId, code: err.code });
+        return errorResponse(
+          409,
+          'WORKFLOW_ALREADY_EXISTS',
+          '该请求已受理，正在确认生成状态；请稍后在内容列表查看，勿重复提交',
+        );
+      }
+      if ('unavailable' in lookup && lookup.unavailable) {
+        // 无法确认：保守保留预占并进入对账。
+        await markPendingReconcile(operationId);
+        return errorResponse(503, 'CONTENT_SERVICE_UNAVAILABLE', '智创服务暂不可用，请稍后重试；不会重复扣除额度');
+      }
+      // 明确不存在：释放预占，不扣额度。
       await releaseUsageOperation(operationId, `rejected:${err.code}`);
       return errorResponse(err.status, err.code, err.message);
     }

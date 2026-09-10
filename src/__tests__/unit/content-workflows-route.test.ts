@@ -37,6 +37,10 @@ vi.mock('@/lib/billing/usage-reservations', () => ({
   markPendingReconcile: vi.fn(),
 }));
 
+vi.mock('@/lib/content/contentos-internal-client', () => ({
+  lookupWorkflowByOperation: vi.fn(),
+}));
+
 vi.mock('@/lib/content/content-workflow-client', () => ({
   ContentOSWorkflowError: class extends Error {
     status: number;
@@ -58,6 +62,7 @@ import {
   markPendingReconcile,
 } from '@/lib/billing/usage-reservations';
 import { createContentWorkflow } from '@/lib/content/content-workflow-client';
+import { lookupWorkflowByOperation } from '@/lib/content/contentos-internal-client';
 import { PlanLimitError } from '@/lib/billing/usage';
 import { sha256 } from '@/lib/billing/idempotency';
 import { POST } from '@/app/api/content/workflows/route';
@@ -136,7 +141,7 @@ describe('POST /api/content/workflows（设计 §10.5）', () => {
     expect(reserveContentGeneration).not.toHaveBeenCalled();
   });
 
-  it('releases the reservation on definite 4xx rejection and maps the error', async () => {
+  it('releases the reservation on definite 4xx rejection only after confirming no workflow exists (R4)', async () => {
     const { ContentOSWorkflowError } = await import('@/lib/content/content-workflow-client');
     vi.mocked(reserveContentGeneration).mockResolvedValue({ type: 'reserved', usageEventId: 'ue-1' });
     vi.mocked(createContentWorkflow).mockRejectedValue(
@@ -144,6 +149,8 @@ describe('POST /api/content/workflows（设计 §10.5）', () => {
         currentRevision: 8,
       }),
     );
+    // 4xx 不能直接证明从未受理：先按 operationId 查证，明确不存在才释放。
+    vi.mocked(lookupWorkflowByOperation).mockResolvedValue({ found: false });
 
     const res = await POST(postReq(WORKFLOW_BODY));
     expect(res.status).toBe(409);
@@ -152,6 +159,54 @@ describe('POST /api/content/workflows（设计 §10.5）', () => {
       'rejected:BRIEF_VERSION_CONFLICT',
     );
     expect(markPendingReconcile).not.toHaveBeenCalled();
+  });
+
+  it('keeps the reservation when 4xx arrives but the workflow actually exists (R4)', async () => {
+    const { ContentOSWorkflowError } = await import('@/lib/content/content-workflow-client');
+    vi.mocked(reserveContentGeneration).mockResolvedValue({ type: 'reserved', usageEventId: 'ue-1' });
+    vi.mocked(createContentWorkflow).mockRejectedValue(
+      new ContentOSWorkflowError(409, 'BRIEF_VERSION_CONFLICT', '创作方案已更新'),
+    );
+    // 工作流其实已受理（响应丢失后的重放被版本校验拒绝）：不得释放，否则 worker 永远无法提交额度。
+    vi.mocked(lookupWorkflowByOperation).mockResolvedValue({
+      found: true,
+      usageStatus: 'reserved',
+      workflowStatus: 'generating',
+    });
+
+    const res = await POST(postReq(WORKFLOW_BODY));
+    const body = await res.json();
+    expect(res.status).toBe(409);
+    expect(body.error.code).toBe('WORKFLOW_ALREADY_EXISTS');
+    expect(releaseUsageOperation).not.toHaveBeenCalled();
+    expect(markPendingReconcile).not.toHaveBeenCalled();
+  });
+
+  it('marks pending_reconcile instead of releasing when the lookup is unavailable (R4)', async () => {
+    const { ContentOSWorkflowError } = await import('@/lib/content/content-workflow-client');
+    vi.mocked(reserveContentGeneration).mockResolvedValue({ type: 'reserved', usageEventId: 'ue-1' });
+    vi.mocked(createContentWorkflow).mockRejectedValue(
+      new ContentOSWorkflowError(409, 'BRIEF_VERSION_CONFLICT', '创作方案已更新'),
+    );
+    vi.mocked(lookupWorkflowByOperation).mockResolvedValue({ found: false, unavailable: true });
+
+    const res = await POST(postReq(WORKFLOW_BODY));
+    expect(res.status).toBe(503);
+    expect(markPendingReconcile).toHaveBeenCalled();
+    expect(releaseUsageOperation).not.toHaveBeenCalled();
+  });
+
+  it('rejects new submissions while the kill switch is on (R7)', async () => {
+    process.env.CONTENT_WORKFLOW_DISABLED = 'true';
+    try {
+      const res = await POST(postReq(WORKFLOW_BODY));
+      expect(res.status).toBe(503);
+      const body = await res.json();
+      expect(body.error.code).toBe('CONTENT_WORKFLOW_DISABLED');
+      expect(vi.mocked(reserveContentGeneration)).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.CONTENT_WORKFLOW_DISABLED;
+    }
   });
 
   it('marks pending_reconcile (never releases) on ambiguous timeout', async () => {

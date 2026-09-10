@@ -75,7 +75,52 @@ function dedupeStrings(values: string[], limit: number, maxLength: number): stri
   return out;
 }
 
-/** 从规范建议构造白名单快照；超长数组与非法 URL 在此收敛。 */
+/**
+ * 对原始建议输入做超限断言（§8.3，评审覆盖审计）：
+ * 超限输入必须 422，不得静默截断/丢弃后继续。
+ * 注意：URL 白名单过滤（私有地址/非 HTTP）是 §14.8 安全规则，
+ * 不属于超限，仍由 filterReferenceUrls 丢弃。
+ */
+export function assertSourceInputLimits(s: MappedSuggestion): string[] {
+  const violations: string[] = [];
+  const check = (
+    field: string,
+    values: Array<string | null | undefined> | undefined,
+    limit: number,
+    maxLength: number,
+  ) => {
+    const list = (values ?? []).map((v) => cleanText(v)).filter(Boolean);
+    if (list.length > limit) violations.push(field);
+    else if (list.some((v) => v.length > maxLength)) violations.push(field);
+  };
+  if (cleanText(s.text).length > SNAPSHOT_LIMITS.textMaxLength) violations.push('text');
+  if (cleanText(s.description).length > SNAPSHOT_LIMITS.descriptionMaxLength) violations.push('description');
+  if (cleanText(s.evidence_summary).length > SNAPSHOT_LIMITS.evidenceSummaryMaxLength) violations.push('evidenceSummary');
+  if (cleanText(s.expected_result).length > SNAPSHOT_LIMITS.expectedResultMaxLength) violations.push('expectedResult');
+  if (cleanText(s.content_outline).length > SNAPSHOT_LIMITS.contentOutlineMaxLength) violations.push('contentOutline');
+  if (cleanText(s.measurement_plan).length > SNAPSHOT_LIMITS.measurementPlanMaxLength) violations.push('measurementPlan');
+  if (cleanText(s.success_metric).length > SNAPSHOT_LIMITS.successMetricMaxLength) violations.push('successMetric');
+  check('typeTags', s.type_tags, SNAPSHOT_LIMITS.tagArrayMax, SNAPSHOT_LIMITS.tagMaxLength);
+  check('keywords', s.keywords, SNAPSHOT_LIMITS.tagArrayMax, SNAPSHOT_LIMITS.tagMaxLength);
+  check('auditFindings', s.audit_findings, SNAPSHOT_LIMITS.sourceArrayMax, SNAPSHOT_LIMITS.auditFindingMaxLength);
+  check(
+    'acceptanceCriteria',
+    s.acceptance_criteria,
+    SNAPSHOT_LIMITS.sourceArrayMax,
+    SNAPSHOT_LIMITS.acceptanceCriterionMaxLength,
+  );
+  const channels = [...(s.action_channels ?? []), ...(s.evidence_channels ?? []), s.platform ?? ''];
+  check('requestedChannels', channels, SNAPSHOT_LIMITS.sourceArrayMax, 64);
+  const urls = [...(s.evidence_sources ?? []), ...(s.action_sources ?? [])];
+  if (urls.filter((u) => cleanText(u)).length > SNAPSHOT_LIMITS.sourceArrayMax * 2) {
+    violations.push('sources');
+  } else if (urls.some((u) => cleanText(u).length > SNAPSHOT_LIMITS.sourceUrlMaxLength)) {
+    violations.push('sources');
+  }
+  return violations;
+}
+
+/** 从规范建议构造白名单快照；输入须先通过 assertSourceInputLimits。 */
 export function buildSourceSnapshot(s: MappedSuggestion): VisibilitySuggestionSnapshotV1 {
   return {
     schemaVersion: 1,

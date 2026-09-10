@@ -1012,7 +1012,7 @@ AND (lockedUntil is null OR lockedUntil < now)
 
 领取后设置 `lockedBy` 和 `lockedUntil`。生成期间每 30 秒续租；默认租约 5 分钟。Worker 崩溃后，其他实例可以在租约到期后接管。
 
-如果供应商支持请求幂等键，使用 `workflowId:platform:attempt`。如果不支持，租约接管前先查询已保存的 `providerRequestId` 或结果，无法确认时标记 `needs_review`，不得盲目再次调用造成重复消耗。
+如果供应商支持请求幂等键，使用 `workflowId:platform:attempt`。如果不支持，租约接管前先查询已保存的 `providerRequestId` 或结果，无法确认时置 `failed_terminal` + `PROVIDER_RESULT_UNCONFIRMED`（人工确认状态，用户在进度页点「确认并重试」才重新调用），不得盲目再次调用造成重复消耗。状态枚举与 §9.3/契约保持一致，不引入 `needs_review`。
 
 ### 12.5 跨服务 Saga
 
@@ -1320,7 +1320,7 @@ ContentOS：
 ### 19.3 跨服务集成测试
 
 1. suggestionId → Visibility 规范建议 → ContentOS Brief；
-2. Brief 的全部约束进入 `ContentPiece.brief` 和生成提示词；
+2. Brief 的全部约束进入工作流 `briefSnapshot` 与生成提示词（§8.6：快照是唯一生成输入，`ContentPiece.brief` 不再作为新链路事实来源）；
 3. 同一请求重放只产生一个 Brief；
 4. 工作流超时后按 operationId 找回原结果；
 5. 两个并发请求争抢最后一次额度时只有一个成功；

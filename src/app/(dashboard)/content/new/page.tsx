@@ -20,6 +20,11 @@ import {
   PlatformCapabilitySelect,
   type PlatformPlanEntry,
 } from "@/components/content/platform-capability-select";
+import {
+  clearPendingSubmission,
+  loadPendingSubmission,
+  savePendingSubmission,
+} from "@/lib/content/submission-recovery";
 
 interface TemplateOption {
   id: string;
@@ -64,6 +69,7 @@ function emptyEditorValue(): BriefEditorValue {
   return {
     topic: "",
     titleCandidates: [],
+    strategy: { objective: "", audience: "", intent: "", contentType: "" },
     outline: Array.from({ length: 4 }, (_, i) => ({
       id: `section_${i + 1}`,
       heading: "",
@@ -73,8 +79,10 @@ function emptyEditorValue(): BriefEditorValue {
     keywords: [],
     references: [],
     notes: "",
-    mustMention: [],
-    avoidMention: [],
+    lockedMust: [],
+    lockedAvoid: [],
+    editableMust: [],
+    editableAvoid: [],
   };
 }
 
@@ -84,6 +92,12 @@ function editorValueFromBrief(detail: BriefDetail): BriefEditorValue {
   return {
     topic: brief.topic,
     titleCandidates: brief.titleCandidates,
+    strategy: {
+      objective: brief.strategy.objective,
+      audience: brief.strategy.audience ?? "",
+      intent: brief.strategy.intent,
+      contentType: brief.strategy.contentType,
+    },
     outline:
       brief.outline.length >= 4
         ? brief.outline
@@ -99,14 +113,33 @@ function editorValueFromBrief(detail: BriefDetail): BriefEditorValue {
     keywords: brief.keywords,
     references: brief.references,
     notes: brief.notes ?? "",
-    mustMention: [
-      ...brief.constraints.locked.mustMention,
-      ...brief.constraints.editable.mustMention,
-    ],
-    avoidMention: [
-      ...brief.constraints.locked.avoidMention,
-      ...brief.constraints.editable.avoidMention,
-    ],
+    lockedMust: brief.constraints.locked.mustMention,
+    lockedAvoid: brief.constraints.locked.avoidMention,
+    editableMust: brief.constraints.editable.mustMention,
+    editableAvoid: brief.constraints.editable.avoidMention,
+  };
+}
+
+/**
+ * strategy + editable 约束的 PATCH 片段（§16.2：目的/读者可编辑，editable 约束可编辑）。
+ * objective 契约 minLength 1：清空时回落到现有值，避免整单 422。
+ * 仅在 Brief 实际存在（briefId 模式加载完成）时携带。
+ */
+function strategyPatch(detail: BriefDetail, editorValue: BriefEditorValue) {
+  const brief = detail.brief;
+  if (!brief) return {};
+  const audience = editorValue.strategy.audience.trim();
+  return {
+    strategy: {
+      objective: editorValue.strategy.objective.trim() || brief.strategy.objective,
+      ...(audience ? { audience } : {}),
+    },
+    constraints: {
+      editable: {
+        mustMention: editorValue.editableMust,
+        avoidMention: editorValue.editableAvoid,
+      },
+    },
   };
 }
 
@@ -126,8 +159,13 @@ function NewContentInner() {
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [refinementStatus, setRefinementStatus] = useState<string | null>(null);
+  // 恢复横幅初值在首渲染读取（避免 effect 内同步 setState）。
+  const [pendingRecovery, setPendingRecovery] = useState(() =>
+    Boolean(briefId && typeof window !== "undefined" && loadPendingSubmission(briefId)),
+  );
   const dirtyRef = useRef(false);
-  // 工作流提交幂等键：结果不确定（超时）时保留，重试复用同一键。
+  // 工作流提交幂等键：结果不确定（超时）时保留，重试复用同一键；
+  // 同时持久化到 sessionStorage，刷新后可安全重放找回 workflowId（R3）。
   const submitKeyRef = useRef<string | null>(null);
 
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
@@ -159,6 +197,8 @@ function NewContentInner() {
         }
         if (!cancelled) {
           const next = json.data as BriefDetail;
+          // 切回原项目后重新加载成功：清除此前错项目留下的错误（R14）。
+          setLoadError(null);
           applyDetail(next, true);
           addToast({
             type: "info",
@@ -250,6 +290,74 @@ function NewContentInner() {
     });
   }, [currentProjectId]);
 
+  // 手工模式（无 briefId）初始化平台能力（R6）：Brief 计划来自 ContentOS，
+  // 手工模式没有来源，需单独拉取能力表，否则平台无法选择、提交永久禁用。
+  useEffect(() => {
+    if (briefId || !currentProjectId) return;
+    let cancelled = false;
+    fetch(`/api/content/capabilities?projectId=${currentProjectId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (cancelled || !json?.data) return;
+        const entries = Object.entries(
+          json.data as Record<string, { enabled?: boolean; reason?: string }>,
+        ).map(([platform, cap]) => ({
+          platform,
+          capability: (cap.enabled ? "supported" : "unsupported") as PlatformPlanEntry["capability"],
+          selected: false,
+          ...(cap.enabled ? {} : { reason: cap.reason }),
+        }));
+        setPlatformPlan(entries);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [briefId, currentProjectId]);
+
+  // 未决提交恢复（R3）：刷新后用同一幂等键安全重放，找回 workflowId。
+  useEffect(() => {
+    if (!briefId || !currentProjectId) return;
+    const pending = loadPendingSubmission(briefId);
+    if (!pending) return;
+    submitKeyRef.current = pending.key;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/content/workflows?projectId=${currentProjectId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Idempotency-Key": pending.key },
+          body: JSON.stringify(pending.body),
+        });
+        if (cancelled) return;
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && !json.meta?.uncertain) {
+          clearPendingSubmission(briefId);
+          submitKeyRef.current = null;
+          const workflowId = (json.data as { id?: string } | null)?.id;
+          if (workflowId) {
+            router.push(`/content/workflows/${workflowId}`);
+            return;
+          }
+          setPendingRecovery(false);
+          return;
+        }
+        if (res.ok && json.meta?.uncertain) return; // 仍在确认，保留凭据。
+        const code = json?.error?.code;
+        if (code === "WORKFLOW_ALREADY_EXISTS" || res.status >= 500) return; // 保留凭据。
+        // 明确拒绝（校验失败/键滥用等）：凭据作废。
+        clearPendingSubmission(briefId);
+        submitKeyRef.current = null;
+        setPendingRecovery(false);
+      } catch {
+        // 网络错误：保留凭据，用户手动重试即安全重放。
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [briefId, currentProjectId, router]);
+
   // 项目切换守卫（设计 §16.2）：Brief 属于其他项目时停止编辑（纯派生值）。
   const projectMismatch = Boolean(detail && currentProjectId && detail.projectId !== currentProjectId);
 
@@ -267,11 +375,15 @@ function NewContentInner() {
   const togglePlatform = useCallback((platform: string) => {
     dirtyRef.current = true;
     setDirty(true);
-    setPlatformPlan((prev) =>
-      prev.map((entry) =>
+    setPlatformPlan((prev) => {
+      // 手工模式计划为空或缺少该平台时补上（R6），否则无法加入任何平台。
+      if (!prev.some((entry) => entry.platform === platform)) {
+        return [...prev, { platform, capability: "supported" as const, selected: true }];
+      }
+      return prev.map((entry) =>
         entry.platform === platform ? { ...entry, selected: !entry.selected } : entry,
-      ),
-    );
+      );
+    });
   }, []);
 
   // 保存编辑（乐观锁 PATCH）
@@ -297,6 +409,7 @@ function NewContentInner() {
               references: editorValue.references,
               notes: editorValue.notes,
             },
+            ...strategyPatch(detail, editorValue),
             selectedPlatforms,
           }),
         },
@@ -394,33 +507,72 @@ function NewContentInner() {
         }
 
         submitKeyRef.current = submitKeyRef.current ?? crypto.randomUUID();
+        const submitBody = {
+          briefId,
+          briefRevision: currentRevision,
+          platforms: selectedPlatforms,
+          templateId: selectedTemplate || undefined,
+          brandVoiceId: selectedVoice || undefined,
+        };
+        // 持久化恢复凭据（R3）：不确定响应/刷新后用同一键+同一请求体安全重放。
+        savePendingSubmission(briefId, {
+          key: submitKeyRef.current,
+          body: submitBody,
+          savedAt: Date.now(),
+        });
         const res = await fetch(`/api/content/workflows?projectId=${currentProjectId}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Idempotency-Key": submitKeyRef.current,
           },
-          body: JSON.stringify({
-            briefId,
-            briefRevision: currentRevision,
-            platforms: selectedPlatforms,
-            templateId: selectedTemplate || undefined,
-            brandVoiceId: selectedVoice || undefined,
-          }),
+          body: JSON.stringify(submitBody),
         });
         const json = await res.json().catch(() => ({}));
         if (res.ok && json.meta?.uncertain) {
-          // 结果不确定：保留幂等键，重试复用（设计 §13.3）。
+          // 结果不确定：保留幂等键与凭据，重试复用（设计 §13.3/R3）。
           addToast({
             type: "info",
             title: "正在确认",
-            description: "请求结果确认中，请勿重复提交。",
+            description: "请求结果确认中，请勿重复提交；稍后自动恢复。",
             duration: 6000,
           });
           return;
         }
-        submitKeyRef.current = null;
+        if (res.ok) {
+          clearPendingSubmission(briefId);
+          submitKeyRef.current = null;
+          const workflowId = (json.data as { id?: string } | null)?.id;
+          if (workflowId) {
+            router.push(`/content/workflows/${workflowId}`);
+          }
+          return;
+        }
+        const code = json?.error?.code as string | undefined;
+        if (code === "WORKFLOW_ALREADY_EXISTS") {
+          // 已受理但状态未定（R4）：保留凭据，稍后同键重试可安全取回结果。
+          addToast({
+            type: "info",
+            title: "该请求已受理",
+            description: "正在确认生成状态，请稍后在此页重试或到内容列表查看。",
+            duration: 8000,
+          });
+          return;
+        }
+        if (code === "IDEMPOTENCY_KEY_REUSED") {
+          // 键与不同请求体冲突：凭据不可再用。
+          clearPendingSubmission(briefId);
+          submitKeyRef.current = null;
+          addToast({
+            type: "error",
+            title: "提交冲突",
+            description: "请刷新页面后重新提交。",
+          });
+          return;
+        }
         if (res.status === 402) {
+          clearPendingSubmission(briefId);
+          submitKeyRef.current = null;
           addToast({
             type: "error",
             title: "本月生成额度已用完",
@@ -428,20 +580,24 @@ function NewContentInner() {
           });
           return;
         }
-        if (!res.ok) {
-          submitKeyRef.current = null;
+        if (res.status >= 500) {
+          // 服务不可用/不确定：保留凭据，同键重试安全，不会重复创建或扣额。
           addToast({
-            type: "error",
-            title: "提交失败",
-            description: json?.error?.message ?? "请稍后重试。",
+            type: "info",
+            title: "服务暂不可用",
+            description: "提交正在保留，请稍后点击重试；不会重复扣除额度。",
+            duration: 8000,
           });
           return;
         }
+        // 其余 4xx 明确拒绝：凭据作废。
+        clearPendingSubmission(briefId);
         submitKeyRef.current = null;
-        const workflowId = (json.data as { id?: string } | null)?.id;
-        if (workflowId) {
-          router.push(`/content/workflows/${workflowId}`);
-        }
+        addToast({
+          type: "error",
+          title: "提交失败",
+          description: json?.error?.message ?? "请稍后重试。",
+        });
         return;
       }
 
@@ -546,6 +702,16 @@ function NewContentInner() {
         </div>
       )}
 
+      {pendingRecovery && !projectMismatch && (
+        <div
+          className="dashboard-surface dashboard-surface--padded text-sm"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          上次提交仍在确认中，正在为你恢复结果——请勿重复提交。若稍后仍未跳转，
+          再次点击“创建内容”会用同一凭据安全找回，不会重复创建或扣额。
+        </div>
+      )}
+
       {detail?.eligibility?.requiresConfirmation && !projectMismatch && (
         <div className="dashboard-surface dashboard-surface--padded text-sm" style={{ color: "var(--text-secondary)" }}>
           这条建议的内容方向需要你确认：检查主题和结构是否符合预期，可先编辑再继续。
@@ -567,7 +733,8 @@ function NewContentInner() {
         />
       </div>
 
-      {templates.length > 0 && (
+      {/* v1 工作流生成提示词不消费模板（覆盖审计）：模板选择只在手工草稿模式提供。 */}
+      {!briefId && templates.length > 0 && (
         <div>
           <label className="dashboard-field-label">
             <LayoutTemplate size={13} className="inline mr-1" />
