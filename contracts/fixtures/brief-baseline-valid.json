@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "id": "clr2brief0001example001",
+  "workspaceId": "ws_6b0c2d4e5f",
+  "projectId": "project_123",
+  "revision": 1,
+  "status": "baseline_ready",
+  "source": {
+    "type": "visibility_suggestion",
+    "suggestionId": "154",
+    "sourceHash": "5f2a9c3b8e1d40a7b6c5d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3",
+    "reportId": "88",
+    "auditId": "31"
+  },
+  "strategy": {
+    "objective": "帮助读者理解品牌在 AI 搜索场景下的可见性现状与可信度来源",
+    "audience": "关注品牌增长的市场负责人",
+    "intent": "awareness",
+    "contentType": "explainer"
+  },
+  "editorial": {
+    "topic": "品牌如何提升 AI 搜索场景下的可见性与可信度",
+    "titleCandidates": [
+      "品牌如何提升 AI 搜索场景下的可见性与可信度",
+      "AI 搜索时代，品牌信息如何被准确引用"
+    ],
+    "outline": [
+      {
+        "id": "section_1",
+        "heading": "目标用户正在遇到什么问题",
+        "purpose": "用读者语言解释当前信息缺口",
+        "evidenceRefs": []
+      },
+      {
+        "id": "section_2",
+        "heading": "为什么现有信息难以被准确理解",
+        "purpose": "说明信息结构、证据和表达上的常见缺口",
+        "evidenceRefs": []
+      },
+      {
+        "id": "section_3",
+        "heading": "可以采用哪些改进方法",
+        "purpose": "给出基于已确认能力的可执行路径",
+        "evidenceRefs": []
+      },
+      {
+        "id": "section_4",
+        "heading": "如何判断改进是否有效",
+        "purpose": "说明评估指标和后续观察方式",
+        "evidenceRefs": []
+      }
+    ],
+    "keywords": ["AI 搜索", "品牌可见性"],
+    "references": [
+      {
+        "id": "ref_1",
+        "url": "https://example.com/blog/ai-search-brand",
+        "label": "品牌官方资料",
+        "source": "suggestion"
+      }
+    ],
+    "notes": "只使用已确认资料，不编造数据或案例"
+  },
+  "platformPlan": [
+    {
+      "platform": "wechat",
+      "capability": "supported",
+      "selected": true
+    },
+    {
+      "platform": "zhihu",
+      "capability": "unsupported",
+      "selected": false,
+      "reason": "当前暂不支持知乎自动生成"
+    }
+  ],
+  "constraints": {
+    "locked": {
+      "mustMention": ["示例产品"],
+      "avoidMention": ["编造客户案例、数据指标、第三方背书或参考链接"],
+      "allowedClaims": ["示例产品的核心能力来自官方公开资料"],
+      "forbiddenClaims": ["对外承诺引用率、覆盖率等指标", "无法验证的竞品贬损"],
+      "factualityPolicy": "verified_sources_only"
+    },
+    "editable": {
+      "mustMention": ["AI 搜索"],
+      "avoidMention": ["绝对化用语"]
+    }
+  },
+  "generationMeta": {
+    "effectiveSource": "rules",
+    "rulesVersion": "2026-09.1"
+  },
+  "createdAt": "2026-09-08T10:00:00.000Z",
+  "updatedAt": "2026-09-08T10:00:00.000Z"
+}

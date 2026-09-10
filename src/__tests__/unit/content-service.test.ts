@@ -14,7 +14,6 @@ import {
   getContent,
   updateContent,
   deleteContent,
-  generateContent,
   generateGenieContent,
   getCalendarEvents,
   publishContent,
@@ -111,55 +110,6 @@ describe('content service', () => {
       path: '/api/content/c1',
       method: 'DELETE',
       timeoutMs: 30_000,
-    });
-  });
-
-  it('generateContent calls proxyStreamRequest with POST and body', async () => {
-    mockProxyStreamRequest.mockResolvedValue(new Response('stream'));
-    const body = { prompt: 'Write about AI' };
-    await generateContent(ctx, 'c1', body);
-
-    expect(mockProxyStreamRequest).toHaveBeenCalledWith({
-      ...baseArgs,
-      path: '/api/generate',
-      method: 'POST',
-      body: { contentPieceId: 'c1', prompt: 'Write about AI', platform: 'wechat' },
-      timeoutMs: 180_000,
-    });
-  });
-
-  it('generateContent generates every selected platform', async () => {
-    mockProxyStreamRequest.mockImplementation(() => Promise.resolve(new Response('stream')));
-    const res = await generateContent(ctx, 'c1', { platforms: ['xiaohongshu', 'wechat'] });
-
-    expect(mockProxyStreamRequest).toHaveBeenCalledTimes(2);
-    expect(mockProxyStreamRequest).toHaveBeenNthCalledWith(1, {
-      ...baseArgs,
-      path: '/api/generate',
-      method: 'POST',
-      body: { contentPieceId: 'c1', platforms: ['xiaohongshu', 'wechat'], platform: 'xiaohongshu' },
-      timeoutMs: 180_000,
-    });
-    expect(mockProxyStreamRequest).toHaveBeenNthCalledWith(2, {
-      ...baseArgs,
-      path: '/api/generate',
-      method: 'POST',
-      body: { contentPieceId: 'c1', platforms: ['xiaohongshu', 'wechat'], platform: 'wechat' },
-      timeoutMs: 180_000,
-    });
-    await expect(res.json()).resolves.toEqual({ ok: true, platforms: ['xiaohongshu', 'wechat'] });
-  });
-
-  it('generateContent preserves the selected platform', async () => {
-    mockProxyStreamRequest.mockResolvedValue(new Response('stream'));
-    await generateContent(ctx, 'c1', { platforms: ['zhihu'], topic: 'AI visibility' });
-
-    expect(mockProxyStreamRequest).toHaveBeenCalledWith({
-      ...baseArgs,
-      path: '/api/generate',
-      method: 'POST',
-      body: { contentPieceId: 'c1', platforms: ['zhihu'], topic: 'AI visibility', platform: 'zhihu' },
-      timeoutMs: 180_000,
     });
   });
 

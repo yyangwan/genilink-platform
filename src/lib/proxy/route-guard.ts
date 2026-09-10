@@ -26,6 +26,7 @@ export interface GuardContext {
   session: { user: { id: string } };
   workspaceId: string;
   projectId: string;
+  role: string;
   serviceToken: string;
   /** Build the full upstream URL for a given path. */
   upstreamUrl: (path: string) => string;
@@ -119,6 +120,7 @@ export async function resolveGuard(
         session,
         workspaceId,
         projectId: '',
+        role,
         serviceToken,
         upstreamUrl,
         headers: {
@@ -162,6 +164,7 @@ export async function resolveGuard(
       session,
       workspaceId,
       projectId,
+      role,
       serviceToken,
       upstreamUrl,
       headers: {

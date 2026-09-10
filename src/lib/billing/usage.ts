@@ -15,7 +15,7 @@ export type UsageFeature =
   | 'content_score'
   | 'calendar_item';
 
-const FEATURE_LIMIT_KEYS: Record<UsageFeature, TierLimitKey> = {
+export const FEATURE_LIMIT_KEYS: Record<UsageFeature, TierLimitKey> = {
   website_analysis: 'websiteAnalysesPerMonth',
   visibility_audit: 'visibilityAuditsPerMonth',
   compare_run: 'compareRunsPerMonth',
@@ -93,8 +93,10 @@ export async function assertMonthlyUsageQuota(
   const access = await getWorkspaceBillingAccess(userId, workspaceId);
   const limit = access.limits[FEATURE_LIMIT_KEYS[feature]];
   const periodStart = getUsagePeriodStart();
+  // 额度统计口径（设计 §8.7）：reserved + pending_reconcile + committed 均占额度，
+  // 已释放（released）的预占不计入。
   const aggregate = await prisma.usageEvent.aggregate({
-    where: { workspaceId, feature, periodStart },
+    where: { workspaceId, feature, periodStart, status: { not: 'released' } },
     _sum: { quantity: true },
   });
 

@@ -1,0 +1,19 @@
+{
+  "id": "clr2workflow01example01",
+  "briefId": "clr2brief0001example001",
+  "briefRevision": 3,
+  "contentPieceId": "clr2content0001example01",
+  "status": "partial",
+  "platforms": [
+    { "platform": "wechat", "status": "succeeded", "attemptCount": 1 },
+    {
+      "platform": "xiaohongshu",
+      "status": "failed_retryable",
+      "attemptCount": 2,
+      "error": {
+        "code": "LLM_TIMEOUT",
+        "message": "小红书内容生成超时，可以重试"
+      }
+    }
+  ]
+}

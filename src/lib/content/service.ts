@@ -1,11 +1,11 @@
-import { proxyRequest, proxyStreamRequest } from '@/lib/proxy/zhijian-client';
+import { proxyRequest } from '@/lib/proxy/zhijian-client';
 import type { ContentAuthContext } from '@/lib/auth/content-auth';
 
 const SERVICE = 'content' as const;
 
 export const CRUD_TIMEOUT = 30_000;
 export const STREAM_TIMEOUT = 180_000;
-const DEFAULT_GENERATION_PLATFORM = 'wechat';
+
 
 type Ctx = Pick<ContentAuthContext, 'projectId' | 'serviceToken'> & { accessToken?: string };
 
@@ -36,49 +36,6 @@ export function updateContent(ctx: Ctx, contentId: string, body: unknown) {
 
 export function deleteContent(ctx: Ctx, contentId: string) {
   return proxyRequest({ ...ctxOpts(ctx), path: `/api/content/${contentId}`, method: 'DELETE', timeoutMs: CRUD_TIMEOUT });
-}
-
-function getRequestedPlatforms(body: Record<string, unknown>) {
-  const requested = typeof body.platform === 'string'
-    ? [body.platform]
-    : Array.isArray(body.platforms)
-      ? body.platforms.filter((platform): platform is string => typeof platform === 'string')
-      : [];
-
-  const platforms = requested
-    .map((platform) => platform.trim())
-    .filter(Boolean);
-
-  return [...new Set(platforms)].length > 0 ? [...new Set(platforms)] : [DEFAULT_GENERATION_PLATFORM];
-}
-
-function generateSinglePlatform(ctx: Ctx, contentId: string, body: Record<string, unknown>, platform: string) {
-  return proxyStreamRequest({
-    ...ctxOpts(ctx),
-    path: '/api/generate',
-    method: 'POST',
-    body: { ...body, contentPieceId: contentId, platform },
-    timeoutMs: STREAM_TIMEOUT,
-  });
-}
-
-export async function generateContent(ctx: Ctx, contentId: string, body: Record<string, unknown>) {
-  const platforms = getRequestedPlatforms(body);
-
-  if (platforms.length === 1) {
-    return generateSinglePlatform(ctx, contentId, body, platforms[0]);
-  }
-
-  const generatedPlatforms: string[] = [];
-  for (const platform of platforms) {
-    const response = await generateSinglePlatform(ctx, contentId, body, platform);
-    if (!response.ok) return response;
-
-    await response.text();
-    generatedPlatforms.push(platform);
-  }
-
-  return Response.json({ ok: true, platforms: generatedPlatforms });
 }
 
 export function publishContent(ctx: Ctx, contentId: string, body: unknown) {
@@ -157,15 +114,6 @@ export function deleteBrandVoice(ctx: Ctx, id: string) {
   return proxyRequest({ ...ctxOpts(ctx), path: `/api/brand-voices/${id}`, method: 'DELETE', timeoutMs: CRUD_TIMEOUT });
 }
 
-// ─── Briefs ──────────────────────────────────────────────────────────
-
-export function listBriefs(ctx: Ctx) {
-  return proxyRequest({ ...ctxOpts(ctx), path: '/api/briefs', timeoutMs: CRUD_TIMEOUT });
-}
-
-export function createBrief(ctx: Ctx, body: unknown) {
-  return proxyRequest({ ...ctxOpts(ctx), path: '/api/briefs', method: 'POST', body, timeoutMs: CRUD_TIMEOUT });
-}
 
 // ─── Templates ───────────────────────────────────────────────────────
 

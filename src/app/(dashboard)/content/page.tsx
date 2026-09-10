@@ -13,12 +13,14 @@ import {
 } from "@/components/ui/diagnostic-checklist";
 import type { ContentSummary } from "@/types";
 import { formatDateInTimeZone } from "@/lib/time";
-import {
-  contentBriefToSearchParams,
-  type SuggestionForContentBrief,
-} from "@/lib/content/content-brief";
 import { SubscriptionRequiredState } from "@/components/billing/subscription-required-state";
 import { useToast } from "@/components/ui/toast-context";
+
+interface SuggestionListItem {
+  id?: string;
+  text: string;
+  priority?: string;
+}
 
 const metricStyle: React.CSSProperties = {
   display: "flex",
@@ -30,10 +32,17 @@ const metricStyle: React.CSSProperties = {
 // Data Bridge Section
 function DataBridge({ projectId }: { projectId: string }) {
   const bridgeUrl = projectId ? `/api/integration/suggestions?projectId=${projectId}` : null;
-  const bridge = useSectionFetch<SuggestionForContentBrief[]>(bridgeUrl);
+  const bridge = useSectionFetch<SuggestionListItem[]>(bridgeUrl);
   const router = useRouter();
   const { addToast } = useToast();
   const [loadingSuggestionId, setLoadingSuggestionId] = useState<string | null>(null);
+  // 幂等键在 pending 期间绑定到同一条建议复用；结果不确定时保持“正在确认”，
+  // 禁止把该键用于其他建议（设计 §16.1）。
+  const [pendingOperation, setPendingOperation] = useState<{
+    key: string;
+    suggestionId: string;
+  } | null>(null);
+  const [uncertain, setUncertain] = useState(false);
 
   if (bridge.loading) {
     return (
@@ -61,37 +70,80 @@ function DataBridge({ projectId }: { projectId: string }) {
 
   const suggestions = bridge.data.slice(0, 8);
 
-  async function createFromSuggestion(suggestion: SuggestionForContentBrief, index: number) {
+  async function createFromSuggestion(suggestion: SuggestionListItem, index: number) {
     const loadingId = suggestion.id ?? String(index);
+    if (!suggestion.id) {
+      addToast({
+        type: "error",
+        title: "无法创建创作方案",
+        description: "该建议缺少 ID，请刷新后重试。",
+      });
+      return;
+    }
+    if (pendingOperation && pendingOperation.suggestionId !== suggestion.id) {
+      addToast({
+        type: "info",
+        title: "正在确认",
+        description: "上一个请求结果确认中，请稍候再试。",
+        duration: 4000,
+      });
+      return;
+    }
+    // 复用当前 pending 的幂等键；仅在上次请求有明确结果后才生成新键（设计 §16.1）。
+    const idempotencyKey = pendingOperation?.key ?? crypto.randomUUID();
     setLoadingSuggestionId(loadingId);
+    setPendingOperation({ key: idempotencyKey, suggestionId: suggestion.id });
     try {
-      const res = await fetch(`/api/content/brief-from-suggestion?projectId=${projectId}`, {
+      const res = await fetch(`/api/content/briefs/from-suggestion?projectId=${projectId}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, suggestion }),
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+        },
+        body: JSON.stringify({ projectId, suggestionId: suggestion.id }),
       });
       if (res.ok) {
         const json = await res.json();
-        if (!json.data) {
-          alert("暂时无法生成创作信息，请稍后重试");
+        if (!json.data?.id) {
+          addToast({
+            type: "error",
+            title: "暂时无法生成创作方案",
+            description: "请稍后重试。",
+          });
           return;
         }
-        if (json.data?.generatedBy !== "llm") {
+        if (!json.meta?.replayed && json.data?.refinement?.status === "queued") {
           addToast({
             type: "info",
-            title: "已生成基础创作信息",
-            description: "你可以在下一步继续完善内容方向和写作要求。",
+            title: "已生成基础创作方案",
+            description: "你可以直接完善并开始创作。",
             duration: 5000,
           });
         }
-        router.push(`/content/new?${contentBriefToSearchParams(json.data).toString()}`);
+        router.push(`/content/new?briefId=${encodeURIComponent(json.data.id)}`);
         return;
       }
       const error = await res.json().catch(() => ({}));
-      alert(error.error || "AI 分析失败，请稍后重试");
+      addToast({
+        type: "error",
+        title: "创建创作方案失败",
+        description:
+          error?.error?.code === "SUGGESTION_NOT_CONTENT_ELIGIBLE"
+            ? "该建议属于技术/运营任务，暂不支持转换为内容。"
+            : error?.error?.message || "请稍后重试。",
+      });
+      setPendingOperation(null);
+      setUncertain(false);
       return;
     } catch {
-      alert("AI 分析请求失败，请稍后重试");
+      // 网络错误时结果不确定：保留幂等键，提示“正在确认”，重试同一建议会复用同一键。
+      setUncertain(true);
+      addToast({
+        type: "info",
+        title: "正在确认",
+        description: "请求结果确认中，请勿重复提交。",
+        duration: 5000,
+      });
       return;
     } finally {
       setLoadingSuggestionId(null);
@@ -147,7 +199,12 @@ function DataBridge({ projectId }: { projectId: string }) {
             </div>
             <button
               onClick={() => createFromSuggestion(suggestion, i)}
-              disabled={loadingSuggestionId === (suggestion.id ?? String(i))}
+              disabled={
+                loadingSuggestionId === (suggestion.id ?? String(i)) ||
+                (uncertain &&
+                  Boolean(pendingOperation) &&
+                  pendingOperation?.suggestionId !== suggestion.id)
+              }
               className="flex items-center gap-1 text-xs font-medium shrink-0 ml-3"
               style={{
                 color: "var(--color-primary)",
@@ -161,7 +218,11 @@ function DataBridge({ projectId }: { projectId: string }) {
               }}
             >
               <Sparkles size={12} />
-              {loadingSuggestionId === (suggestion.id ?? String(i)) ? "分析中" : "AI 生成"}
+              {loadingSuggestionId === (suggestion.id ?? String(i))
+                ? uncertain
+                  ? "正在确认"
+                  : "正在准备创作方案"
+                : "AI 生成"}
             </button>
           </div>
         ))}

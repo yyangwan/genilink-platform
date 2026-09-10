@@ -1,0 +1,11 @@
+{
+  "content-creation-brief-v1.schema.json": "db6a39ff2c4044da5116ae5cd79566f3e795595af42b87aa0cf45849c5e39003",
+  "content-platform-capabilities-v1.schema.json": "6b1b3f2afdcb332b7963b371ec9fd76c25f3b4826880f5e079d94dbc5b778ad1",
+  "content-workflow-v1.schema.json": "2097d45452b157fabe4fda7aefbd7eb7f961403434652509c32a6184ca15801a",
+  "fixtures/brief-baseline-valid.json": "6c689d45946a2a6e83d4a9808348a02f75300f478a56706ff3d47d5f7e13066d",
+  "fixtures/brief-invalid-outline.json": "ca484551ef1ae2303480984d6c8ee935fff503c452a2175d24b37229ceb63bc5",
+  "fixtures/capabilities-valid.json": "c59d65f0db9c1ceb34a6226588a892636851c145bd123aa902903707d3722170",
+  "fixtures/create-brief-request-valid.json": "bb469c4ca64cb175dfb45b1ca8f8a24cb9fa353ff0c574aed32c4af110614a48",
+  "fixtures/create-workflow-request-valid.json": "d6318c4993a84d293695d1239726668c08c35ea8cfdb60dabb006a0dfa84f30a",
+  "fixtures/workflow-view-partial.json": "d32a7407915eba2a70ca61dd7c74136830cf564d3a1b8f1d3350336864f107a5"
+}

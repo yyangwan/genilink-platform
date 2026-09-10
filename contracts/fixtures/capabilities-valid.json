@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "platforms": {
+    "wechat": { "enabled": true, "maxConcurrent": 2 },
+    "weibo": { "enabled": true, "maxConcurrent": 2 },
+    "xiaohongshu": { "enabled": true, "maxConcurrent": 2 },
+    "douyin": { "enabled": true, "maxConcurrent": 2 },
+    "zhihu": { "enabled": false, "reason": "generator_not_implemented" },
+    "toutiao": { "enabled": false, "reason": "generator_not_implemented" }
+  }
+}
