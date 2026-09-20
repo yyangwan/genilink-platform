@@ -76,6 +76,8 @@ function makeRequest(body: unknown, method = 'POST') {
   }) as any;
 }
 
+const routeContext = { params: Promise.resolve({}) };
+
 describe('Brand Soft Delete Edge Cases', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -87,7 +89,7 @@ describe('Brand Soft Delete Edge Cases', () => {
     error.code = 'P2002';
     (prisma.brand.create as any).mockRejectedValue(error);
 
-    const res = await POST(makeRequest({ name: 'Acme' }));
+    const res = await POST(makeRequest({ name: 'Acme' }), routeContext);
 
     expect(res.status).toBe(409);
     const data = await res.json();
@@ -107,7 +109,7 @@ describe('Brand Soft Delete Edge Cases', () => {
     };
     (prisma.brand.create as any).mockResolvedValue(newBrand);
 
-    const res = await POST(makeRequest({ name: 'Acme' }));
+    const res = await POST(makeRequest({ name: 'Acme' }), routeContext);
 
     expect(res.status).toBe(201);
     const data = await res.json();
@@ -125,7 +127,7 @@ describe('Brand Soft Delete Edge Cases', () => {
     };
     (prisma.brand.findMany as any).mockResolvedValue([activeBrand]);
 
-    const res = await GET(makeRequest({}));
+    const res = await GET(makeRequest({}), routeContext);
     const data = await res.json();
 
     expect(res.status).toBe(200);
@@ -158,7 +160,7 @@ describe('Brand Soft Delete Edge Cases', () => {
     // GET should not return deleted brands
     (prisma.brand.findMany as any).mockResolvedValue([]);
 
-    const res = await GET(makeRequest({}));
+    const res = await GET(makeRequest({}), routeContext);
     const data = await res.json();
 
     expect(data).toHaveLength(0);
@@ -179,7 +181,7 @@ describe('Brand Soft Delete Edge Cases', () => {
     };
     (prisma.brand.create as any).mockResolvedValue(brand);
 
-    const res = await POST(makeRequest({ name: 'Acme' }));
+    const res = await POST(makeRequest({ name: 'Acme' }), routeContext);
 
     expect(res.status).toBe(201);
   });

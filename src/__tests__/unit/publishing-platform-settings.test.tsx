@@ -18,7 +18,7 @@ vi.mock('@/components/project/project-context', () => ({
 
 vi.mock('@/components/ui/toast-context', () => ({ useToast: () => ({ addToast }) }));
 
-import { SettingsInner } from '@/app/(dashboard)/content/settings/page';
+import SettingsPage from '@/app/(dashboard)/content/settings/page';
 import { PUBLISHING_PLATFORMS } from '@/lib/content/publishing-platforms';
 
 describe('publishing platform settings', () => {
@@ -32,7 +32,7 @@ describe('publishing platform settings', () => {
   });
 
   it('shows the account and project scope and opens a platform-specific configuration entry', async () => {
-    render(<SettingsInner />);
+    render(<SettingsPage />);
 
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(6));
     expect(screen.getByText('张明')).toBeTruthy();

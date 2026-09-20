@@ -3,7 +3,7 @@
 Windows gateway host:
 
 - Hostname: `CHAO`
-- LAN address: `192.168.1.92`
+- LAN address: `192.168.0.101`
 - Android SDK: `C:\Program Files\Android`
 - Appium runtime: `C:\ProgramData\MobileGateway\appium-runtime`
 - Appium endpoint: `http://127.0.0.1:4723`
@@ -38,6 +38,14 @@ responses cross the PowerShell/Node boundary through explicit UTF-8 files,
 not process standard streams. This avoids both a known TLS interoperability
 problem and Windows PowerShell 5.1 console-code-page corruption for Chinese
 prompts and answers.
+
+Set `deviceSerials` in `config\gateway-agent.json` to the authorized devices
+that may run capture tasks. The agent rotates through online serials in that
+order and skips devices that are offline. A task with an explicit
+`payload.device_serial` keeps that assignment. Restart `MobileGateway-Agent`
+after changing the list. Tasks remain sequential on this gateway; adding
+devices improves availability and distributes use, but does not add parallel
+capture capacity.
 
 ## Platform Handlers
 
@@ -75,9 +83,8 @@ App handlers accept these optional payload values:
 - `new_conversation`: starts an isolated conversation by default.
 - `device_serial`: targets a specific authorized ADB device.
 
-All handlers share a device-wide mutex. Only one Appium task may control the
-attached Android device at a time, even when cloud workers lease tasks for
-different platforms concurrently.
+All handlers share a gateway-wide mutex. Only one Appium task may run on this
+gateway at a time, even when several Android devices are attached.
 
 Huawei devices intercept normal ADB APK installation. UiAutomator2's test APK
 must be pushed to the device and installed with `pm install -r -t -g`. Once the
@@ -110,6 +117,6 @@ Get-Content "C:\ProgramData\MobileGateway\status.json"
 4. Confirm that `adb devices -l` reports the device as `device`, not
    `unauthorized`.
 
-Reserve `192.168.1.92` in the router for MAC address
+Reserve `192.168.0.101` in the router for MAC address
 `D8:5E:D3:95:A4:87`. Do not configure a host-side static address without
 also excluding that address from the DHCP pool.

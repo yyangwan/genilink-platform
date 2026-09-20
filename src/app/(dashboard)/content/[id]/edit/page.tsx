@@ -9,18 +9,17 @@ import { useProject } from "@/components/project/project-context";
 import { ContentEditor } from "@/components/content/content-editor";
 import { ContentAnalysisPanel } from "@/components/content/content-analysis-panel";
 import { formatDateInTimeZone, parseShanghaiDateTimeInput } from "@/lib/time";
+import {
+  canLoadEditContent,
+  getEditContentProjectError,
+  pickInitialPlatformContent,
+  type PlatformContent,
+} from "@/lib/content/edit-content-page";
 
 const AIPanel = dynamic(
   () => import("@/components/content/ai-panel").then((mod) => ({ default: mod.AIPanel })),
   { ssr: false },
 );
-
-interface PlatformContent {
-  id: string;
-  platform: string;
-  content: string;
-  status: string;
-}
 
 interface ContentData {
   id: string;
@@ -54,21 +53,6 @@ const PLATFORM_LABELS: Record<string, string> = {
   toutiao: "今日头条",
   zhihu: "知乎",
 };
-
-export function getEditContentProjectError(projectLoading: boolean, currentProjectId: string | null) {
-  if (projectLoading) return null;
-  if (!currentProjectId) return "请先选择一个项目，再打开内容编辑页";
-  return null;
-}
-
-export function pickInitialPlatformContent(platformContents: PlatformContent[]) {
-  if (platformContents.length === 0) return null;
-  return platformContents.find((pc) => (pc.content ?? "").trim().length > 0) ?? platformContents[0] ?? null;
-}
-
-export function canLoadEditContent(projectLoading: boolean, currentProjectId: string | null) {
-  return !projectLoading && Boolean(currentProjectId);
-}
 
 function EditContentInner({ id }: { id: string }) {
   const { currentProjectId, loading: projectLoading } = useProject();

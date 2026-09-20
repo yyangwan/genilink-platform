@@ -16,7 +16,7 @@ describe('billing response scopes', () => {
   it('filters common wrapped history payloads without mutating the input', () => {
     const payload = {
       data: [
-        { date: '2026-08-21T00:00:00Z' },
+        { date: new Date().toISOString() },
         { date: '2025-01-01T00:00:00Z' },
       ],
       total: 2,

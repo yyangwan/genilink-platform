@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canLoadEditContent, getEditContentProjectError, pickInitialPlatformContent } from "@/app/(dashboard)/content/[id]/edit/page";
+import { canLoadEditContent, getEditContentProjectError, pickInitialPlatformContent } from "@/lib/content/edit-content-page";
 
 describe("getEditContentProjectError", () => {
   it("waits while projects are still loading", () => {
