@@ -3,7 +3,9 @@ import { withBrandRoute } from '@/lib/auth/brand-route';
 import { prisma } from '@/lib/db';
 import { isUniqueViolation } from '@/lib/prisma-helpers';
 
-export const GET = withBrandRoute(async (_req, { workspaceId }, params) => {
+type BrandIdRoute = (req: NextRequest, context: { params: Promise<{ id: string }> }) => Promise<Response>;
+
+export const GET: BrandIdRoute = withBrandRoute(async (_req, { workspaceId }, params) => {
   const { id } = params!;
 
   const brand = await prisma.brand.findFirst({
@@ -17,7 +19,7 @@ export const GET = withBrandRoute(async (_req, { workspaceId }, params) => {
   return NextResponse.json(brand);
 });
 
-export const PATCH = withBrandRoute(async (req, { workspaceId }, params) => {
+export const PATCH: BrandIdRoute = withBrandRoute(async (req, { workspaceId }, params) => {
   const { id } = params!;
   const body = await req.json();
   const { name, aliases, isCompetitor, logo, website, description } = body;
@@ -54,7 +56,7 @@ export const PATCH = withBrandRoute(async (req, { workspaceId }, params) => {
   return NextResponse.json(updated);
 });
 
-export const DELETE = withBrandRoute(async (_req, { workspaceId }, params) => {
+export const DELETE: BrandIdRoute = withBrandRoute(async (_req, { workspaceId }, params) => {
   const { id } = params!;
 
   const existing = await prisma.brand.findFirst({

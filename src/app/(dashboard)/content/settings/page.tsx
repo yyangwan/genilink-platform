@@ -186,7 +186,7 @@ function PlatformDrawer({
   );
 }
 
-export function SettingsInner() {
+function SettingsInner() {
   const { data: session } = useSession();
   const { currentProject, currentProjectId, loading: projectLoading } = useProject();
   const { addToast } = useToast();

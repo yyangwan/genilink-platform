@@ -4,7 +4,8 @@ param(
     [Parameter(Mandatory)]
     [string]$GatewayId,
     [Parameter(Mandatory)]
-    [string]$Token
+    [string]$Token,
+    [string[]]$DeviceSerials = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,6 +15,8 @@ $handlerRoot = Join-Path $root "handlers"
 $configPath = Join-Path $configDirectory "gateway-agent.json"
 $agentPath = Join-Path $root "gateway-agent.ps1"
 $sourceAgent = Join-Path $PSScriptRoot "gateway-agent.ps1"
+$deviceSelectorPath = Join-Path $root "gateway-device-selector.ps1"
+$sourceDeviceSelector = Join-Path $PSScriptRoot "gateway-device-selector.ps1"
 $httpClientPath = Join-Path $root "gateway-http-client.mjs"
 $sourceHttpClient = Join-Path $PSScriptRoot "gateway-http-client.mjs"
 $sourceHandlerRoot = Join-Path $PSScriptRoot "handlers"
@@ -21,6 +24,9 @@ $sourceHandlerRoot = Join-Path $PSScriptRoot "handlers"
 New-Item -ItemType Directory -Path $configDirectory, $handlerRoot -Force | Out-Null
 if ([IO.Path]::GetFullPath($sourceAgent) -ne [IO.Path]::GetFullPath($agentPath)) {
     Copy-Item -LiteralPath $sourceAgent -Destination $agentPath -Force
+}
+if ([IO.Path]::GetFullPath($sourceDeviceSelector) -ne [IO.Path]::GetFullPath($deviceSelectorPath)) {
+    Copy-Item -LiteralPath $sourceDeviceSelector -Destination $deviceSelectorPath -Force
 }
 if ([IO.Path]::GetFullPath($sourceHttpClient) -ne [IO.Path]::GetFullPath($httpClientPath)) {
     Copy-Item -LiteralPath $sourceHttpClient -Destination $httpClientPath -Force
@@ -36,6 +42,7 @@ if (Test-Path -LiteralPath $sourceHandlerRoot) {
     baseUrl = $BaseUrl.TrimEnd("/")
     gatewayId = $GatewayId
     token = $Token
+    deviceSerials = @($DeviceSerials)
     capabilities = @("gateway.healthcheck", "appium.prompt")
     handlerRoot = $handlerRoot
     nodePath = "C:\Program Files\nodejs\node.exe"

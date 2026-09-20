@@ -7,6 +7,7 @@ $root = "C:\ProgramData\MobileGateway"
 $logPath = Join-Path $root "logs\gateway-agent.log"
 $statusPath = Join-Path $root "status.json"
 $mutex = [Threading.Mutex]::new($false, "Global\MobileGatewayAgent")
+. (Join-Path $PSScriptRoot "gateway-device-selector.ps1")
 
 if (-not $mutex.WaitOne(0)) {
     throw "Another gateway agent instance is already running"
@@ -101,6 +102,32 @@ function Send-Heartbeat {
     $script:lastHeartbeat = Get-Date
 }
 
+function Set-TaskDeviceSerial {
+    param([pscustomobject]$Task)
+
+    if ($Task.task_type -ne "appium.prompt" -or $Task.payload.device_serial) {
+        return
+    }
+    $configured = @($script:config.deviceSerials | Where-Object { $_ })
+    if ($configured.Count -eq 0) {
+        return
+    }
+
+    $adb = "C:\Program Files\Android\platform-tools\adb.exe"
+    $online = @(Get-AuthorizedDeviceSerials @(& $adb devices -l 2>$null))
+    $serial = Select-NextDeviceSerial `
+        -ConfiguredSerials $configured `
+        -OnlineSerials $online `
+        -PreviousSerial $script:lastAssignedDeviceSerial
+    if (-not $serial) {
+        throw "No configured Android device is currently authorized and online"
+    }
+
+    $Task.payload | Add-Member -NotePropertyName device_serial -NotePropertyValue $serial -Force
+    $script:lastAssignedDeviceSerial = $serial
+    Write-AgentLog "assigned task=$($Task.id) device=$serial"
+}
+
 function Invoke-AppiumTask {
     param([pscustomobject]$Task, [string]$LeaseToken)
 
@@ -173,6 +200,7 @@ function Invoke-ClaimedTask {
     $task = $Claim.task
     $leaseToken = $Claim.lease_token
     try {
+        Set-TaskDeviceSerial -Task $task
         if ($task.task_type -eq "gateway.healthcheck") {
             $result = @{
                 gatewayId = $script:config.gatewayId

@@ -4,7 +4,9 @@ import { prisma } from '@/lib/db';
 import { hasBrandCapacity } from '@/lib/billing/access';
 import { isUniqueViolation } from '@/lib/prisma-helpers';
 
-export const GET = withBrandRoute(async (_req, { workspaceId }) => {
+type BrandRoute = (req: NextRequest, context: { params: Promise<Record<string, string>> }) => Promise<Response>;
+
+export const GET: BrandRoute = withBrandRoute(async (_req, { workspaceId }) => {
   const brands = await prisma.brand.findMany({
     where: { workspaceId, deletedAt: null },
     orderBy: { createdAt: 'desc' },
@@ -14,7 +16,7 @@ export const GET = withBrandRoute(async (_req, { workspaceId }) => {
   return NextResponse.json(brands);
 });
 
-export const POST = withBrandRoute(async (req, { userId, workspaceId }) => {
+export const POST: BrandRoute = withBrandRoute(async (req, { userId, workspaceId }) => {
   const body = await req.json();
   const { name, aliases, isCompetitor, logo, website, description } = body;
   const competitor = Boolean(isCompetitor);
