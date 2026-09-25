@@ -299,7 +299,14 @@ async function claimNotifications(workerId: string, batchSize: number): Promise<
   });
 }
 
-function canSend(record: ClaimedNotification, now: Date): boolean {
+type NotificationDeliveryInput = Pick<ClaimedNotification, 'type' | 'periodEnd' | 'scheduledAt'> & {
+  subscription: Pick<ClaimedNotification['subscription'], 'status' | 'currentPeriodEnd' | 'gracePeriodEnd'> & {
+    user: Pick<ClaimedNotification['subscription']['user'], 'renewalReminderSmsEnabled'>;
+  };
+};
+
+export function shouldSendBillingNotification(record: NotificationDeliveryInput, now: Date): boolean {
+  if (!isFreshEnough(record.scheduledAt, now)) return false;
   const subscription = record.subscription;
   if (subscription.currentPeriodEnd.getTime() !== record.periodEnd.getTime()) return false;
   if (isAdvanceReminder(record.type)) {
@@ -320,7 +327,7 @@ function canSend(record: ClaimedNotification, now: Date): boolean {
 
 async function sendClaimed(record: ClaimedNotification, now: Date): Promise<'sent' | 'failed' | 'suppressed'> {
   const phone = normalizePhone(record.subscription.user.phone);
-  if (!phone || !canSend(record, now)) {
+  if (!phone || !shouldSendBillingNotification(record, now)) {
     await prisma.billingNotification.update({
       where: { id: record.id },
       data: { status: 'suppressed', lockedBy: null, lockedUntil: null },

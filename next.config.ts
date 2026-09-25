@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  experimental: {
+    // Avoid one static-generation process per logical CPU on high-core builders.
+    cpus: 4,
+  },
 };
 
 export default nextConfig;

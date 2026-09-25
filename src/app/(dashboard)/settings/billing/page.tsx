@@ -64,9 +64,8 @@ export default function BillingSettingsPage() {
   const [preferencePending, setPreferencePending] = useState(false);
   const accessSyncAttemptedRef = useRef(false);
 
-  const loadOverview = useCallback(() => {
-    const controller = new AbortController();
-    fetch('/api/billing/plans', { signal: controller.signal })
+  const loadOverview = useCallback((signal?: AbortSignal) => {
+    return fetch('/api/billing/plans', { signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return response.json() as Promise<BillingOverview>;
@@ -78,12 +77,14 @@ export default function BillingSettingsPage() {
       .catch((fetchError: Error) => {
         if (fetchError.name !== 'AbortError') setError('订阅数据加载失败');
       })
-      .finally(() => setLoading(false));
-    return controller;
+      .finally(() => {
+        if (!signal?.aborted) setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
-    const controller = loadOverview();
+    const controller = new AbortController();
+    void loadOverview(controller.signal);
     return () => controller.abort();
   }, [loadOverview]);
 
@@ -108,7 +109,7 @@ export default function BillingSettingsPage() {
     fetch('/api/billing/access', { method: 'POST' })
       .then((response) => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        loadOverview();
+        void loadOverview();
         router.replace('/settings/billing');
       })
       .catch(() => { accessSyncAttemptedRef.current = false; });
@@ -160,7 +161,7 @@ export default function BillingSettingsPage() {
       } else {
         setRenewalNotice(data?.error?.message ?? '关闭自动续期失败，请稍后重试。');
       }
-      loadOverview();
+      void loadOverview();
     } catch {
       setRenewalNotice('关闭自动续期失败，请稍后重试。');
     } finally {
@@ -177,8 +178,9 @@ export default function BillingSettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ renewalReminderSmsEnabled: enabled }),
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      await loadOverview();
+      const billingContact = await response.json() as BillingOverview['billingContact'];
+      if (!response.ok || !billingContact) throw new Error(`HTTP ${response.status}`);
+      setOverview((current) => current ? { ...current, billingContact } : current);
       setRenewalNotice(enabled ? '已开启订阅到期前短信提醒。' : '已关闭订阅到期前短信提醒。');
     } catch {
       setRenewalNotice('短信提醒设置更新失败，请稍后重试。');
@@ -236,29 +238,35 @@ export default function BillingSettingsPage() {
                 提醒发送至登录手机号 {overview?.billingContact?.phoneMasked ?? '未绑定'}。支付结果、到期和服务暂停等必要通知仍会发送。
               </p>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={overview?.billingContact?.renewalReminderSmsEnabled ?? true}
-              disabled={preferencePending || overview?.billingContact?.phoneMasked === '未绑定'}
-              onClick={() => void handleReminderPreference(!(overview?.billingContact?.renewalReminderSmsEnabled ?? true))}
-              className="relative h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                background: (overview?.billingContact?.renewalReminderSmsEnabled ?? true)
-                  ? 'var(--color-primary)'
-                  : 'var(--border)',
-              }}
-            >
-              <span
-                className="absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
+            <div className="flex shrink-0 items-center gap-3">
+              <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                {overview?.billingContact?.renewalReminderSmsEnabled ? '已开启' : '未开启'}
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-label="续费短信提醒"
+                aria-checked={overview?.billingContact?.renewalReminderSmsEnabled ?? false}
+                disabled={preferencePending || overview?.billingContact?.phoneMasked === '未绑定'}
+                onClick={() => void handleReminderPreference(!(overview?.billingContact?.renewalReminderSmsEnabled ?? false))}
+                className="relative h-7 w-12 cursor-pointer rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 style={{
-                  left: '4px',
-                  transform: (overview?.billingContact?.renewalReminderSmsEnabled ?? true)
-                    ? 'translateX(20px)'
-                    : 'translateX(0)',
+                  background: overview?.billingContact?.renewalReminderSmsEnabled
+                    ? 'var(--color-primary)'
+                    : 'var(--border)',
                 }}
-              />
-            </button>
+              >
+                <span
+                  className="absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
+                  style={{
+                    left: '4px',
+                    transform: overview?.billingContact?.renewalReminderSmsEnabled
+                      ? 'translateX(20px)'
+                      : 'translateX(0)',
+                  }}
+                />
+              </button>
+            </div>
           </div>
           {renewalNotice ? (
             <div className="mt-3 rounded-lg border px-4 py-2.5 text-sm" style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>
@@ -287,10 +295,10 @@ export default function BillingSettingsPage() {
                         ? `下次自动扣款 ${formatDateInTimeZone(subscription.nextBillingAt, { includeTime: false, includeYear: true })}${
                             subscription.renewalPriceCents ? `（${formatCents(subscription.renewalPriceCents)}）` : ''
                           }`
-                        : '已开启自动续期'
+                        : '自动扣款：已开启'
                       : subscription.cancelAtPeriodEnd
-                        ? '自动续期关闭中，到期后不再扣款'
-                        : '未开启自动续期'}
+                        ? '自动扣款关闭中，到期后不再扣款'
+                        : '自动扣款：未开启'}
                   </span>
                   {subscription.autoRenew ? (
                     <button
