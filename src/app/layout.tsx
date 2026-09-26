@@ -3,8 +3,16 @@ import Providers from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://genilink.cn"),
   title: "智链 · 全链路 AI 搜索增长平台",
   description: "从 AI 搜索可见性诊断、竞品分析到内容创作与排期的统一增长平台",
+  openGraph: {
+    type: "website",
+    locale: "zh_CN",
+    siteName: "智链",
+    title: "智链 · 全链路 AI 搜索增长平台",
+    description: "从 AI 搜索可见性诊断、竞品分析到内容创作与排期的统一增长平台",
+  },
 };
 
 const themeScript = `

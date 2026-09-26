@@ -30,6 +30,7 @@ export async function generateMetadata({ params }: BlogArticlePageProps): Promis
   return {
     title: `${article.title} - 智链`,
     description: article.description,
+    alternates: { canonical: `/blog/${article.slug}` },
   };
 }
 
@@ -69,7 +70,7 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
               <ArrowLeft size={14} />
               查看更多知识文章
             </Link>
-            <Link href="/auth/register?source=blog">
+            <Link href="/auth/login">
               免费诊断官网
               <ArrowRight size={14} />
             </Link>

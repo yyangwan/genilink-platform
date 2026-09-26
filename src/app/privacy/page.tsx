@@ -5,6 +5,7 @@ import { InfoPage } from "@/components/landing/info-page";
 export const metadata: Metadata = {
   title: "隐私政策 - 智链",
   description: "智链平台隐私政策。",
+  alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {

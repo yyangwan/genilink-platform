@@ -457,6 +457,37 @@ export async function reconcileCheckoutPayment(params: {
         });
       }
 
+      if (session.acquisitionSessionId) {
+        const attribution = session.attributionSnapshot as {
+          firstSource?: string | null;
+          firstMedium?: string | null;
+          firstCampaign?: string | null;
+        } | null;
+        await tx.funnelEvent.upsert({
+          where: { eventId: `checkout:${session.id}:completed` },
+          create: {
+            eventId: `checkout:${session.id}:completed`,
+            sessionId: session.acquisitionSessionId,
+            userId: session.userId,
+            workspaceId: session.workspaceId,
+            eventName: 'checkout_completed',
+            eventSource: 'server',
+            source: attribution?.firstSource ?? null,
+            medium: attribution?.firstMedium ?? null,
+            campaign: attribution?.firstCampaign ?? null,
+            properties: {
+              checkoutSessionId: session.id,
+              paymentOrderId: order.id,
+              amountCents: session.amountDueCents,
+              currency: session.currency,
+              planKey: session.billingPlan.key,
+            },
+            occurredAt: now,
+          },
+          update: {},
+        });
+      }
+
       // 12. Mark the event processed.
       await markEvent(tx, params.paymentEventId, 'processed', order.id);
       return 'activated';

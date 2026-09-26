@@ -16,7 +16,7 @@ function secretsMatch(received: string, expected: string): boolean {
 
 export function verifyInternalServiceAuth(
   req: NextRequest | Request,
-  secretEnvName: 'CONTENT_USAGE_CALLBACK_SECRET' | 'BILLING_CRON_SECRET',
+  secretEnvName: 'CONTENT_USAGE_CALLBACK_SECRET' | 'BILLING_CRON_SECRET' | 'MARKETING_CRON_SECRET',
 ): { ok: true } | { ok: false; response: NextResponse } {
   const secret = process.env[secretEnvName];
   if (!secret) {

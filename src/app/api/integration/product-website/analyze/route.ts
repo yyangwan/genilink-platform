@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
-import {
-  buildProductWebsiteAnalyzePayload,
-  getProductWebsiteBrands,
-  getProductWebsiteProject,
-} from '@/lib/product-website/context';
-import {
-  assertMonthlyUsageQuota,
-  PlanLimitError,
-  planLimitResponse,
-  recordMonthlyUsage,
-} from '@/lib/billing/usage';
+import { randomUUID } from 'node:crypto';
+import { resolveGuard } from '@/lib/proxy/route-guard';
+import { startProductWebsiteAnalysis } from '@/lib/product-website/start-analysis';
 
 export async function POST(req: NextRequest) {
   const result = await resolveGuard(req);
@@ -26,44 +17,12 @@ export async function POST(req: NextRequest) {
   const crawlerProvider = body && typeof body === 'object' && 'crawlerProvider' in body
     ? (body as { crawlerProvider?: unknown }).crawlerProvider
     : undefined;
-  const project = await getProductWebsiteProject(result.ctx.projectId, result.ctx.workspaceId);
-  if (!project) {
-    return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-  }
-
-  const brands = await getProductWebsiteBrands(result.ctx.projectId);
-  const payload = buildProductWebsiteAnalyzePayload({
-    projectId: result.ctx.projectId,
-    workspaceId: result.ctx.workspaceId,
-    project,
-    brands,
+  const started = await startProductWebsiteAnalysis(result.ctx, {
     requestedUrl,
     enableAiCitation,
     crawlerProvider,
+    idempotencyKey: req.headers.get('idempotency-key') || randomUUID(),
   });
-
-  if ('error' in payload) {
-    return NextResponse.json({ error: payload.error }, { status: 400 });
-  }
-
-  try {
-    await assertMonthlyUsageQuota(result.ctx.session.user.id, result.ctx.workspaceId, 'website_analysis');
-  } catch (err) {
-    if (err instanceof PlanLimitError) return planLimitResponse(err);
-    throw err;
-  }
-
-  const upstream = await fetchUpstream(result.ctx, '/api/product-website/analyze', {
-    method: 'POST',
-    body: payload,
-    timeoutMs: 30_000,
-    errorMessage: 'Failed to create product website analysis',
-  });
-  if ('response' in upstream) return upstream.response;
-
-  await recordMonthlyUsage(result.ctx.session.user.id, result.ctx.workspaceId, 'website_analysis', 1, {
-    projectId: result.ctx.projectId,
-  });
-
-  return NextResponse.json(upstream.data);
+  if ('response' in started) return started.response;
+  return NextResponse.json(started.data);
 }

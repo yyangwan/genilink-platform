@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { buildLoginCallbackPath } from '@/lib/auth/safe-callback';
 
 // Routes that require authentication but no specific module
-const BASE_ROUTES = ['/dashboard', '/projects', '/settings', '/onboarding', '/upgrade'];
+const BASE_ROUTES = ['/dashboard', '/projects', '/settings', '/onboarding', '/upgrade', '/start', '/ops'];
 
 // Routes that require 'visibility' module subscription
 const VISIBILITY_ROUTES = ['/visibility', '/audits', '/schedules', '/suggestions', '/trends', '/compare'];
 
 // Routes that require 'content' module subscription
 const CONTENT_ROUTES = ['/content'];
-const PUBLIC_ROUTES = ['/', '/faq', '/pricing-guide', '/support', '/terms', '/privacy', '/blog'];
+const PUBLIC_ROUTES = ['/', '/faq', '/pricing-guide', '/support', '/terms', '/privacy', '/blog', '/partners', '/enterprise'];
 
 function requiresModule(pathname: string): string | null {
   if (BASE_ROUTES.some((r) => pathname === r || pathname.startsWith(r + '/'))) return null;
@@ -35,7 +36,7 @@ function hasSessionCookie(request: NextRequest): boolean {
 }
 
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
 
   // Public marketing and informational pages.
   if (PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'))) {
@@ -56,7 +57,7 @@ export async function proxy(request: NextRequest) {
   // Check authentication via the Auth.js session cookie
   if (!hasSessionCookie(request)) {
     const loginUrl = new URL('/auth/login', request.url);
-    loginUrl.searchParams.set('callbackUrl', pathname);
+    loginUrl.searchParams.set('callbackUrl', buildLoginCallbackPath(pathname, search));
     return NextResponse.redirect(loginUrl);
   }
 

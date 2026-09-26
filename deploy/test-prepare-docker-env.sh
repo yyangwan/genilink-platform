@@ -23,6 +23,9 @@ ALIBABA_CLOUD_SMS_SIGN_NAME="智链"
 ALIBABA_CLOUD_SMS_TEMPLATE_CODE="SMS_123456789"
 AUTH_SECRET="hash#value"
 EMPTY_VALUE=""
+ACQUISITION_ENABLED="false"
+LEAD_FORMS_ENABLED="false"
+MARKETING_JOBS_ENABLED="false"
 EOF
 
 bash "$SCRIPT_DIR/prepare-docker-env.sh" \
@@ -69,6 +72,9 @@ TENCENTCLOUD_SECRET_KEY="secret-key"
 TENCENTCLOUD_SMS_SDK_APP_ID="1400000000"
 TENCENTCLOUD_SMS_SIGN_NAME="智链"
 TENCENTCLOUD_SMS_TEMPLATE_ID="123456"
+ACQUISITION_ENABLED="false"
+LEAD_FORMS_ENABLED="false"
+MARKETING_JOBS_ENABLED="false"
 EOF
 bash "$SCRIPT_DIR/prepare-docker-env.sh" \
   "$TEMP_DIR/tencent.env" "$TEMP_DIR/tencent.out"
@@ -81,6 +87,60 @@ EOF
 if bash "$SCRIPT_DIR/prepare-docker-env.sh" \
   "$TEMP_DIR/unmatched-quote.env" "$TEMP_DIR/unmatched-quote.out" >/dev/null 2>&1; then
   printf 'unmatched quote unexpectedly passed validation\n' >&2
+  exit 1
+fi
+
+CONTACT_KEY="$(printf '01234567890123456789012345678901' | base64 | tr -d '\r\n')"
+cat >"$TEMP_DIR/marketing.env" <<EOF
+SMS_PROVIDER=aliyun
+ALIBABA_CLOUD_ACCESS_KEY_ID=access-id
+ALIBABA_CLOUD_ACCESS_KEY_SECRET=access-secret
+ALIBABA_CLOUD_SMS_SIGN_NAME=智链
+ALIBABA_CLOUD_SMS_TEMPLATE_CODE=SMS_123456789
+ACQUISITION_ENABLED=true
+LEAD_FORMS_ENABLED=true
+MARKETING_JOBS_ENABLED=true
+MARKETING_HMAC_SECRET=01234567890123456789012345678901
+MARKETING_CONTACT_ENCRYPTION_KEY=$CONTACT_KEY
+MARKETING_CONTACT_HMAC_SECRET=abcdefghijklmnopqrstuvwxyz123456
+MARKETING_CRON_SECRET=marketing-cron-secret-0123456789
+MARKETING_EVENT_RETENTION_DAYS=90
+SALES_LEAD_WEBHOOK_URL=https://sales.example.com/leads
+EOF
+bash "$SCRIPT_DIR/prepare-docker-env.sh" \
+  "$TEMP_DIR/marketing.env" "$TEMP_DIR/marketing.out"
+assert_line 'ACQUISITION_ENABLED=true' "$TEMP_DIR/marketing.out"
+assert_line "MARKETING_CONTACT_ENCRYPTION_KEY=$CONTACT_KEY" "$TEMP_DIR/marketing.out"
+
+sed 's/MARKETING_CRON_SECRET=.*/MARKETING_CRON_SECRET=short/' \
+  "$TEMP_DIR/marketing.env" >"$TEMP_DIR/short-cron.env"
+if bash "$SCRIPT_DIR/prepare-docker-env.sh" \
+  "$TEMP_DIR/short-cron.env" "$TEMP_DIR/short-cron.out" >/dev/null 2>&1; then
+  printf 'short marketing cron secret unexpectedly passed validation\n' >&2
+  exit 1
+fi
+
+sed 's|MARKETING_CONTACT_ENCRYPTION_KEY=.*|MARKETING_CONTACT_ENCRYPTION_KEY=Zm9v|' \
+  "$TEMP_DIR/marketing.env" >"$TEMP_DIR/short-contact-key.env"
+if bash "$SCRIPT_DIR/prepare-docker-env.sh" \
+  "$TEMP_DIR/short-contact-key.env" "$TEMP_DIR/short-contact-key.out" >/dev/null 2>&1; then
+  printf 'short contact encryption key unexpectedly passed validation\n' >&2
+  exit 1
+fi
+
+sed 's|SALES_LEAD_WEBHOOK_URL=.*|SALES_LEAD_WEBHOOK_URL=http://sales.example.com/leads|' \
+  "$TEMP_DIR/marketing.env" >"$TEMP_DIR/insecure-webhook.env"
+if bash "$SCRIPT_DIR/prepare-docker-env.sh" \
+  "$TEMP_DIR/insecure-webhook.env" "$TEMP_DIR/insecure-webhook.out" >/dev/null 2>&1; then
+  printf 'insecure sales webhook unexpectedly passed validation\n' >&2
+  exit 1
+fi
+
+sed 's/ACQUISITION_ENABLED=true/ACQUISITION_ENABLED=yes/' \
+  "$TEMP_DIR/marketing.env" >"$TEMP_DIR/invalid-feature-flag.env"
+if bash "$SCRIPT_DIR/prepare-docker-env.sh" \
+  "$TEMP_DIR/invalid-feature-flag.env" "$TEMP_DIR/invalid-feature-flag.out" >/dev/null 2>&1; then
+  printf 'invalid marketing feature flag unexpectedly passed validation\n' >&2
   exit 1
 fi
 

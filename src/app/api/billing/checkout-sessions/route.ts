@@ -7,6 +7,7 @@ import {
   createCheckoutSession,
   serializeCheckoutSession,
 } from '@/lib/billing/checkout/service';
+import { resolveCheckoutAttribution } from '@/lib/marketing/checkout-attribution';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,11 @@ export async function POST(req: NextRequest) {
       throw toBillingError('IDEMPOTENCY_KEY_REQUIRED');
     }
 
+    const attribution = await resolveCheckoutAttribution(
+      req.cookies.get('genilink-acq')?.value,
+      userId,
+    );
+
     const result = await createCheckoutSession({
       userId,
       workspaceId,
@@ -38,6 +44,8 @@ export async function POST(req: NextRequest) {
       couponCode: body.couponCode ?? null,
       idempotencyKey,
       requestBody: { planKey: body.planKey, couponCode: body.couponCode ?? null },
+      acquisitionSessionId: attribution?.acquisitionSessionId ?? null,
+      attributionSnapshot: attribution?.attributionSnapshot ?? null,
     });
 
     const view = await serializeCheckoutSession(result.session);

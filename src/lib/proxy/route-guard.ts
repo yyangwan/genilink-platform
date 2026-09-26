@@ -180,18 +180,19 @@ export async function resolveGuard(
  * Execute a proxied fetch with timeout, error handling, and status mapping.
  * Returns the upstream JSON data or a NextResponse error.
  */
-export async function fetchUpstream(
-  ctx: GuardContext,
+export async function fetchUpstream<T extends Pick<GuardContext, 'upstreamUrl' | 'headers'>>(
+  ctx: T,
   path: string,
   opts: {
     method?: string;
     body?: unknown;
+    headers?: Record<string, string>;
     timeoutMs?: number;
     /** Custom error message for catch block. */
     errorMessage?: string;
   } = {},
 ): Promise<{ data: unknown } | { response: NextResponse }> {
-  const { method = 'GET', body, timeoutMs = 15_000, errorMessage = 'Upstream request failed' } = opts;
+  const { method = 'GET', body, headers, timeoutMs = 15_000, errorMessage = 'Upstream request failed' } = opts;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -199,7 +200,7 @@ export async function fetchUpstream(
   try {
     const res = await fetch(ctx.upstreamUrl(path), {
       method,
-      headers: ctx.headers,
+      headers: { ...ctx.headers, ...headers },
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });

@@ -70,6 +70,8 @@ export async function createCheckoutSession(params: {
   couponCode?: string | null;
   idempotencyKey: string | null;
   requestBody: unknown;
+  acquisitionSessionId?: string | null;
+  attributionSnapshot?: Prisma.InputJsonValue | null;
 }): Promise<
   | { type: 'created'; session: CheckoutSessionRecord }
   | { type: 'replay'; session: CheckoutSessionRecord }
@@ -191,6 +193,8 @@ export async function createCheckoutSession(params: {
         renewalAmountCents: quote.renewalAmountCents,
         planSnapshot: quote.planSnapshot as unknown as Prisma.InputJsonValue,
         discountSnapshot: (quote.discountSnapshot ?? undefined) as Prisma.InputJsonValue | undefined,
+        acquisitionSessionId: params.acquisitionSessionId ?? null,
+        attributionSnapshot: params.attributionSnapshot ?? undefined,
         couponId: coupon?.id ?? null,
         expiresAt: new Date(now.getTime() + checkoutTtlMinutes() * 60_000),
       },

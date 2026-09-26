@@ -40,7 +40,7 @@ export function AccountSubscriptionPlans({
         <div>
           <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>选择升级方案</h2>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            内测期间所有标准套餐均为 1 元，完整能力与额度见下方对照表。
+            月付适合灵活使用，年付价格约省两个月；完整能力与额度见下方对照表。
           </p>
         </div>
         <div className="inline-flex rounded-full border p-1" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }} role="group" aria-label="订阅周期">

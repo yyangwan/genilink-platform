@@ -4,8 +4,7 @@ import { getTierFromPlanKey } from '@/lib/billing/tiers';
 import { isPaymentProviderConfigured, type PaymentProvider } from '@/lib/billing/gateways';
 
 export async function syncBillingPlans() {
-  try {
-    await Promise.all([
+  await Promise.all([
       prisma.billingPlan.updateMany({
         where: { module: { not: 'suite' }, isActive: true },
         data: { isActive: false },
@@ -40,15 +39,10 @@ export async function syncBillingPlans() {
           },
         }),
       ),
-    ]);
-  } catch (error) {
-    console.warn('Billing plan sync skipped', error);
-  }
+  ]);
 }
 
 export async function listBillingOverview(_userId: string, workspaceId: string) {
-  await syncBillingPlans();
-
   const [plans, subscriptions] = await Promise.all([
     prisma.billingPlan.findMany({
       where: { isActive: true },
@@ -93,7 +87,6 @@ export async function listBillingOverview(_userId: string, workspaceId: string) 
 }
 
 export async function getBillingPlanByKey(key: string) {
-  await syncBillingPlans();
   return prisma.billingPlan.findUnique({
     where: { key },
   });

@@ -75,7 +75,48 @@ env_value() {
 
 require_env() {
   local key="$1"
-  [ -n "$(env_value "$key")" ] || fail "required SMS configuration is missing: $key"
+  [ -n "$(env_value "$key")" ] || fail "required configuration is missing: $key"
+}
+
+require_secret() {
+  local key="$1"
+  local value
+  value="$(env_value "$key")"
+  [ -n "$value" ] || fail "required configuration is missing: $key"
+  [ "${#value}" -ge 32 ] || fail "$key must contain at least 32 characters"
+}
+
+feature_enabled() {
+  [ "$(env_value "$1")" = "true" ]
+}
+
+validate_feature_flag() {
+  local key="$1"
+  case "$(env_value "$key")" in
+    true|false) ;;
+    *) fail "$key must be explicitly set to true or false" ;;
+  esac
+}
+
+require_https_url_if_set() {
+  local key="$1"
+  local value
+  value="$(env_value "$key")"
+  if [ -n "$value" ]; then
+    case "$value" in
+      https://*) ;;
+      *) fail "$key must use https" ;;
+    esac
+  fi
+}
+
+validate_contact_encryption_key() {
+  local value bytes
+  value="$(env_value MARKETING_CONTACT_ENCRYPTION_KEY)"
+  [ -n "$value" ] || fail "required configuration is missing: MARKETING_CONTACT_ENCRYPTION_KEY"
+  bytes="$(printf '%s' "$value" | base64 --decode 2>/dev/null | wc -c | tr -d '[:space:]')" \
+    || fail "MARKETING_CONTACT_ENCRYPTION_KEY must be valid base64"
+  [ "$bytes" = "32" ] || fail "MARKETING_CONTACT_ENCRYPTION_KEY must decode to exactly 32 bytes"
 }
 
 SMS_PROVIDER_VALUE="$(env_value SMS_PROVIDER)"
@@ -100,4 +141,33 @@ case "$SMS_PROVIDER_VALUE" in
     fail "SMS_PROVIDER must be aliyun or tencent"
     ;;
 esac
+
+for flag in ACQUISITION_ENABLED LEAD_FORMS_ENABLED MARKETING_JOBS_ENABLED; do
+  validate_feature_flag "$flag"
+done
+
+if feature_enabled ACQUISITION_ENABLED || feature_enabled LEAD_FORMS_ENABLED; then
+  require_secret MARKETING_HMAC_SECRET
+fi
+
+if feature_enabled LEAD_FORMS_ENABLED; then
+  validate_contact_encryption_key
+  if [ -n "$(env_value MARKETING_CONTACT_HMAC_SECRET)" ]; then
+    require_secret MARKETING_CONTACT_HMAC_SECRET
+  fi
+fi
+
+if feature_enabled MARKETING_JOBS_ENABLED; then
+  require_secret MARKETING_CRON_SECRET
+fi
+
+RETENTION_DAYS="$(env_value MARKETING_EVENT_RETENTION_DAYS)"
+if [ -n "$RETENTION_DAYS" ]; then
+  [[ "$RETENTION_DAYS" =~ ^[0-9]+$ ]] \
+    || fail "MARKETING_EVENT_RETENTION_DAYS must be an integer between 30 and 730"
+  [ "$RETENTION_DAYS" -ge 30 ] && [ "$RETENTION_DAYS" -le 730 ] \
+    || fail "MARKETING_EVENT_RETENTION_DAYS must be between 30 and 730"
+fi
+
+require_https_url_if_set SALES_LEAD_WEBHOOK_URL
 

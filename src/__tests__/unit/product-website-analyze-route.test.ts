@@ -19,10 +19,14 @@ vi.mock('@/lib/db', () => ({
 }));
 
 vi.mock('@/lib/billing/usage', () => ({
-  assertMonthlyUsageQuota: vi.fn(),
-  recordMonthlyUsage: vi.fn(),
-  PlanLimitError: class extends Error {},
   planLimitResponse: vi.fn(),
+}));
+
+vi.mock('@/lib/billing/usage-reservations', () => ({
+  reserveContentGeneration: vi.fn().mockResolvedValue({ type: 'reserved', usageEventId: 'usage-1' }),
+  commitUsageOperation: vi.fn().mockResolvedValue({ ok: true }),
+  markPendingReconcile: vi.fn(),
+  releaseUsageOperation: vi.fn(),
 }));
 
 import { fetchUpstream, resolveGuard } from '@/lib/proxy/route-guard';

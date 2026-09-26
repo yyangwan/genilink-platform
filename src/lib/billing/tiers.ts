@@ -1,4 +1,5 @@
 import type { ModuleType, SubscriptionTier } from '@/types/billing';
+import { COMMERCIAL_OFFER } from '@/config/commercial-offer';
 
 export type TierLimitKey =
   | 'projects'
@@ -56,11 +57,6 @@ export interface SubscriptionTierDefinition {
   limits: Record<TierLimitKey, number>;
 }
 
-// All self-serve plans use a nominal price while the product is in internal beta.
-// Keep this value shared by the entitlement matrix and the checkout catalog so the
-// displayed amount can never drift from the amount sent to payment providers.
-export const INTERNAL_BETA_PLAN_PRICE_CENTS = 100;
-
 export type SubscriptionPlanMatrixRow = {
   label: string;
   values: Record<SubscriptionTier, string>;
@@ -80,8 +76,8 @@ export const SUBSCRIPTION_TIERS: SubscriptionTierDefinition[] = [
     description: '适合个人或小团队验证 AI 搜索增长机会。',
     badge: '轻量起步',
     recommended: false,
-    monthlyPriceCents: INTERNAL_BETA_PLAN_PRICE_CENTS,
-    yearlyPriceCents: INTERNAL_BETA_PLAN_PRICE_CENTS,
+    monthlyPriceCents: COMMERCIAL_OFFER.plans.lite.monthlyPriceCents,
+    yearlyPriceCents: COMMERCIAL_OFFER.plans.lite.yearlyPriceCents,
     audience: '个人/小团队验证',
     modules: ['visibility', 'content'],
     highlights: ['智见基础分析', '智创基础创作', '个人/小团队验证'],
@@ -128,8 +124,8 @@ export const SUBSCRIPTION_TIERS: SubscriptionTierDefinition[] = [
     description: '适合持续开展 AI 搜索增长的团队。',
     badge: '推荐方案',
     recommended: true,
-    monthlyPriceCents: INTERNAL_BETA_PLAN_PRICE_CENTS,
-    yearlyPriceCents: INTERNAL_BETA_PLAN_PRICE_CENTS,
+    monthlyPriceCents: COMMERCIAL_OFFER.plans.pro.monthlyPriceCents,
+    yearlyPriceCents: COMMERCIAL_OFFER.plans.pro.yearlyPriceCents,
     audience: '持续做 AI 搜索增长的团队',
     modules: ['visibility', 'content'],
     highlights: ['完整增长闭环', '完整内容工作流', '推荐团队方案'],
@@ -176,8 +172,8 @@ export const SUBSCRIPTION_TIERS: SubscriptionTierDefinition[] = [
     description: '适合多项目和规模化 AI 搜索运营团队。',
     badge: '规模增长',
     recommended: false,
-    monthlyPriceCents: INTERNAL_BETA_PLAN_PRICE_CENTS,
-    yearlyPriceCents: INTERNAL_BETA_PLAN_PRICE_CENTS,
+    monthlyPriceCents: COMMERCIAL_OFFER.plans.max.monthlyPriceCents,
+    yearlyPriceCents: COMMERCIAL_OFFER.plans.max.yearlyPriceCents,
     audience: '多项目/规模化运营团队',
     modules: ['visibility', 'content'],
     highlights: ['多项目管理', '规模化内容生产', '完整战略智能'],

@@ -64,6 +64,9 @@ jobs:
       - name: Test deployment environment normalization
         run: bash deploy/test-prepare-docker-env.sh
 
+      - name: Test marketing upstream contract gate
+        run: bash deploy/test-marketing-upstream-contract.sh
+
       - name: Test container key permission preparation
         run: sudo bash deploy/test-container-key-access.sh
 

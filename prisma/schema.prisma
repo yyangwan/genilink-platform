@@ -10,30 +10,39 @@ datasource db {
 // ─── Auth & Identity ────────────────────────────────────────────────
 
 model User {
-  id                  String   @id @default(cuid()) @db.Text
-  email               String?  @unique @db.Text
-  loginEmail          String?  @unique @db.Text
-  passwordHash        String?  @db.Text
-  name                String   @db.Text
-  phone               String?  @unique @db.Text
-  image               String?  @db.Text
-  wechatOpenid        String?  @unique @db.Text
-  wechatUnionid       String?  @unique @db.Text
-  onboardingCompleted Boolean  @default(false)
-  onboardingStep      String   @default("welcome") @db.Text
-  renewalReminderSmsEnabled Boolean @default(true)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                        String   @id @default(cuid()) @db.Text
+  email                     String?  @unique @db.Text
+  loginEmail                String?  @unique @db.Text
+  passwordHash              String?  @db.Text
+  name                      String   @db.Text
+  phone                     String?  @unique @db.Text
+  image                     String?  @db.Text
+  wechatOpenid              String?  @unique @db.Text
+  wechatUnionid             String?  @unique @db.Text
+  onboardingCompleted       Boolean  @default(false)
+  onboardingStep            String   @default("welcome") @db.Text
+  renewalReminderSmsEnabled Boolean  @default(true)
+  systemRole                String   @default("user") @db.Text
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
-  memberships   WorkspaceMember[]
-  accounts      Account[]
-  paymentOrders PaymentOrder[]
-  subscriptions Subscription[]
-  checkoutSessions  CheckoutSession[]
-  paymentAgreements PaymentAgreement[]
-  couponRedemptions CouponRedemption[]
-  smsVerifications SmsVerificationCode[]
-  billingNotifications BillingNotification[]
+  memberships               WorkspaceMember[]
+  accounts                  Account[]
+  paymentOrders             PaymentOrder[]
+  subscriptions             Subscription[]
+  checkoutSessions          CheckoutSession[]
+  paymentAgreements         PaymentAgreement[]
+  couponRedemptions         CouponRedemption[]
+  smsVerifications          SmsVerificationCode[]
+  billingNotifications      BillingNotification[]
+  acquisitionSessions       AcquisitionSession[]
+  acquisitionIntents        AcquisitionIntent[]
+  funnelEvents              FunnelEvent[]
+  marketingLeads            MarketingLead[]            @relation("MarketingLeadOwner")
+  assignedMarketingLeads    MarketingLead[]            @relation("MarketingLeadAssignee")
+  marketingLeadStatusEvents MarketingLeadStatusEvent[]
+  grantedSystemRoles        SystemRoleAudit[]          @relation("SystemRoleAuditActor")
+  systemRoleHistory         SystemRoleAudit[]          @relation("SystemRoleAuditTarget")
 }
 
 model Account {
@@ -65,18 +74,18 @@ model WechatLoginSession {
 }
 
 model SmsVerificationCode {
-  id           String    @id @default(cuid()) @db.Text
-  phone        String    @db.Text
-  codeHash     String    @db.Text
-  purpose      String    @default("login") @db.Text
-  provider     String    @default("aliyun") @db.Text
-  ipHash       String    @db.Text
-  attempts     Int       @default(0)
-  expiresAt    DateTime
-  consumedAt   DateTime?
-  userId       String?   @db.Text
-  user         User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  createdAt    DateTime  @default(now())
+  id         String    @id @default(cuid()) @db.Text
+  phone      String    @db.Text
+  codeHash   String    @db.Text
+  purpose    String    @default("login") @db.Text
+  provider   String    @default("aliyun") @db.Text
+  ipHash     String    @db.Text
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  userId     String?   @db.Text
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt  DateTime  @default(now())
 
   @@index([phone, purpose, createdAt])
   @@index([ipHash, createdAt])
@@ -129,16 +138,17 @@ model Workspace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members       WorkspaceMember[]
-  projects      Project[]
-  brands        Brand[]
-  invites       WorkspaceInvite[]
-  paymentOrders PaymentOrder[]
-  subscriptions Subscription[]
-  usageEvents   UsageEvent[]
+  members           WorkspaceMember[]
+  projects          Project[]
+  brands            Brand[]
+  invites           WorkspaceInvite[]
+  paymentOrders     PaymentOrder[]
+  subscriptions     Subscription[]
+  usageEvents       UsageEvent[]
   checkoutSessions  CheckoutSession[]
   paymentAgreements PaymentAgreement[]
   couponRedemptions CouponRedemption[]
+  funnelEvents      FunnelEvent[]
 }
 
 model WorkspaceMember {
@@ -169,20 +179,22 @@ model WorkspaceInvite {
 // ─── Projects & Resources ───────────────────────────────────────────
 
 model Project {
-  id          String    @id @default(cuid()) @db.Text
-  name        String    @db.Text
-  url               String?   @db.Text
-  industry          String?   @db.Text
-  productName       String?   @db.Text
-  productKeywords   String[]  @default([])
-  productDescription String?  @db.Text
-  productUrl        String?   @db.Text
-  workspaceId       String    @db.Text
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                 String    @id @default(cuid()) @db.Text
+  name               String    @db.Text
+  url                String?   @db.Text
+  industry           String?   @db.Text
+  productName        String?   @db.Text
+  productKeywords    String[]  @default([])
+  productDescription String?   @db.Text
+  productUrl         String?   @db.Text
+  workspaceId        String    @db.Text
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  projectBrands ProjectBrand[]
+  projectBrands      ProjectBrand[]
+  acquisitionIntents AcquisitionIntent[]
+  funnelEvents       FunnelEvent[]
 
   @@unique([workspaceId, name])
 }
@@ -197,7 +209,7 @@ model Brand {
   logo         String?   @db.Text
   website      String?   @db.Text
   description  String?   @db.Text
-  remoteIds    Json?     // { visibility: { projectId: remoteBrandId } }
+  remoteIds    Json? // { visibility: { projectId: remoteBrandId } }
   workspaceId  String    @db.Text
   workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   deletedAt    DateTime? // soft delete — NULL = active
@@ -223,68 +235,269 @@ model ProjectBrand {
   @@index([projectId])
 }
 
+// ─── Marketing acquisition ────────────────────────────────────────
+
+model AcquisitionSession {
+  id            String   @id @default(cuid()) @db.Text
+  anonymousHash String   @unique @db.Text
+  userId        String?  @db.Text
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  firstSource   String?  @db.Text
+  firstMedium   String?  @db.Text
+  firstCampaign String?  @db.Text
+  lastSource    String?  @db.Text
+  lastMedium    String?  @db.Text
+  lastCampaign  String?  @db.Text
+  firstTouch    Json
+  lastTouch     Json
+  landingPath   String   @db.Text
+  referrerHost  String?  @db.Text
+  createdAt     DateTime @default(now())
+  lastSeenAt    DateTime @updatedAt
+  expiresAt     DateTime
+
+  intents          AcquisitionIntent[]
+  events           FunnelEvent[]
+  checkoutSessions CheckoutSession[]
+  paymentOrders    PaymentOrder[]
+  leads            MarketingLead[]
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
+
+model AcquisitionIntent {
+  id             String             @id @default(cuid()) @db.Text
+  sessionId      String             @db.Text
+  session        AcquisitionSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId         String?            @db.Text
+  user           User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  kind           String             @db.Text
+  targetUrl      String?            @db.Text
+  planKey        String?            @db.Text
+  status         String             @default("pending") @db.Text
+  projectId      String?            @db.Text
+  project        Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  analysisId     Int?
+  idempotencyKey String             @unique @db.Text
+  errorCode      String?            @db.Text
+  expiresAt      DateTime
+  completedAt    DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([userId, status])
+  @@index([sessionId, createdAt])
+  @@index([expiresAt, status])
+}
+
+model FunnelEvent {
+  id          String              @id @default(cuid()) @db.Text
+  eventId     String              @unique @db.Text
+  sessionId   String?             @db.Text
+  session     AcquisitionSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  userId      String?             @db.Text
+  user        User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  workspaceId String?             @db.Text
+  workspace   Workspace?          @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  projectId   String?             @db.Text
+  project     Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  eventName   String              @db.Text
+  eventSource String              @db.Text
+  source      String?             @db.Text
+  medium      String?             @db.Text
+  campaign    String?             @db.Text
+  properties  Json?
+  occurredAt  DateTime
+  createdAt   DateTime            @default(now())
+
+  @@index([eventName, occurredAt])
+  @@index([source, medium, campaign, occurredAt])
+  @@index([sessionId, occurredAt])
+  @@index([userId, occurredAt])
+  @@index([workspaceId, occurredAt])
+}
+
+model FunnelDailyMetric {
+  id           String   @id @default(cuid()) @db.Text
+  metricDate   DateTime @db.Date
+  eventName    String   @db.Text
+  source       String   @default("") @db.Text
+  medium       String   @default("") @db.Text
+  campaign     String   @default("") @db.Text
+  eventCount   Int      @default(0)
+  visitorCount Int      @default(0)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([metricDate, eventName, source, medium, campaign])
+  @@index([eventName, metricDate])
+}
+
+model MarketingLead {
+  id                   String              @id @default(cuid()) @db.Text
+  sessionId            String?             @db.Text
+  session              AcquisitionSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  userId               String?             @db.Text
+  user                 User?               @relation("MarketingLeadOwner", fields: [userId], references: [id], onDelete: SetNull)
+  kind                 String              @db.Text
+  companyName          String              @db.Text
+  website              String?             @db.Text
+  industry             String?             @db.Text
+  contactCiphertext    String?             @db.Text
+  contactHash          String?             @db.Text
+  projectCountBand     String?             @db.Text
+  budgetBand           String?             @db.Text
+  timeline             String?             @db.Text
+  deploymentPreference String?             @db.Text
+  requirements         String?             @db.Text
+  score                Int                 @default(0)
+  grade                String              @default("cold") @db.Text
+  status               String              @default("new") @db.Text
+  version              Int                 @default(1)
+  contactConsentAt     DateTime
+  contactWithdrawnAt   DateTime?
+  withdrawalTokenHash  String              @db.Text
+  privacyVersion       String              @db.Text
+  submissionToken      String              @unique @db.Text
+  assignedUserId       String?             @db.Text
+  assignedUser         User?               @relation("MarketingLeadAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  lastContactedAt      DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  statusEvents  MarketingLeadStatusEvent[]
+  deliveries    LeadNotificationDelivery[]
+  privacyEvents MarketingLeadPrivacyEvent[]
+
+  @@index([status, grade, createdAt])
+  @@index([kind, createdAt])
+  @@index([contactHash])
+  @@index([assignedUserId, status])
+}
+
+model MarketingLeadPrivacyEvent {
+  id        String        @id @default(cuid()) @db.Text
+  leadId    String        @db.Text
+  lead      MarketingLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  action    String        @db.Text
+  reason    String?       @db.Text
+  createdAt DateTime      @default(now())
+
+  @@index([leadId, createdAt])
+}
+
+model MarketingLeadStatusEvent {
+  id          String        @id @default(cuid()) @db.Text
+  leadId      String        @db.Text
+  lead        MarketingLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  fromStatus  String?       @db.Text
+  toStatus    String        @db.Text
+  actorUserId String?       @db.Text
+  actorUser   User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  note        String?       @db.Text
+  createdAt   DateTime      @default(now())
+
+  @@index([leadId, createdAt])
+}
+
+model LeadNotificationDelivery {
+  id          String        @id @default(cuid()) @db.Text
+  leadId      String        @db.Text
+  lead        MarketingLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  destination String        @db.Text
+  status      String        @default("pending") @db.Text
+  attempts    Int           @default(0)
+  nextRetryAt DateTime      @default(now())
+  lastError   String?       @db.Text
+  lockedBy    String?       @db.Text
+  lockedUntil DateTime?
+  deliveredAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([leadId, destination])
+  @@index([status, nextRetryAt])
+}
+
+model SystemRoleAudit {
+  id           String   @id @default(cuid()) @db.Text
+  targetUserId String   @db.Text
+  targetUser   User     @relation("SystemRoleAuditTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  actorUserId  String?  @db.Text
+  actorUser    User?    @relation("SystemRoleAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  fromRole     String   @db.Text
+  toRole       String   @db.Text
+  reason       String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  @@index([targetUserId, createdAt])
+}
+
 // ─── Billing ────────────────────────────────────────────────────────
 
 model BillingPlan {
-  id             String   @id @default(cuid()) @db.Text
-  key            String   @unique @db.Text
-  module         String   @db.Text
-  billingCycle   String   @db.Text
-  name           String   @db.Text
-  description    String?  @db.Text
-  priceCents     Int
-  currency       String   @default("CNY") @db.Text
-  provider       String   @db.Text
-  providerPriceId String? @unique @db.Text
-  checkoutUrl    String?  @db.Text
-  isActive       Boolean  @default(true)
-  sortOrder      Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id              String   @id @default(cuid()) @db.Text
+  key             String   @unique @db.Text
+  module          String   @db.Text
+  billingCycle    String   @db.Text
+  name            String   @db.Text
+  description     String?  @db.Text
+  priceCents      Int
+  currency        String   @default("CNY") @db.Text
+  provider        String   @db.Text
+  providerPriceId String?  @unique @db.Text
+  checkoutUrl     String?  @db.Text
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  orders PaymentOrder[]
-  subscriptions Subscription[]
+  orders           PaymentOrder[]
+  subscriptions    Subscription[]
   checkoutSessions CheckoutSession[]
 }
 
 model PaymentOrder {
-  id                   String    @id @default(cuid()) @db.Text
-  userId               String    @db.Text
-  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspaceId          String    @db.Text
-  workspace            Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  billingPlanId        String    @db.Text
-  billingPlan          BillingPlan @relation(fields: [billingPlanId], references: [id])
-  module               String    @db.Text
-  billingCycle         String    @db.Text
-  provider             String    @db.Text
-  providerSessionId    String?   @unique @db.Text
-  providerCustomerId   String?   @db.Text
-  providerSubscriptionId String? @unique @db.Text
-  status               String    @db.Text
-  amountCents          Int
-  currency             String    @default("CNY") @db.Text
-  checkoutUrl          String?   @db.Text
-  successUrl           String?   @db.Text
-  cancelUrl            String?   @db.Text
-  metadata             Json?
-  paidAt               DateTime?
-  expiredAt            DateTime?
-  checkoutSessionId    String?   @db.Text
-  checkoutSession      CheckoutSession? @relation(fields: [checkoutSessionId], references: [id], onDelete: SetNull)
-  orderType            String    @default("initial") @db.Text // initial | renewal
-  attemptNumber        Int       @default(1)
-  idempotencyKey       String?   @unique @db.Text
-  idempotencyRequestHash String? @db.Text
-  providerTransactionId String?  @unique @db.Text
-  failureCode          String?   @db.Text
-  failureMessage       String?   @db.Text
-  closedAt             DateTime?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id                     String              @id @default(cuid()) @db.Text
+  userId                 String              @db.Text
+  user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId            String              @db.Text
+  workspace              Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  billingPlanId          String              @db.Text
+  billingPlan            BillingPlan         @relation(fields: [billingPlanId], references: [id])
+  module                 String              @db.Text
+  billingCycle           String              @db.Text
+  provider               String              @db.Text
+  providerSessionId      String?             @unique @db.Text
+  providerCustomerId     String?             @db.Text
+  providerSubscriptionId String?             @unique @db.Text
+  status                 String              @db.Text
+  amountCents            Int
+  currency               String              @default("CNY") @db.Text
+  checkoutUrl            String?             @db.Text
+  successUrl             String?             @db.Text
+  cancelUrl              String?             @db.Text
+  metadata               Json?
+  acquisitionSessionId   String?             @db.Text
+  acquisitionSession     AcquisitionSession? @relation(fields: [acquisitionSessionId], references: [id], onDelete: SetNull)
+  attributionSnapshot    Json?
+  paidAt                 DateTime?
+  expiredAt              DateTime?
+  checkoutSessionId      String?             @db.Text
+  checkoutSession        CheckoutSession?    @relation(fields: [checkoutSessionId], references: [id], onDelete: SetNull)
+  orderType              String              @default("initial") @db.Text // initial | renewal
+  attemptNumber          Int                 @default(1)
+  idempotencyKey         String?             @unique @db.Text
+  idempotencyRequestHash String?             @db.Text
+  providerTransactionId  String?             @unique @db.Text
+  failureCode            String?             @db.Text
+  failureMessage         String?             @db.Text
+  closedAt               DateTime?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
 
-  subscription Subscription?
-  events       PaymentEvent[]
+  subscription   Subscription?
+  events         PaymentEvent[]
   renewalAttempt RenewalAttempt?
 
   @@unique([checkoutSessionId, attemptNumber])
@@ -294,126 +507,130 @@ model PaymentOrder {
 }
 
 model PaymentEvent {
-  id                 String    @id @default(cuid()) @db.Text
-  provider           String    @db.Text
-  providerEventId    String    @unique @db.Text
-  eventType          String    @db.Text
-  status             String    @db.Text
-  signatureVerified  Boolean   @default(false)
-  payload            Json
-  paymentOrderId     String?   @db.Text
-  paymentOrder       PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
-  processedAt        DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                String        @id @default(cuid()) @db.Text
+  provider          String        @db.Text
+  providerEventId   String        @unique @db.Text
+  eventType         String        @db.Text
+  status            String        @db.Text
+  signatureVerified Boolean       @default(false)
+  payload           Json
+  paymentOrderId    String?       @db.Text
+  paymentOrder      PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+  processedAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   @@index([provider, eventType])
   @@index([paymentOrderId])
 }
 
 model Subscription {
-  id                 String    @id @default(cuid()) @db.Text
-  userId             String    @db.Text
-  user               User      @relation(fields: [userId], references: [id])
-  workspaceId        String    @db.Text
-  workspace          Workspace @relation(fields: [workspaceId], references: [id])
-  module             String    @db.Text
-  status             String    @db.Text
-  billingCycle       String    @db.Text
-  billingPlanId      String?   @db.Text
-  billingPlan        BillingPlan? @relation(fields: [billingPlanId], references: [id])
-  provider           String?   @db.Text
-  providerCustomerId String?   @db.Text
-  providerSubscriptionId String? @unique @db.Text
-  paymentOrderId     String?   @unique @db.Text
-  paymentOrder       PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
-  currentPeriodStart DateTime
-  currentPeriodEnd   DateTime
-  trialEnd           DateTime?
-  autoRenew          Boolean   @default(false)
-  cancelAtPeriodEnd  Boolean   @default(false)
-  paymentAgreementId String?   @db.Text
-  paymentAgreement   PaymentAgreement? @relation(fields: [paymentAgreementId], references: [id], onDelete: SetNull)
-  nextBillingAt      DateTime?
-  gracePeriodEnd     DateTime?
-  renewalPriceCents  Int?
-  priceSnapshot      Json?
-  discountSnapshot   Json?
-  discountRemainingCycles Int @default(0)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                      String            @id @default(cuid()) @db.Text
+  userId                  String            @db.Text
+  user                    User              @relation(fields: [userId], references: [id])
+  workspaceId             String            @db.Text
+  workspace               Workspace         @relation(fields: [workspaceId], references: [id])
+  module                  String            @db.Text
+  status                  String            @db.Text
+  billingCycle            String            @db.Text
+  billingPlanId           String?           @db.Text
+  billingPlan             BillingPlan?      @relation(fields: [billingPlanId], references: [id])
+  provider                String?           @db.Text
+  providerCustomerId      String?           @db.Text
+  providerSubscriptionId  String?           @unique @db.Text
+  paymentOrderId          String?           @unique @db.Text
+  paymentOrder            PaymentOrder?     @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+  currentPeriodStart      DateTime
+  currentPeriodEnd        DateTime
+  trialEnd                DateTime?
+  autoRenew               Boolean           @default(false)
+  cancelAtPeriodEnd       Boolean           @default(false)
+  paymentAgreementId      String?           @db.Text
+  paymentAgreement        PaymentAgreement? @relation(fields: [paymentAgreementId], references: [id], onDelete: SetNull)
+  nextBillingAt           DateTime?
+  gracePeriodEnd          DateTime?
+  renewalPriceCents       Int?
+  priceSnapshot           Json?
+  discountSnapshot        Json?
+  discountRemainingCycles Int               @default(0)
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
 
-  checkoutSessions CheckoutSession[] @relation("CheckoutSourceSubscription")
-  renewalAttempts  RenewalAttempt[]
+  checkoutSessions     CheckoutSession[]     @relation("CheckoutSourceSubscription")
+  renewalAttempts      RenewalAttempt[]
   billingNotifications BillingNotification[]
 
   @@unique([userId, workspaceId, module])
 }
 
 model CheckoutSession {
-  id                       String    @id @default(cuid()) @db.Text
-  idempotencyKey           String    @db.Text
-  idempotencyRequestHash   String    @db.Text
-  userId                   String    @db.Text
-  user                     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspaceId              String    @db.Text
-  workspace                Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  billingPlanId            String    @db.Text
-  billingPlan              BillingPlan @relation(fields: [billingPlanId], references: [id])
-  sourceSubscriptionId     String?   @db.Text
-  sourceSubscription       Subscription? @relation("CheckoutSourceSubscription", fields: [sourceSubscriptionId], references: [id], onDelete: SetNull)
-  purchaseType             String    @db.Text
-  status                   String    @default("ready") @db.Text
-  currency                 String    @default("CNY") @db.Text
+  id                       String              @id @default(cuid()) @db.Text
+  idempotencyKey           String              @db.Text
+  idempotencyRequestHash   String              @db.Text
+  userId                   String              @db.Text
+  user                     User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId              String              @db.Text
+  workspace                Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  billingPlanId            String              @db.Text
+  billingPlan              BillingPlan         @relation(fields: [billingPlanId], references: [id])
+  sourceSubscriptionId     String?             @db.Text
+  sourceSubscription       Subscription?       @relation("CheckoutSourceSubscription", fields: [sourceSubscriptionId], references: [id], onDelete: SetNull)
+  purchaseType             String              @db.Text
+  status                   String              @default("ready") @db.Text
+  currency                 String              @default("CNY") @db.Text
   subtotalCents            Int
-  discountCents            Int       @default(0)
+  discountCents            Int                 @default(0)
   amountDueCents           Int
   renewalAmountCents       Int
   planSnapshot             Json
   discountSnapshot         Json?
-  couponId                 String?   @db.Text
-  coupon                   Coupon?   @relation(fields: [couponId], references: [id], onDelete: SetNull)
-  autoRenew                Boolean   @default(false)
-  agreementAcceptedVersion String?   @db.Text
+  acquisitionSessionId     String?             @db.Text
+  acquisitionSession       AcquisitionSession? @relation(fields: [acquisitionSessionId], references: [id], onDelete: SetNull)
+  attributionSnapshot      Json?
+  couponId                 String?             @db.Text
+  coupon                   Coupon?             @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  autoRenew                Boolean             @default(false)
+  agreementAcceptedVersion String?             @db.Text
   agreementAcceptedAt      DateTime?
-  agreementAcceptedIp      String?   @db.Text
-  agreementAcceptedUa      String?   @db.Text
+  agreementAcceptedIp      String?             @db.Text
+  agreementAcceptedUa      String?             @db.Text
   expiresAt                DateTime
   completedAt              DateTime?
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
 
-  paymentOrders PaymentOrder[]
-  redemption    CouponRedemption?
+  paymentOrders    PaymentOrder[]
+  redemption       CouponRedemption?
   paymentAgreement PaymentAgreement?
 
-  @@index([userId, workspaceId, status])
-  @@index([workspaceId, createdAt])
-  @@index([expiresAt, status])
   // Idempotency keys are scoped per owner (remediation §4.8) — a global
   // unique key let one user replay into another user's session.
   @@unique([userId, workspaceId, idempotencyKey])
+  @@index([userId, workspaceId, status])
+  @@index([workspaceId, createdAt])
+  @@index([acquisitionSessionId, createdAt])
+  @@index([expiresAt, status])
 }
 
 model Promotion {
-  id                    String   @id @default(cuid()) @db.Text
-  name                  String   @unique @db.Text
-  description           String?  @db.Text
-  discountType          String   @db.Text
+  id                    String    @id @default(cuid()) @db.Text
+  name                  String    @unique @db.Text
+  description           String?   @db.Text
+  discountType          String    @db.Text
   discountValue         Int
-  duration              String   @default("once") @db.Text
+  duration              String    @default("once") @db.Text
   durationCycles        Int?
   minimumAmountCents    Int?
   maximumDiscountCents  Int?
   eligiblePlanKeys      Json?
   eligibleBillingCycles Json?
-  newCustomersOnly      Boolean  @default(false)
+  newCustomersOnly      Boolean   @default(false)
   maxRedemptions        Int?
-  maxPerUser            Int      @default(1)
-  maxPerWorkspace       Int      @default(1)
+  maxPerUser            Int       @default(1)
+  maxPerWorkspace       Int       @default(1)
   startsAt              DateTime
   endsAt                DateTime?
-  isActive              Boolean  @default(true)
+  isActive              Boolean   @default(true)
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -436,22 +653,22 @@ model Coupon {
 }
 
 model CouponRedemption {
-  id                String    @id @default(cuid()) @db.Text
-  couponId          String    @db.Text
-  coupon            Coupon    @relation(fields: [couponId], references: [id], onDelete: Restrict)
-  checkoutSessionId String    @unique @db.Text
+  id                String          @id @default(cuid()) @db.Text
+  couponId          String          @db.Text
+  coupon            Coupon          @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  checkoutSessionId String          @unique @db.Text
   checkoutSession   CheckoutSession @relation(fields: [checkoutSessionId], references: [id], onDelete: Restrict)
-  userId            String    @db.Text
-  user              User      @relation(fields: [userId], references: [id], onDelete: Restrict)
-  workspaceId       String    @db.Text
-  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  status            String    @default("reserved") @db.Text
+  userId            String          @db.Text
+  user              User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  workspaceId       String          @db.Text
+  workspace         Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  status            String          @default("reserved") @db.Text
   discountCents     Int
-  reservedAt        DateTime  @default(now())
+  reservedAt        DateTime        @default(now())
   redeemedAt        DateTime?
   releasedAt        DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   @@index([couponId, status])
   @@index([userId, couponId, status])
@@ -459,25 +676,25 @@ model CouponRedemption {
 }
 
 model PaymentAgreement {
-  id                         String    @id @default(cuid()) @db.Text
-  userId                     String    @db.Text
-  user                       User      @relation(fields: [userId], references: [id], onDelete: Restrict)
-  workspaceId                String    @db.Text
-  workspace                  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  checkoutSessionId          String?   @unique @db.Text
-  checkoutSession            CheckoutSession? @relation(fields: [checkoutSessionId], references: [id], onDelete: SetNull)
-  provider                   String    @db.Text
-  status                     String    @default("pending") @db.Text
-  providerAgreementId        String?   @unique @db.Text
-  providerUserId             String?   @db.Text
-  providerTemplateId         String?   @db.Text
-  agreementVersion           String    @db.Text
-  signedAt                   DateTime?
-  revokedAt                  DateTime?
-  expiresAt                  DateTime?
-  providerPayload            Json?
-  createdAt                  DateTime  @default(now())
-  updatedAt                  DateTime  @updatedAt
+  id                  String           @id @default(cuid()) @db.Text
+  userId              String           @db.Text
+  user                User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  workspaceId         String           @db.Text
+  workspace           Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  checkoutSessionId   String?          @unique @db.Text
+  checkoutSession     CheckoutSession? @relation(fields: [checkoutSessionId], references: [id], onDelete: SetNull)
+  provider            String           @db.Text
+  status              String           @default("pending") @db.Text
+  providerAgreementId String?          @unique @db.Text
+  providerUserId      String?          @db.Text
+  providerTemplateId  String?          @db.Text
+  agreementVersion    String           @db.Text
+  signedAt            DateTime?
+  revokedAt           DateTime?
+  expiresAt           DateTime?
+  providerPayload     Json?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 
   subscriptions Subscription[]
 
@@ -485,27 +702,27 @@ model PaymentAgreement {
 }
 
 model RenewalAttempt {
-  id                 String    @id @default(cuid()) @db.Text
-  subscriptionId     String    @db.Text
-  subscription       Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-  paymentOrderId     String?   @unique @db.Text
-  paymentOrder       PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
-  periodStart        DateTime
-  periodEnd          DateTime
-  scheduledAt        DateTime
-  attemptNumber      Int       @default(1)
-  amountCents        Int
-  currency           String    @default("CNY") @db.Text
-  status             String    @default("scheduled") @db.Text
-  failureCode        String?   @db.Text
-  failureMessage     String?   @db.Text
-  nextRetryAt        DateTime?
-  lockedBy           String?   @db.Text
-  lockedUntil        DateTime?
-  startedAt          DateTime?
-  completedAt        DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id             String        @id @default(cuid()) @db.Text
+  subscriptionId String        @db.Text
+  subscription   Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  paymentOrderId String?       @unique @db.Text
+  paymentOrder   PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+  periodStart    DateTime
+  periodEnd      DateTime
+  scheduledAt    DateTime
+  attemptNumber  Int           @default(1)
+  amountCents    Int
+  currency       String        @default("CNY") @db.Text
+  status         String        @default("scheduled") @db.Text
+  failureCode    String?       @db.Text
+  failureMessage String?       @db.Text
+  nextRetryAt    DateTime?
+  lockedBy       String?       @db.Text
+  lockedUntil    DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@unique([subscriptionId, periodStart, attemptNumber])
   @@index([status, scheduledAt])

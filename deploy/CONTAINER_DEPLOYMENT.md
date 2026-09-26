@@ -15,14 +15,18 @@ immutable image. Production does not run `npm ci` or `next build`.
 5. The script runs `prisma migrate deploy` from the immutable release image
    using the server-owned runtime environment. A migration failure stops the
    release before the inactive container or Nginx is changed.
-6. The script starts the inactive blue/green slot on port 3002 or 3003, then
+6. When acquisition is enabled, the script verifies that the configured
+   product-website analysis service is healthy and advertises the
+   `product_website_idempotency_v1` capability. A missing capability stops the
+   release before the inactive container or Nginx is changed.
+7. The script starts the inactive blue/green slot on port 3002 or 3003, then
    waits for `/api/health`.
-7. After the local health check passes, the script atomically changes the Nginx
+8. After the local health check passes, the script atomically changes the Nginx
    upstream and checks the public health endpoint.
-8. If either key preflight, Nginx validation, or the public check fails, the old
+9. If any configuration or dependency preflight, Nginx validation, or the public check fails, the old
    upstream stays live. On success, the previous container is stopped but
    retained for rollback.
-9. Rollback validates that the retained image can read, parse, and use the
+10. Rollback validates that the retained image can read, parse, and use the
    mounted signing-key pair before restarting it or changing Nginx.
 
 Runtime configuration remains on the server:
@@ -39,6 +43,26 @@ Runtime configuration remains on the server:
   of truth for this runtime group contract across the image, deploy script, and
   CI tests.
 - Neither file is copied into the image or uploaded to GHCR.
+
+Marketing features are disabled by default. Enable them only after the runtime
+configuration passes `prepare-docker-env.sh`:
+
+- `ACQUISITION_ENABLED=true` enables acquisition intents and product-website
+  analysis. The deploy preflight also requires the upstream analysis service to
+  expose `product_website_idempotency_v1` from its health endpoint.
+- `LEAD_FORMS_ENABLED=true` enables public lead forms. It requires a strong
+  `MARKETING_HMAC_SECRET` and a base64-encoded
+  `MARKETING_CONTACT_ENCRYPTION_KEY` that decodes to exactly 32 bytes. Set
+  `MARKETING_CONTACT_HMAC_SECRET` when contact deduplication should use a
+  separate key.
+- `MARKETING_JOBS_ENABLED=true` enables authenticated maintenance jobs and
+  requires `MARKETING_CRON_SECRET`.
+- `MARKETING_EVENT_RETENTION_DAYS` must be between 30 and 730 days.
+- `SALES_LEAD_WEBHOOK_URL`, when configured, must use HTTPS outside local test
+  environments.
+
+Deploy the upstream analysis service with idempotency support before enabling
+`ACQUISITION_ENABLED` in this application.
 
 Database migrations in production must follow expand/contract compatibility:
 the migration deployed with a new image may only add or relax schema used by

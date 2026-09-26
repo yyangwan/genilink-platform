@@ -53,6 +53,16 @@ describe('proxy middleware', () => {
     expect(new URL(location!).searchParams.get('callbackUrl')).toBe('/onboarding');
   });
 
+  it('preserves the query string in an unauthenticated login callback', async () => {
+    const req = new NextRequest('http://localhost/start?source=landing&plan=pro');
+
+    const res = await runProxy(req);
+    const location = res.headers.get('location');
+
+    expect(location).toBeTruthy();
+    expect(new URL(location!).searchParams.get('callbackUrl')).toBe('/start?source=landing&plan=pro');
+  });
+
   it('redirects legacy non-secure Auth.js cookies in production', async () => {
     vi.stubEnv('NODE_ENV', 'production');
 
