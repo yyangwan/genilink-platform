@@ -5,6 +5,8 @@ import { ProjectProviderWrapper } from "@/components/project/project-provider";
 import { ContextBar } from "@/components/project/context-bar";
 import { ProjectWizard } from "@/components/project/project-wizard";
 import { resolveWorkspaceId } from "@/lib/auth/get-workspace";
+import { effectiveSystemRole } from "@/lib/auth/ops";
+import { prisma } from "@/lib/db";
 
 export default async function DashboardLayout({
   children,
@@ -13,16 +15,25 @@ export default async function DashboardLayout({
 }) {
   const cookieStore = await cookies();
   const session = await auth();
-  const workspaceId = session?.user?.id
-    ? await resolveWorkspaceId(
-        session.user.id,
-        cookieStore.get("genilink-workspace")?.value,
-      )
-    : null;
+  const [workspaceId, currentUser] = session?.user?.id
+    ? await Promise.all([
+        resolveWorkspaceId(
+          session.user.id,
+          cookieStore.get("genilink-workspace")?.value,
+        ),
+        prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { id: true, systemRole: true },
+        }),
+      ])
+    : [null, null];
+  const showOps = currentUser
+    ? ["ops", "admin"].includes(effectiveSystemRole(currentUser))
+    : false;
 
   return (
     <div className="min-h-screen flex" style={{ background: "var(--bg-base)" }}>
-      <Sidebar />
+      <Sidebar showOps={showOps} />
 
       {/* Main content area — offset by sidebar width on desktop */}
       <main
