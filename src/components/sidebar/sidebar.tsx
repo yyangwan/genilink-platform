@@ -105,6 +105,11 @@ const bottomItems: NavItem[] = [
   { label: "设置", href: "/settings", icon: Settings },
 ];
 
+const opsItems: NavItem[] = [
+  { label: "获客转化", href: "/ops/conversion", icon: BarChart3 },
+  { label: "合作线索", href: "/ops/leads", icon: Target },
+];
+
 function getAccordionState(): Record<string, boolean> {
   if (typeof window === "undefined") return {};
   try {
@@ -121,7 +126,7 @@ function saveAccordionState(state: Record<string, boolean>) {
   } catch {}
 }
 
-export default function Sidebar() {
+export default function Sidebar({ showOps = false }: { showOps?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -300,6 +305,19 @@ export default function Sidebar() {
       <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto" aria-label="主导航">
         {/* Top items */}
         {topItems.map(navLink)}
+
+        {showOps && (
+          <>
+            <div className="my-2" style={{ borderTop: "1px solid var(--border)" }} />
+            <div
+              className="px-3 pb-1 text-[10px] font-medium uppercase tracking-wider"
+              style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}
+            >
+              运营中心
+            </div>
+            {opsItems.map(navLink)}
+          </>
+        )}
 
         {/* Divider */}
         <div className="my-2" style={{ borderTop: "1px solid var(--border)" }} />
