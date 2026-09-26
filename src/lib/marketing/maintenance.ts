@@ -304,6 +304,75 @@ export async function aggregatePreviousUtcDay(now = new Date()) {
   return { start, end, groups: rows.length };
 }
 
+type LeadNotificationPayload = {
+  leadId: string;
+  kind: string;
+  companyName: string;
+  score: number;
+  grade: string;
+  detailUrl: string;
+};
+
+function isWeComWebhook(webhookUrl: string) {
+  try {
+    const url = new URL(webhookUrl);
+    return url.protocol === 'https:'
+      && url.hostname === 'qyapi.weixin.qq.com'
+      && url.pathname === '/cgi-bin/webhook/send';
+  } catch {
+    return false;
+  }
+}
+
+function notificationBaseUrl() {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://genilink.cn').origin;
+  } catch {
+    return 'https://genilink.cn';
+  }
+}
+
+function singleLine(value: string) {
+  return value.replace(/[\r\n\t]+/g, ' ').replace(/[<>]/g, '').trim();
+}
+
+function webhookRequest(webhookUrl: string, payload: LeadNotificationPayload) {
+  if (!isWeComWebhook(webhookUrl)) return { body: payload, provider: 'generic' as const };
+
+  const kindLabels: Record<string, string> = {
+    agency: '代理合作',
+    private_deployment: '私有化部署',
+    managed_service: '代运营服务',
+  };
+  const detailUrl = `${notificationBaseUrl()}${payload.detailUrl}`;
+  return {
+    provider: 'wecom' as const,
+    body: {
+      msgtype: 'text',
+      text: {
+        content: [
+          '【智链新线索】',
+          `公司：${singleLine(payload.companyName)}`,
+          `类型：${kindLabels[payload.kind] || singleLine(payload.kind)}`,
+          `评分：${payload.score}（${singleLine(payload.grade)}）`,
+          `查看详情：${detailUrl}`,
+        ].join('\n'),
+      },
+    },
+  };
+}
+
+async function assertWebhookAccepted(response: Response, provider: 'generic' | 'wecom') {
+  if (!response.ok) throw new Error(`HTTP_${response.status}`);
+  if (provider !== 'wecom') return;
+
+  const result = await response.json().catch(() => null) as { errcode?: unknown } | null;
+  const errcode = Number(result?.errcode);
+  if (!Number.isInteger(errcode) || errcode !== 0) {
+    throw new Error(`WECOM_${Number.isInteger(errcode) ? errcode : 'INVALID_RESPONSE'}`);
+  }
+}
+
 export async function deliverLeadNotifications(now = new Date()) {
   const webhookUrl = process.env.SALES_LEAD_WEBHOOK_URL;
   if (!webhookUrl) return { delivered: 0, failed: 0 };
@@ -345,20 +414,22 @@ export async function deliverLeadNotifications(now = new Date()) {
       continue;
     }
     try {
+      const payload = {
+        leadId: item.lead.id,
+        kind: item.lead.kind,
+        companyName: item.lead.companyName,
+        score: item.lead.score,
+        grade: item.lead.grade,
+        detailUrl: `/ops/leads/${item.lead.id}`,
+      };
+      const request = webhookRequest(webhookUrl, payload);
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadId: item.lead.id,
-          kind: item.lead.kind,
-          companyName: item.lead.companyName,
-          score: item.lead.score,
-          grade: item.lead.grade,
-          detailUrl: `/ops/leads/${item.lead.id}`,
-        }),
+        body: JSON.stringify(request.body),
         signal: AbortSignal.timeout(8_000),
       });
-      if (!response.ok) throw new Error(`HTTP_${response.status}`);
+      await assertWebhookAccepted(response, request.provider);
       await prisma.leadNotificationDelivery.update({
         where: { id: item.id },
         data: { status: 'delivered', deliveredAt: new Date(), lockedBy: null, lockedUntil: null, lastError: null },

@@ -51,6 +51,39 @@ describe('lead notification delivery', () => {
     }) }));
   });
 
+  it('formats enterprise WeChat messages and validates its success code', async () => {
+    vi.stubEnv('SALES_LEAD_WEBHOOK_URL', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test-key');
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://genilink.cn');
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ errcode: 0, errmsg: 'ok' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(deliverLeadNotifications(new Date('2026-09-26T00:00:00Z'))).resolves.toEqual({ delivered: 1, failed: 0 });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body).toEqual({
+      msgtype: 'text',
+      text: {
+        content: [
+          '【智链新线索】',
+          '公司：示例公司',
+          '类型：代理合作',
+          '评分：75（hot）',
+          '查看详情：https://genilink.cn/ops/leads/lead_1',
+        ].join('\n'),
+      },
+    });
+  });
+
+  it('retries when enterprise WeChat returns an error in an HTTP 200 response', async () => {
+    vi.stubEnv('SALES_LEAD_WEBHOOK_URL', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=invalid-key');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ errcode: 93000, errmsg: 'invalid webhook url' })));
+
+    await expect(deliverLeadNotifications(new Date('2026-09-26T00:00:00Z'))).resolves.toEqual({ delivered: 0, failed: 1 });
+    expect(mocks.update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      status: 'retry', lastError: 'WECOM_93000', lockedBy: null, lockedUntil: null,
+    }) }));
+  });
+
   it('cancels a claimed delivery when consent was withdrawn concurrently', async () => {
     mocks.findLead.mockResolvedValue({ contactWithdrawnAt: new Date('2026-09-26T00:00:00Z') });
     const fetchMock = vi.fn();
