@@ -5,6 +5,7 @@ import { InfoPage } from "@/components/landing/info-page";
 export const metadata: Metadata = {
   title: "帮助支持 - 智链",
   description: "智链平台帮助支持入口。",
+  alternates: { canonical: "/support" },
 };
 
 export default function SupportPage() {

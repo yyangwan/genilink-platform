@@ -16,6 +16,7 @@ import styles from './page.module.css';
 export const metadata: Metadata = {
   title: '套餐权益说明 - 智链',
   description: '详细了解智链入门版、专业版、高级版与定制方案的功能范围、额度计算、报告等级与订阅规则。',
+  alternates: { canonical: '/pricing-guide' },
 };
 
 const levelRows = [
@@ -189,7 +190,7 @@ export default function PricingGuidePage() {
             <div><span>05</span><h2>订阅、升级与支付规则</h2></div>
           </div>
           <div className={styles.billingGrid}>
-            <article><h3>内测价格</h3><p>产品内测期间，入门版、专业版和高级版的月付与年付价格均为 1 元，用于真实支付与订阅流程测试。</p></article>
+            <article><h3>正式价格</h3><p>入门版为 99 元/月或 999 元/年，专业版为 399 元/月或 3,999 元/年，高级版为 1,299 元/月或 12,999 元/年。支付前请核对结算页金额。</p></article>
             <article><h3>月付与年付</h3><p>月付和年付的功能权益相同，区别在价格和订阅周期。年付不会额外减少月度功能额度。</p></article>
             <article><h3>套餐升级</h3><p>平台当前支持向上升级。升级后使用更高套餐的项目容量、功能等级和月度额度。</p></article>
             <article><h3>支付方式</h3><p>已配置的套餐支持微信支付和支付宝。支付完成并确认后，系统会自动更新工作区订阅权益。</p></article>

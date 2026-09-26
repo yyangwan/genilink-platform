@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { BrandMark } from "@/components/brand/brand-mark";
+import { getSafeCallbackPath } from "@/lib/auth/safe-callback";
 import { isWechatLoginEnabled } from "@/lib/auth/wechat-login-feature";
 
 type WechatQRState = {
@@ -58,14 +59,8 @@ function LoginContent() {
   const displayedError = error || urlErrorMessage;
 
   const goToCallback = useCallback((target: string) => {
-    const targetUrl = new URL(target, window.location.origin);
-    if (targetUrl.origin === window.location.origin) {
-      router.push(targetUrl.pathname + targetUrl.search + targetUrl.hash);
-      router.refresh();
-      return;
-    }
-
-    window.location.assign(target);
+    router.push(getSafeCallbackPath(target, window.location.origin));
+    router.refresh();
   }, [router]);
   useEffect(() => {
     if (countdown <= 0) return;

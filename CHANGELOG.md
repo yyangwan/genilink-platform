@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0.10] - 2026-09-26
+
+### Added
+- Visitors can start a product website analysis from campaign landing pages, continue through registration, and keep their acquisition context through checkout.
+- Enterprise buyers and agency partners can submit encrypted contact requests, withdraw consent, and have their contact data deleted without waiting for an operator.
+- Operations users can review leads, funnel performance, catalog status, and role assignments from protected internal pages.
+- Search engines can discover public marketing pages through canonical metadata, robots rules, and an XML sitemap.
+
+### Changed
+- Public pricing now shows the production Lite, Pro, and Max monthly and yearly prices from the same catalog used by checkout.
+- Product website analysis retries use stable request keys, reserved usage, and upstream recovery so network failures cannot create duplicate work or charges.
+- Production deployment validates marketing secrets, retention settings, webhook security, and upstream idempotency support before enabling acquisition traffic.
+
+### Fixed
+- Lead delivery is canceled when consent is withdrawn, including jobs already waiting in the delivery queue.
+- Payment attribution, analysis recovery, and marketing maintenance can resume safely after interrupted requests.
+
 ## [0.2.0.9] - 2026-09-04
 
 ### Fixed

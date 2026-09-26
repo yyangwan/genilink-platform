@@ -187,19 +187,14 @@ export function LandingPage() {
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
+  const [submittingDiagnosis, setSubmittingDiagnosis] = useState(false);
   const [pricingOverview, setPricingOverview] = useState<PricingOverview | null>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [activeModuleId, setActiveModuleId] = useState(productModules[0].id);
   const [heroModuleIndex, setHeroModuleIndex] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  const encodedUrl = useMemo(() => encodeURIComponent(normalizeUrl(url)), [url]);
-  const registerHref = encodedUrl
-    ? `/auth/register?source=website-diagnosis&targetUrl=${encodedUrl}`
-    : "/auth/register?source=website-diagnosis";
-  const loginHref = encodedUrl
-    ? `/auth/login?callbackUrl=${encodeURIComponent(`/website-analysis?targetUrl=${encodedUrl}`)}`
-    : "/auth/login";
+  const loginHref = "/auth/login";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -263,7 +258,7 @@ export function LandingPage() {
     return () => observer.disconnect();
   }, []);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalized = normalizeUrl(url);
 
@@ -273,9 +268,32 @@ export function LandingPage() {
         throw new Error("INVALID_PROTOCOL");
       }
       setError("");
-      router.push(`/auth/register?source=website-diagnosis&targetUrl=${encodeURIComponent(parsed.href)}`);
-    } catch {
-      setError("请输入有效的官网地址，例如 https://example.com");
+      setSubmittingDiagnosis(true);
+      const response = await fetch('/api/public/acquisition/intents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'website_diagnosis',
+          targetUrl: parsed.href,
+          attribution: {
+            source: 'website-diagnosis',
+            landingPath: `${window.location.pathname}${window.location.search}`,
+            referrerHost: document.referrer ? new URL(document.referrer).hostname : undefined,
+            utm_source: new URLSearchParams(window.location.search).get('utm_source') || undefined,
+            utm_medium: new URLSearchParams(window.location.search).get('utm_medium') || undefined,
+            utm_campaign: new URLSearchParams(window.location.search).get('utm_campaign') || undefined,
+          },
+        }),
+      });
+      const result = await response.json() as { error?: string; nextUrl?: string };
+      if (!response.ok || !result.nextUrl) throw new Error(result.error || '暂时无法创建诊断');
+      router.push(result.nextUrl);
+    } catch (submitError) {
+      setError(submitError instanceof Error && submitError.message !== 'Invalid URL'
+        ? submitError.message
+        : "请输入有效的官网地址，例如 https://example.com");
+    } finally {
+      setSubmittingDiagnosis(false);
     }
   }
 
@@ -298,7 +316,7 @@ export function LandingPage() {
             <Link href={loginHref} className={styles.ghostButton}>
               登录
             </Link>
-            <Link href={registerHref} className={styles.navButton}>
+            <Link href={loginHref} className={styles.navButton}>
               免费诊断官网
               <ArrowUpRight size={14} />
             </Link>
@@ -330,8 +348,7 @@ export function LandingPage() {
             从官网诊断、AI 可见性审计到内容生成和排期，把增长动作放进同一个工作台。
           </p>
 
-          <form className={styles.diagnosisForm} action="/auth/register" method="get" onSubmit={handleSubmit}>
-            <input type="hidden" name="source" value="website-diagnosis" />
+          <form className={styles.diagnosisForm} onSubmit={handleSubmit}>
             <label htmlFor="website-url">输入官网，开始免费诊断</label>
             <div className={styles.inputRow}>
               <Globe2 size={18} aria-hidden />
@@ -344,9 +361,9 @@ export function LandingPage() {
                 inputMode="url"
                 autoComplete="url"
               />
-              <button type="submit">
+              <button type="submit" disabled={submittingDiagnosis}>
                 <FileSearch size={16} />
-                免费诊断官网
+                {submittingDiagnosis ? '正在创建诊断…' : '免费诊断官网'}
               </button>
             </div>
             {error ? <p className={styles.errorText}>{error}</p> : null}
@@ -444,7 +461,7 @@ export function LandingPage() {
             billingCycle={billingCycle}
             onBillingCycleChange={setBillingCycle}
             billingDisabled={pricingOverview?.billingDisabled}
-            getPlanHref={(planKey) => `${registerHref}&planKey=${encodeURIComponent(planKey)}`}
+            getPlanHref={(planKey) => `/auth/login?callbackUrl=${encodeURIComponent(`/upgrade?planKey=${encodeURIComponent(planKey)}`)}`}
           />
         </div>
         <div className={styles.pricingNote}>
@@ -458,7 +475,7 @@ export function LandingPage() {
         <div className={styles.footerLead}>
           <BrandLockup />
           <p>让您的品牌在 AI 答案里被理解、被引用、被选择。</p>
-          <Link href={registerHref} className={styles.footerPrimaryLink}>
+          <Link href={loginHref} className={styles.footerPrimaryLink}>
             开始免费诊断
             <ArrowRight size={15} />
           </Link>

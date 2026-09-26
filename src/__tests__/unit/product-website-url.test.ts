@@ -27,4 +27,32 @@ describe('normalizeProductWebsiteUrl', () => {
       error: 'Target URL is not allowed',
     });
   });
+
+  it.each([
+    'http://100.64.0.1',
+    'http://192.0.2.1',
+    'http://198.18.0.1',
+    'http://198.51.100.1',
+    'http://203.0.113.1',
+    'http://224.0.0.1',
+    'http://[::1]',
+    'http://[fe80::1]',
+    'http://[2001:db8::1]',
+  ])('rejects non-public address %s', (value) => {
+    expect(normalizeProductWebsiteUrl(value)).toEqual({
+      ok: false,
+      error: 'Target URL is not allowed',
+    });
+  });
+
+  it('rejects credentials and non-standard ports', () => {
+    expect(normalizeProductWebsiteUrl('https://user:pass@example.com')).toEqual({
+      ok: false,
+      error: 'Credentials in target URL are not allowed',
+    });
+    expect(normalizeProductWebsiteUrl('https://example.com:8443')).toEqual({
+      ok: false,
+      error: 'Target URL port is not allowed',
+    });
+  });
 });

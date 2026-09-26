@@ -272,6 +272,8 @@ export async function createPaymentAttempt(params: {
             agreementAcceptedVersion: params.agreementAcceptedVersion ?? null,
           }),
           metadata: {},
+          acquisitionSessionId: fresh.acquisitionSessionId,
+          attributionSnapshot: (fresh.attributionSnapshot ?? undefined) as Prisma.InputJsonValue | undefined,
         },
       });
 

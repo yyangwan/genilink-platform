@@ -22,7 +22,7 @@ describe('LandingSubscriptionPlans', () => {
     expect(screen.getByRole('heading', { name: '按你的团队阶段，选择最合适的版本' })).toBeTruthy();
     expect(screen.getByText(/个人或小团队可从入门版验证机会/)).toBeTruthy();
     expect(screen.getByRole('link', { name: /查看详细说明/ }).getAttribute('href')).toBe('/pricing-guide');
-    expect(screen.getByText('内测期间各套餐仅 ¥1')).toBeTruthy();
+    expect(screen.getByText('年付价格约省两个月')).toBeTruthy();
     expect(screen.getByRole('heading', { name: '定制方案' })).toBeTruthy();
     expect(screen.getByText('托管运营，按结果付费')).toBeTruthy();
     expect(screen.getByText('私有化部署')).toBeTruthy();

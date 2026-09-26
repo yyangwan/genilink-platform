@@ -103,6 +103,26 @@ wait_for_health() {
   return 1
 }
 
+runtime_env_value() {
+  local key="$1"
+  awk -F= -v key="$key" '$1 == key { value = substr($0, index($0, "=") + 1) } END { print value }' "$RUNTIME_ENV_FILE"
+}
+
+verify_marketing_upstream_contract() {
+  [ "$(runtime_env_value ACQUISITION_ENABLED)" = "true" ] || return 0
+
+  local visibility_url health_body
+  visibility_url="$(runtime_env_value VISIBILITY_SERVICE_URL)"
+  [ -n "$visibility_url" ] || fail "VISIBILITY_SERVICE_URL is required when acquisition is enabled"
+  visibility_url="${visibility_url%/}"
+  health_body="$(curl --fail --silent --show-error --max-time 10 \
+    "$visibility_url/api/health" 2>/dev/null)" \
+    || fail "visibility service health check failed; deploy the upstream service before enabling acquisition"
+  printf '%s' "$health_body" | grep -Fq '"product_website_idempotency_v1"' \
+    || fail "visibility service lacks product_website_idempotency_v1; deploy the upstream contract first"
+  log "visibility service supports product website request-key reconciliation"
+}
+
 write_upstream() {
   local port="$1"
   local candidate="${UPSTREAM_FILE}.new"
@@ -193,6 +213,7 @@ deploy_image() {
   RUNTIME_ENV_FILE="$(mktemp "$STATE_DIR/runtime-env.XXXXXX")"
   bash "$SCRIPT_DIR/prepare-docker-env.sh" "$ENV_FILE" "$RUNTIME_ENV_FILE"
   log "runtime configuration normalized and validated"
+  verify_marketing_upstream_contract
 
   local active_slot="legacy"
   if [ -f "$STATE_DIR/active-slot" ]; then
@@ -249,6 +270,32 @@ deploy_image() {
 
   log "starting $target_container on port $target_port"
   docker "${docker_args[@]}" >/dev/null
+
+  log "synchronizing billing catalog on inactive slot"
+  local catalog_secret
+  catalog_secret="$(docker exec "$target_container" printenv BILLING_CRON_SECRET 2>/dev/null || true)"
+  if [[ -z "$catalog_secret" ]]; then
+    docker rm -f "$target_container" >/dev/null || true
+    fail "BILLING_CRON_SECRET is required for catalog synchronization; active release was not changed"
+  fi
+  local catalog_synced=false
+  for _attempt in $(seq 1 20); do
+    if curl --fail --silent --show-error \
+      --max-time 5 \
+      -X POST \
+      -H "Authorization: Bearer $catalog_secret" \
+      "http://127.0.0.1:$target_port/api/internal/billing/catalog/sync" >/dev/null; then
+      catalog_synced=true
+      break
+    fi
+    sleep 1
+  done
+  unset catalog_secret
+  if [[ "$catalog_synced" != true ]]; then
+    docker logs --tail 100 "$target_container" >&2 || true
+    docker rm -f "$target_container" >/dev/null || true
+    fail "billing catalog synchronization failed; active release was not changed"
+  fi
 
   if ! wait_for_health "$target_port"; then
     docker logs --tail 100 "$target_container" >&2 || true

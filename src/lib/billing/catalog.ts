@@ -1,4 +1,5 @@
 import type { BillingCycle, BillingProductType, SubscriptionTier } from '@/types/billing';
+import { COMMERCIAL_OFFER } from '@/config/commercial-offer';
 import { getTierDefinition, getTierFromPlanKey } from '@/lib/billing/tiers';
 
 export type PaymentProvider = 'wechatpay' | 'alipay';
@@ -30,7 +31,7 @@ const envString = (key: string): string | null => {
   return value ? value : null;
 };
 
-const defaultCurrency = envString('BILLING_CURRENCY') ?? 'CNY';
+const defaultCurrency = envString('BILLING_CURRENCY') ?? COMMERCIAL_OFFER.currency;
 
 const tierPlan = (
   tier: SubscriptionTier,

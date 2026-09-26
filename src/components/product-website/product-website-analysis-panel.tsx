@@ -140,6 +140,7 @@ export function ProductWebsiteAnalysisPanel({
   const [error, setError] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<"details" | "diagnostics" | "recommendations">("details");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startRequestKeyRef = useRef<string | null>(null);
 
   const targetUrl = productUrl || projectUrl || "";
   const snapshot = analysis?.result_snapshot;
@@ -267,10 +268,15 @@ export function ProductWebsiteAnalysisPanel({
   const startAnalysis = useCallback(async () => {
     setStarting(true);
     setError(null);
+    const requestKey = startRequestKeyRef.current ?? crypto.randomUUID();
+    startRequestKeyRef.current = requestKey;
     try {
       const res = await fetch("/api/integration/product-website/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": requestKey,
+        },
         body: JSON.stringify({
           projectId,
           enableAiCitation: true,
@@ -278,12 +284,14 @@ export function ProductWebsiteAnalysisPanel({
         }),
       });
       if (!res.ok) {
+        if (res.status < 500) startRequestKeyRef.current = null;
         const payload = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(payload.error || "产品网站分析启动失败");
       }
       const created = (await res.json()) as { analysisId?: number; id?: number };
       const analysisId = created.analysisId ?? created.id;
       if (!analysisId) throw new Error("产品网站分析任务缺少 ID");
+      startRequestKeyRef.current = null;
       const data = await fetchAnalysis(analysisId);
       if (!TERMINAL_STATUSES.includes(data.status)) {
         pollAnalysis(analysisId);

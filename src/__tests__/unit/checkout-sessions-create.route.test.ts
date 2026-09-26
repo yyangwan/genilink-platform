@@ -9,6 +9,10 @@ vi.mock('@/lib/auth/get-workspace', () => ({
   getWorkspaceId: vi.fn().mockResolvedValue('workspace-1'),
 }));
 
+vi.mock('@/lib/marketing/checkout-attribution', () => ({
+  resolveCheckoutAttribution: vi.fn().mockResolvedValue(null),
+}));
+
 import { prisma } from '@/lib/db';
 import { POST } from '@/app/api/billing/checkout-sessions/route';
 import { requestHash } from '@/lib/billing/idempotency';

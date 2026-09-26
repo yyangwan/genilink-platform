@@ -9,6 +9,7 @@ import styles from "./blog.module.css";
 export const metadata: Metadata = {
   title: "AI 搜索与 GEO 知识库 - 智链",
   description: "面向 B2B 市场团队的 AI 搜索、GEO、官网可引用性、内容洞察和竞品分析知识文章。",
+  alternates: { canonical: "/blog" },
 };
 
 export default function BlogPage() {

@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: "智链 · 全链路 AI 搜索增长平台",
   description:
     "免费诊断官网在 AI 搜索和大模型问答中的可理解度，发现品牌可见性、产品表达和内容增长机会。",
+  alternates: { canonical: "/" },
 };
 
 export default async function Home() {

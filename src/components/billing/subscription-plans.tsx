@@ -47,12 +47,12 @@ export function LandingSubscriptionPlans({
     <section className={styles.section}>
       <div className={styles.heading}>
         <div>
-          <span className={styles.kicker}>内测特惠 · 选择适合你的方案</span>
+          <span className={styles.kicker}>正式套餐 · 选择适合你的方案</span>
           <h2>按你的团队阶段，选择最合适的版本</h2>
           <p>个人或小团队可从入门版验证机会，持续开展 AI 搜索增长选择专业版，多项目规模化运营选择高级版。</p>
         </div>
         <div className={styles.trust} aria-label="订阅说明">
-          <span>内测期间各套餐仅 ¥1</span>
+          <span>年付价格约省两个月</span>
           <span>覆盖个人到规模化团队</span>
           <span>特殊需求可专属定制</span>
         </div>

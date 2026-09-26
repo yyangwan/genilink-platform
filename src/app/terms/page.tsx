@@ -5,6 +5,7 @@ import { InfoPage } from "@/components/landing/info-page";
 export const metadata: Metadata = {
   title: "服务条款 - 智链",
   description: "智链平台服务条款。",
+  alternates: { canonical: "/terms" },
 };
 
 export default function TermsPage() {
