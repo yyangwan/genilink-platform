@@ -115,6 +115,42 @@ function Invoke-AppiumRequest {
     Invoke-RestMethod @request
 }
 
+function New-AppiumSession {
+    param(
+        [Parameter(Mandatory)][string]$Serial,
+        [Parameter(Mandatory)][int]$SystemPort,
+        [Parameter(Mandatory)][int]$MjpegServerPort,
+        [int]$CommandTimeoutSeconds = 420
+    )
+
+    $session = Invoke-AppiumRequest `
+        -Method Post `
+        -Path "/session" `
+        -Body @{
+            capabilities = @{
+                alwaysMatch = @{
+                    platformName = "Android"
+                    "appium:automationName" = "UiAutomator2"
+                    "appium:deviceName" = $Serial
+                    "appium:udid" = $Serial
+                    "appium:noReset" = $true
+                    "appium:newCommandTimeout" = $CommandTimeoutSeconds
+                    "appium:skipDeviceInitialization" = $true
+                    "appium:skipServerInstallation" = $true
+                    "appium:systemPort" = $SystemPort
+                    "appium:mjpegServerPort" = $MjpegServerPort
+                }
+                firstMatch = @(@{})
+            }
+        } `
+        -TimeoutSeconds 60
+    $sessionId = [string]$session.value.sessionId
+    if (-not $sessionId) {
+        throw "Appium did not return a session ID"
+    }
+    $sessionId
+}
+
 function Copy-AdbFile {
     param(
         [Parameter(Mandatory)][string]$DevicePath,
@@ -438,18 +474,45 @@ function Set-ClipboardText {
         [Parameter(Mandatory)][string]$Text
     )
 
-    $content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Text))
-    Invoke-AppiumRequest `
-        -Method Post `
-        -Path "/session/$SessionId/execute/sync" `
-        -Body @{
-            script = "mobile: setClipboard"
-            args = @(@{
-                content = $content
-                contentType = "plaintext"
-                label = "mobile-gateway"
-            })
-        } | Out-Null
+    $clipboardSessionId = $SessionId
+    $ownsSession = $false
+    if ($SessionId -eq "adb") {
+        $clipboardSessionId = New-AppiumSession `
+            -Serial $script:deviceSerial `
+            -SystemPort $script:systemPort `
+            -MjpegServerPort $script:mjpegServerPort `
+            -CommandTimeoutSeconds 60
+        $ownsSession = $true
+    }
+    try {
+        $content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Text))
+        Invoke-AppiumRequest `
+            -Method Post `
+            -Path "/session/$clipboardSessionId/execute/sync" `
+            -Body @{
+                script = "mobile: setClipboard"
+                args = @(@{
+                    content = $content
+                    contentType = "plaintext"
+                    label = "mobile-gateway"
+                })
+            } | Out-Null
+    } finally {
+        if ($ownsSession -and $clipboardSessionId) {
+            try {
+                Invoke-AppiumRequest `
+                    -Method Delete `
+                    -Path "/session/$clipboardSessionId" `
+                    -Body $null `
+                    -TimeoutSeconds 15 | Out-Null
+            } catch {
+                Write-GatewayTrace (
+                    "clipboard Appium session cleanup skipped: " +
+                    $_.Exception.Message
+                )
+            }
+        }
+    }
 }
 
 function Get-DeepSeekAnswerSnapshot {
@@ -521,12 +584,8 @@ function Get-YuanbaoAnswerSnapshot {
         $copyNode = $document.SelectSingleNode(
             "//*[@text='复制本次模型回答' or @content-desc='复制本次模型回答']"
         )
-        $sourceNode = $document.SelectSingleNode(
-            "//*[@text='源' or @content-desc='源']"
-        )
         $copyBounds = if ($copyNode) { Get-Bounds -Node $copyNode } else { $null }
-        $sourceBounds = if ($sourceNode) { Get-Bounds -Node $sourceNode } else { $null }
-        if ($copyBounds -and $sourceBounds) {
+        if ($copyBounds) {
             & adb -s $script:deviceSerial shell input tap `
                 $copyBounds.center_x $copyBounds.center_y | Out-Null
             Start-Sleep -Milliseconds 400
@@ -578,6 +637,95 @@ function Get-Bounds {
         }
     }
     $null
+}
+
+function Get-PromptInputBounds {
+    param(
+        [Parameter(Mandatory)][string]$SessionId,
+        [Parameter(Mandatory)][string]$TargetPlatform
+    )
+
+    $source = Get-PageSource -SessionId $SessionId
+    $document = ConvertTo-Xml -Source $source
+    if (-not $document) {
+        return $null
+    }
+    $node = switch ($TargetPlatform) {
+        "yuanbao" {
+            $document.SelectSingleNode(
+                "//*[@resource-id='$packageName`:id/edConversationInput' or " +
+                "@class='android.widget.EditText']"
+            )
+        }
+        "qwen" {
+            $document.SelectSingleNode(
+                "//*[@class='android.widget.EditText' or " +
+                "@text='发消息或按住说话...']"
+            )
+        }
+        "kimi" {
+            $document.SelectSingleNode("//*[@text='尽管问，带图也行']")
+        }
+    }
+    if ($node) {
+        Get-Bounds -Node $node
+    }
+}
+
+function Get-SendButtonBounds {
+    param(
+        [Parameter(Mandatory)][string]$SessionId,
+        [Parameter(Mandatory)][string]$TargetPlatform
+    )
+
+    $document = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+    if (-not $document) {
+        return $null
+    }
+    if ($TargetPlatform -eq "kimi") {
+        $sendNode = $document.SelectSingleNode(
+            "//*[@content-desc='发送讯息' or @content-desc='发送']"
+        )
+        if ($sendNode) {
+            return Get-Bounds -Node $sendNode
+        }
+    }
+    $candidate = @($document.SelectNodes("//*[@clickable='true']")) |
+        ForEach-Object {
+            $bounds = Get-Bounds -Node $_
+            if (
+                $bounds -and
+                $bounds.left -gt 800 -and
+                $bounds.top -gt 1800 -and
+                ($bounds.right - $bounds.left) -le 180
+            ) {
+                [pscustomobject]@{ node = $_; bounds = $bounds }
+            }
+        } |
+        Sort-Object { $_.bounds.left } -Descending |
+        Select-Object -First 1
+    if ($candidate) {
+        $candidate.bounds
+    }
+}
+
+function Dismiss-HuaweiTouchProtection {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    $source = Get-PageSource -SessionId $SessionId
+    if ($source -notmatch '防误触模式') {
+        return
+    }
+    Write-GatewayTrace "Huawei touch protection detected"
+    for ($attempt = 0; $attempt -lt 2; $attempt++) {
+        & adb -s $script:deviceSerial shell input swipe `
+            200 2020 880 2020 500 | Out-Null
+        Start-Sleep -Milliseconds 500
+    }
+    if ((Get-PageSource -SessionId $SessionId) -match '防误触模式') {
+        throw "Could not dismiss Huawei touch protection"
+    }
+    Write-GatewayTrace "Huawei touch protection dismissed"
 }
 
 function Get-DescendantTexts {
@@ -753,6 +901,16 @@ function Start-NewConversation {
             # Clear known blockers from the hierarchy before using app coords.
             for ($dismissAttempt = 0; $dismissAttempt -lt 4; $dismissAttempt++) {
                 $blockerSource = Get-PageSource -SessionId $SessionId
+                if (
+                    $blockerSource -match '欢迎使用\s*元宝' -or
+                    $blockerSource -match '同意并继续'
+                ) {
+                    throw (
+                        "Yuanbao is not initialized on device " +
+                        "$script:deviceSerial; complete the privacy agreement " +
+                        "and account setup manually"
+                    )
+                }
                 $blockerDocument = ConvertTo-Xml -Source $blockerSource
                 $blocker = if ($blockerDocument) {
                     $blockerDocument.SelectSingleNode(
@@ -775,14 +933,48 @@ function Start-NewConversation {
                 Start-Sleep -Milliseconds 700
             }
             # Always create an empty conversation through Yuanbao's drawer.
-            & adb -s $script:deviceSerial shell input tap 100 190 | Out-Null
+            $source = Get-PageSource -SessionId $SessionId
+            $document = ConvertTo-Xml -Source $source
+            $drawerNode = if ($document) {
+                $document.SelectSingleNode("//*[@content-desc='抽屉页入口']")
+            } else {
+                $null
+            }
+            $drawerBounds = if ($drawerNode) {
+                Get-Bounds -Node $drawerNode
+            } else {
+                $null
+            }
+            if (-not $drawerBounds) {
+                throw "Could not locate the Yuanbao conversation drawer"
+            }
+            & adb -s $script:deviceSerial shell input tap `
+                $drawerBounds.center_x $drawerBounds.center_y | Out-Null
             Start-Sleep -Milliseconds 700
-            & adb -s $script:deviceSerial shell input tap 440 400 | Out-Null
+            $drawerSource = Get-PageSource -SessionId $SessionId
+            $drawerDocument = ConvertTo-Xml -Source $drawerSource
+            $newConversationNode = if ($drawerDocument) {
+                $drawerDocument.SelectSingleNode("//*[@text='新建对话']")
+            } else {
+                $null
+            }
+            $newConversationBounds = if ($newConversationNode) {
+                Get-Bounds -Node $newConversationNode
+            } else {
+                $null
+            }
+            if (-not $newConversationBounds) {
+                throw "Could not locate Yuanbao's new conversation control"
+            }
+            & adb -s $script:deviceSerial shell input tap `
+                $newConversationBounds.center_x `
+                $newConversationBounds.center_y | Out-Null
             Start-Sleep -Seconds 1
             $conversationReady = $false
             for ($attempt = 0; $attempt -lt 3; $attempt++) {
-                $source = Get-PageSource -SessionId $SessionId
-                if ($source -match 'resource-id="[^"]*:id/edConversationInput"') {
+                if (Get-PromptInputBounds `
+                    -SessionId $SessionId `
+                    -TargetPlatform $Platform) {
                     $script:readyInputElement = "adb"
                     $conversationReady = $true
                     break
@@ -794,14 +986,123 @@ function Start-NewConversation {
             }
         }
         "qwen" {
-            & adb -s $script:deviceSerial shell input tap 90 200 | Out-Null
+            $source = Get-PageSource -SessionId $SessionId
+            $document = ConvertTo-Xml -Source $source
+            $drawerNode = if ($document) {
+                @($document.SelectNodes("//*[@clickable='true']")) |
+                    Where-Object {
+                        $bounds = Get-Bounds -Node $_
+                        $bounds -and $bounds.left -lt 180 -and $bounds.top -lt 260
+                    } |
+                    Select-Object -First 1
+            } else {
+                $null
+            }
+            $drawerBounds = if ($drawerNode) {
+                Get-Bounds -Node $drawerNode
+            } else {
+                $null
+            }
+            if (-not $drawerBounds) {
+                throw "Could not locate the Qwen conversation drawer"
+            }
+            & adb -s $script:deviceSerial shell input tap `
+                $drawerBounds.center_x $drawerBounds.center_y | Out-Null
             Start-Sleep -Milliseconds 700
-            & adb -s $script:deviceSerial shell input tap 400 310 | Out-Null
+            $drawerDocument = ConvertTo-Xml -Source (
+                Get-PageSource -SessionId $SessionId
+            )
+            $newConversationNode = if ($drawerDocument) {
+                $drawerDocument.SelectSingleNode("//*[@text='新建对话']")
+            } else {
+                $null
+            }
+            $newConversationBounds = if ($newConversationNode) {
+                Get-Bounds -Node $newConversationNode
+            } else {
+                $null
+            }
+            if (-not $newConversationBounds) {
+                throw "Could not locate Qwen's new conversation control"
+            }
+            & adb -s $script:deviceSerial shell input tap `
+                $newConversationBounds.center_x `
+                $newConversationBounds.center_y | Out-Null
+            Start-Sleep -Milliseconds 700
+            if (-not (Get-PromptInputBounds `
+                -SessionId $SessionId `
+                -TargetPlatform $Platform)) {
+                $voiceDocument = ConvertTo-Xml -Source (
+                    Get-PageSource -SessionId $SessionId
+                )
+                $keyboardNode = if ($voiceDocument) {
+                    $voiceDocument.SelectSingleNode("//*[@content-desc='键盘按钮']")
+                } else {
+                    $null
+                }
+                $keyboardBounds = if ($keyboardNode) {
+                    Get-Bounds -Node $keyboardNode
+                } else {
+                    $null
+                }
+                if (-not $keyboardBounds) {
+                    throw "Could not locate the Qwen keyboard control"
+                }
+                & adb -s $script:deviceSerial shell input tap `
+                    $keyboardBounds.center_x $keyboardBounds.center_y | Out-Null
+                Start-Sleep -Milliseconds 700
+            }
+            if (-not (Get-PromptInputBounds `
+                -SessionId $SessionId `
+                -TargetPlatform $Platform)) {
+                throw "Qwen did not reach a conversation input"
+            }
         }
         "kimi" {
-            & adb -s $script:deviceSerial shell input tap 100 180 | Out-Null
+            $source = Get-PageSource -SessionId $SessionId
+            $document = ConvertTo-Xml -Source $source
+            $drawerNode = if ($document) {
+                $document.SelectSingleNode("//*[@content-desc='导航按钮']")
+            } else {
+                $null
+            }
+            $drawerBounds = if ($drawerNode) {
+                Get-Bounds -Node $drawerNode
+            } else {
+                $null
+            }
+            if (-not $drawerBounds) {
+                throw "Could not locate the Kimi conversation drawer"
+            }
+            & adb -s $script:deviceSerial shell input tap `
+                $drawerBounds.center_x $drawerBounds.center_y | Out-Null
             Start-Sleep -Milliseconds 700
-            & adb -s $script:deviceSerial shell input tap 865 258 | Out-Null
+            $drawerDocument = ConvertTo-Xml -Source (
+                Get-PageSource -SessionId $SessionId
+            )
+            $newConversationNode = if ($drawerDocument) {
+                @($drawerDocument.SelectNodes(
+                    "//*[@class='android.widget.Button' and @clickable='true']"
+                )) |
+                    Where-Object {
+                        $bounds = Get-Bounds -Node $_
+                        $bounds -and $bounds.left -gt 650 -and $bounds.top -lt 350
+                    } |
+                    Select-Object -First 1
+            } else {
+                $null
+            }
+            $newConversationBounds = if ($newConversationNode) {
+                Get-Bounds -Node $newConversationNode
+            } else {
+                $null
+            }
+            if (-not $newConversationBounds) {
+                throw "Could not locate Kimi's new conversation control"
+            }
+            & adb -s $script:deviceSerial shell input tap `
+                $newConversationBounds.center_x `
+                $newConversationBounds.center_y | Out-Null
             Start-Sleep -Seconds 1
             $source = Get-PageSource -SessionId $SessionId
             $document = ConvertTo-Xml -Source $source
@@ -819,6 +1120,11 @@ function Start-NewConversation {
                 & adb -s $script:deviceSerial shell input tap `
                     $dismissBounds.center_x $dismissBounds.center_y | Out-Null
                 Start-Sleep -Milliseconds 700
+            }
+            if (-not (Get-PromptInputBounds `
+                -SessionId $SessionId `
+                -TargetPlatform $Platform)) {
+                throw "Kimi did not reach a conversation input"
             }
         }
     }
@@ -870,31 +1176,14 @@ function Submit-Prompt {
     }
     if ($input -eq "adb") {
         if ($Platform -in @("yuanbao", "qwen", "kimi")) {
-            if ($Platform -eq "yuanbao") {
-                $inputSource = Get-PageSource -SessionId $SessionId
-                $inputDocument = ConvertTo-Xml -Source $inputSource
-                $inputNode = if ($inputDocument) {
-                    $inputDocument.SelectSingleNode(
-                        "//*[@resource-id='$packageName`:id/edConversationInput']"
-                    )
-                } else {
-                    $null
-                }
-                $inputBounds = if ($inputNode) {
-                    Get-Bounds -Node $inputNode
-                } else {
-                    $null
-                }
-                if (-not $inputBounds) {
-                    throw "Could not locate the Yuanbao prompt input"
-                }
-                $inputX = $inputBounds.center_x
-                $inputY = $inputBounds.center_y
-            } else {
-                $inputX = 500
-                $inputY = if ($Platform -eq "kimi") { 2170 } else { 2190 }
+            $inputBounds = Get-PromptInputBounds `
+                -SessionId $SessionId `
+                -TargetPlatform $Platform
+            if (-not $inputBounds) {
+                throw "Could not locate the $Platform prompt input"
             }
-            & adb -s $script:deviceSerial shell input tap $inputX $inputY | Out-Null
+            & adb -s $script:deviceSerial shell input tap `
+                $inputBounds.center_x $inputBounds.center_y | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 throw "ADB failed to focus the $Platform prompt input"
             }
@@ -902,6 +1191,13 @@ function Submit-Prompt {
         Start-Sleep -Milliseconds 500
         $qwenDraftConfirmed = $false
         if ($Platform -eq "qwen") {
+            $focusedBounds = Get-PromptInputBounds `
+                -SessionId $SessionId `
+                -TargetPlatform $Platform
+            if (-not $focusedBounds) {
+                throw "Qwen did not expose its focused editor"
+            }
+            $inputBounds = $focusedBounds
             # Qwen persists drafts across new chats, so clear the focused
             # editor before pasting the next prompt.
             $clearKeys = @("123") + @(1..300 | ForEach-Object { "67" })
@@ -912,6 +1208,18 @@ function Submit-Prompt {
             Start-Sleep -Milliseconds 300
         }
         Set-ClipboardText -SessionId $SessionId -Text $Prompt
+        if ($Platform -in @("yuanbao", "qwen", "kimi")) {
+            # Closing the short-lived clipboard session can move input focus.
+            $refocusBounds = Get-PromptInputBounds `
+                -SessionId $SessionId `
+                -TargetPlatform $Platform
+            if ($refocusBounds) {
+                $inputBounds = $refocusBounds
+            }
+            & adb -s $script:deviceSerial shell input tap `
+                $inputBounds.center_x $inputBounds.center_y | Out-Null
+            Start-Sleep -Milliseconds 300
+        }
         & adb -s $script:deviceSerial shell input keyevent 279 | Out-Null
         if ($LASTEXITCODE -ne 0) {
             throw "Could not paste the $Platform prompt"
@@ -968,15 +1276,29 @@ function Submit-Prompt {
         return
     }
     if ($Platform -eq "yuanbao") {
-        & adb -s $script:deviceSerial shell input tap 1025 2102 | Out-Null
+        $sizeOutput = (& adb -s $script:deviceSerial shell wm size 2>&1) -join "`n"
+        $sizeMatches = [regex]::Matches($sizeOutput, '(\d+)x(\d+)')
+        if ($sizeMatches.Count -lt 1) {
+            throw "Could not determine the Android display size"
+        }
+        $activeSize = $sizeMatches[$sizeMatches.Count - 1]
+        & adb -s $script:deviceSerial shell input tap `
+            ([int]([int]$activeSize.Groups[1].Value * 0.90)) `
+            ([int]([int]$activeSize.Groups[2].Value * 0.89)) | Out-Null
         if ($LASTEXITCODE -ne 0) {
             throw "ADB failed to tap the Yuanbao send button"
         }
         return
     }
     if ($Platform -in @("qwen", "kimi")) {
-        $sendY = if ($Platform -eq "qwen") { 2190 } else { 2170 }
-        & adb -s $script:deviceSerial shell input tap 1030 $sendY | Out-Null
+        $sendBounds = Get-SendButtonBounds `
+            -SessionId $SessionId `
+            -TargetPlatform $Platform
+        if (-not $sendBounds) {
+            throw "Could not locate the $Platform send button"
+        }
+        & adb -s $script:deviceSerial shell input tap `
+            $sendBounds.center_x $sendBounds.center_y | Out-Null
         if ($LASTEXITCODE -ne 0) {
             throw "ADB failed to tap the $Platform send button"
         }
@@ -1022,7 +1344,7 @@ function Get-KimiAnswerContainer {
         }
         $height = $bounds.bottom - $bounds.top
         if (
-            $height -lt 400 -or
+            $height -lt 100 -or
             $bounds.left -lt 36 -or
             $bounds.right -gt 1116
         ) {
@@ -1031,7 +1353,7 @@ function Get-KimiAnswerContainer {
         $texts = @(Get-DescendantTexts -Node $node)
         $totalTextLength = ($texts | ForEach-Object { $_.Length } |
             Measure-Object -Sum).Sum
-        $hasLongText = @($texts | Where-Object { $_.Length -ge 60 }).Count -gt 0
+        $hasLongText = @($texts | Where-Object { $_.Length -ge 30 }).Count -gt 0
         if (
             $hasLongText -or
             ($texts.Count -ge 3 -and $totalTextLength -ge 60)
@@ -1039,10 +1361,11 @@ function Get-KimiAnswerContainer {
             $candidates += [pscustomobject]@{
                 node = $node
                 height = $height
+                top = $bounds.top
             }
         }
     }
-    $selected = $candidates | Sort-Object height | Select-Object -First 1
+    $selected = $candidates | Sort-Object top -Descending | Select-Object -First 1
     if ($selected) {
         return $selected.node
     }
@@ -1908,6 +2231,9 @@ function Get-PanelSources {
         )
         $markerBounds = if ($markerNode) { Get-Bounds -Node $markerNode } else { $null }
         if (-not $markerBounds) {
+            if ($ReferenceCount -lt 1) {
+                return @()
+            }
             throw "Yuanbao source marker was not found"
         }
         & adb -s $script:deviceSerial shell input tap `
@@ -2360,6 +2686,8 @@ try {
     } else {
         9200
     }
+    $script:systemPort = $systemPort
+    $script:mjpegServerPort = $mjpegServerPort
 
     $startedAt = Get-Date
     if ($Platform -in @("yuanbao", "qwen", "kimi")) {
@@ -2375,32 +2703,11 @@ try {
             throw "Could not activate $Platform"
         }
     } else {
-        $capabilities = @{
-            capabilities = @{
-                alwaysMatch = @{
-                    platformName = "Android"
-                    "appium:automationName" = "UiAutomator2"
-                    "appium:deviceName" = $serial
-                    "appium:udid" = $serial
-                    "appium:noReset" = $true
-                    "appium:newCommandTimeout" = $timeoutSeconds + 180
-                    "appium:skipDeviceInitialization" = $true
-                    "appium:skipServerInstallation" = $true
-                    "appium:systemPort" = $systemPort
-                    "appium:mjpegServerPort" = $mjpegServerPort
-                }
-                firstMatch = @(@{})
-            }
-        }
-        $session = Invoke-AppiumRequest `
-            -Method Post `
-            -Path "/session" `
-            -Body $capabilities `
-            -TimeoutSeconds 60
-        $sessionId = [string]$session.value.sessionId
-        if (-not $sessionId) {
-            throw "Appium did not return a session ID"
-        }
+        $sessionId = New-AppiumSession `
+            -Serial $serial `
+            -SystemPort $systemPort `
+            -MjpegServerPort $mjpegServerPort `
+            -CommandTimeoutSeconds ($timeoutSeconds + 180)
         Invoke-AppiumRequest `
             -Method Post `
             -Path "/session/$sessionId/execute/sync" `
@@ -2418,6 +2725,9 @@ try {
         }
     }
     Start-Sleep -Seconds 2
+    if ($sessionId -eq "adb") {
+        Dismiss-HuaweiTouchProtection -SessionId $sessionId
+    }
 
     $newConversation = $true
     if ($null -ne $task.payload.new_conversation) {

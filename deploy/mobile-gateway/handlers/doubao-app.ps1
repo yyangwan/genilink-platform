@@ -541,12 +541,28 @@ function Return-ToDoubaoChat {
     # Some source schemes launch a separate app task. Stopping that task
     # reveals Doubao's preserved WebActivity; one Back then returns to the
     # reference panel without relaunching Doubao at its home screen.
-    for ($attempt = 0; $attempt -lt 6; $attempt++) {
+    for ($attempt = 0; $attempt -lt 10; $attempt++) {
         $foregroundPackage = Get-ForegroundPackage
         if ($foregroundPackage -eq $packageName) {
-            & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
-            Start-Sleep -Seconds 1
-            return $false
+            [xml]$document = Get-NativePageSource
+            if ($document.SelectSingleNode(
+                "//*[@resource-id='$packageName`:id/tv_reference_content' or " +
+                "@resource-id='$packageName`:id/ll_reference_title' or " +
+                "@resource-id='$packageName`:id/search_title' or " +
+                "@resource-id='$packageName`:id/input_text']"
+            )) {
+                return $true
+            }
+            $detailBackNode = $document.SelectSingleNode(
+                "//*[@resource-id='$packageName`:id/btn_back']"
+            )
+            if ($detailBackNode) {
+                Invoke-NativeNodeTap -Node $detailBackNode
+            } else {
+                & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
+            }
+            Start-Sleep -Milliseconds 750
+            continue
         }
         if (
             $foregroundPackage -and
@@ -555,6 +571,12 @@ function Return-ToDoubaoChat {
             & adb -s $script:deviceSerial shell am force-stop `
                 $foregroundPackage | Out-Null
         }
+        # Some external browsers leave the launcher in front after being
+        # stopped. Relaunching the package restores Doubao's preserved source
+        # detail task; one Back on the next iteration returns to references.
+        & adb -s $script:deviceSerial shell monkey `
+            -p $packageName `
+            -c android.intent.category.LAUNCHER 1 | Out-Null
         Start-Sleep -Milliseconds 750
     }
     return $false
@@ -616,6 +638,9 @@ function Restore-NativeReferencePanel {
                 & adb -s $script:deviceSerial shell am force-stop `
                     $foregroundPackage | Out-Null
             }
+            & adb -s $script:deviceSerial shell monkey `
+                -p $packageName `
+                -c android.intent.category.LAUNCHER 1 | Out-Null
             Start-Sleep -Milliseconds 750
             continue
         }
@@ -644,6 +669,14 @@ function Restore-NativeReferencePanel {
             Start-Sleep -Milliseconds 700
             continue
         }
+        if ($document.SelectSingleNode(
+            "//*[@resource-id='$packageName`:id/input_text']"
+        )) {
+            & adb -s $script:deviceSerial shell input swipe `
+                540 700 540 1950 500 | Out-Null
+            Start-Sleep -Milliseconds 500
+            continue
+        }
         & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
         Start-Sleep -Milliseconds 700
     }
@@ -659,6 +692,22 @@ function Get-DoubaoSources {
     )
 
     $summary = Get-ReferenceSummary -Source $AnswerSource
+    if ($summary.reference_count -le 0) {
+        # Long answers can leave the reference card outside the accessibility
+        # viewport. Walk toward the start of the latest isolated conversation.
+        for ($attempt = 0; $attempt -lt 18; $attempt++) {
+            & adb -s $script:deviceSerial shell input swipe `
+                540 700 540 1950 500 | Out-Null
+            Start-Sleep -Milliseconds 500
+            $candidateSource = Get-NativePageSource
+            $candidateSummary = Get-ReferenceSummary -Source $candidateSource
+            if ($candidateSummary.reference_count -gt 0) {
+                $AnswerSource = $candidateSource
+                $summary = $candidateSummary
+                break
+            }
+        }
+    }
     if ($summary.reference_count -le 0) {
         return @{
             session_id = $null
@@ -676,6 +725,7 @@ function Get-DoubaoSources {
         $summary = $expandedSummary
     }
     $collected = @{}
+    $failureAttempts = @{}
     $stalledScrolls = 0
     $collectionFailure = $null
     try {
@@ -750,7 +800,8 @@ function Get-DoubaoSources {
                             $sourceResult.page_title = $pageTitleNode.GetAttribute("text")
                         }
                         $shareButton = $detailDocument.SelectSingleNode(
-                            "//*[@resource-id='$packageName`:id/btn_share']"
+                            "//*[@resource-id='$packageName`:id/btn_share' or " +
+                            "@content-desc='分享']"
                         )
                         if (-not $shareButton) {
                             # A cold external app launch can leave Doubao focused briefly.
@@ -762,6 +813,15 @@ function Get-DoubaoSources {
                                     if ($rawUrl) {
                                         break
                                     }
+                                } else {
+                                    [xml]$detailDocument = Get-NativePageSource
+                                    $shareButton = $detailDocument.SelectSingleNode(
+                                        "//*[@resource-id='$packageName`:id/btn_share' or " +
+                                        "@content-desc='分享']"
+                                    )
+                                    if ($shareButton) {
+                                        break
+                                    }
                                 }
                             }
                         }
@@ -770,7 +830,8 @@ function Get-DoubaoSources {
                         } elseif (-not $shareButton) {
                             [xml]$detailDocument = Get-NativePageSource
                             $shareButton = $detailDocument.SelectSingleNode(
-                                "//*[@resource-id='$packageName`:id/btn_share']"
+                                "//*[@resource-id='$packageName`:id/btn_share' or " +
+                                "@content-desc='分享']"
                             )
                         }
                         if (-not $rawUrl -and -not $shareButton) {
@@ -827,6 +888,17 @@ function Get-DoubaoSources {
                         }
                     }
                 }
+                if ($sourceResult.status -eq "failed") {
+                    $attemptCount = 1
+                    if ($failureAttempts.ContainsKey($key)) {
+                        $attemptCount = [int]$failureAttempts[$key] + 1
+                    }
+                    $failureAttempts[$key] = $attemptCount
+                    if ($attemptCount -lt 3) {
+                        $stalledScrolls = 0
+                        continue
+                    }
+                }
                 $collected[$key] = [pscustomobject]$sourceResult
                 $stalledScrolls = 0
                 continue
@@ -851,9 +923,17 @@ function Get-DoubaoSources {
                 $stalledScrolls++
                 continue
             }
+            # The embedded reference RecyclerView reports scrollable=false.
+            # Swiping inside it is ignored; the narrow left margin scrolls the
+            # outer message list while keeping enough overlap to avoid gaps.
+            $scrollX = [math]::Max(8, $listBounds.left - 15)
+            $scrollStartY = [math]::Min(1850, $listBounds.bottom - 80)
+            $scrollEndY = [math]::Max(
+                $listBounds.top + 80,
+                $scrollStartY - 600
+            )
             & adb -s $script:deviceSerial shell input swipe `
-                $listBounds.center_x ($listBounds.bottom - 120) `
-                $listBounds.center_x ($listBounds.top + 120) 500 | Out-Null
+                $scrollX $scrollStartY $scrollX $scrollEndY 500 | Out-Null
             Start-Sleep -Milliseconds 700
             $stalledScrolls++
         }
@@ -1143,8 +1223,24 @@ try {
                 $newChatReady = $true
                 break
             }
+            $drawerNode = $navigationDocument.SelectSingleNode(
+                "//*[@resource-id='$packageName`:id/side_bar_container']"
+            )
+            if ($drawerNode) {
+                $drawerBackNode = $navigationDocument.SelectSingleNode(
+                    "//*[@resource-id='$packageName`:id/back_icon']"
+                )
+                if ($drawerBackNode) {
+                    Invoke-NativeNodeTap -Node $drawerBackNode
+                } else {
+                    & adb -s $serial shell input keyevent 4 | Out-Null
+                }
+                Start-Sleep -Milliseconds 700
+                continue
+            }
             $newChatNode = $navigationDocument.SelectSingleNode(
-                "//*[@resource-id='$packageName`:id/right_img']"
+                "//*[@resource-id='$packageName`:id/right_img' or " +
+                "@resource-id='$packageName`:id/larus_chat_top_left_create_new_cvs']"
             )
             if ($newChatNode) {
                 if ($newChatNode.GetAttribute("bounds") -notmatch (
