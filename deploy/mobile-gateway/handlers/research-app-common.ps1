@@ -432,6 +432,26 @@ function Get-ClipboardText {
     }
 }
 
+function Set-ClipboardText {
+    param(
+        [Parameter(Mandatory)][string]$SessionId,
+        [Parameter(Mandatory)][string]$Text
+    )
+
+    $content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Text))
+    Invoke-AppiumRequest `
+        -Method Post `
+        -Path "/session/$SessionId/execute/sync" `
+        -Body @{
+            script = "mobile: setClipboard"
+            args = @(@{
+                content = $content
+                contentType = "plaintext"
+                label = "mobile-gateway"
+            })
+        } | Out-Null
+}
+
 function Get-DeepSeekAnswerSnapshot {
     param([Parameter(Mandatory)][string]$SessionId)
 
@@ -535,25 +555,6 @@ function ConvertTo-Xml {
     } catch {
         $null
     }
-}
-
-function ConvertTo-ImapUtf7 {
-    param([Parameter(Mandatory)][string]$Text)
-
-    $escaped = $Text.Replace("&", "&-")
-    [regex]::Replace($escaped, '[^\x20-\x7e]+', {
-        param($Match)
-
-        $chunk = $Match.Value
-        $bytes = [byte[]]::new($chunk.Length * 2)
-        for ($index = 0; $index -lt $chunk.Length; $index++) {
-            $code = [int][char]$chunk[$index]
-            $bytes[$index * 2] = [byte]($code -shr 8)
-            $bytes[$index * 2 + 1] = [byte]($code -band 0xff)
-        }
-        $encoded = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('/', ',')
-        "&$encoded-"
-    })
 }
 
 function Get-Bounds {
@@ -899,48 +900,30 @@ function Submit-Prompt {
             }
         }
         Start-Sleep -Milliseconds 500
-        $previousIme = (
-            & adb -s $script:deviceSerial shell settings get secure default_input_method
-        ).Trim()
         $qwenDraftConfirmed = $false
-        try {
-            & adb -s $script:deviceSerial shell ime set io.appium.settings/.UnicodeIME | Out-Null
+        if ($Platform -eq "qwen") {
+            # Qwen persists drafts across new chats, so clear the focused
+            # editor before pasting the next prompt.
+            $clearKeys = @("123") + @(1..300 | ForEach-Object { "67" })
+            & adb -s $script:deviceSerial shell input keyevent @clearKeys | Out-Null
             if ($LASTEXITCODE -ne 0) {
-                throw "Could not activate Appium UnicodeIME"
+                throw "Could not clear the Qwen prompt input"
             }
-            Start-Sleep -Seconds 1
-            if ($Platform -eq "qwen") {
-                # Qwen rebuilds its custom editor when the IME changes. Focus
-                # it again, then clear the draft it persists across new chats.
-                & adb -s $script:deviceSerial shell input tap $inputX $inputY | Out-Null
-                Start-Sleep -Milliseconds 500
-                $clearKeys = @("123") + @(1..300 | ForEach-Object { "67" })
-                & adb -s $script:deviceSerial shell input keyevent @clearKeys | Out-Null
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Could not clear the Qwen prompt input"
-                }
-                Start-Sleep -Milliseconds 300
-            }
-            $encodedPrompt = ConvertTo-ImapUtf7 -Text $Prompt
-            $quotedPrompt = "'$encodedPrompt'"
-            & adb -s $script:deviceSerial shell input text $quotedPrompt | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                throw "Could not type the $Platform prompt"
-            }
-            if ($Platform -eq "qwen") {
-                Start-Sleep -Milliseconds 500
-                $draftSource = Get-PageSource -SessionId $SessionId
-                $qwenDraftConfirmed = (
-                    $draftSource -match [regex]::Escape($Prompt)
-                )
-                if (-not $qwenDraftConfirmed) {
-                    throw "qwen prompt input was not confirmed in the focused editor"
-                }
-            }
-        } finally {
-            if ($previousIme -and $previousIme -ne "null") {
-                & adb -s $script:deviceSerial shell ime set $previousIme | Out-Null
-                Start-Sleep -Milliseconds 500
+            Start-Sleep -Milliseconds 300
+        }
+        Set-ClipboardText -SessionId $SessionId -Text $Prompt
+        & adb -s $script:deviceSerial shell input keyevent 279 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not paste the $Platform prompt"
+        }
+        Start-Sleep -Milliseconds 500
+        if ($Platform -eq "qwen") {
+            $draftSource = Get-PageSource -SessionId $SessionId
+            $qwenDraftConfirmed = (
+                $draftSource -match [regex]::Escape($Prompt)
+            )
+            if (-not $qwenDraftConfirmed) {
+                throw "qwen prompt input was not confirmed in the focused editor"
             }
         }
         if ($Platform -in @("yuanbao", "kimi")) {
@@ -967,15 +950,18 @@ function Submit-Prompt {
         Start-Sleep -Milliseconds 500
     }
     if ($Platform -eq "deepseek") {
-        $imeState = (
-            & adb -s $script:deviceSerial shell dumpsys input_method 2>&1
+        $sizeOutput = (
+            & adb -s $script:deviceSerial shell wm size 2>&1
         ) -join "`n"
-        $sendY = if ($imeState -match 'mInputShown=true|mIsInputViewShown=true') {
-            1430
-        } else {
-            2250
+        $sizeMatches = [regex]::Matches($sizeOutput, '(\d+)x(\d+)')
+        if ($sizeMatches.Count -lt 1) {
+            throw "Could not determine the Android display size"
         }
-        & adb -s $script:deviceSerial shell input tap 1030 $sendY | Out-Null
+        $activeSize = $sizeMatches[$sizeMatches.Count - 1]
+        $width = [int]$activeSize.Groups[1].Value
+        $height = [int]$activeSize.Groups[2].Value
+        & adb -s $script:deviceSerial shell input tap `
+            ([int]($width * 0.89)) ([int]($height * 0.60)) | Out-Null
         if ($LASTEXITCODE -ne 0) {
             throw "ADB failed to tap the DeepSeek send button"
         }
