@@ -31,9 +31,6 @@ const PATH_LABELS: Record<string, string> = {
   account: "账户",
   billing: "订阅",
   workspace: "工作区",
-  ops: "运营中心",
-  conversion: "获客转化",
-  leads: "合作线索",
 };
 
 const PATH_PARENT: Record<string, string> = {
@@ -75,7 +72,6 @@ function buildBreadcrumb(pathname: string): Array<{ label: string; href?: string
 export function ContextBar() {
   const pathname = usePathname();
   const { loading } = useProject();
-  const isOpsRoute = pathname === "/ops" || pathname.startsWith("/ops/");
 
   // Hide on project management pages
   if (pathname === "/projects" || pathname.startsWith("/projects/")) {
@@ -99,7 +95,7 @@ export function ContextBar() {
         gap: "var(--space-sm)",
       }}
     >
-      {!isOpsRoute && <ProjectSelector />}
+      <ProjectSelector />
       <div style={{ marginLeft: "var(--space-xs)" }}>
         <Breadcrumb items={breadcrumbItems} />
       </div>
