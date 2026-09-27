@@ -403,6 +403,30 @@ function Get-PageSource {
         -TimeoutSeconds 45).value
 }
 
+function Ensure-AndroidDeviceUnlocked {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    for ($attempt = 0; $attempt -lt 3; $attempt++) {
+        & adb -s $script:deviceSerial shell input keyevent KEYCODE_WAKEUP | Out-Null
+        & adb -s $script:deviceSerial shell input keyevent 82 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not wake Android device $script:deviceSerial"
+        }
+        Start-Sleep -Milliseconds 700
+        $source = Get-PageSource -SessionId $SessionId
+        if ($source -notmatch 'com\.android\.systemui:id/keyguard_lock_screen_panel') {
+            return
+        }
+        & adb -s $script:deviceSerial shell input swipe 540 1900 540 500 300 |
+            Out-Null
+        Start-Sleep -Milliseconds 500
+    }
+    throw (
+        "Android device $script:deviceSerial is locked; configure it for " +
+        "unattended swipe-to-unlock access"
+    )
+}
+
 function Get-ClipboardText {
     param([Parameter(Mandatory)][string]$SessionId)
 
@@ -1435,13 +1459,55 @@ function Get-AnswerInfo {
                     $referenceCount = [int]$Matches[1]
                 }
             }
-            $answerParts = @(
-                $document.SelectNodes("//*[@class='android.widget.TextView' and @text]") |
-                    ForEach-Object { $_.GetAttribute("text").Trim() } |
-                    Where-Object { $_ -ne $Prompt -and $_.Length -gt 30 } |
-                    Sort-Object Length -Descending |
+            $promptNode = @(
+                $document.SelectNodes(
+                    "//*[@class='android.widget.TextView' and @text]"
+                ) | Where-Object {
+                    $_.GetAttribute("text").Trim() -eq $Prompt
+                }
+            ) | Select-Object -First 1
+            $promptBounds = if ($promptNode) {
+                Get-Bounds -Node $promptNode
+            } else {
+                $null
+            }
+            $answerCandidates = foreach ($node in @(
+                $document.SelectNodes(
+                    "//*[@class='android.widget.TextView' and @text]"
+                )
+            )) {
+                $text = $node.GetAttribute("text").Trim()
+                $bounds = Get-Bounds -Node $node
+                if (
+                    -not $text -or
+                    $text -eq $Prompt -or
+                    -not $bounds -or
+                    $bounds.top -ge 1850 -or
+                    ($promptBounds -and $bounds.top -lt $promptBounds.bottom) -or
+                    $text -match '^(千问|快速|工作助理|AI生视频|生活帮手)$' -or
+                    $text -match '^发消息或按住说话' -or
+                    $text -match '^内容由 AI 生成' -or
+                    $text -match '^参考了\s*\d+\s*篇资料$' -or
+                    $text -match '^(正在|思考中|搜索中)'
+                ) {
+                    continue
+                }
+                [pscustomobject]@{
+                    text = $text
+                    top = $bounds.top
+                    length = $text.Length
+                }
+            }
+            $selectedAnswer = if ($promptBounds) {
+                $answerCandidates |
+                    Sort-Object top, @{ Expression = "length"; Descending = $true } |
                     Select-Object -First 1
-            )
+            } else {
+                $answerCandidates |
+                    Sort-Object @{ Expression = "length"; Descending = $true }, top |
+                    Select-Object -First 1
+            }
+            $answerParts = @($selectedAnswer.text)
         }
         "kimi" {
             $answerContainer = Get-KimiAnswerContainer -Document $document
@@ -2676,6 +2742,7 @@ try {
         throw "Requested Android device is not connected: $serial"
     }
     $script:deviceSerial = $serial
+    Ensure-AndroidDeviceUnlocked -SessionId "adb"
     $systemPort = if ($null -ne $task.payload.appium_system_port) {
         [int]$task.payload.appium_system_port
     } else {
