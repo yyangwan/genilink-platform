@@ -5,7 +5,8 @@ param(
     [string]$GatewayId,
     [Parameter(Mandatory)]
     [string]$Token,
-    [string[]]$DeviceSerials = @()
+    [string[]]$DeviceSerials = @(),
+    [int]$MaxConcurrentTasks = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -48,6 +49,7 @@ if (Test-Path -LiteralPath $sourceHandlerRoot) {
     nodePath = "C:\Program Files\nodejs\node.exe"
     httpClientPath = $httpClientPath
     pollIntervalSeconds = 5
+    maxConcurrentTasks = $MaxConcurrentTasks
 } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $configPath -Encoding utf8
 
 $acl = Get-Acl -LiteralPath $configPath
