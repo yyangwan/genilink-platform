@@ -7,6 +7,7 @@ $root = "C:\ProgramData\MobileGateway"
 $logPath = Join-Path $root "logs\gateway-agent.log"
 $statusPath = Join-Path $root "status.json"
 $mutex = [Threading.Mutex]::new($false, "Global\MobileGatewayAgent")
+$script:activeTasks = @{}
 . (Join-Path $PSScriptRoot "gateway-device-selector.ps1")
 
 if (-not $mutex.WaitOne(0)) {
@@ -72,11 +73,20 @@ function Get-DeviceSnapshot {
     }
     try {
         $status = Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json
+        $devices = @($status.devices)
+        foreach ($device in $devices) {
+            $active = @(
+                $script:activeTasks.Values |
+                    Where-Object { $_.DeviceSerial -eq $device.serial }
+            ) | Select-Object -First 1
+            $device | Add-Member -NotePropertyName busy -NotePropertyValue ([bool]$active) -Force
+            $device | Add-Member -NotePropertyName taskId -NotePropertyValue $(if ($active) { $active.Task.id } else { $null }) -Force
+        }
         return @{
             statusFilePresent = $true
             adbHealthy = [bool]$status.adbHealthy
             appiumHealthy = [bool]$status.appiumHealthy
-            devices = @($status.devices)
+            devices = $devices
             freeDiskGB = $status.freeDiskGB
             uptimeSeconds = $status.uptimeSeconds
         }
@@ -102,34 +112,109 @@ function Send-Heartbeat {
     $script:lastHeartbeat = Get-Date
 }
 
-function Set-TaskDeviceSerial {
-    param([pscustomobject]$Task)
+function Assert-DeviceReady {
+    param(
+        [Parameter(Mandatory)]
+        [string]$DeviceSerial,
+        [Parameter(Mandatory)]
+        [string]$Platform
+    )
 
-    if ($Task.task_type -ne "appium.prompt" -or $Task.payload.device_serial) {
-        return
+    $adb = "C:\Program Files\Android\platform-tools\adb.exe"
+    & $adb -s $DeviceSerial shell input keyevent 224 | Out-Null
+    & $adb -s $DeviceSerial shell wm dismiss-keyguard | Out-Null
+    & $adb -s $DeviceSerial shell input keyevent 82 | Out-Null
+    Start-Sleep -Milliseconds 300
+    $windowState = @(& $adb -s $DeviceSerial shell dumpsys window 2>$null)
+    if ($windowState -match "mDreamingLockscreen=true") {
+        throw "Device remains locked: $DeviceSerial"
     }
-    $configured = @($script:config.deviceSerials | Where-Object { $_ })
-    if ($configured.Count -eq 0) {
+
+    $requiredPackages = @(
+        "io.appium.uiautomator2.server",
+        "io.appium.uiautomator2.server.test",
+        "io.appium.settings"
+    )
+    $platformPackages = @{
+        doubao = "com.larus.nova"
+        deepseek = "com.deepseek.chat"
+        yuanbao = "com.tencent.hunyuan.app.chat"
+        qwen = "com.aliyun.tongyi"
+        qianwen = "com.aliyun.tongyi"
+        kimi = "com.moonshot.kimichat"
+    }
+    if ($platformPackages.ContainsKey($Platform)) {
+        $requiredPackages += $platformPackages[$Platform]
+    }
+    foreach ($packageName in $requiredPackages) {
+        $packagePath = @(& $adb -s $DeviceSerial shell pm path $packageName 2>$null)
+        if ($LASTEXITCODE -ne 0 -or -not ($packagePath -match "^package:")) {
+            throw "Required package is missing on $($DeviceSerial): $packageName"
+        }
+    }
+}
+
+function Set-TaskDeviceSerial {
+    param(
+        [pscustomobject]$Task,
+        [string[]]$BusySerials = @()
+    )
+
+    if ($Task.task_type -ne "appium.prompt") {
         return
     }
 
     $adb = "C:\Program Files\Android\platform-tools\adb.exe"
     $online = @(Get-AuthorizedDeviceSerials @(& $adb devices -l 2>$null))
-    $serial = Select-NextDeviceSerial `
-        -ConfiguredSerials $configured `
-        -OnlineSerials $online `
-        -PreviousSerial $script:lastAssignedDeviceSerial
+    $configured = @($script:config.deviceSerials | Where-Object { $_ })
+    $pool = if ($configured.Count -gt 0) { $configured } else { $online }
+    $serial = $null
+    $unavailable = @($BusySerials)
+    $previous = $script:lastAssignedDeviceSerial
+    $candidateCount = if ($Task.payload.device_serial) { 1 } else { $pool.Count }
+    for ($attempt = 0; $attempt -lt $candidateCount; $attempt++) {
+        $candidate = if ($Task.payload.device_serial) {
+            [string]$Task.payload.device_serial
+        } else {
+            Select-NextDeviceSerial `
+                -ConfiguredSerials $pool `
+                -OnlineSerials $online `
+                -PreviousSerial $previous `
+                -BusySerials $unavailable
+        }
+        if (-not $candidate) {
+            break
+        }
+        try {
+            Assert-DeviceReady -DeviceSerial $candidate -Platform ([string]$Task.platform)
+            $serial = $candidate
+            break
+        } catch {
+            Write-AgentLog "device unavailable device=$candidate reason=$($_.Exception.Message)"
+            $unavailable += $candidate
+            $previous = $candidate
+        }
+    }
     if (-not $serial) {
-        throw "No configured Android device is currently authorized and online"
+        throw "No capture-ready Android device is currently available"
+    }
+    if ($serial -notin $online) {
+        throw "Requested Android device is not authorized and online: $serial"
+    }
+    if ($serial -in $BusySerials) {
+        throw "Requested Android device is busy: $serial"
     }
 
     $Task.payload | Add-Member -NotePropertyName device_serial -NotePropertyValue $serial -Force
+    $ports = Get-DeviceAppiumPorts -ConfiguredSerials $pool -DeviceSerial $serial
+    $Task.payload | Add-Member -NotePropertyName appium_system_port -NotePropertyValue $ports.systemPort -Force
+    $Task.payload | Add-Member -NotePropertyName appium_mjpeg_server_port -NotePropertyValue $ports.mjpegServerPort -Force
     $script:lastAssignedDeviceSerial = $serial
     Write-AgentLog "assigned task=$($Task.id) device=$serial"
 }
 
-function Invoke-AppiumTask {
-    param([pscustomobject]$Task, [string]$LeaseToken)
+function Get-AppiumHandler {
+    param([pscustomobject]$Task)
 
     if ($Task.platform -notmatch "^[a-z0-9_-]+$" -or $Task.surface -notmatch "^(web|app)$") {
         throw "Invalid platform or surface in task"
@@ -144,102 +229,147 @@ function Invoke-AppiumTask {
         )
         throw $errorRecord
     }
+    $handler
+}
 
-    $taskJson = $Task | ConvertTo-Json -Depth 30 -Compress
+function Start-AppiumTask {
+    param(
+        [pscustomobject]$Claim,
+        [string[]]$BusySerials
+    )
+
+    $task = $Claim.task
+    Set-TaskDeviceSerial -Task $task -BusySerials $BusySerials
+    $handler = Get-AppiumHandler -Task $task
+    $taskJson = $task | ConvertTo-Json -Depth 30 -Compress
     $job = Start-Job -ScriptBlock {
         param([string]$HandlerPath, [string]$SerializedTask)
-
         & $HandlerPath -TaskJson $SerializedTask
     } -ArgumentList $handler, $taskJson
+
+    $script:activeTasks[$task.id] = [pscustomobject]@{
+        Task = $task
+        LeaseToken = $Claim.lease_token
+        DeviceSerial = [string]$task.payload.device_serial
+        Job = $job
+        LastLeaseHeartbeat = Get-Date
+    }
+    Write-AgentLog "started task=$($task.id) device=$($task.payload.device_serial)"
+}
+
+function Convert-HandlerOutput {
+    param([object[]]$Output)
+
+    if ($Output.Count -ne 1) {
+        return @{ output = $Output }
+    }
+    $singleOutput = $Output[0]
+    if ($singleOutput -is [string]) {
+        try {
+            $singleOutput = $singleOutput | ConvertFrom-Json
+        } catch {
+            return @{ output = $singleOutput }
+        }
+    }
+    if ($null -eq $singleOutput) {
+        return @{}
+    }
+    $cleanResult = [ordered]@{}
+    foreach ($property in $singleOutput.PSObject.Properties) {
+        if ($property.Name -notin @("PSComputerName", "RunspaceId", "PSShowComputerName")) {
+            $cleanResult[$property.Name] = $property.Value
+        }
+    }
+    $cleanResult
+}
+
+function Send-TaskFailure {
+    param(
+        [pscustomobject]$Task,
+        [string]$LeaseToken,
+        [string]$Message,
+        [string]$Code = "gateway_execution_failed"
+    )
+
     try {
-        while ($job.State -in @("NotStarted", "Running")) {
-            Wait-Job -Job $job -Timeout 30 | Out-Null
-            if ($job.State -in @("NotStarted", "Running")) {
-                Invoke-GatewayApi `
-                    -Method Post `
-                    -Path "/api/device-gateway/tasks/$($Task.id)/heartbeat" `
-                    -Body @{ lease_token = $LeaseToken } | Out-Null
-            }
-        }
-        $output = @(Receive-Job -Job $job)
+        Invoke-GatewayApi -Method Post -Path "/api/device-gateway/tasks/$($Task.id)/fail" -Body @{
+            lease_token = $LeaseToken
+            error_code = $Code
+            error_message = $Message
+            retryable = $Code -ne "handler_not_installed"
+            retry_after_seconds = 30
+        } | Out-Null
+    } catch {
+        Write-AgentLog "failed to report task=$($Task.id): $($_.Exception.Message)"
+    }
+    Write-AgentLog "failed task=$($Task.id) code=$Code message=$Message"
+}
+
+function Complete-ActiveTask {
+    param([string]$TaskId)
+
+    $active = $script:activeTasks[$TaskId]
+    $job = $active.Job
+    $task = $active.Task
+    try {
+        $output = @(Receive-Job -Job $job -ErrorAction Stop)
         if ($job.State -ne "Completed") {
-            throw "Handler failed with state $($job.State)"
+            $reason = $job.ChildJobs[0].JobStateInfo.Reason
+            $message = if ($reason) { $reason.Message } else { "Handler failed with state $($job.State)" }
+            throw $message
         }
-        if ($output.Count -eq 1) {
-            $singleOutput = $output[0]
-            if ($singleOutput -is [string]) {
-                try {
-                    $singleOutput = $singleOutput | ConvertFrom-Json
-                } catch {
-                    return @{ output = $singleOutput }
-                }
-            }
-            $cleanResult = [ordered]@{}
-            foreach ($property in $singleOutput.PSObject.Properties) {
-                if (
-                    $property.Name -notin @(
-                        "PSComputerName",
-                        "RunspaceId",
-                        "PSShowComputerName"
-                    )
-                ) {
-                    $cleanResult[$property.Name] = $property.Value
-                }
-            }
-            return $cleanResult
-        }
-        return @{ output = $output }
+        $result = Convert-HandlerOutput -Output $output
+        Invoke-GatewayApi -Method Post -Path "/api/device-gateway/tasks/$($task.id)/complete" -Body @{
+            lease_token = $active.LeaseToken
+            result = $result
+        } | Out-Null
+        Write-AgentLog "completed task=$($task.id) device=$($active.DeviceSerial)"
+    } catch {
+        Send-TaskFailure -Task $task -LeaseToken $active.LeaseToken -Message $_.Exception.Message
     } finally {
         Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+        $script:activeTasks.Remove($TaskId) | Out-Null
     }
 }
 
-function Invoke-ClaimedTask {
+function Update-ActiveTasks {
+    foreach ($taskId in @($script:activeTasks.Keys)) {
+        $active = $script:activeTasks[$taskId]
+        if ($active.Job.State -in @("NotStarted", "Running")) {
+            if (((Get-Date) - $active.LastLeaseHeartbeat).TotalSeconds -ge 30) {
+                try {
+                    Invoke-GatewayApi -Method Post -Path "/api/device-gateway/tasks/$taskId/heartbeat" -Body @{
+                        lease_token = $active.LeaseToken
+                    } | Out-Null
+                    $active.LastLeaseHeartbeat = Get-Date
+                } catch {
+                    Write-AgentLog "heartbeat failed task=$($taskId): $($_.Exception.Message)"
+                }
+            }
+            continue
+        }
+        Complete-ActiveTask -TaskId $taskId
+    }
+}
+
+function Invoke-HealthTask {
     param([pscustomobject]$Claim)
 
     $task = $Claim.task
-    $leaseToken = $Claim.lease_token
     try {
-        Set-TaskDeviceSerial -Task $task
-        if ($task.task_type -eq "gateway.healthcheck") {
-            $result = @{
-                gatewayId = $script:config.gatewayId
-                completedAt = (Get-Date).ToString("o")
-                status = Get-DeviceSnapshot
-                echo = $task.payload
-            }
-        } elseif ($task.task_type -eq "appium.prompt") {
-            $result = Invoke-AppiumTask -Task $task -LeaseToken $leaseToken
-        } else {
-            throw "Unsupported task type: $($task.task_type)"
+        $result = @{
+            gatewayId = $script:config.gatewayId
+            completedAt = (Get-Date).ToString("o")
+            status = Get-DeviceSnapshot
+            echo = $task.payload
         }
-
-        Invoke-GatewayApi `
-            -Method Post `
-            -Path "/api/device-gateway/tasks/$($task.id)/complete" `
-            -Body @{ lease_token = $leaseToken; result = $result } | Out-Null
+        Invoke-GatewayApi -Method Post -Path "/api/device-gateway/tasks/$($task.id)/complete" -Body @{
+            lease_token = $Claim.lease_token
+            result = $result
+        } | Out-Null
         Write-AgentLog "completed task=$($task.id) type=$($task.task_type)"
     } catch {
-        $code = if ($_.FullyQualifiedErrorId -like "handler_not_installed*") {
-            "handler_not_installed"
-        } else {
-            "gateway_execution_failed"
-        }
-        try {
-            Invoke-GatewayApi `
-                -Method Post `
-                -Path "/api/device-gateway/tasks/$($task.id)/fail" `
-                -Body @{
-                    lease_token = $leaseToken
-                    error_code = $code
-                    error_message = $_.Exception.Message
-                    retryable = $code -ne "handler_not_installed"
-                    retry_after_seconds = 30
-                } | Out-Null
-        } catch {
-            Write-AgentLog "failed to report task=$($task.id): $($_.Exception.Message)"
-        }
-        Write-AgentLog "failed task=$($task.id) code=$code"
+        Send-TaskFailure -Task $task -LeaseToken $Claim.lease_token -Message $_.Exception.Message
     }
 }
 
@@ -264,26 +394,73 @@ try {
     }
 
     $script:lastHeartbeat = [datetime]::MinValue
+    $script:lastAssignedDeviceSerial = $null
+    $maxConcurrentTasks = Get-GatewayConcurrencyLimit `
+        -ConfiguredSerials @($script:config.deviceSerials) `
+        -ConfiguredMaximum ([int]$script:config.maxConcurrentTasks)
     Write-AgentLog "agent started gateway=$($script:config.gatewayId)"
     while ($true) {
         try {
+            Update-ActiveTasks
             if (((Get-Date) - $script:lastHeartbeat).TotalSeconds -ge 30) {
                 Send-Heartbeat
             }
-            $claim = Invoke-GatewayApi `
-                -Method Post `
-                -Path "/api/device-gateway/tasks/claim" `
-                -Body @{ capabilities = @($script:config.capabilities) }
-            if ($null -ne $claim.task) {
-                Invoke-ClaimedTask -Claim $claim
-                continue
+
+            $busySerials = @($script:activeTasks.Values | ForEach-Object { $_.DeviceSerial })
+            $adb = "C:\Program Files\Android\platform-tools\adb.exe"
+            $online = @(Get-AuthorizedDeviceSerials @(& $adb devices -l 2>$null))
+            $configured = @($script:config.deviceSerials | Where-Object { $_ })
+            $pool = if ($configured.Count -gt 0) { $configured } else { $online }
+            $idleDeviceCount = @(
+                Get-IdleDeviceSerials `
+                    -ConfiguredSerials $pool `
+                    -OnlineSerials $online `
+                    -BusySerials $busySerials
+            ).Count
+
+            if (
+                $script:activeTasks.Count -lt $maxConcurrentTasks -and
+                $idleDeviceCount -gt 0
+            ) {
+                $claim = Invoke-GatewayApi `
+                    -Method Post `
+                    -Path "/api/device-gateway/tasks/claim" `
+                    -Body @{ capabilities = @($script:config.capabilities) }
+                if ($null -ne $claim.task) {
+                    if ($claim.task.task_type -eq "appium.prompt") {
+                        try {
+                            Start-AppiumTask -Claim $claim -BusySerials $busySerials
+                        } catch {
+                            $code = if ($_.FullyQualifiedErrorId -like "handler_not_installed*") {
+                                "handler_not_installed"
+                            } else {
+                                "gateway_execution_failed"
+                            }
+                            Send-TaskFailure -Task $claim.task -LeaseToken $claim.lease_token -Message $_.Exception.Message -Code $code
+                        }
+                    } elseif ($claim.task.task_type -eq "gateway.healthcheck") {
+                        Invoke-HealthTask -Claim $claim
+                    } else {
+                        Send-TaskFailure -Task $claim.task -LeaseToken $claim.lease_token -Message "Unsupported task type: $($claim.task.task_type)"
+                    }
+                    continue
+                }
             }
         } catch {
             Write-AgentLog "poll failed: $($_.Exception.Message)"
         }
-        Start-Sleep -Seconds ([int]$script:config.pollIntervalSeconds)
+        $sleepSeconds = if ($script:activeTasks.Count -gt 0) {
+            1
+        } else {
+            [int]$script:config.pollIntervalSeconds
+        }
+        Start-Sleep -Seconds $sleepSeconds
     }
 } finally {
+    foreach ($active in @($script:activeTasks.Values)) {
+        Stop-Job -Job $active.Job -ErrorAction SilentlyContinue
+        Remove-Job -Job $active.Job -Force -ErrorAction SilentlyContinue
+    }
     Write-AgentLog "agent stopped"
     $mutex.ReleaseMutex()
     $mutex.Dispose()

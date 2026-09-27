@@ -29,7 +29,15 @@ $platformConfig = @{
     }
 }
 $packageName = [string]$platformConfig[$Platform].package
-$mutex = [Threading.Mutex]::new($false, "Global\MobileGateway-Android-Device")
+$task = $TaskJson | ConvertFrom-Json
+$mutexSerial = ([string]$task.payload.device_serial) -replace "[^a-zA-Z0-9_-]", "_"
+if (-not $mutexSerial) {
+    $mutexSerial = "unassigned"
+}
+$mutex = [Threading.Mutex]::new(
+    $false,
+    "Global\MobileGateway-Android-Device-$mutexSerial"
+)
 
 if (-not $mutex.WaitOne(0)) {
     throw "Another Android device task is already running"
@@ -2325,7 +2333,6 @@ function Get-KimiSources {
 $sessionId = $null
 $appiumSessionClosed = $false
 try {
-    $task = $TaskJson | ConvertFrom-Json
     if (-not $task.id) {
         throw "Task JSON must include id"
     }
@@ -2357,6 +2364,16 @@ try {
         throw "Requested Android device is not connected: $serial"
     }
     $script:deviceSerial = $serial
+    $systemPort = if ($null -ne $task.payload.appium_system_port) {
+        [int]$task.payload.appium_system_port
+    } else {
+        8200
+    }
+    $mjpegServerPort = if ($null -ne $task.payload.appium_mjpeg_server_port) {
+        [int]$task.payload.appium_mjpeg_server_port
+    } else {
+        9200
+    }
 
     $startedAt = Get-Date
     if ($Platform -in @("yuanbao", "qwen", "kimi")) {
@@ -2383,6 +2400,8 @@ try {
                     "appium:newCommandTimeout" = $timeoutSeconds + 180
                     "appium:skipDeviceInitialization" = $true
                     "appium:skipServerInstallation" = $true
+                    "appium:systemPort" = $systemPort
+                    "appium:mjpegServerPort" = $mjpegServerPort
                 }
                 firstMatch = @(@{})
             }

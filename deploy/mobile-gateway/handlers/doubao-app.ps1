@@ -16,7 +16,15 @@ $doubaoRetryMessage = [Text.Encoding]::UTF8.GetString(
 $copyLinkLabel = [Text.Encoding]::UTF8.GetString(
     [Convert]::FromBase64String("5aSN5Yi26ZO+5o6l")
 )
-$mutex = [Threading.Mutex]::new($false, "Global\MobileGateway-Android-Device")
+$task = $TaskJson | ConvertFrom-Json
+$mutexSerial = ([string]$task.payload.device_serial) -replace "[^a-zA-Z0-9_-]", "_"
+if (-not $mutexSerial) {
+    $mutexSerial = "unassigned"
+}
+$mutex = [Threading.Mutex]::new(
+    $false,
+    "Global\MobileGateway-Android-Device-$mutexSerial"
+)
 
 if (-not $mutex.WaitOne(0)) {
     throw "Another Android device task is already running"
@@ -148,7 +156,7 @@ function Get-PageSource {
 
 function Get-NativePageSource {
     $devicePath = "/sdcard/mobile-gateway-doubao.xml"
-    $localPath = Join-Path $resultRoot "doubao-current.xml"
+    $localPath = Join-Path $resultRoot "$($script:taskWorkingPrefix)-doubao-current.xml"
     $dumpProcess = Start-Process `
         -FilePath "adb" `
         -ArgumentList @("-s", $script:deviceSerial, "shell", "uiautomator", "dump", $devicePath) `
@@ -1025,7 +1033,7 @@ function ConvertTo-ImapUtf7 {
 
 $sessionId = $null
 try {
-    $task = $TaskJson | ConvertFrom-Json
+    $script:taskWorkingPrefix = ([string]$task.id) -replace "[^a-zA-Z0-9_-]", "_"
     $prompt = [string]$task.payload.prompt
     if ([string]::IsNullOrWhiteSpace($prompt)) {
         throw "Task payload.prompt is required"
@@ -1060,6 +1068,16 @@ try {
         throw "Requested Android device is not connected: $serial"
     }
     $script:deviceSerial = $serial
+    $systemPort = if ($null -ne $task.payload.appium_system_port) {
+        [int]$task.payload.appium_system_port
+    } else {
+        8200
+    }
+    $mjpegServerPort = if ($null -ne $task.payload.appium_mjpeg_server_port) {
+        [int]$task.payload.appium_mjpeg_server_port
+    } else {
+        9200
+    }
 
     $startedAt = Get-Date
     # Rebuild the activity stack so an external source app or embedded browser
@@ -1090,6 +1108,8 @@ try {
                 "appium:newCommandTimeout" = $timeoutSeconds + 60
                 "appium:skipDeviceInitialization" = $true
                 "appium:skipServerInstallation" = $true
+                "appium:systemPort" = $systemPort
+                "appium:mjpegServerPort" = $mjpegServerPort
             }
             firstMatch = @(@{})
         }

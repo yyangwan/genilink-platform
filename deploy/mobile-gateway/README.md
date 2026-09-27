@@ -40,12 +40,17 @@ problem and Windows PowerShell 5.1 console-code-page corruption for Chinese
 prompts and answers.
 
 Set `deviceSerials` in `config\gateway-agent.json` to the authorized devices
-that may run capture tasks. The agent rotates through online serials in that
-order and skips devices that are offline. A task with an explicit
-`payload.device_serial` keeps that assignment. Restart `MobileGateway-Agent`
-after changing the list. Tasks remain sequential on this gateway; adding
-devices improves availability and distributes use, but does not add parallel
-capture capacity.
+that may run capture tasks. The agent maintains a bounded worker pool, assigns
+one task to each idle online device, and skips devices that are offline or
+already busy. A task with an explicit `payload.device_serial` keeps that
+assignment. `maxConcurrentTasks` optionally limits concurrency below the
+number of configured devices; zero or omission uses the configured device
+count. Restart `MobileGateway-Agent` after changing either value.
+
+Each active device receives stable UiAutomator2 `systemPort` and MJPEG ports
+derived from its position in `deviceSerials`. Keep that list order stable
+during active work. Gateway heartbeats expose per-device `busy` and `taskId`
+state without changing the audit result contract.
 
 ## Platform Handlers
 
@@ -83,8 +88,8 @@ App handlers accept these optional payload values:
 - `new_conversation`: starts an isolated conversation by default.
 - `device_serial`: targets a specific authorized ADB device.
 
-All handlers share a gateway-wide mutex. Only one Appium task may run on this
-gateway at a time, even when several Android devices are attached.
+Handlers use a mutex scoped to the selected device. Separate devices may run
+capture tasks concurrently, while duplicate work on the same phone is rejected.
 
 Huawei devices intercept normal ADB APK installation. UiAutomator2's test APK
 must be pushed to the device and installed with `pm install -r -t -g`. Once the
