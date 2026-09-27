@@ -1,11 +1,14 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { OpsAuthorizationError, requireOps } from '@/lib/auth/ops';
 import { prisma } from '@/lib/db';
 
 export default async function OpsLeadsPage() {
   try { await requireOps(); } catch (error) {
-    if (error instanceof OpsAuthorizationError) redirect(error.status === 401 ? '/auth/login?callbackUrl=%2Fops%2Fleads' : '/dashboard');
+    if (error instanceof OpsAuthorizationError) {
+      if (error.status === 401) redirect('/auth/login?callbackUrl=%2Fops%2Fleads');
+      notFound();
+    }
     throw error;
   }
   const leads = await prisma.marketingLead.findMany({ orderBy: [{ score: 'desc' }, { createdAt: 'desc' }], take: 100 });

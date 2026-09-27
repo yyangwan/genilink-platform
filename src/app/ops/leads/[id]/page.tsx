@@ -5,11 +5,14 @@ import { decryptContact } from '@/lib/marketing/contact-crypto';
 import { LeadActions } from './lead-actions';
 
 export default async function OpsLeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try { await requireOps(); } catch (error) {
-    if (error instanceof OpsAuthorizationError) redirect(error.status === 401 ? '/auth/login' : '/dashboard');
+    if (error instanceof OpsAuthorizationError) {
+      if (error.status === 401) redirect(`/auth/login?callbackUrl=${encodeURIComponent(`/ops/leads/${id}`)}`);
+      notFound();
+    }
     throw error;
   }
-  const { id } = await params;
   const lead = await prisma.marketingLead.findUnique({ where: { id }, include: {
     statusEvents: { orderBy: { createdAt: 'desc' } },
     privacyEvents: { orderBy: { createdAt: 'desc' } },

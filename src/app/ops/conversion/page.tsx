@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { OpsAuthorizationError, requireOps } from '@/lib/auth/ops';
 import { CONVERSION_EVENTS, getConversionSummary } from '@/lib/marketing/conversion';
 
@@ -14,7 +14,10 @@ const labels: Record<(typeof CONVERSION_EVENTS)[number], string> = {
 
 export default async function OpsConversionPage() {
   try { await requireOps(); } catch (error) {
-    if (error instanceof OpsAuthorizationError) redirect(error.status === 401 ? '/auth/login?callbackUrl=%2Fops%2Fconversion' : '/dashboard');
+    if (error instanceof OpsAuthorizationError) {
+      if (error.status === 401) redirect('/auth/login?callbackUrl=%2Fops%2Fconversion');
+      notFound();
+    }
     throw error;
   }
   const summary = await getConversionSummary(30);
