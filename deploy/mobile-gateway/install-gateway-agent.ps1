@@ -18,6 +18,8 @@ $agentPath = Join-Path $root "gateway-agent.ps1"
 $sourceAgent = Join-Path $PSScriptRoot "gateway-agent.ps1"
 $deviceSelectorPath = Join-Path $root "gateway-device-selector.ps1"
 $sourceDeviceSelector = Join-Path $PSScriptRoot "gateway-device-selector.ps1"
+$verifierPath = Join-Path $root "gateway-capture-verifier.ps1"
+$sourceVerifier = Join-Path $PSScriptRoot "gateway-capture-verifier.ps1"
 $httpClientPath = Join-Path $root "gateway-http-client.mjs"
 $sourceHttpClient = Join-Path $PSScriptRoot "gateway-http-client.mjs"
 $sourceHandlerRoot = Join-Path $PSScriptRoot "handlers"
@@ -28,6 +30,9 @@ if ([IO.Path]::GetFullPath($sourceAgent) -ne [IO.Path]::GetFullPath($agentPath))
 }
 if ([IO.Path]::GetFullPath($sourceDeviceSelector) -ne [IO.Path]::GetFullPath($deviceSelectorPath)) {
     Copy-Item -LiteralPath $sourceDeviceSelector -Destination $deviceSelectorPath -Force
+}
+if ([IO.Path]::GetFullPath($sourceVerifier) -ne [IO.Path]::GetFullPath($verifierPath)) {
+    Copy-Item -LiteralPath $sourceVerifier -Destination $verifierPath -Force
 }
 if ([IO.Path]::GetFullPath($sourceHttpClient) -ne [IO.Path]::GetFullPath($httpClientPath)) {
     Copy-Item -LiteralPath $sourceHttpClient -Destination $httpClientPath -Force

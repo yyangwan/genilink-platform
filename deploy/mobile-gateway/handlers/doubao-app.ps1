@@ -545,12 +545,16 @@ function Return-ToDoubaoChat {
         $foregroundPackage = Get-ForegroundPackage
         if ($foregroundPackage -eq $packageName) {
             [xml]$document = Get-NativePageSource
-            if ($document.SelectSingleNode(
+            $restoredNode = @($document.SelectNodes(
                 "//*[@resource-id='$packageName`:id/tv_reference_content' or " +
                 "@resource-id='$packageName`:id/ll_reference_title' or " +
                 "@resource-id='$packageName`:id/search_title' or " +
                 "@resource-id='$packageName`:id/input_text']"
-            )) {
+            ) | Where-Object {
+                $bounds = Get-NativeNodeBounds -Node $_
+                $bounds -and $bounds.bottom -gt 0
+            }) | Select-Object -First 1
+            if ($restoredNode) {
                 return $true
             }
             $detailBackNode = $document.SelectSingleNode(
@@ -904,15 +908,19 @@ function Get-DoubaoSources {
                 continue
             }
 
-            $container = $expandedDocument.SelectSingleNode(
-                "//*[@resource-id='$packageName`:id/sub_keyword_reference']"
+            $listNode = $expandedDocument.SelectSingleNode(
+                "//*[@resource-id='$packageName`:id/recyclerView' and " +
+                "@scrollable='true']"
             )
-            $listNode = if ($container) {
-                $container.SelectSingleNode(
-                    ".//*[@class='androidx.recyclerview.widget.RecyclerView']"
+            if (-not $listNode) {
+                $container = $expandedDocument.SelectSingleNode(
+                    "//*[@resource-id='$packageName`:id/sub_keyword_reference']"
                 )
-            } else {
-                $null
+                if ($container) {
+                    $listNode = $container.SelectSingleNode(
+                        "ancestor::*[@scrollable='true'][1]"
+                    )
+                }
             }
             $listBounds = if ($listNode) {
                 Get-NativeNodeBounds -Node $listNode
@@ -923,14 +931,14 @@ function Get-DoubaoSources {
                 $stalledScrolls++
                 continue
             }
-            # The embedded reference RecyclerView reports scrollable=false.
-            # Swiping inside it is ignored; the narrow left margin scrolls the
-            # outer message list while keeping enough overlap to avoid gaps.
-            $scrollX = [math]::Max(8, $listBounds.left - 15)
-            $scrollStartY = [math]::Min(1850, $listBounds.bottom - 80)
+            # Current Doubao builds expose the bottom sheet's outer RecyclerView
+            # as the actual scroll target. Swiping the nested source container is
+            # ignored and leaves collection stuck on the first viewport.
+            $scrollX = [int](($listBounds.left + $listBounds.right) / 2)
+            $scrollStartY = [math]::Min(2180, $listBounds.bottom - 60)
             $scrollEndY = [math]::Max(
                 $listBounds.top + 80,
-                $scrollStartY - 600
+                $scrollStartY - 650
             )
             & adb -s $script:deviceSerial shell input swipe `
                 $scrollX $scrollStartY $scrollX $scrollEndY 500 | Out-Null

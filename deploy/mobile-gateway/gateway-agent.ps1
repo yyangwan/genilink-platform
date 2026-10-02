@@ -242,10 +242,12 @@ function Start-AppiumTask {
     Set-TaskDeviceSerial -Task $task -BusySerials $BusySerials
     $handler = Get-AppiumHandler -Task $task
     $taskJson = $task | ConvertTo-Json -Depth 30 -Compress
+    $verifier = Join-Path $PSScriptRoot "gateway-capture-verifier.ps1"
     $job = Start-Job -ScriptBlock {
-        param([string]$HandlerPath, [string]$SerializedTask)
-        & $HandlerPath -TaskJson $SerializedTask
-    } -ArgumentList $handler, $taskJson
+        param([string]$HandlerPath, [string]$SerializedTask, [string]$VerifierPath)
+        . $VerifierPath
+        Invoke-VerifiedCapture -HandlerPath $HandlerPath -SerializedTask $SerializedTask
+    } -ArgumentList $handler, $taskJson, $verifier
 
     $script:activeTasks[$task.id] = [pscustomobject]@{
         Task = $task
@@ -312,13 +314,20 @@ function Complete-ActiveTask {
     $job = $active.Job
     $task = $active.Task
     try {
-        $output = @(Receive-Job -Job $job -ErrorAction Stop)
+        $captureWarnings = @()
+        $output = @(Receive-Job -Job $job -ErrorAction Stop -WarningVariable captureWarnings -WarningAction SilentlyContinue)
+        foreach ($warning in $captureWarnings) {
+            Write-AgentLog "capture task=$($task.id) $warning"
+        }
         if ($job.State -ne "Completed") {
             $reason = $job.ChildJobs[0].JobStateInfo.Reason
             $message = if ($reason) { $reason.Message } else { "Handler failed with state $($job.State)" }
             throw $message
         }
         $result = Convert-HandlerOutput -Output $output
+        . (Join-Path $PSScriptRoot "gateway-capture-verifier.ps1")
+        $quality = Test-CaptureResult -Result ([pscustomobject]$result)
+        Write-AgentLog "quality task=$($task.id) passed=$($quality.Passed) references=$($quality.ReferenceCount) valid_sources=$($quality.ValidSourceCount) completeness=$([math]::Round($quality.Completeness, 4))"
         Invoke-GatewayApi -Method Post -Path "/api/device-gateway/tasks/$($task.id)/complete" -Body @{
             lease_token = $active.LeaseToken
             result = $result

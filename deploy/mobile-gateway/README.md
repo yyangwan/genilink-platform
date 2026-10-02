@@ -70,10 +70,9 @@ The gateway currently supports:
 - `qwen` or `qianwen` + `app`: collects every source name, title, and exposed
   domain. Its generated URL is explicitly labeled `site_root`, not an exact
   article path.
-- `kimi` + `app`: scrolls through lazy-loaded answer segments, collects inline
-  source chips, opens each source preview and in-app page, and extracts the
-  exact original URL. Search-plan chips and generation status controls are
-  excluded.
+- `kimi` + `app`: scrolls through lazy-loaded answer segments, opens the
+  searched-web-pages panel, catalogs every paged result card, and extracts each
+  exact original URL through the in-app article share sheet.
 
 Task results include `reference_count`, `source_count`, `answer_urls`, and a
 `sources` array. Every expected reference keeps its list index. A source that
@@ -81,6 +80,20 @@ cannot be opened or copied is returned with `status: failed` and an
 `error_message` rather than being silently omitted. Source records use
 `url_resolution` to distinguish `exact`, `site_root`, and `unavailable`
 destinations.
+
+Before reporting completion, the agent independently checks that an answer
+exists and at least 90% of the reported references have collected HTTP(S)
+URLs. Zero-reference results are treated as unverified, not automatically
+complete. An unverified result gets one fresh capture on the same device if
+the task is less than 10 minutes old. The retry writes to a separate evidence
+directory; the agent reports whichever attempt has more valid sources, using
+completeness as the tie-breaker. When the retry fails or time budget is gone,
+the first result is preserved. Verification outcomes are logged in
+`logs\gateway-agent.log`; they do not change the audit result schema. This
+check is a per-result target, not a measured 90% production success rate.
+
+Run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+.\test-capture-verifier.ps1` locally before installing agent changes.
 
 App handlers accept these optional payload values:
 
