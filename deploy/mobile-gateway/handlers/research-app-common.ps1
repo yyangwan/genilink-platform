@@ -25,7 +25,7 @@ $platformConfig = @{
     }
     kimi = @{
         package = "com.moonshot.kimichat"
-        version = "3.0.4"
+        version = "3.1.2"
     }
 }
 $packageName = [string]$platformConfig[$Platform].package
@@ -438,9 +438,9 @@ function Get-ClipboardText {
                 io.appium.settings/.Settings | Out-Null
             Start-Sleep -Milliseconds 400
         }
-        $previousIme = (
+        $previousIme = ([string](
             & adb -s $script:deviceSerial shell settings get secure default_input_method
-        ).Trim()
+        )).Trim()
         try {
             & adb -s $script:deviceSerial shell ime set io.appium.settings/.AppiumIME | Out-Null
             Start-Sleep -Milliseconds 500
@@ -730,6 +730,80 @@ function Get-SendButtonBounds {
         Select-Object -First 1
     if ($candidate) {
         $candidate.bounds
+    }
+}
+
+function Enable-QwenResearchMode {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    $source = Get-PageSource -SessionId $SessionId
+    $document = ConvertTo-Xml -Source $source
+    if (-not $document) {
+        throw "Could not inspect the Qwen response mode"
+    }
+
+    $selectedResearchNode = @(
+        $document.SelectNodes("//*[@text='思考研究']") |
+            Where-Object {
+                $bounds = Get-Bounds -Node $_
+                $bounds -and $bounds.top -ge 1750
+            }
+    ) | Select-Object -First 1
+    if ($selectedResearchNode) {
+        return
+    }
+
+    $quickNode = @(
+        $document.SelectNodes("//*[@text='快速']") |
+            Where-Object {
+                $bounds = Get-Bounds -Node $_
+                $bounds -and $bounds.top -ge 1750
+            }
+    ) | Select-Object -First 1
+    $quickBounds = if ($quickNode) { Get-Bounds -Node $quickNode } else { $null }
+    if (-not $quickBounds) {
+        throw "Could not locate Qwen's response mode control"
+    }
+    & adb -s $script:deviceSerial shell input tap `
+        $quickBounds.center_x $quickBounds.center_y | Out-Null
+    Start-Sleep -Milliseconds 500
+
+    $menuDocument = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+    $researchNode = if ($menuDocument) {
+        @($menuDocument.SelectNodes("//*[@text='思考研究']")) |
+            Where-Object {
+                $bounds = Get-Bounds -Node $_
+                $bounds -and $bounds.top -ge 1200
+            } |
+            Select-Object -First 1
+    } else {
+        $null
+    }
+    $researchBounds = if ($researchNode) {
+        Get-Bounds -Node $researchNode
+    } else {
+        $null
+    }
+    if (-not $researchBounds) {
+        throw "Qwen did not expose the research mode option"
+    }
+    & adb -s $script:deviceSerial shell input tap `
+        $researchBounds.center_x $researchBounds.center_y | Out-Null
+    Start-Sleep -Milliseconds 700
+
+    $verifiedDocument = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+    $verified = if ($verifiedDocument) {
+        @($verifiedDocument.SelectNodes("//*[@text='思考研究']")) |
+            Where-Object {
+                $bounds = Get-Bounds -Node $_
+                $bounds -and $bounds.top -ge 1750
+            } |
+            Select-Object -First 1
+    } else {
+        $null
+    }
+    if (-not $verified) {
+        throw "Qwen research mode was not selected"
     }
 }
 
@@ -1081,6 +1155,7 @@ function Start-NewConversation {
                 -TargetPlatform $Platform)) {
                 throw "Qwen did not reach a conversation input"
             }
+            Enable-QwenResearchMode -SessionId $SessionId
         }
         "kimi" {
             $source = Get-PageSource -SessionId $SessionId
@@ -2280,6 +2355,195 @@ function Get-DeepSeekSources {
     @($collected.Values | Sort-Object index)
 }
 
+function Get-YuanbaoVisiblePanelItems {
+    param([Parameter(Mandatory)]$Document)
+
+    $items = @{}
+    foreach ($node in @($Document.SelectNodes("//*[@clickable='true']"))) {
+        $texts = @(Get-DescendantTexts -Node $node)
+        if ($texts.Count -lt 2 -or $texts.Count -gt 3) {
+            continue
+        }
+        $bounds = Get-Bounds -Node $node
+        if (-not $bounds) {
+            continue
+        }
+        # Video citations legitimately omit a snippet. A two-text card clipped
+        # against the panel header is incomplete and will be rediscovered after
+        # the next overlapping scroll.
+        if ($texts.Count -eq 2 -and $bounds.top -lt 300) {
+            continue
+        }
+        $signature = $texts -join "`n"
+        if (-not $items.ContainsKey($signature)) {
+            $items[$signature] = [pscustomobject]@{
+                signature = $signature
+                site_name = $texts[0]
+                title = $texts[1]
+                snippet = if ($texts.Count -eq 3) { $texts[2] } else { $null }
+                bounds = $bounds
+            }
+        }
+    }
+    @($items.Values | Sort-Object { $_.bounds.top }, { $_.bounds.left })
+}
+
+function Get-YuanbaoSourceCatalog {
+    param(
+        [Parameter(Mandatory)][string]$SessionId,
+        [Parameter(Mandatory)][int]$ReferenceCount
+    )
+
+    $catalog = [Collections.Generic.List[object]]::new()
+    $known = @{}
+    $stalls = 0
+    while ($catalog.Count -lt $ReferenceCount -and $stalls -lt 6) {
+        $document = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+        $foundNew = $false
+        foreach ($item in @(Get-YuanbaoVisiblePanelItems -Document $document)) {
+            if ($known.ContainsKey($item.signature)) {
+                continue
+            }
+            $known[$item.signature] = $true
+            $catalog.Add([pscustomobject]@{
+                index = $catalog.Count + 1
+                signature = $item.signature
+                site_name = $item.site_name
+                title = $item.title
+                snippet = $item.snippet
+            })
+            $foundNew = $true
+            if ($catalog.Count -ge $ReferenceCount) {
+                break
+            }
+        }
+        if ($catalog.Count -ge $ReferenceCount) {
+            break
+        }
+        & adb -s $script:deviceSerial shell input swipe 576 1900 576 900 500 | Out-Null
+        Start-Sleep -Milliseconds 700
+        if ($foundNew) {
+            $stalls = 0
+        } else {
+            $stalls++
+        }
+    }
+    @($catalog)
+}
+
+function Reset-YuanbaoSourcePanel {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    Press-Back -SessionId $SessionId
+    Start-Sleep -Milliseconds 700
+    for ($attempt = 0; $attempt -lt 8; $attempt++) {
+        $document = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+        if ($document.SelectSingleNode(
+            "//*[starts-with(@text,'引用来源')]"
+        )) {
+            Press-Back -SessionId $SessionId
+            Start-Sleep -Milliseconds 700
+            continue
+        }
+        $markerNode = $document.SelectSingleNode(
+            "//*[@text='源' or @content-desc='源']"
+        )
+        $markerBounds = if ($markerNode) { Get-Bounds -Node $markerNode } else { $null }
+        if ($markerBounds) {
+            & adb -s $script:deviceSerial shell input tap `
+                $markerBounds.center_x $markerBounds.center_y | Out-Null
+            Start-Sleep -Milliseconds 700
+            $panelSource = Get-PageSource -SessionId $SessionId
+            if ($panelSource -match 'text="引用来源\s*\d+"') {
+                return
+            }
+        }
+        & adb -s $script:deviceSerial shell input swipe 842 1650 842 650 350 | Out-Null
+        Start-Sleep -Milliseconds 500
+    }
+    throw "Could not reopen the Yuanbao source panel"
+}
+
+function Find-YuanbaoSourceBounds {
+    param(
+        [Parameter(Mandatory)][string]$SessionId,
+        [Parameter(Mandatory)][string]$Signature,
+        [Parameter(Mandatory)][int]$ReferenceCount
+    )
+
+    $stalls = 0
+    $lastViewport = $null
+    for ($attempt = 0; $attempt -lt ([math]::Max(12, $ReferenceCount + 4)); $attempt++) {
+        $document = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+        $items = @(Get-YuanbaoVisiblePanelItems -Document $document)
+        $match = @($items | Where-Object { $_.signature -eq $Signature }) |
+            Select-Object -First 1
+        if ($match) {
+            return $match.bounds
+        }
+        $viewport = ($items.signature | Sort-Object) -join "`r`n"
+        if ($viewport -and $viewport -eq $lastViewport) {
+            $stalls++
+        } else {
+            $stalls = 0
+            $lastViewport = $viewport
+        }
+        if ($stalls -ge 3) {
+            break
+        }
+        & adb -s $script:deviceSerial shell input swipe 576 1900 576 900 500 | Out-Null
+        Start-Sleep -Milliseconds 700
+    }
+    $null
+}
+
+function Get-QwenResearchSourceTitles {
+    param([Parameter(Mandatory)]$Document)
+
+    $titles = [Collections.Generic.List[string]]::new()
+    foreach ($marker in @($Document.SelectNodes(
+        "//*[contains(@text,'搜索') and contains(@text,'参考了') and " +
+        "contains(@text,'篇资料')]"
+    ))) {
+        $expectedCount = 0
+        if ($marker.GetAttribute("text") -match '参考了\s*(\d+)\s*篇资料') {
+            $expectedCount = [int]$Matches[1]
+        }
+        if ($expectedCount -lt 1 -or -not $marker.ParentNode) {
+            continue
+        }
+        $candidateContainers = foreach ($container in @(
+            $marker.ParentNode.SelectNodes("./node[@class='android.view.View']")
+        )) {
+            $containerTitles = @(
+                $container.SelectNodes(
+                    ".//*[@class='android.widget.TextView' and @text]"
+                ) | ForEach-Object { $_.GetAttribute("text").Trim() } |
+                    Where-Object {
+                        $_ -and
+                        $_ -ne "展开全部" -and
+                        $_ -notmatch '^“.*”$'
+                    }
+            )
+            if ($containerTitles.Count -gt 0) {
+                [pscustomobject]@{
+                    titles = $containerTitles
+                    count = $containerTitles.Count
+                }
+            }
+        }
+        $sourceContainer = @($candidateContainers | Sort-Object count -Descending) |
+            Select-Object -First 1
+        if (-not $sourceContainer) {
+            continue
+        }
+        foreach ($title in @($sourceContainer.titles | Select-Object -First $expectedCount)) {
+            $titles.Add($title)
+        }
+    }
+    @($titles)
+}
+
 function Get-PanelSources {
     param(
         [Parameter(Mandatory)][string]$SessionId,
@@ -2287,7 +2551,10 @@ function Get-PanelSources {
     )
 
     if ($Platform -eq "qwen" -and $ReferenceCount -lt 1) {
-        return @()
+        return @{
+            reference_count = 0
+            sources = @()
+        }
     }
     if ($Platform -eq "yuanbao") {
         Write-GatewayTrace "source marker lookup"
@@ -2326,6 +2593,88 @@ function Get-PanelSources {
     }
     if ($ReferenceCount -lt 1) {
         throw "$Platform source panel did not expose a reference count"
+    }
+    if ($Platform -eq "qwen") {
+        $researchTitles = @(Get-QwenResearchSourceTitles `
+            -Document (ConvertTo-Xml -Source $panelSource))
+        if ($researchTitles.Count -gt 0) {
+            $records = @()
+            for ($index = 1; $index -le $ReferenceCount; $index++) {
+                $title = if ($index -le $researchTitles.Count) {
+                    $researchTitles[$index - 1]
+                } else {
+                    $null
+                }
+                if ($title -eq "None") {
+                    $title = $null
+                }
+                $records += New-SourceRecord `
+                    -Index $index `
+                    -Title $title `
+                    -SiteName $null `
+                    -Domain $null `
+                    -Url $null `
+                    -Resolution "unavailable" `
+                    -Status "failed" `
+                    -ErrorMessage $(if ($title) {
+                        "Qwen research mode did not expose the source URL"
+                    } else {
+                        "Reference item was not exposed by the Qwen UI"
+                    })
+            }
+            return @{
+                reference_count = $ReferenceCount
+                sources = $records
+            }
+        }
+    }
+    if ($Platform -eq "yuanbao") {
+        $catalog = @(Get-YuanbaoSourceCatalog `
+            -SessionId $SessionId `
+            -ReferenceCount $ReferenceCount)
+        $resolved = @()
+        foreach ($catalogItem in $catalog) {
+            $record = New-SourceRecord `
+                -Index $catalogItem.index `
+                -Title $catalogItem.title `
+                -SiteName $catalogItem.site_name `
+                -Domain $null `
+                -Url $null `
+                -Resolution "unavailable"
+            try {
+                Reset-YuanbaoSourcePanel -SessionId $SessionId
+                $bounds = Find-YuanbaoSourceBounds `
+                    -SessionId $SessionId `
+                    -Signature $catalogItem.signature `
+                    -ReferenceCount $ReferenceCount
+                if (-not $bounds) {
+                    throw "Yuanbao source item was not exposed after paging"
+                }
+                Resolve-YuanbaoSourceUrl `
+                    -SessionId $SessionId `
+                    -Record $record `
+                    -Bounds $bounds
+            } catch {
+                $record.status = "failed"
+                $record.error_message = $_.Exception.Message
+            }
+            $resolved += $record
+        }
+        for ($missing = $resolved.Count + 1; $missing -le $ReferenceCount; $missing++) {
+            $resolved += New-SourceRecord `
+                -Index $missing `
+                -Title $null `
+                -SiteName $null `
+                -Domain $null `
+                -Url $null `
+                -Resolution "unavailable" `
+                -Status "failed" `
+                -ErrorMessage "Reference item was not exposed by the Yuanbao UI"
+        }
+        return @{
+            reference_count = $ReferenceCount
+            sources = @($resolved | Sort-Object index)
+        }
     }
     $collected = @{}
     $stalls = 0
@@ -2429,10 +2778,212 @@ function Get-PanelSources {
             Start-Sleep -Milliseconds 700
         }
     }
-    @($collected.Values | Sort-Object index)
+    @{
+        reference_count = $ReferenceCount
+        sources = @($collected.Values | Sort-Object index)
+    }
 }
 
-function Return-ToKimiAnswer {
+function Get-KimiSearchCards {
+    param([Parameter(Mandatory)][string]$Source)
+
+    $document = ConvertTo-Xml -Source $Source
+    if (-not $document) {
+        return @()
+    }
+    $cards = foreach ($node in @(
+        $document.SelectNodes(
+            "//*[@class='android.view.View' and @clickable='true']"
+        )
+    )) {
+        $bounds = Get-Bounds -Node $node
+        if (
+            -not $bounds -or
+            $bounds.left -gt 60 -or
+            $bounds.right -lt 1020 -or
+            ($bounds.bottom - $bounds.top) -lt 220 -or
+            ($bounds.bottom - $bounds.top) -gt 750
+        ) {
+            continue
+        }
+        $texts = @(
+            $node.SelectNodes(
+                ".//*[@class='android.widget.TextView' and @text]"
+            ) |
+                ForEach-Object {
+                    $textBounds = Get-Bounds -Node $_
+                    $text = $_.GetAttribute("text").Trim()
+                    if ($text -and $textBounds) {
+                        [pscustomobject]@{
+                            text = $text
+                            top = $textBounds.top
+                            left = $textBounds.left
+                        }
+                    }
+                } |
+                Sort-Object top, left
+        )
+        if ($texts.Count -lt 2) {
+            continue
+        }
+        $siteName = $texts[0].text
+        $title = @(
+            $texts | Select-Object -Skip 1 | Where-Object {
+                $_.text.Length -ge 6 -and
+                $_.text -notmatch '^\d{4}(?:[-/.]\d{1,2}){1,2}$' -and
+                $_.text -notmatch '^\d{4}年\d{1,2}月\d{1,2}日$'
+            }
+        ) | Select-Object -First 1
+        if (-not $title) {
+            continue
+        }
+        [pscustomobject]@{
+            key = "{0}|{1}" -f $siteName, $title.text
+            site_name = $siteName
+            title = $title.text
+            bounds = $bounds
+        }
+    }
+    @($cards)
+}
+
+function Test-KimiSearchPanel {
+    param([Parameter(Mandatory)][string]$Source)
+
+    $document = ConvertTo-Xml -Source $Source
+    if (-not $document) {
+        return $false
+    }
+    $header = $document.SelectSingleNode(
+        "//*[@class='android.widget.TextView' and @text='搜索网页']"
+    )
+    $headerBounds = if ($header) { Get-Bounds -Node $header } else { $null }
+    [bool](
+        $headerBounds -and
+        $headerBounds.top -ge 250 -and
+        $headerBounds.top -le 450 -and
+        @(Get-KimiSearchCards -Source $Source).Count -gt 0
+    )
+}
+
+function Invoke-KimiSearchPanelSwipe {
+    param([Parameter(Mandatory)][ValidateSet("up", "down")][string]$Direction)
+
+    if ($Direction -eq "up") {
+        $startY = 1800
+        $endY = 650
+    } else {
+        $startY = 650
+        $endY = 1800
+    }
+    & adb -s $script:deviceSerial shell input swipe `
+        540 $startY 540 $endY 400 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not scroll the Kimi search panel $Direction"
+    }
+    Start-Sleep -Milliseconds 700
+}
+
+function Get-KimiSearchViewportSignature {
+    param([Parameter(Mandatory)][string]$Source)
+
+    @(
+        Get-KimiSearchCards -Source $Source |
+            ForEach-Object { $_.key }
+    ) -join "`n"
+}
+
+function Get-KimiPageSource {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    for ($attempt = 0; $attempt -lt 3; $attempt++) {
+        try {
+            return Get-PageSource -SessionId $SessionId
+        } catch {
+            if ($attempt -ge 2) {
+                throw
+            }
+            Start-Sleep -Seconds 1
+        }
+    }
+}
+
+function Open-KimiSearchPanel {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    $source = Move-ToKimiConversationTop -SessionId $SessionId
+    $document = ConvertTo-Xml -Source $source
+    $searchNode = $document.SelectSingleNode(
+        "//*[@class='android.widget.TextView' and @text='搜索网页']"
+    )
+    if (-not $searchNode) {
+        throw "Kimi answer did not expose its searched web pages"
+    }
+    while (
+        $searchNode -and
+        $searchNode.GetAttribute("clickable") -ne "true"
+    ) {
+        $searchNode = $searchNode.ParentNode
+    }
+    $bounds = if ($searchNode) { Get-Bounds -Node $searchNode } else { $null }
+    if (-not $bounds) {
+        throw "Kimi search summary did not expose a clickable control"
+    }
+    & adb -s $script:deviceSerial shell input tap `
+        $bounds.center_x $bounds.center_y | Out-Null
+    Start-Sleep -Seconds 1
+    $source = Get-PageSource -SessionId $SessionId
+    if (-not (Test-KimiSearchPanel -Source $source)) {
+        throw "Kimi search results panel did not open"
+    }
+    $source
+}
+
+function Move-ToKimiSearchPanelTop {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    $source = Get-PageSource -SessionId $SessionId
+    for ($attempt = 0; $attempt -lt 10; $attempt++) {
+        $before = Get-KimiSearchViewportSignature -Source $source
+        Invoke-KimiSearchPanelSwipe -Direction "down"
+        $nextSource = Get-PageSource -SessionId $SessionId
+        $after = Get-KimiSearchViewportSignature -Source $nextSource
+        $source = $nextSource
+        if ($after -and $after -eq $before) {
+            break
+        }
+    }
+    $source
+}
+
+function Find-KimiSearchCard {
+    param(
+        [Parameter(Mandatory)][string]$SessionId,
+        [Parameter(Mandatory)][string]$Key
+    )
+
+    $source = Get-KimiPageSource -SessionId $SessionId
+    $seenViewports = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal
+    )
+    for ($viewport = 0; $viewport -lt 12; $viewport++) {
+        $card = @(Get-KimiSearchCards -Source $source) |
+            Where-Object { $_.key -eq $Key } |
+            Select-Object -First 1
+        if ($card) {
+            return $card
+        }
+        $signature = Get-KimiSearchViewportSignature -Source $source
+        if (-not $seenViewports.Add($signature)) {
+            break
+        }
+        Invoke-KimiSearchPanelSwipe -Direction "up"
+        $source = Get-KimiPageSource -SessionId $SessionId
+    }
+    $null
+}
+
+function Return-ToKimiSearchPanel {
     param([Parameter(Mandatory)][string]$SessionId)
 
     for ($attempt = 0; $attempt -lt 8; $attempt++) {
@@ -2443,14 +2994,20 @@ function Return-ToKimiAnswer {
             Start-Sleep -Milliseconds 700
             continue
         }
-        $source = Get-PageSource -SessionId $SessionId
-        if ($source -match "尽管问，带图也行") {
+        try {
+            $source = Get-KimiPageSource -SessionId $SessionId
+        } catch {
+            Press-Back -SessionId $SessionId
+            Start-Sleep -Milliseconds 700
+            continue
+        }
+        if (Test-KimiSearchPanel -Source $source) {
             return
         }
         Press-Back -SessionId $SessionId
         Start-Sleep -Milliseconds 700
     }
-    throw "Could not return Kimi to the answer after collecting a citation"
+    throw "Could not return Kimi to the search results after collecting a source"
 }
 
 function Resolve-KimiSourceUrl {
@@ -2464,72 +3021,16 @@ function Resolve-KimiSourceUrl {
     try {
         & adb -s $script:deviceSerial shell input tap `
             $Bounds.center_x $Bounds.center_y | Out-Null
-        Start-Sleep -Seconds 1
+        Start-Sleep -Seconds 2
 
-        $previewSource = Get-PageSource -SessionId $SessionId
-        $visibleUrls = @(Get-UrlsFromText -Text $previewSource)
+        $pageSource = Get-KimiPageSource -SessionId $SessionId
+        $visibleUrls = @(Get-UrlsFromText -Text $pageSource)
         $rawUrl = $visibleUrls | Select-Object -First 1
         if (-not $rawUrl) {
-            if ($previewSource -match "尽管问，带图也行") {
-                throw "Kimi citation did not open its source preview"
-            }
-            $previewDocument = ConvertTo-Xml -Source $previewSource
-            $titleCandidates = @()
-            foreach ($titleNode in @(
-                $previewDocument.SelectNodes("//*[@text]")
-            )) {
-                $title = $titleNode.GetAttribute("text").Trim()
-                $titleBounds = Get-Bounds -Node $titleNode
-                if (
-                    $titleBounds -and
-                    $titleBounds.top -ge 900 -and
-                    $title.Length -ge 8 -and
-                    $title -ne $Record.site_name -and
-                    $title -notmatch '^\d{4}(?:[-/.]\d{1,2}){1,2}$' -and
-                    $title -notmatch '^\d{4}年\d{1,2}月\d{1,2}日$'
-                ) {
-                    $titleCandidates += [pscustomobject]@{
-                        title = $title
-                        bounds = $titleBounds
-                    }
-                }
-            }
-            $sourceTitle = $titleCandidates |
-                Sort-Object { $_.bounds.top }, { $_.title.Length } |
-                Select-Object -First 1
-            if (-not $sourceTitle) {
-                throw "Kimi source preview did not expose a source card title"
-            }
-            $Record.title = $sourceTitle.title
-            Write-GatewayTrace (
-                "kimi source {0} card title {1}" -f `
-                    $Record.index,
-                    $Record.title
-            )
-            & adb -s $script:deviceSerial shell input tap `
-                $sourceTitle.bounds.center_x $sourceTitle.bounds.center_y | Out-Null
-            Start-Sleep -Seconds 2
-
-            $pageSource = $null
-            for ($urlAttempt = 0; $urlAttempt -lt 3; $urlAttempt++) {
-                $foregroundPackage = Get-ForegroundPackage
-                if ($foregroundPackage -and $foregroundPackage -ne $packageName) {
-                    $rawUrl = Get-ResolverUrl
-                } else {
-                    $pageSource = Get-PageSource -SessionId $SessionId
-                    $rawUrl = @(
-                        Get-UrlsFromText -Text $pageSource
-                    ) | Select-Object -First 1
-                }
-                if ($rawUrl) {
-                    break
-                }
-                Start-Sleep -Seconds 1
-            }
-            if (-not $rawUrl -and $pageSource) {
-                # Successfully loaded pages keep only the article title in
-                # the header. Kimi's own share sheet exposes Copy Link even
-                # when the WebView accessibility tree omits its current URL.
+            $foregroundPackage = Get-ForegroundPackage
+            if ($foregroundPackage -and $foregroundPackage -ne $packageName) {
+                $rawUrl = Get-ResolverUrl
+            } elseif ($pageSource) {
                 $pageDocument = ConvertTo-Xml -Source $pageSource
                 $shareNode = $pageDocument.SelectSingleNode(
                     "//*[@content-desc='titleImage']"
@@ -2539,34 +3040,36 @@ function Resolve-KimiSourceUrl {
                 } else {
                     $null
                 }
-                if ($shareBounds) {
-                    & adb -s $script:deviceSerial shell input tap `
-                        $shareBounds.center_x $shareBounds.center_y | Out-Null
-                    Start-Sleep -Seconds 1
-                    $shareDocument = ConvertTo-Xml -Source (
-                        Get-PageSource -SessionId $SessionId
-                    )
-                    $copyNode = $shareDocument.SelectSingleNode(
-                        "//*[@text='复制链接' or @content-desc='复制链接']"
-                    )
-                    while (
-                        $copyNode -and
-                        $copyNode.GetAttribute("clickable") -ne "true"
-                    ) {
-                        $copyNode = $copyNode.ParentNode
-                    }
-                    $copyBounds = if ($copyNode) {
-                        Get-Bounds -Node $copyNode
-                    } else {
-                        $null
-                    }
-                    if ($copyBounds) {
-                        & adb -s $script:deviceSerial shell input tap `
-                            $copyBounds.center_x $copyBounds.center_y | Out-Null
-                        Start-Sleep -Milliseconds 700
-                        $rawUrl = Get-ClipboardText -SessionId $SessionId
-                    }
+                if (-not $shareBounds) {
+                    throw "Kimi source page did not expose its share control"
                 }
+                & adb -s $script:deviceSerial shell input tap `
+                    $shareBounds.center_x $shareBounds.center_y | Out-Null
+                Start-Sleep -Seconds 1
+                $shareDocument = ConvertTo-Xml -Source (
+                    Get-KimiPageSource -SessionId $SessionId
+                )
+                $copyNode = $shareDocument.SelectSingleNode(
+                    "//*[@text='复制链接' or @content-desc='复制链接']"
+                )
+                while (
+                    $copyNode -and
+                    $copyNode.GetAttribute("clickable") -ne "true"
+                ) {
+                    $copyNode = $copyNode.ParentNode
+                }
+                $copyBounds = if ($copyNode) {
+                    Get-Bounds -Node $copyNode
+                } else {
+                    $null
+                }
+                if (-not $copyBounds) {
+                    throw "Kimi share sheet did not expose Copy Link"
+                }
+                & adb -s $script:deviceSerial shell input tap `
+                    $copyBounds.center_x $copyBounds.center_y | Out-Null
+                Start-Sleep -Milliseconds 700
+                $rawUrl = Get-ClipboardText -SessionId $SessionId
             }
         }
         if (
@@ -2588,122 +3091,98 @@ function Resolve-KimiSourceUrl {
         $Record.error_message = $_.Exception.Message
         Write-GatewayTrace "kimi source $($Record.index) failed $($Record.error_message)"
     } finally {
-        Return-ToKimiAnswer -SessionId $SessionId
+        Return-ToKimiSearchPanel -SessionId $SessionId
     }
 }
 
 function Get-KimiSources {
     param(
         [Parameter(Mandatory)][string]$SessionId,
-        [Parameter(Mandatory)][string]$Source
+        [Parameter(Mandatory)][int]$ReferenceCount
     )
 
-    $ignoredSourceLabels = @(
-        "快速",
-        "进阶",
-        "升级订阅",
-        "思考已完成",
-        "搜索网页",
-        "内容由 AI 生成",
-        "尽管问，带图也行",
-        "对比",
-        "复制",
-        "重试",
-        "分享",
-        "点赞",
-        "不喜欢"
-    )
-    $records = [Collections.Generic.List[object]]::new()
-    $seenCitations = [Collections.Generic.HashSet[string]]::new(
+    if ($ReferenceCount -lt 1) {
+        return @()
+    }
+    $Source = Open-KimiSearchPanel -SessionId $SessionId
+    $Source = Move-ToKimiSearchPanelTop -SessionId $SessionId
+    $catalog = [Collections.Generic.List[object]]::new()
+    $seenCards = [Collections.Generic.HashSet[string]]::new(
         [StringComparer]::Ordinal
     )
     $seenViewports = [Collections.Generic.HashSet[string]]::new(
         [StringComparer]::Ordinal
     )
-    $Source = Move-ToKimiConversationTop -SessionId $SessionId
-    for ($viewport = 0; $viewport -lt 24; $viewport++) {
-        $signature = Get-KimiViewportSignature -Source $Source
-        $document = ConvertTo-Xml -Source $Source
-        $answerContainer = Get-KimiAnswerContainer -Document $document
-        $processedCitation = $false
-        if ($answerContainer) {
-            foreach ($item in @(
-                $answerContainer.SelectNodes(
-                    ".//*[@class='android.view.View' and @clickable='true']"
-                )
-            )) {
-                $texts = @(Get-DescendantTexts -Node $item)
-                $bounds = Get-Bounds -Node $item
-                if (
-                    $texts.Count -ne 1 -or
-                    -not $bounds -or
-                    ($bounds.bottom - $bounds.top) -gt 170
-                ) {
-                    continue
-                }
-                $siteName = $texts[0]
-                if (
-                    $siteName.Length -gt 40 -or
-                    $siteName -in $ignoredSourceLabels
-                ) {
-                    continue
-                }
-                $precedingText = @(
-                    $answerContainer.SelectNodes(
-                        ".//*[@class='android.widget.TextView' and @text]"
-                    ) |
-                        ForEach-Object {
-                            $textBounds = Get-Bounds -Node $_
-                            $text = $_.GetAttribute("text").Trim()
-                            if (
-                                $textBounds -and
-                                $textBounds.bottom -le ($bounds.top + 20) -and
-                                $text.Length -ge 8 -and
-                                $text -ne $siteName -and
-                                $text -notin $ignoredSourceLabels
-                            ) {
-                                [pscustomobject]@{
-                                    text = $text
-                                    bottom = $textBounds.bottom
-                                }
-                            }
-                        } |
-                        Sort-Object bottom -Descending
-                ) | Select-Object -First 1
-                if (-not $precedingText) {
-                    continue
-                }
-                $citationKey = "{0}|{1}" -f $siteName, $precedingText.text
-                if (-not $seenCitations.Add($citationKey)) {
-                    continue
-                }
-                $record = New-SourceRecord `
-                    -Index ($records.Count + 1) `
-                    -Title $null `
-                    -SiteName $siteName `
-                    -Domain $null `
-                    -Url $null `
-                    -Resolution "unavailable" `
-                    -Status "failed" `
-                    -ErrorMessage "Kimi citation URL was not resolved"
-                $records.Add($record)
-                Resolve-KimiSourceUrl `
-                    -SessionId $SessionId `
-                    -Record $record `
-                    -Bounds $bounds
-                $Source = Get-PageSource -SessionId $SessionId
-                $processedCitation = $true
-                break
+    $stalls = 0
+    for ($viewport = 0; $viewport -lt 12; $viewport++) {
+        $signature = Get-KimiSearchViewportSignature -Source $Source
+        $foundNew = $false
+        foreach ($card in @(Get-KimiSearchCards -Source $Source)) {
+            if ($seenCards.Add($card.key)) {
+                $catalog.Add($card)
+                $foundNew = $true
             }
         }
-        if ($processedCitation) {
-            continue
+        if ($ReferenceCount -gt 0 -and $catalog.Count -ge $ReferenceCount) {
+            break
         }
         if (-not $seenViewports.Add($signature)) {
             break
         }
-        Invoke-KimiConversationSwipe -Direction "up"
+        if ($foundNew) {
+            $stalls = 0
+        } else {
+            $stalls++
+        }
+        if ($stalls -ge 2) {
+            break
+        }
+        Invoke-KimiSearchPanelSwipe -Direction "up"
         $Source = Get-PageSource -SessionId $SessionId
+    }
+    Write-GatewayTrace "kimi search catalog count=$($catalog.Count)"
+
+    $records = [Collections.Generic.List[object]]::new()
+    $null = Move-ToKimiSearchPanelTop -SessionId $SessionId
+    foreach ($catalogItem in $catalog) {
+        $record = New-SourceRecord `
+            -Index ($records.Count + 1) `
+            -Title $catalogItem.title `
+            -SiteName $catalogItem.site_name `
+            -Domain $null `
+            -Url $null `
+            -Resolution "unavailable" `
+            -Status "failed" `
+            -ErrorMessage "Kimi source URL was not resolved"
+        $records.Add($record)
+        $card = Find-KimiSearchCard `
+            -SessionId $SessionId `
+            -Key $catalogItem.key
+        if (-not $card) {
+            $null = Move-ToKimiSearchPanelTop -SessionId $SessionId
+            $card = Find-KimiSearchCard `
+                -SessionId $SessionId `
+                -Key $catalogItem.key
+            if (-not $card) {
+                $record.error_message = "Kimi search result card could not be reopened"
+                continue
+            }
+        }
+        Resolve-KimiSourceUrl `
+            -SessionId $SessionId `
+            -Record $record `
+            -Bounds $card.bounds
+    }
+    while ($records.Count -lt $ReferenceCount) {
+        $records.Add((New-SourceRecord `
+            -Index ($records.Count + 1) `
+            -Title $null `
+            -SiteName $null `
+            -Domain $null `
+            -Url $null `
+            -Resolution "unavailable" `
+            -Status "failed" `
+            -ErrorMessage "Kimi reported a source that was not exposed in the search panel"))
     }
     @($records)
 }
@@ -2844,6 +3323,7 @@ try {
     $answerCompletedAt = Get-Date
 
     $sourceCollectionStartedAt = Get-Date
+    $panelCollection = $null
     $sources = switch ($Platform) {
         "deepseek" {
             @(Get-DeepSeekSources `
@@ -2851,20 +3331,26 @@ try {
                 -ReferenceCount $answerInfo.reference_count)
         }
         { $_ -in @("yuanbao", "qwen") } {
-            @(Get-PanelSources `
+            $panelCollection = Get-PanelSources `
                 -SessionId $sessionId `
-                -ReferenceCount $answerInfo.reference_count)
+                -ReferenceCount $answerInfo.reference_count
+            @($panelCollection.sources)
         }
         "kimi" {
             @(Get-KimiSources `
                 -SessionId $sessionId `
-                -Source $answerInfo.source)
+                -ReferenceCount $answerInfo.reference_count)
         }
     }
     $sourceCollectionCompletedAt = Get-Date
     Write-GatewayTrace "sources complete count=$(@($sources).Count)"
-    if ($Platform -in @("yuanbao", "kimi")) {
-        $answerInfo.reference_count = @($sources).Count
+    if ($Platform -in @("yuanbao", "qwen") -and $panelCollection) {
+        $answerInfo.reference_count = [int]$panelCollection.reference_count
+    } elseif ($Platform -eq "kimi") {
+        $answerInfo.reference_count = [math]::Max(
+            [int]$answerInfo.reference_count,
+            @($sources).Count
+        )
     }
     if (
         $answerInfo.reference_count -gt 0 -and

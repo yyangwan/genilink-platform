@@ -15,6 +15,7 @@
 
 # next.js
 /.next/
+/.next-turbopack-ops-check/
 /.next-runtime/
 /out/
 
