@@ -8,7 +8,7 @@ $ast = [Management.Automation.Language.Parser]::ParseFile(
 if ($errors.Count) { throw "DeepSeek handler syntax error: $($errors[0])" }
 $names = @(
     "Get-PageSource", "New-SourceRecord", "Complete-DeepSeekSourceRecords",
-    "Get-DeepSeekSources"
+    "Get-DeepSeekExpectedHost", "Get-DeepSeekSources"
 )
 foreach ($function in @($ast.FindAll({
     param($node)
@@ -87,7 +87,7 @@ try {
     }
     function Get-DescendantTexts { param($Node) @("1", "Site", "Article") }
     function Click-Point { param($SessionId, $X, $Y) }
-    function Get-ResolverUrl { "https://example.com/article" }
+    function Get-ResolverUrl { param([string]$ExpectedHost) "https://example.com/article" }
     function ConvertTo-CanonicalUrl { param([string]$Url) $Url }
     function Get-Host { param([string]$Url) "example.com" }
     function Get-ExternalUrlHandlerPackage { $null }
@@ -101,5 +101,10 @@ try {
     Write-Output "DeepSeek source recovery tests passed"
 } finally {
     $env:TEMP = $savedTemp
-    Remove-Item -LiteralPath $tempRoot -Recurse -Force
+    $resolvedTemp = [IO.Path]::GetFullPath($tempRoot)
+    $resolvedBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\', '/')
+    if (-not $resolvedTemp.StartsWith(
+        "$resolvedBase\deepseek-recovery-", [StringComparison]::OrdinalIgnoreCase
+    )) { throw "Refusing to remove temp path outside $resolvedBase" }
+    Remove-Item -LiteralPath $resolvedTemp -Recurse -Force
 }

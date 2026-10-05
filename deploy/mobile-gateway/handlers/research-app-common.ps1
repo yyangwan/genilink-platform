@@ -586,8 +586,18 @@ function Get-DeepSeekAnswerSnapshot {
     $copyNode = $document.SelectSingleNode("//*[@content-desc='复制']")
     $copyBounds = if ($copyNode) { Get-Bounds -Node $copyNode } else { $null }
     if (-not $copyBounds) {
+        $script:deepseekMissingCopyCount++
+        if ($script:deepseekMissingCopyCount % 10 -eq 0) {
+            Write-GatewayTrace (
+                "deepseek wait missing copy control " +
+                "foreground=$(Get-ForegroundPackage) " +
+                "retry=$($source -match '再试一次|重试') " +
+                "web_marker=$($source -match '(?:已阅读\s*)?\d+\s*个网页')"
+            )
+        }
         return $null
     }
+    $script:deepseekMissingCopyCount = 0
 
     & adb -s $script:deviceSerial shell input tap `
         $copyBounds.center_x $copyBounds.center_y | Out-Null
@@ -938,6 +948,8 @@ function Get-Host {
 }
 
 function Get-ResolverUrl {
+    param([AllowNull()][string]$ExpectedHost)
+
     $dump = @(& adb -s $script:deviceSerial shell dumpsys activity activities)
     $candidates = @()
     foreach ($line in $dump) {
@@ -946,6 +958,17 @@ function Get-ResolverUrl {
         }
     }
     if ($candidates.Count -gt 0) {
+        if ($ExpectedHost) {
+            $expected = $ExpectedHost.ToLowerInvariant()
+            $candidates = @($candidates | Where-Object {
+                try {
+                    $hostName = ([Uri]$_).Host.ToLowerInvariant()
+                    $hostName -eq $expected -or
+                        $hostName.EndsWith(".$expected", [StringComparison]::Ordinal)
+                } catch { $false }
+            })
+            if ($candidates.Count -eq 0) { return $null }
+        }
         $first = $candidates[0]
         try {
             $urlHost = ([Uri]$first).Host
@@ -978,6 +1001,23 @@ function Get-ResolverUrl {
         }
     }
     return $null
+}
+
+function Get-DeepSeekExpectedHost {
+    param([AllowNull()][string]$SiteName)
+
+    $site = ([string]$SiteName).Trim()
+    if ($site -match '^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$') {
+        return $site.ToLowerInvariant()
+    }
+    switch -Regex ($site) {
+        '^Apify$' { return 'apify.com' }
+        '^PyPI$' { return 'pypi.org' }
+        '^WordPress\.org$' { return 'wordpress.org' }
+        '^Chrome Web Store$' { return 'chromewebstore.google.com' }
+        '^36Kr$' { return '36kr.com' }
+    }
+    $null
 }
 
 function Get-ExternalUrlHandlerPackage {
@@ -1782,6 +1822,19 @@ function Get-KimiAnswerSnapshot {
     }
 }
 
+function Get-ResponseTimeoutSeconds {
+    param(
+        [Parameter(Mandatory)][string]$PlatformName,
+        [Parameter(Mandatory)][int]$RequestedSeconds
+    )
+
+    if ($PlatformName -eq "deepseek") {
+        # Two stalled devices must leave room for a third attempt and URLs.
+        return [Math]::Min($RequestedSeconds, 240)
+    }
+    $RequestedSeconds
+}
+
 function Wait-ForAnswer {
     param(
         [Parameter(Mandatory)][string]$SessionId,
@@ -2235,7 +2288,12 @@ function Get-DeepSeekSources {
 
     $collected = @{}
     try {
-        $answerDocument = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+        $answerDocument = $null
+        for ($read = 0; $read -lt 3 -and -not $answerDocument; $read++) {
+            $answerDocument = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+            if (-not $answerDocument) { Start-Sleep -Milliseconds 300 }
+        }
+        if (-not $answerDocument) { throw "DeepSeek answer hierarchy was invalid XML" }
     } catch {
         Write-GatewayTrace "deepseek source panel unavailable: $($_.Exception.Message)"
         return Complete-DeepSeekSourceRecords `
@@ -2270,6 +2328,7 @@ function Get-DeepSeekSources {
         try {
             $panelSource = Get-PageSource -SessionId $SessionId
             $document = ConvertTo-Xml -Source $panelSource
+            if (-not $document) { throw "DeepSeek source panel hierarchy was invalid XML" }
         } catch {
             $panelError = $_.Exception.Message
             Write-GatewayTrace "deepseek source panel read failed: $panelError"
@@ -2313,6 +2372,7 @@ function Get-DeepSeekSources {
             }
             $siteName = $filtered[0]
             $title = $filtered[1]
+            $expectedHost = Get-DeepSeekExpectedHost -SiteName $siteName
             $bounds = Get-Bounds -Node $item
             if (-not $bounds) {
                 continue
@@ -2338,6 +2398,7 @@ function Get-DeepSeekSources {
                     Start-Sleep -Milliseconds 500
                     $pageSource = Get-PageSource -SessionId $SessionId
                     $pageDocument = ConvertTo-Xml -Source $pageSource
+                    if (-not $pageDocument) { continue }
                     $openNode = $pageDocument.SelectSingleNode(
                         "//*[@content-desc='在浏览器中打开']"
                     )
@@ -2373,7 +2434,7 @@ function Get-DeepSeekSources {
                 if ($pageTitleNode) {
                     $record.page_title = $pageTitleNode.GetAttribute("text")
                 }
-                $embeddedUrl = Get-ResolverUrl
+                $embeddedUrl = Get-ResolverUrl -ExpectedHost $expectedHost
                 if ($embeddedUrl) {
                     Write-GatewayTrace `
                         "deepseek source $ordinal embedded $embeddedUrl"
@@ -2381,9 +2442,16 @@ function Get-DeepSeekSources {
                 & adb -s $script:deviceSerial shell input tap `
                     $openBounds.center_x $openBounds.center_y | Out-Null
                 Start-Sleep -Milliseconds 500
-                $confirmDocument = ConvertTo-Xml -Source (
-                    Get-PageSource -SessionId $SessionId
-                )
+                $confirmDocument = $null
+                for ($read = 0; $read -lt 3 -and -not $confirmDocument; $read++) {
+                    $confirmDocument = ConvertTo-Xml -Source (
+                        Get-PageSource -SessionId $SessionId
+                    )
+                    if (-not $confirmDocument) { Start-Sleep -Milliseconds 300 }
+                }
+                if (-not $confirmDocument) {
+                    throw "DeepSeek source hierarchy remained invalid XML"
+                }
                 $allowNode = $confirmDocument.SelectSingleNode(
                     "//*[@text='允许' or @content-desc='允许']"
                 )
@@ -2397,7 +2465,7 @@ function Get-DeepSeekSources {
                         $allowBounds.center_x $allowBounds.center_y | Out-Null
                 }
                 Start-Sleep -Seconds 2
-                $rawUrl = Get-ResolverUrl
+                $rawUrl = Get-ResolverUrl -ExpectedHost $expectedHost
                 if (-not $rawUrl) {
                     $rawUrl = $embeddedUrl
                 }
@@ -2405,9 +2473,24 @@ function Get-DeepSeekSources {
                     throw "Android resolver did not expose the source URL"
                 }
                 $url = ConvertTo-CanonicalUrl -Url $rawUrl
+                $resolvedHost = Get-Host -Url $url
+                if (
+                    $expectedHost -and
+                    (
+                        -not $resolvedHost -or
+                        (
+                            $resolvedHost -ne $expectedHost -and
+                            -not $resolvedHost.EndsWith(
+                                ".$expectedHost", [StringComparison]::OrdinalIgnoreCase
+                            )
+                        )
+                    )
+                ) {
+                    throw "DeepSeek source URL host did not match $expectedHost"
+                }
                 $record.raw_url = $rawUrl
                 $record.url = $url
-                $record.domain = Get-Host -Url $url
+                $record.domain = $resolvedHost
                 $record.url_resolution = "exact"
                 Write-GatewayTrace "deepseek source $ordinal resolved $url"
                 $externalPackage = Get-ExternalUrlHandlerPackage
@@ -3799,10 +3882,13 @@ try {
         # stable, so leave generation entirely undisturbed first.
         Start-Sleep -Seconds 75
     }
+    $responseTimeoutSeconds = Get-ResponseTimeoutSeconds `
+        -PlatformName $Platform `
+        -RequestedSeconds $timeoutSeconds
     $answerInfo = Wait-ForAnswer `
         -SessionId $sessionId `
         -Prompt $prompt `
-        -TimeoutSeconds $timeoutSeconds
+        -TimeoutSeconds $responseTimeoutSeconds
     Write-GatewayTrace "answer complete references=$($answerInfo.reference_count)"
     $answerCompletedAt = Get-Date
 
