@@ -7,10 +7,18 @@ param(
     [string]$Token,
     [string[]]$DeviceSerials = @(),
     [int]$MaxConcurrentTasks = 0,
-    [string]$ShareReceiverDeviceSerial = ""
+    [string]$ShareReceiverDeviceSerial = "",
+    [string[]]$ShareReceiverDeviceSerials = @()
 )
 
 $ErrorActionPreference = "Stop"
+$allowedShareSerials = @(@($ShareReceiverDeviceSerials) + @($ShareReceiverDeviceSerial) |
+    Where-Object { $_ } | Select-Object -Unique)
+foreach ($serial in $allowedShareSerials) {
+    if ($serial.Contains(',') -or $serial -cnotin $DeviceSerials) {
+        throw "Share receiver serial '$serial' is not in the configured device pool"
+    }
+}
 $root = "C:\ProgramData\MobileGateway"
 $configDirectory = Join-Path $root "config"
 $handlerRoot = Join-Path $root "handlers"
@@ -74,7 +82,7 @@ if (Test-Path -LiteralPath $sourceBrowserRoot) {
     browserRoot = $browserRoot
     pollIntervalSeconds = 5
     maxConcurrentTasks = $MaxConcurrentTasks
-    shareReceiverDeviceSerial = $ShareReceiverDeviceSerial
+    shareReceiverDeviceSerials = @($allowedShareSerials)
 } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $configPath -Encoding utf8
 
 $acl = Get-Acl -LiteralPath $configPath

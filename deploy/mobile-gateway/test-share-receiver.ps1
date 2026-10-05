@@ -6,6 +6,19 @@ function Assert-Equal {
     if ($Actual -ne $Expected) { throw "$Label expected '$Expected', got '$Actual'" }
 }
 
+$env:MOBILE_GATEWAY_SHARE_RECEIVER_SERIAL = ""
+$env:MOBILE_GATEWAY_SHARE_RECEIVER_SERIALS = ""
+Assert-Equal (Test-ShareReceiverAllowed -Serial "device-a") $false "disabled by default"
+$env:MOBILE_GATEWAY_SHARE_RECEIVER_SERIALS = "device-a, device-b"
+Assert-Equal (Test-ShareReceiverAllowed -Serial "device-a") $true "first pool device"
+Assert-Equal (Test-ShareReceiverAllowed -Serial "device-b") $true "second pool device"
+Assert-Equal (Test-ShareReceiverAllowed -Serial "device") $false "prefix rejected"
+Assert-Equal (Test-ShareReceiverAllowed -Serial "device-c") $false "unlisted device rejected"
+$env:MOBILE_GATEWAY_SHARE_RECEIVER_SERIALS = ""
+$env:MOBILE_GATEWAY_SHARE_RECEIVER_SERIAL = "device-a"
+Assert-Equal (Test-ShareReceiverAllowed -Serial "device-a") $true "legacy opt-in"
+$env:MOBILE_GATEWAY_SHARE_RECEIVER_SERIAL = ""
+
 $capture = [pscustomobject]@{
     text = "Article https://example.com/a?x=1"
     html_text = $null

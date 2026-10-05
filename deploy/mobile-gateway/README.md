@@ -107,7 +107,7 @@ the first result is preserved. Verification outcomes are logged in
 `logs\gateway-agent.log`; they do not change the audit result schema. This
 check is a per-result target, not a measured 90% production success rate.
 
-### Citation share fallback (test-device opt-in)
+### Citation share fallback (device-pool opt-in)
 
 `share-receiver/` contains a minimal Android `ACTION_SEND` receiver. It has no
 network permission. Its capture is armed with a one-time nonce through an
@@ -116,16 +116,22 @@ provider. A share arriving without an active request is discarded. The gateway
 rejects expired, unrelated, ambiguous, or non-HTTP(S) payloads. Clipboard copy
 remains the preferred path; the receiver is attempted only after copy fails.
 
-Build locally with `share-receiver/build.ps1 -JavaHome <JDK-or-JRE-11+>` and
-install the resulting `.build/citation-receiver.apk` only on the isolated test
-phone. The test signing key is generated outside the repository. Run
-`test-share-receiver.ps1` and `test-capture-verifier.ps1` before installation.
-Enable the fallback for only one device by passing
-`-ShareReceiverDeviceSerial <serial>` to `install-gateway-agent.ps1`; the default
-empty value disables it. The receiver APK must also be installed on that
-device. Do not enable the fallback for production devices until a measured
-per-platform trial passes. Removing the setting or uninstalling the APK
-restores the old capture path.
+Build locally with `share-receiver/build.ps1 -JavaHome <JDK-or-JRE-11+>` and a
+signing keystore stored outside the repository. Run `test-share-receiver.ps1`
+and `test-capture-verifier.ps1` before installation. Install the same signed
+`.build/citation-receiver.apk` on every intended pool device; verify its
+package with `adb -s <serial> shell pm path com.genilink.citationreceiver`.
+Pass the exact device serials in `-ShareReceiverDeviceSerials <serials>` to
+`install-gateway-agent.ps1`. Every listed serial must also be in
+`-DeviceSerials`; an empty list disables the fallback. The old singular
+`-ShareReceiverDeviceSerial` parameter remains supported for installation.
+The agent checks the package on the assigned device before each fallback, so
+an uninstalled or unavailable receiver cannot be selected. The copy-link path
+remains primary; share is attempted only after it fails. This is a targeted
+recovery path, not a guaranteed citation-completeness rate: PDF pages,
+missing share actions, and ambiguous Kimi sources remain known gaps. Remove
+the allowlist (and restart the agent) or uninstall the APK to restore the
+original capture path.
 
 Kimi citations are inventoried from the final answer's inline clickable cards,
 not the `搜索网页` candidate list. Multiple card occurrences are retained even

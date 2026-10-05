@@ -243,12 +243,16 @@ function Start-AppiumTask {
     $handler = Get-AppiumHandler -Task $task
     $taskJson = $task | ConvertTo-Json -Depth 30 -Compress
     $verifier = Join-Path $PSScriptRoot "gateway-capture-verifier.ps1"
+    $shareReceiverSerials = (@($script:config.shareReceiverDeviceSerials) +
+        @($script:config.shareReceiverDeviceSerial) |
+        Where-Object { $_ } | Select-Object -Unique) -join ','
     $job = Start-Job -ScriptBlock {
-        param([string]$HandlerPath, [string]$SerializedTask, [string]$VerifierPath, [string]$ShareReceiverSerial)
-        $env:MOBILE_GATEWAY_SHARE_RECEIVER_SERIAL = $ShareReceiverSerial
+        param([string]$HandlerPath, [string]$SerializedTask, [string]$VerifierPath, [string]$ShareReceiverSerials)
+        $env:MOBILE_GATEWAY_SHARE_RECEIVER_SERIAL = ""
+        $env:MOBILE_GATEWAY_SHARE_RECEIVER_SERIALS = $ShareReceiverSerials
         . $VerifierPath
         Invoke-VerifiedCapture -HandlerPath $HandlerPath -SerializedTask $SerializedTask
-    } -ArgumentList $handler, $taskJson, $verifier, ([string]$script:config.shareReceiverDeviceSerial)
+    } -ArgumentList $handler, $taskJson, $verifier, $shareReceiverSerials
 
     $script:activeTasks[$task.id] = [pscustomobject]@{
         Task = $task

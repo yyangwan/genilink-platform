@@ -1,10 +1,23 @@
 $script:shareReceiverPackage = "com.genilink.citationreceiver"
 $script:shareReceiverLabel = "Genilink Citation Capture"
 
+function Test-ShareReceiverAllowed {
+    param([Parameter(Mandatory)][string]$Serial)
+
+    $allowed = @($env:MOBILE_GATEWAY_SHARE_RECEIVER_SERIALS -split ',' |
+        ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    if ($allowed.Count -eq 0 -and $env:MOBILE_GATEWAY_SHARE_RECEIVER_SERIAL) {
+        $allowed = @($env:MOBILE_GATEWAY_SHARE_RECEIVER_SERIAL)
+    }
+    return @($allowed | Where-Object {
+        [string]::Equals($_, $Serial, [StringComparison]::Ordinal)
+    }).Count -eq 1
+}
+
 function Test-ShareReceiverEnabled {
     param([Parameter(Mandatory)][string]$Serial)
 
-    if ($env:MOBILE_GATEWAY_SHARE_RECEIVER_SERIAL -ne $Serial) { return $false }
+    if (-not (Test-ShareReceiverAllowed -Serial $Serial)) { return $false }
     $packages = & adb -s $Serial shell pm list packages $script:shareReceiverPackage
     return $LASTEXITCODE -eq 0 -and
         @($packages | Where-Object { $_.Trim() -eq "package:$script:shareReceiverPackage" }).Count -eq 1
