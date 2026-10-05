@@ -44,5 +44,13 @@ foreach ($step in $steps) {
     Write-Host ("PASS {0} ({1}s)" -f $step.Name, $elapsed) -ForegroundColor Green
 }
 
-Remove-Item -LiteralPath $logRoot -Recurse -Force
+$resolvedLogRoot = [IO.Path]::GetFullPath($logRoot)
+$resolvedTempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\', '/')
+if (-not $resolvedLogRoot.StartsWith(
+    "$resolvedTempRoot\genilink-release-check-",
+    [StringComparison]::OrdinalIgnoreCase
+)) {
+    throw "Refusing to remove release logs outside the expected temp directory"
+}
+Remove-Item -LiteralPath $resolvedLogRoot -Recurse -Force
 Write-Host "Release source gates passed."

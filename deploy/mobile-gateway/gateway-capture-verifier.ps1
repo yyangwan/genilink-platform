@@ -70,7 +70,14 @@ function Invoke-VerifiedCapture {
     $task = $SerializedTask | ConvertFrom-Json
     $createdAt = [datetimeoffset]::MinValue
     if ($task.created_at) {
-        [datetimeoffset]::TryParse([string]$task.created_at, [ref]$createdAt) | Out-Null
+        $styles = [Globalization.DateTimeStyles]::AssumeUniversal -bor
+            [Globalization.DateTimeStyles]::AdjustToUniversal
+        [datetimeoffset]::TryParse(
+            [string]$task.created_at,
+            [Globalization.CultureInfo]::InvariantCulture,
+            $styles,
+            [ref]$createdAt
+        ) | Out-Null
     }
     $ageSeconds = if ($createdAt -eq [datetimeoffset]::MinValue) {
         0

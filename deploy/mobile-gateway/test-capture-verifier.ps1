@@ -83,6 +83,13 @@ $sources = if ($task.payload.mode -eq "retry_fewer" -and $attempts -eq 1) {
     $result = Invoke-VerifiedCapture -HandlerPath $handlerPath -SerializedTask ($task | ConvertTo-Json -Depth 10)
     Assert-Equal (Get-Content (Join-Path $tempRoot "attempts.txt")) 1 "expired retry window"
 
+    Remove-Item -LiteralPath (Join-Path $tempRoot "attempts.txt")
+    $task.created_at = [datetime]::UtcNow.AddMinutes(-2).ToString("yyyy-MM-ddTHH:mm:ss")
+    $task.payload.mode = "retry_succeeds"
+    $result = Invoke-VerifiedCapture -HandlerPath $handlerPath -SerializedTask ($task | ConvertTo-Json -Depth 10) -WarningAction SilentlyContinue
+    Assert-Equal (Get-Content (Join-Path $tempRoot "attempts.txt")) 2 "naive UTC timestamp allows retry"
+    Assert-Equal $result.source_path "test-task-verify-2" "naive UTC retry selection"
+
     $quality = Test-CaptureResult -Result ([pscustomobject]@{
         answer = "A real answer"
         reference_count = 2
@@ -132,5 +139,10 @@ $sources = if ($task.payload.mode -eq "retry_fewer" -and $attempts -eq 1) {
     }
     Write-Output "capture verifier tests passed"
 } finally {
-    Remove-Item -LiteralPath $tempRoot -Recurse -Force
+    $resolvedTemp = [IO.Path]::GetFullPath($tempRoot)
+    $resolvedBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\', '/')
+    if (-not $resolvedTemp.StartsWith(
+        "$resolvedBase\", [StringComparison]::OrdinalIgnoreCase
+    )) { throw "Refusing to remove temp path outside $resolvedBase" }
+    Remove-Item -LiteralPath $resolvedTemp -Recurse -Force
 }

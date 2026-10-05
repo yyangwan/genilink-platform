@@ -2665,6 +2665,38 @@ function Find-YuanbaoSourceBounds {
     $null
 }
 
+function Complete-YuanbaoDuplicateSources {
+    param([Parameter(Mandatory)][object[]]$Records)
+
+    foreach ($record in $Records) {
+        if ($record.status -ne "failed" -or
+            [string]::IsNullOrWhiteSpace([string]$record.site_name) -or
+            [string]::IsNullOrWhiteSpace([string]$record.title)) {
+            continue
+        }
+        $peers = @($Records | Where-Object {
+            $_.status -eq "collected" -and
+            $_.url_resolution -eq "exact" -and
+            $_.site_name -eq $record.site_name -and
+            $_.title -eq $record.title -and
+            [string]$_.url -match '^https?://'
+        })
+        if ($peers.Count -eq 0) { continue }
+        $url = [string]$peers[0].url
+        if (@($peers | Where-Object {
+            -not [string]::Equals([string]$_.url, $url, [StringComparison]::Ordinal)
+        }).Count -gt 0) { continue }
+        $record.url = $url
+        $record.raw_url = $peers[0].raw_url
+        $record.domain = $peers[0].domain
+        $record.url_resolution = "exact"
+        $record.status = "collected"
+        $record.error_message = $null
+        Write-GatewayTrace "yuanbao source $($record.index) reused exact URL from identical source $($peers[0].index)"
+    }
+    @($Records)
+}
+
 function Get-QwenResearchSourceTitles {
     param([Parameter(Mandatory)]$Document)
 
@@ -2860,7 +2892,7 @@ function Get-PanelSources {
         }
         return @{
             reference_count = $ReferenceCount
-            sources = @($resolved | Sort-Object index)
+            sources = @(Complete-YuanbaoDuplicateSources -Records @($resolved | Sort-Object index))
         }
     }
     $collected = @{}
