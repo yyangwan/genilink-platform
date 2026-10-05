@@ -12,7 +12,7 @@ if (!prompt) throw new Error('Qwen browser task has no prompt');
 const timeoutMs = Math.min(Math.max(Number(task.payload?.timeout_seconds || 420) * 1000, 30_000), 600_000);
 const started = Date.now();
 const context = await chromium.launchPersistentContext(profilePath, {
-  channel: 'msedge',
+  channel: 'chrome',
   headless: true,
   viewport: { width: 1440, height: 900 },
   locale: 'zh-CN',
@@ -23,17 +23,17 @@ try {
   await page.goto('https://www.qianwen.com/', { waitUntil: 'domcontentloaded', timeout: 45_000 });
   const input = page.locator('[role="textbox"][contenteditable="true"]').first();
   await input.waitFor({ timeout: 30_000 });
+  const previousAnswers = await page.locator('.qk-markdown-react').count();
+  const previousAnswer = previousAnswers > 0 ? await page.locator('.qk-markdown-react').last().innerText() : '';
   await input.fill(prompt);
   await page.getByRole('button', { name: '发送消息' }).click();
-  await page.waitForFunction(() => {
-    const text = document.body.innerText;
-    return /已完成分析/.test(text) || /已完成思考/.test(text);
-  }, null, { timeout: timeoutMs });
-  await page.waitForFunction(() => {
-    const markdown = [...document.querySelectorAll('.qk-markdown-react')].at(-1);
+  await page.waitForFunction(({ previousCount, previousText }) => {
+    const markdowns = [...document.querySelectorAll('.qk-markdown-react')];
+    const markdown = markdowns.at(-1);
     const stop = [...document.querySelectorAll('button')].some(button => /停止回答/.test(button.getAttribute('aria-label') || button.innerText));
-    return markdown && markdown.innerText.trim().length > 0 && !stop;
-  }, null, { timeout: timeoutMs });
+    const answer = markdown?.innerText.trim() || '';
+    return answer.length > 0 && (markdowns.length > previousCount || answer !== previousText) && !stop;
+  }, { previousCount: previousAnswers, previousText: previousAnswer }, { timeout: timeoutMs });
   let stableAnswer = '';
   let stableSamples = 0;
   while (stableSamples < 3) {
@@ -44,21 +44,31 @@ try {
     stableAnswer = current;
   }
   const sourcesStarted = Date.now();
-  await page.getByText('查看全部', { exact: true }).all().then(async buttons => {
-    for (const button of buttons) await button.click();
-  });
+  for (let expanded = 0; expanded < 20; expanded += 1) {
+    const buttons = await page.getByText('查看全部', { exact: true }).all();
+    let clicked = false;
+    for (const button of buttons) {
+      if (!await button.isVisible()) continue;
+      await button.evaluate(element => element.click());
+      clicked = true;
+      break;
+    }
+    if (!clicked) break;
+    await page.waitForTimeout(100);
+  }
   const snapshot = await page.evaluate(() => {
     const markdown = [...document.querySelectorAll('.qk-markdown-react')].at(-1);
-    const referenceTexts = [...document.querySelectorAll('span')].map(span => span.textContent || '');
-    const referenceCount = Math.max(0, ...referenceTexts.map(text => Number(text.match(/共参考\s*(\d+)\s*篇资料/)?.[1] || text.match(/参考\s*(\d+)\s*篇资料/)?.[1] || 0)));
-    const links = [];
-    for (const label of [...document.querySelectorAll('span')].filter(span => /^(查看全部|收起)$/.test(span.textContent?.trim() || ''))) {
-      const group = label.parentElement;
-      if (!group) continue;
-      for (const anchor of group.querySelectorAll('a[href]')) {
-        links.push({ url: anchor.href, title: anchor.innerText, siteName: anchor.hostname });
-      }
+    let region = markdown?.parentElement;
+    while (region && region !== document.body && !/已完成分析.*参考|已完成思考.*参考/s.test(region.innerText.slice(0, 300))) {
+      region = region.parentElement;
     }
+    const referenceTexts = [...(region || document).querySelectorAll('span')].map(span => span.textContent || '');
+    const referenceCount = Math.max(0, ...referenceTexts.map(text => Number(text.match(/共参考\s*(\d+)\s*篇资料/)?.[1] || text.match(/参考\s*(\d+)\s*篇资料/)?.[1] || 0)));
+    const links = [...(region || document).querySelectorAll('a[href]')].map(anchor => ({
+      url: anchor.href,
+      title: anchor.innerText,
+      siteName: anchor.hostname,
+    }));
     return { answer: markdown?.innerText || '', referenceCount, links };
   });
   snapshot.sourceCollectionDurationMs = Date.now() - sourcesStarted;
