@@ -244,10 +244,11 @@ function Start-AppiumTask {
     $taskJson = $task | ConvertTo-Json -Depth 30 -Compress
     $verifier = Join-Path $PSScriptRoot "gateway-capture-verifier.ps1"
     $job = Start-Job -ScriptBlock {
-        param([string]$HandlerPath, [string]$SerializedTask, [string]$VerifierPath)
+        param([string]$HandlerPath, [string]$SerializedTask, [string]$VerifierPath, [string]$ShareReceiverSerial)
+        $env:MOBILE_GATEWAY_SHARE_RECEIVER_SERIAL = $ShareReceiverSerial
         . $VerifierPath
         Invoke-VerifiedCapture -HandlerPath $HandlerPath -SerializedTask $SerializedTask
-    } -ArgumentList $handler, $taskJson, $verifier
+    } -ArgumentList $handler, $taskJson, $verifier, ([string]$script:config.shareReceiverDeviceSerial)
 
     $script:activeTasks[$task.id] = [pscustomobject]@{
         Task = $task
@@ -257,6 +258,33 @@ function Start-AppiumTask {
         LastLeaseHeartbeat = Get-Date
     }
     Write-AgentLog "started task=$($task.id) device=$($task.payload.device_serial)"
+}
+
+function Start-BrowserTask {
+    param([pscustomobject]$Claim)
+
+    $task = $Claim.task
+    if ($task.surface -ne "web") { throw "Browser task must target web surface" }
+    $handler = Get-AppiumHandler -Task $task
+    $taskJson = $task | ConvertTo-Json -Depth 30 -Compress
+    $verifier = Join-Path $PSScriptRoot "gateway-capture-verifier.ps1"
+    $browserRoot = [string]$script:config.browserRoot
+    $nodePath = [string]$script:config.nodePath
+    $job = Start-Job -ScriptBlock {
+        param($HandlerPath, $SerializedTask, $VerifierPath, $BrowserRoot, $NodePath)
+        $env:MOBILE_GATEWAY_BROWSER_ROOT = $BrowserRoot
+        $env:MOBILE_GATEWAY_NODE_PATH = $NodePath
+        . $VerifierPath
+        Invoke-VerifiedCapture -HandlerPath $HandlerPath -SerializedTask $SerializedTask
+    } -ArgumentList $handler, $taskJson, $verifier, $browserRoot, $nodePath
+    $script:activeTasks[$task.id] = [pscustomobject]@{
+        Task = $task
+        LeaseToken = $Claim.lease_token
+        DeviceSerial = $null
+        Job = $job
+        LastLeaseHeartbeat = Get-Date
+    }
+    Write-AgentLog "started browser task=$($task.id)"
 }
 
 function Convert-HandlerOutput {
@@ -415,7 +443,9 @@ try {
                 Send-Heartbeat
             }
 
-            $busySerials = @($script:activeTasks.Values | ForEach-Object { $_.DeviceSerial })
+            $busySerials = @($script:activeTasks.Values | ForEach-Object { $_.DeviceSerial } | Where-Object { $_ })
+            $activeAppCount = @($script:activeTasks.Values | Where-Object { $_.Task.task_type -eq "appium.prompt" }).Count
+            $activeBrowserCount = @($script:activeTasks.Values | Where-Object { $_.Task.task_type -eq "browser.prompt" }).Count
             $adb = "C:\Program Files\Android\platform-tools\adb.exe"
             $online = @(Get-AuthorizedDeviceSerials @(& $adb devices -l 2>$null))
             $configured = @($script:config.deviceSerials | Where-Object { $_ })
@@ -427,14 +457,19 @@ try {
                     -BusySerials $busySerials
             ).Count
 
-            if (
-                $script:activeTasks.Count -lt $maxConcurrentTasks -and
-                $idleDeviceCount -gt 0
-            ) {
+            $claimCapabilities = @("gateway.healthcheck")
+            if ($activeAppCount -lt $maxConcurrentTasks -and $idleDeviceCount -gt 0) {
+                $claimCapabilities += "appium.prompt"
+            }
+            if ($script:config.browserRoot -and $activeBrowserCount -lt 1) {
+                $claimCapabilities += "browser.prompt"
+            }
+            $claimCapabilities = @($claimCapabilities | Where-Object { $_ -in $script:config.capabilities })
+            if ($claimCapabilities.Count -gt 0) {
                 $claim = Invoke-GatewayApi `
                     -Method Post `
                     -Path "/api/device-gateway/tasks/claim" `
-                    -Body @{ capabilities = @($script:config.capabilities) }
+                    -Body @{ capabilities = $claimCapabilities }
                 if ($null -ne $claim.task) {
                     if ($claim.task.task_type -eq "appium.prompt") {
                         try {
@@ -446,6 +481,12 @@ try {
                                 "gateway_execution_failed"
                             }
                             Send-TaskFailure -Task $claim.task -LeaseToken $claim.lease_token -Message $_.Exception.Message -Code $code
+                        }
+                    } elseif ($claim.task.task_type -eq "browser.prompt") {
+                        try {
+                            Start-BrowserTask -Claim $claim
+                        } catch {
+                            Send-TaskFailure -Task $claim.task -LeaseToken $claim.lease_token -Message $_.Exception.Message
                         }
                     } elseif ($claim.task.task_type -eq "gateway.healthcheck") {
                         Invoke-HealthTask -Claim $claim

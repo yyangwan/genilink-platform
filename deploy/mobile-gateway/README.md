@@ -39,6 +39,16 @@ not process standard streams. This avoids both a known TLS interoperability
 problem and Windows PowerShell 5.1 console-code-page corruption for Chinese
 prompts and answers.
 
+Qwen audit prompts use a separate `browser.prompt` queue and a dedicated
+headless Edge profile under `C:\ProgramData\MobileGateway\browser-runtime`.
+The installer pins `playwright-core` and installs it with `npm ci` on the
+gateway. Edge must be installed on that machine; the worker never uses an
+Android device. Browser capacity is one task, independent of the configured
+Android pool. The Web profile is persistent but runs as the scheduled task's
+`SYSTEM` account, so any required Qwen login must be established in that
+profile before production use. A login challenge or changed Web UI causes a
+task failure rather than a fabricated source list.
+
 Set `deviceSerials` in `config\gateway-agent.json` to the authorized devices
 that may run capture tasks. The agent maintains a bounded worker pool, assigns
 one task to each idle online device, and skips devices that are offline or
@@ -70,6 +80,11 @@ The gateway currently supports:
 - `qwen` or `qianwen` + `app`: collects every source name, title, and exposed
   domain. Its generated URL is explicitly labeled `site_root`, not an exact
   article path.
+- `qwen` + `web`: opens a fresh Web conversation in Edge, sends the prompt,
+  expands `查看全部`, and returns exact article URLs from the displayed search
+  reference cards. These are search references, not necessarily inline-cited
+  references in the answer. The audit adapter routes Qwen to this handler;
+  the legacy app handler remains installed but is not selected by that adapter.
 - `kimi` + `app`: scrolls through lazy-loaded answer segments, opens the
   searched-web-pages panel, catalogs every paged result card, and extracts each
   exact original URL through the in-app article share sheet.
@@ -91,6 +106,40 @@ completeness as the tie-breaker. When the retry fails or time budget is gone,
 the first result is preserved. Verification outcomes are logged in
 `logs\gateway-agent.log`; they do not change the audit result schema. This
 check is a per-result target, not a measured 90% production success rate.
+
+### Citation share fallback (test-device opt-in)
+
+`share-receiver/` contains a minimal Android `ACTION_SEND` receiver. It has no
+network permission. Its capture is armed with a one-time nonce through an
+ADB-shell-only broadcast, and read once through an ADB-shell-only content
+provider. A share arriving without an active request is discarded. The gateway
+rejects expired, unrelated, ambiguous, or non-HTTP(S) payloads. Clipboard copy
+remains the preferred path; the receiver is attempted only after copy fails.
+
+Build locally with `share-receiver/build.ps1 -JavaHome <JDK-or-JRE-11+>` and
+install the resulting `.build/citation-receiver.apk` only on the isolated test
+phone. The test signing key is generated outside the repository. Run
+`test-share-receiver.ps1` and `test-capture-verifier.ps1` before installation.
+Enable the fallback for only one device by passing
+`-ShareReceiverDeviceSerial <serial>` to `install-gateway-agent.ps1`; the default
+empty value disables it. The receiver APK must also be installed on that
+device. Do not enable the fallback for production devices until a measured
+per-platform trial passes. Removing the setting or uninstalling the APK
+restores the old capture path.
+
+Kimi citations are inventoried from the final answer's inline clickable cards,
+not the `搜索网页` candidate list. Multiple card occurrences are retained even
+when they share a canonical article URL. Qwen site roots do not count as exact
+article URLs. The verifier counts only `exact` URLs toward completeness; an
+unresolved source remains a failed record. Per-source retries occur in the
+same answer before the existing whole-task retry.
+
+Doubao counts multiple visible search-reference cards and does not collapse
+items merely because their displayed ordinal repeats. It walks the opened
+reference list to a stable end before finalizing the expected count. A card
+outside the accessible viewport can still escape this local inventory; treat
+the trial coverage rate, not the per-result threshold alone, as the release
+criterion.
 
 Run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
 .\test-capture-verifier.ps1` locally before installing agent changes.

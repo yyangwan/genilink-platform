@@ -1,0 +1,12 @@
+{
+  "name": "genilink-gateway-browser-runtime",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "playwright-core": "1.60.0"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
