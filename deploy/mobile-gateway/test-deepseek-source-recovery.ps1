@@ -101,5 +101,5 @@ try {
     Write-Output "DeepSeek source recovery tests passed"
 } finally {
     $env:TEMP = $savedTemp
-    Remove-Item -LiteralPath $tempRoot -Recurse -Force
+    Remove-Item -LiteralPath $tempRoot -Force
 }
