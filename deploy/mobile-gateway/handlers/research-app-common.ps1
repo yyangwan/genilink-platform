@@ -371,20 +371,37 @@ function Get-PageSource {
         try {
             Write-GatewayTrace "ui_dump start"
             $dumpExitCode = 1
-            for ($attempt = 0; $attempt -lt 3; $attempt++) {
-                $savedPreference = $ErrorActionPreference
-                $ErrorActionPreference = "Continue"
-                try {
-                    & adb -s $script:deviceSerial shell timeout 15 `
-                        uiautomator dump $devicePath 2>&1 | Out-Null
-                    $dumpExitCode = $LASTEXITCODE
-                } finally {
-                    $ErrorActionPreference = $savedPreference
+            $modes = if ($Platform -eq "deepseek") { @($false, $true) } else { @($false) }
+            foreach ($compressed in $modes) {
+                $dumpArgs = if ($compressed) {
+                    @("dump", "--compressed", $devicePath)
+                } else {
+                    @("dump", $devicePath)
+                }
+                $attemptCount = if ($compressed) { 2 } else { 3 }
+                for ($attempt = 0; $attempt -lt $attemptCount; $attempt++) {
+                    $savedPreference = $ErrorActionPreference
+                    $ErrorActionPreference = "Continue"
+                    try {
+                        $dumpOutput = & adb -s $script:deviceSerial shell timeout 15 `
+                            uiautomator @dumpArgs 2>&1
+                        $dumpExitCode = $LASTEXITCODE
+                    } finally {
+                        $ErrorActionPreference = $savedPreference
+                    }
+                    if ($dumpExitCode -eq 0) {
+                        if ($compressed) { Write-GatewayTrace "ui_dump compressed fallback succeeded" }
+                        break
+                    }
+                    $errorLine = @($dumpOutput | ForEach-Object { [string]$_ } |
+                        Where-Object { $_ -match 'Exception|Error:' } | Select-Object -First 1)
+                    $reason = if ($errorLine.Count) { $errorLine[0] } else { "no diagnostic" }
+                    Write-GatewayTrace "ui_dump failed compressed=$compressed exit=$dumpExitCode reason=$($reason.Substring(0, [math]::Min(200, $reason.Length)))"
+                    Start-Sleep -Seconds 1
                 }
                 if ($dumpExitCode -eq 0) {
                     break
                 }
-                Start-Sleep -Seconds 1
             }
             if ($dumpExitCode -ne 0) {
                 throw "Android UI hierarchy dump failed"
@@ -1909,6 +1926,28 @@ function New-SourceRecord {
     }
 }
 
+function Complete-DeepSeekSourceRecords {
+    param(
+        [Parameter(Mandatory)][hashtable]$Collected,
+        [Parameter(Mandatory)][int]$ReferenceCount,
+        [string]$ErrorMessage = "Source was not visible before collection ended"
+    )
+
+    for ($ordinal = 1; $ordinal -le $ReferenceCount; $ordinal++) {
+        if ($Collected.ContainsKey([string]$ordinal)) { continue }
+        $Collected[[string]$ordinal] = New-SourceRecord `
+            -Index $ordinal `
+            -Title $null `
+            -SiteName $null `
+            -Domain $null `
+            -Url $null `
+            -Resolution "unavailable" `
+            -Status "failed" `
+            -ErrorMessage $ErrorMessage
+    }
+    @($Collected.Values | Sort-Object index)
+}
+
 function Return-ToDeepSeekSourcePanel {
     param([Parameter(Mandatory)][string]$SessionId)
 
@@ -2194,31 +2233,54 @@ function Get-DeepSeekSources {
         [Parameter(Mandatory)][int]$ReferenceCount
     )
 
-    $answerDocument = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+    $collected = @{}
+    try {
+        $answerDocument = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+    } catch {
+        Write-GatewayTrace "deepseek source panel unavailable: $($_.Exception.Message)"
+        return Complete-DeepSeekSourceRecords `
+            -Collected $collected `
+            -ReferenceCount $ReferenceCount `
+            -ErrorMessage $_.Exception.Message
+    }
     $markerNode = $answerDocument.SelectSingleNode(
         "//*[@text='$ReferenceCount 个网页' or @text='已阅读 $ReferenceCount 个网页']"
     )
     $markerBounds = if ($markerNode) { Get-Bounds -Node $markerNode } else { $null }
     if (-not $markerBounds) {
-        throw "DeepSeek source marker was not found"
+        Write-GatewayTrace "deepseek source marker was not found"
+        return Complete-DeepSeekSourceRecords `
+            -Collected $collected `
+            -ReferenceCount $ReferenceCount `
+            -ErrorMessage "DeepSeek source marker was not found"
     }
     & adb -s $script:deviceSerial shell input tap `
         $markerBounds.center_x $markerBounds.center_y | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        throw "ADB failed to open the DeepSeek source panel"
+        Write-GatewayTrace "ADB failed to open the DeepSeek source panel"
+        return Complete-DeepSeekSourceRecords `
+            -Collected $collected `
+            -ReferenceCount $ReferenceCount `
+            -ErrorMessage "ADB failed to open the DeepSeek source panel"
     }
     Start-Sleep -Seconds 1
-    $collected = @{}
+    $panelError = "Source was not visible before collection ended"
     $stalls = 0
     while ($collected.Count -lt $ReferenceCount -and $stalls -lt 5) {
-        $panelSource = Get-PageSource -SessionId $SessionId
+        try {
+            $panelSource = Get-PageSource -SessionId $SessionId
+            $document = ConvertTo-Xml -Source $panelSource
+        } catch {
+            $panelError = $_.Exception.Message
+            Write-GatewayTrace "deepseek source panel read failed: $panelError"
+            break
+        }
         if (
             $Platform -eq "yuanbao" -and
             $panelSource -notmatch 'text="引用来源\s*\d+"'
         ) {
             throw "Yuanbao left the source panel during collection"
         }
-        $document = ConvertTo-Xml -Source $panelSource
         $processed = $false
         foreach ($item in @(
             $document.SelectNodes(
@@ -2384,7 +2446,10 @@ function Get-DeepSeekSources {
             $stalls++
         }
     }
-    @($collected.Values | Sort-Object index)
+    Complete-DeepSeekSourceRecords `
+        -Collected $collected `
+        -ReferenceCount $ReferenceCount `
+        -ErrorMessage $panelError
 }
 
 function Get-YuanbaoVisiblePanelItems {
