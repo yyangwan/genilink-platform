@@ -28,6 +28,8 @@ function Test-CaptureResult {
         $parsed = $null
         if (
             $source.status -eq "collected" -and
+            ($null -eq $source.PSObject.Properties["url_resolution"] -or
+                $source.url_resolution -eq "exact") -and
             [Uri]::TryCreate($url, [UriKind]::Absolute, [ref]$parsed) -and
             $parsed.Scheme -in @("http", "https") -and
             $parsed.Host

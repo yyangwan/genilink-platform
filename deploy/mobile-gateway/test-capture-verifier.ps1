@@ -94,6 +94,17 @@ $sources = if ($task.payload.mode -eq "retry_fewer" -and $attempts -eq 1) {
     Assert-Equal $quality.Passed $false "invalid URL quality"
     Assert-Equal $quality.Completeness 0.5 "valid URL completeness"
 
+    $quality = Test-CaptureResult -Result ([pscustomobject]@{
+        answer = "A real answer"
+        reference_count = 2
+        sources = @(
+            [pscustomobject]@{ status = "collected"; url = "https://example.com/article"; url_resolution = "exact" },
+            [pscustomobject]@{ status = "collected"; url = "https://example.org/"; url_resolution = "site_root" }
+        )
+    })
+    Assert-Equal $quality.ValidSourceCount 1 "site root not exact"
+    Assert-Equal $quality.Completeness 0.5 "site root completeness"
+
     Remove-Item -LiteralPath (Join-Path $tempRoot "attempts.txt")
     $task.created_at = [datetimeoffset]::UtcNow.ToString("o")
     $task.payload.mode = "retry_succeeds"
