@@ -3,7 +3,7 @@ import { chromium } from 'playwright-core';
 import { extractQwenResult } from './qwen-extract.mjs';
 import { readQwenPageState, advanceQwenAnswer } from './qwen-state.mjs';
 
-const [taskPath, resultPath, profilePath] = process.argv.slice(2);
+const [taskPath, resultPath, profilePath, browserMode = 'headless'] = process.argv.slice(2);
 const task = JSON.parse(await fs.readFile(taskPath, 'utf8'));
 if (task.task_type !== 'browser.prompt' || task.platform !== 'qwen' || task.surface !== 'web') {
   throw new Error('Unsupported browser task');
@@ -18,7 +18,7 @@ let stage = 'browser_start';
 try {
   context = await chromium.launchPersistentContext(profilePath, {
     channel: 'chrome',
-    headless: true,
+    headless: browserMode !== 'headed',
     viewport: { width: 1440, height: 900 },
     locale: 'zh-CN',
   });
@@ -83,9 +83,9 @@ try {
   try { state = page && await page.evaluate(readQwenPageState); } catch {}
   const diagnostic = {stage, message: String(error.message), url: state?.url, title: state?.title,
     answerCount: state?.answerCount, answerChars: state?.answer?.length,
-    generating: state?.generating, loginRequired: state?.loginRequired};
+    generating: state?.generating, loginRequired: state?.loginRequired, challengeRequired: state?.challengeRequired};
   await fs.writeFile(`${resultPath}-error.json`, JSON.stringify(diagnostic), 'utf8');
-  if (page && !state?.loginRequired) {
+  if (page && !state?.loginRequired && !state?.challengeRequired) {
     try { await page.screenshot({path: `${resultPath}-error.png`, fullPage: true}); } catch {}
   }
   console.error(`${error.message} (stage=${stage}; diagnostic=${resultPath}-error.json)`);

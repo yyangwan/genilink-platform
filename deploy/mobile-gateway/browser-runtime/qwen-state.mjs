@@ -4,7 +4,10 @@ export function readQwenPageState() {
   const buttons = [...document.querySelectorAll('button')].filter(visible);
   const loginRequired = buttons.some(button => button.getAttribute('aria-label') === '关闭登录');
   const dialogs = [...document.querySelectorAll('[role="dialog"], [role="alert"]')].filter(visible).map(n => n.innerText).join('\n');
-  const challengeRequired = /安全验证|滑动验证|完成验证|验证码/.test(dialogs);
+  const verificationFrame = [...document.querySelectorAll('iframe')].some(frame =>
+    visible(frame) && /captcha|baxia|nocaptcha|punish/i.test(frame.getAttribute('src') || ''));
+  const challengeRequired = verificationFrame || /安全验证|滑动验证|完成验证|验证码/.test(dialogs) ||
+    /请拖动下方滑块完成验证|请按住滑块[，,\s]*拖动到最右边/.test(document.body?.innerText || '');
   const markdowns = [...document.querySelectorAll('.qk-markdown-react')];
   const markdown = markdowns.at(-1);
   return {
