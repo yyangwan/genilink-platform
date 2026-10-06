@@ -571,12 +571,6 @@ function Get-DeepSeekAnswerSnapshot {
     $width = [int]$activeSize.Groups[1].Value
     $height = [int]$activeSize.Groups[2].Value
 
-    # The floating down arrow is the only reliable control while Compose is
-    # rendering a long answer. At the bottom, the same point may open Retry.
-    & adb -s $script:deviceSerial shell input tap `
-        ([int]($width * 0.90)) ([int]($height * 0.83)) | Out-Null
-    Start-Sleep -Milliseconds 800
-
     $source = Get-PageSource -SessionId $SessionId
     if ($source -match '更加简洁|更加详细|再试一次') {
         & adb -s $script:deviceSerial shell input tap `
@@ -587,6 +581,29 @@ function Get-DeepSeekAnswerSnapshot {
     $document = ConvertTo-Xml -Source $source
     $copyNode = $document.SelectSingleNode("//*[@content-desc='复制']")
     $copyBounds = if ($copyNode) { Get-Bounds -Node $copyNode } else { $null }
+    if (-not $copyBounds) {
+        # Compose moves this control with the input panel and display settings.
+        # A fixed tap can miss it, or activate Regenerate once already at bottom.
+        $bottomNode = $document.SelectSingleNode(
+            "//*[@content-desc='转至底部' or @text='转至底部']"
+        )
+        $bottomBounds = if ($bottomNode) { Get-Bounds -Node $bottomNode } else { $null }
+        if ($bottomBounds) {
+            & adb -s $script:deviceSerial shell input tap `
+                $bottomBounds.center_x $bottomBounds.center_y | Out-Null
+            Write-GatewayTrace "deepseek scroll to bottom using UI control"
+        } else {
+            & adb -s $script:deviceSerial shell input swipe `
+                ([int]($width * 0.50)) ([int]($height * 0.70)) `
+                ([int]($width * 0.50)) ([int]($height * 0.25)) 250 | Out-Null
+            Write-GatewayTrace "deepseek scroll to bottom using swipe fallback"
+        }
+        Start-Sleep -Milliseconds 800
+        $source = Get-PageSource -SessionId $SessionId
+        $document = ConvertTo-Xml -Source $source
+        $copyNode = $document.SelectSingleNode("//*[@content-desc='复制']")
+        $copyBounds = if ($copyNode) { Get-Bounds -Node $copyNode } else { $null }
+    }
     if (-not $copyBounds) {
         $script:deepseekMissingCopyCount++
         if ($script:deepseekMissingCopyCount % 10 -eq 0) {
