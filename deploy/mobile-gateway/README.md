@@ -227,6 +227,14 @@ user is not. A missing interactive session fails explicitly instead of waiting
 for a model answer. No Windows password or exported browser cookies are stored.
 Each worker has a bounded deadline and removes only its own scheduled task.
 
+The installer grants that user Modify access only to `browser-runtime/profile`
+and `browser-runtime/work`, including existing SYSTEM-owned Chrome files.
+Gateway configuration and script permissions are not broadened.
+Qwen sources are collected from the current answer's full source panel, including
+card metadata URLs. The panel's source count, not the analysis tool's aggregate
+search-material count, is the expected reference count. Missing rows or URLs fail
+collection rather than silently returning a complete result.
+
 Run `pwsh -NoProfile -File .\test-browser-task.ps1` before gateway deployment.
 
 1. Enable Android developer options and USB debugging.

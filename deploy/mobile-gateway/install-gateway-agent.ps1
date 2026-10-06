@@ -37,6 +37,10 @@ $sourceHttpClient = Join-Path $PSScriptRoot "gateway-http-client.mjs"
 $sourceHandlerRoot = Join-Path $PSScriptRoot "handlers"
 $browserRoot = Join-Path $root "browser-runtime"
 $sourceBrowserRoot = Join-Path $PSScriptRoot "browser-runtime"
+if ($BrowserInteractiveUser) {
+    . (Join-Path $PSScriptRoot "gateway-browser-permissions.ps1")
+    Initialize-InteractiveBrowserDirectories -BrowserRoot $browserRoot -UserId $BrowserInteractiveUser
+}
 
 New-Item -ItemType Directory -Path $configDirectory, $handlerRoot -Force | Out-Null
 if ([IO.Path]::GetFullPath($sourceAgent) -ne [IO.Path]::GetFullPath($agentPath)) {
@@ -67,7 +71,7 @@ if ([IO.Path]::GetFullPath($browserTaskSource) -ne [IO.Path]::GetFullPath($brows
 }
 if (Test-Path -LiteralPath $sourceBrowserRoot) {
     New-Item -ItemType Directory -Path $browserRoot -Force | Out-Null
-    foreach ($name in @("package.json", "package-lock.json", "qwen-capture.mjs", "qwen-extract.mjs", "qwen-state.mjs")) {
+    foreach ($name in @("package.json", "package-lock.json", "qwen-capture.mjs", "qwen-extract.mjs", "qwen-state.mjs", "qwen-sources.mjs")) {
         Copy-Item -LiteralPath (Join-Path $sourceBrowserRoot $name) -Destination $browserRoot -Force
     }
     $npm = "C:\Program Files\nodejs\npm.cmd"
