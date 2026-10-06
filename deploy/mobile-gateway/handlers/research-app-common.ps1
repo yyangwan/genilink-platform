@@ -371,7 +371,9 @@ function Get-PageSource {
         try {
             Write-GatewayTrace "ui_dump start"
             $dumpExitCode = 1
-            $modes = if ($Platform -eq "deepseek") { @($false, $true) } else { @($false) }
+            # Compressed dumps skip Android's NAF walk, which can crash with a
+            # null accessibility child on Huawei devices regardless of app.
+            $modes = @($false, $true)
             foreach ($compressed in $modes) {
                 $dumpArgs = if ($compressed) {
                     @("dump", "--compressed", $devicePath)
@@ -404,7 +406,7 @@ function Get-PageSource {
                 }
             }
             if ($dumpExitCode -ne 0) {
-                throw "Android UI hierarchy dump failed"
+                throw "Android UI hierarchy dump failed (normal and compressed, exit=$dumpExitCode)"
             }
             Copy-AdbFile -DevicePath $devicePath -LocalPath $localPath
             Write-GatewayTrace "ui_dump complete"
