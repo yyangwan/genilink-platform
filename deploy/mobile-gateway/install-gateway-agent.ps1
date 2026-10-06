@@ -61,7 +61,7 @@ if (Test-Path -LiteralPath $sourceHandlerRoot) {
 }
 if (Test-Path -LiteralPath $sourceBrowserRoot) {
     New-Item -ItemType Directory -Path $browserRoot -Force | Out-Null
-    foreach ($name in @("package.json", "package-lock.json", "qwen-capture.mjs", "qwen-extract.mjs")) {
+    foreach ($name in @("package.json", "package-lock.json", "qwen-capture.mjs", "qwen-extract.mjs", "qwen-state.mjs")) {
         Copy-Item -LiteralPath (Join-Path $sourceBrowserRoot $name) -Destination $browserRoot -Force
     }
     $npm = "C:\Program Files\nodejs\npm.cmd"

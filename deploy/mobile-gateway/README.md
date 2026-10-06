@@ -171,6 +171,39 @@ manual mapping after public DNS resolves the domain to the production server.
 
 ## Verification
 
+### Capture Recovery
+
+- Qwen uses the persistent Chrome profile under `browser-runtime/profile`.
+  A visible login or verification dialog fails fast with `QWEN_LOGIN_REQUIRED`
+  or `QWEN_CHALLENGE_REQUIRED`; the task is not automatically replayed.
+  Restore login interactively in that same profile. Never replace it with an
+  unrelated default Chrome profile or export cookies into logs.
+- Browser failures retain a diagnostic JSON (stage, URL and response state)
+  beside the temporary result path. Non-login failures also retain a screenshot.
+  The task error points to the diagnostic, rather than a Node stack header.
+- App collectors retry citation retrieval on the same answer, reuse verified
+  index/title matches, and preserve the largest observed reference count.
+  The verifier never submits the prompt a second time. The source retry window
+  starts at source collection, not task creation.
+- `device-failures.json` persists device cooldowns: hierarchy/offline/lock
+  failures exclude the device across apps for 20 minutes; other capture failures
+  exclude it for the same platform for 10 minutes. The same task avoids its
+  failed devices for one hour. Cooldowns expire automatically and must not be
+  confused with permanent removal from the configured pool.
+- A partial citation result remains partial in its existing source status and
+  completeness fields; source indices or counts are never reduced to hide gaps.
+
+Run the local recovery tests before deployment:
+
+```powershell
+.\test-source-only-retry.ps1
+.\test-device-selector.ps1
+.\test-device-unlock.ps1
+.\test-gateway-failure-policy.ps1
+.\test-capture-verifier.ps1
+node --test browser-runtime/qwen-state.test.mjs browser-runtime/qwen-extract.test.mjs
+```
+
 Run these commands on the gateway:
 
 ```powershell

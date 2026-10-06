@@ -85,3 +85,26 @@ function Get-GatewayConcurrencyLimit {
     }
     1
 }
+
+function Get-CaptureExcludedSerials {
+    param([object[]]$Failures, [string]$Platform, [string]$TaskId,
+        [datetime]$Now = [datetime]::UtcNow)
+    @($Failures | Where-Object {
+        ($TaskId -and $_.TaskId -eq $TaskId -and ([datetimeoffset]$_.TaskUntil).UtcDateTime -gt $Now) -or
+        (([datetimeoffset]$_.Until).UtcDateTime -gt $Now -and ($_.Global -or ($Platform -and $_.Platform -eq $Platform)))
+    } | ForEach-Object { $_.Serial } | Select-Object -Unique)
+}
+
+function New-CaptureDeviceFailure {
+    param([string]$Serial, [string]$Platform, [string]$TaskId,
+        [string]$Message, [datetime]$Now = [datetime]::UtcNow)
+    $globalFailure = $Message -match 'UI hierarchy dump failed|not authorized|device offline|is locked'
+    [pscustomobject]@{
+        Serial = $Serial
+        Platform = $Platform
+        TaskId = $TaskId
+        Global = [bool]$globalFailure
+        Until = $Now.AddMinutes($(if ($globalFailure) { 20 } else { 10 })).ToString('o')
+        TaskUntil = $Now.AddHours(1).ToString('o')
+    }
+}

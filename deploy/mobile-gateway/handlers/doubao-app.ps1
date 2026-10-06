@@ -5,6 +5,7 @@
 
 $ErrorActionPreference = "Stop"
 . (Join-Path (Split-Path $PSScriptRoot -Parent) "gateway-share-receiver.ps1")
+. (Join-Path (Split-Path $PSScriptRoot -Parent) "gateway-capture-verifier.ps1")
 $appiumBaseUrl = "http://127.0.0.1:4723"
 $packageName = "com.larus.nova"
 $elementKey = "element-6066-11e4-a52e-4f735466cecf"
@@ -1043,7 +1044,8 @@ function Get-DoubaoSources {
         [Parameter(Mandatory)]
         [string]$SessionId,
         [Parameter(Mandatory)]
-        [string]$AnswerSource
+        [string]$AnswerSource,
+        [object[]]$KnownSources = @()
     )
 
     $summary = Get-ReferenceSummary -Source $AnswerSource
@@ -1125,6 +1127,15 @@ function Get-DoubaoSources {
                 $catalogByIndex[$catalogCursor]
             } else { $null }
             $key = "$catalogCursor|$catalogTitle"
+            $known = if ($KnownSources.Count) {
+                Find-KnownSourceRecord -Records $KnownSources -Index $catalogCursor -Title $catalogTitle
+            } else { $null }
+            if ($known) {
+                $collected[$key] = $known
+                $collectedOrder.Add($key)
+                $catalogCursor++
+                continue
+            }
             $item = $null
             $locationError = $null
             try {
@@ -1808,9 +1819,10 @@ try {
 
     $sessionId = $null
     $sourceCollectionStartedAt = Get-Date
-    $sourceCollection = Get-DoubaoSources `
-        -SessionId "adb" `
-        -AnswerSource $finalSource
+    $sourceCollection = Invoke-SourceCollectionRetry -Collect {
+        param([object[]]$KnownSources)
+        Get-DoubaoSources -SessionId "adb" -AnswerSource $finalSource -KnownSources $KnownSources
+    }
     $sessionId = [string]$sourceCollection.session_id
     $sourceCollectionCompletedAt = Get-Date
 

@@ -47,3 +47,14 @@ Assert-Equal $authorized[0] "device-a" "first authorized"
 Assert-Equal $authorized[1] "device-d" "second authorized"
 
 Write-Output "Gateway device selection tests passed"
+
+$now = [datetime]::UtcNow
+$failure = New-CaptureDeviceFailure -Serial device-a -Platform deepseek -TaskId task-1 `
+    -Message 'Timed out waiting for response' -Now $now
+Assert-Equal (Get-CaptureExcludedSerials @($failure) deepseek task-2 $now) device-a 'same platform cooldown'
+Assert-Equal @(Get-CaptureExcludedSerials @($failure) kimi task-2 $now).Count 0 'other platform remains usable'
+Assert-Equal (Get-CaptureExcludedSerials @($failure) deepseek task-1 $now.AddMinutes(30)) device-a 'same task never repeats failed phone'
+Assert-Equal @(Get-CaptureExcludedSerials @($failure) deepseek task-2 $now.AddMinutes(30)).Count 0 'platform cooldown expires'
+$globalFailure = New-CaptureDeviceFailure device-c kimi task-3 'Android UI hierarchy dump failed' $now
+Assert-Equal (Get-CaptureExcludedSerials @($globalFailure) deepseek task-4 $now) device-c 'hierarchy failure quarantines all apps'
+Assert-Equal @(Get-CaptureExcludedSerials @($globalFailure) deepseek task-4 $now.AddHours(2)).Count 0 'expired quarantine recovers'

@@ -18,9 +18,23 @@ try {
     [IO.File]::WriteAllText($taskPath, $TaskJson, [Text.UTF8Encoding]::new($false))
     $scriptPath = Join-Path $browserRoot "qwen-capture.mjs"
     $profilePath = Join-Path $browserRoot "profile"
-    $output = & $nodePath $scriptPath $taskPath $resultPath $profilePath 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "Qwen browser capture failed: $($output -join ' ')"
+    # Windows PowerShell otherwise throws on the first stderr line and loses
+    # the real Playwright exception and native exit code.
+    $savedPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = & $nodePath $scriptPath $taskPath $resultPath $profilePath 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $savedPreference
+    }
+    if ($exitCode -ne 0) {
+        $diagnosticPath = "$resultPath-error.json"
+        if (Test-Path -LiteralPath $diagnosticPath) {
+            $diagnostic = Get-Content -LiteralPath $diagnosticPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            throw "$($diagnostic.message) (stage=$($diagnostic.stage); diagnostic=$diagnosticPath)"
+        }
+        throw "Qwen browser capture failed (exit=$exitCode): $($output -join ' ')"
     }
     if (-not (Test-Path -LiteralPath $resultPath)) {
         throw "Qwen browser capture did not write a result"

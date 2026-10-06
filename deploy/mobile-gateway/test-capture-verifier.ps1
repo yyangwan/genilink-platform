@@ -64,9 +64,9 @@ $sources = if ($task.payload.mode -eq "retry_fewer" -and $attempts -eq 1) {
     Remove-Item -LiteralPath (Join-Path $tempRoot "attempts.txt")
     $task.payload.mode = "retry_succeeds"
     $result = Invoke-VerifiedCapture -HandlerPath $handlerPath -SerializedTask ($task | ConvertTo-Json -Depth 10)
-    Assert-Equal (Get-Content (Join-Path $tempRoot "attempts.txt")) 2 "incomplete attempts"
-    Assert-Equal $result.source_path "test-task-verify-2" "retry selection"
-    Assert-Equal (Test-CaptureResult -Result $result).Passed $true "retry quality"
+    Assert-Equal (Get-Content (Join-Path $tempRoot "attempts.txt")) 1 "incomplete result must not replay prompt"
+    Assert-Equal $result.source_path "test-task" "original answer retained"
+    Assert-Equal (Test-CaptureResult -Result $result).Passed $false "partial quality reported honestly"
 
     Remove-Item -LiteralPath (Join-Path $tempRoot "attempts.txt")
     $task.payload.mode = "retry_fails"
@@ -87,8 +87,8 @@ $sources = if ($task.payload.mode -eq "retry_fewer" -and $attempts -eq 1) {
     $task.created_at = [datetime]::UtcNow.AddMinutes(-2).ToString("yyyy-MM-ddTHH:mm:ss")
     $task.payload.mode = "retry_succeeds"
     $result = Invoke-VerifiedCapture -HandlerPath $handlerPath -SerializedTask ($task | ConvertTo-Json -Depth 10) -WarningAction SilentlyContinue
-    Assert-Equal (Get-Content (Join-Path $tempRoot "attempts.txt")) 2 "naive UTC timestamp allows retry"
-    Assert-Equal $result.source_path "test-task-verify-2" "naive UTC retry selection"
+    Assert-Equal (Get-Content (Join-Path $tempRoot "attempts.txt")) 1 "timestamp must not trigger prompt replay"
+    Assert-Equal $result.source_path "test-task" "same answer regardless of timestamp"
 
     $quality = Test-CaptureResult -Result ([pscustomobject]@{
         answer = "A real answer"
@@ -130,7 +130,7 @@ $sources = if ($task.payload.mode -eq "retry_fewer" -and $attempts -eq 1) {
         $output = @(Receive-Job -Job $job -ErrorAction Stop -WarningVariable warnings -WarningAction SilentlyContinue)
         Assert-Equal $job.State "Completed" "background job state"
         Assert-Equal $output.Count 1 "background job output count"
-        Assert-Equal $output[0].source_path "test-task-verify-2" "background job selection"
+        Assert-Equal $output[0].source_path "test-task" "background job preserves answer"
         if ($warnings.Count -lt 2) {
             throw "Background job verification warnings were not captured"
         }
