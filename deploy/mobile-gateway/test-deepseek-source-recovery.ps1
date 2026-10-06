@@ -47,12 +47,29 @@ try {
     }).Count 3 "normal dump attempts"
     Assert-Equal @($script:dumpCommands | Where-Object { $_ -match 'uiautomator dump --compressed ' }).Count 1 "compressed dump attempt"
 
-    $Platform = "kimi"
-    $script:dumpCommands = @()
-    $nonDeepSeekFailed = $false
-    try { Get-PageSource -SessionId "adb" | Out-Null } catch { $nonDeepSeekFailed = $true }
-    Assert-Equal $nonDeepSeekFailed $true "other platforms keep original dump failure"
-    Assert-Equal @($script:dumpCommands | Where-Object { $_ -match '--compressed' }).Count 0 "fallback scoped to DeepSeek"
+    foreach ($otherPlatform in @("yuanbao", "qwen", "kimi")) {
+        $Platform = $otherPlatform
+        $script:dumpCommands = @()
+        Assert-Equal (Get-PageSource -SessionId "adb") '<hierarchy rotation="0" />' "$otherPlatform compressed fallback"
+        Assert-Equal @($script:dumpCommands | Where-Object { $_ -match '--compressed' }).Count 1 "$otherPlatform fallback"
+    }
+    function adb {
+        $global:LASTEXITCODE = 137
+        "NullPointerException in AccessibilityNodeInfoDumper"
+    }
+    try {
+        Get-PageSource -SessionId "adb" | Out-Null
+        throw "Expected both hierarchy modes to fail"
+    } catch {
+        if ($_.Exception.Message -notmatch 'Android UI hierarchy dump failed .*exit=137') {
+            throw
+        }
+    }
+    function adb {
+        $script:dumpCommands += @($args -join " ")
+        $global:LASTEXITCODE = if ($args -contains "dump" -and $args -notcontains "--compressed") { 1 } else { 0 }
+        if ($LASTEXITCODE -ne 0) { "NullPointerException in AccessibilityNodeInfoDumper" }
+    }
     $Platform = "deepseek"
 
     $first = New-SourceRecord -Index 1 -Title "Article" -SiteName "Site" `
