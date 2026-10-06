@@ -282,13 +282,15 @@ function Start-BrowserTask {
     $verifier = Join-Path $PSScriptRoot "gateway-capture-verifier.ps1"
     $browserRoot = [string]$script:config.browserRoot
     $nodePath = [string]$script:config.nodePath
+    $browserUser = [string]$script:config.browserInteractiveUser
     $job = Start-Job -ScriptBlock {
-        param($HandlerPath, $SerializedTask, $VerifierPath, $BrowserRoot, $NodePath)
+        param($HandlerPath, $SerializedTask, $VerifierPath, $BrowserRoot, $NodePath, $BrowserUser)
         $env:MOBILE_GATEWAY_BROWSER_ROOT = $BrowserRoot
         $env:MOBILE_GATEWAY_NODE_PATH = $NodePath
+        $env:MOBILE_GATEWAY_BROWSER_USER = $BrowserUser
         . $VerifierPath
         Invoke-VerifiedCapture -HandlerPath $HandlerPath -SerializedTask $SerializedTask
-    } -ArgumentList $handler, $taskJson, $verifier, $browserRoot, $nodePath
+    } -ArgumentList $handler, $taskJson, $verifier, $browserRoot, $nodePath, $browserUser
     $script:activeTasks[$task.id] = [pscustomobject]@{
         Task = $task
         LeaseToken = $Claim.lease_token
@@ -333,7 +335,7 @@ function Send-TaskFailure {
         [string]$Code = "gateway_execution_failed"
     )
 
-    if ($Message -match 'QWEN_LOGIN_REQUIRED|QWEN_CHALLENGE_REQUIRED') {
+    if ($Message -match 'QWEN_LOGIN_REQUIRED|QWEN_CHALLENGE_REQUIRED|QWEN_INTERACTIVE_SESSION_REQUIRED') {
         $Code = "gateway_auth_required"
     }
     try {

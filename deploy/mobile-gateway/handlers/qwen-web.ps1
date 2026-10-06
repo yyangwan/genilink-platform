@@ -20,13 +20,26 @@ try {
     $profilePath = Join-Path $browserRoot "profile"
     # Windows PowerShell otherwise throws on the first stderr line and loses
     # the real Playwright exception and native exit code.
-    $savedPreference = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = "Continue"
-        $output = & $nodePath $scriptPath $taskPath $resultPath $profilePath 2>&1
-        $exitCode = $LASTEXITCODE
-    } finally {
-        $ErrorActionPreference = $savedPreference
+    if ($env:MOBILE_GATEWAY_BROWSER_USER) {
+        . (Join-Path (Split-Path $PSScriptRoot -Parent) "gateway-browser-task.ps1")
+        $task = $TaskJson | ConvertFrom-Json
+        $answerTimeout = [int]$task.payload.timeout_seconds
+        if ($answerTimeout -le 0) { $answerTimeout = 420 }
+        $worker = Invoke-InteractiveBrowserCapture -NodePath $nodePath -ScriptPath $scriptPath `
+            -TaskPath $taskPath -ResultPath $resultPath -ProfilePath $profilePath `
+            -UserId $env:MOBILE_GATEWAY_BROWSER_USER `
+            -TimeoutSeconds ([math]::Min(600, [math]::Max(30, $answerTimeout)) + 180)
+        $output = $worker.Output
+        $exitCode = $worker.ExitCode
+    } else {
+        $savedPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            $output = & $nodePath $scriptPath $taskPath $resultPath $profilePath 2>&1
+            $exitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $savedPreference
+        }
     }
     if ($exitCode -ne 0) {
         $diagnosticPath = "$resultPath-error.json"

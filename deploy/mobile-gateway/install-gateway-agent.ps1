@@ -8,7 +8,8 @@ param(
     [string[]]$DeviceSerials = @(),
     [int]$MaxConcurrentTasks = 0,
     [string]$ShareReceiverDeviceSerial = "",
-    [string[]]$ShareReceiverDeviceSerials = @()
+    [string[]]$ShareReceiverDeviceSerials = @(),
+    [string]$BrowserInteractiveUser = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -59,6 +60,11 @@ if (Test-Path -LiteralPath $sourceHandlerRoot) {
         -Destination $handlerRoot `
         -Force
 }
+$browserTaskSource = Join-Path $PSScriptRoot "gateway-browser-task.ps1"
+$browserTaskTarget = Join-Path $root "gateway-browser-task.ps1"
+if ([IO.Path]::GetFullPath($browserTaskSource) -ne [IO.Path]::GetFullPath($browserTaskTarget)) {
+    Copy-Item -LiteralPath $browserTaskSource -Destination $browserTaskTarget -Force
+}
 if (Test-Path -LiteralPath $sourceBrowserRoot) {
     New-Item -ItemType Directory -Path $browserRoot -Force | Out-Null
     foreach ($name in @("package.json", "package-lock.json", "qwen-capture.mjs", "qwen-extract.mjs", "qwen-state.mjs")) {
@@ -80,6 +86,7 @@ if (Test-Path -LiteralPath $sourceBrowserRoot) {
     nodePath = "C:\Program Files\nodejs\node.exe"
     httpClientPath = $httpClientPath
     browserRoot = $browserRoot
+    browserInteractiveUser = $BrowserInteractiveUser
     pollIntervalSeconds = 5
     maxConcurrentTasks = $MaxConcurrentTasks
     shareReceiverDeviceSerials = @($allowedShareSerials)
