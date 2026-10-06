@@ -8,6 +8,12 @@ $logPath = Join-Path $root "logs\gateway-agent.log"
 $statusPath = Join-Path $root "status.json"
 $mutex = [Threading.Mutex]::new($false, "Global\MobileGatewayAgent")
 $script:activeTasks = @{}
+$deviceFailurePath = Join-Path $root "device-failures.json"
+$script:deviceFailures = @()
+if (Test-Path -LiteralPath $deviceFailurePath) {
+    try { $script:deviceFailures = @(Get-Content -LiteralPath $deviceFailurePath -Raw | ConvertFrom-Json) }
+    catch { Write-Warning "Device failure state is unreadable; starting with an empty cooldown list" }
+}
 . (Join-Path $PSScriptRoot "gateway-device-selector.ps1")
 
 if (-not $mutex.WaitOne(0)) {
@@ -169,7 +175,8 @@ function Set-TaskDeviceSerial {
     $configured = @($script:config.deviceSerials | Where-Object { $_ })
     $pool = if ($configured.Count -gt 0) { $configured } else { $online }
     $serial = $null
-    $unavailable = @($BusySerials)
+    $unavailable = @($BusySerials) + @(Get-CaptureExcludedSerials `
+        -Failures $script:deviceFailures -Platform $Task.platform -TaskId $Task.id)
     $previous = $script:lastAssignedDeviceSerial
     $candidateCount = if ($Task.payload.device_serial) { 1 } else { $pool.Count }
     for ($attempt = 0; $attempt -lt $candidateCount; $attempt++) {
@@ -185,6 +192,7 @@ function Set-TaskDeviceSerial {
         if (-not $candidate) {
             break
         }
+        if ($candidate -in $unavailable) { break }
         try {
             Assert-DeviceReady -DeviceSerial $candidate -Platform ([string]$Task.platform)
             $serial = $candidate
@@ -325,12 +333,15 @@ function Send-TaskFailure {
         [string]$Code = "gateway_execution_failed"
     )
 
+    if ($Message -match 'QWEN_LOGIN_REQUIRED|QWEN_CHALLENGE_REQUIRED') {
+        $Code = "gateway_auth_required"
+    }
     try {
         Invoke-GatewayApi -Method Post -Path "/api/device-gateway/tasks/$($Task.id)/fail" -Body @{
             lease_token = $LeaseToken
             error_code = $Code
             error_message = $Message
-            retryable = $Code -ne "handler_not_installed"
+            retryable = $Code -notin @("handler_not_installed", "gateway_auth_required")
             retry_after_seconds = 30
         } | Out-Null
     } catch {
@@ -345,6 +356,7 @@ function Complete-ActiveTask {
     $active = $script:activeTasks[$TaskId]
     $job = $active.Job
     $task = $active.Task
+    $handlerCompleted = $false
     try {
         $captureWarnings = @()
         $output = @(Receive-Job -Job $job -ErrorAction Stop -WarningVariable captureWarnings -WarningAction SilentlyContinue)
@@ -359,6 +371,7 @@ function Complete-ActiveTask {
         $result = Convert-HandlerOutput -Output $output
         . (Join-Path $PSScriptRoot "gateway-capture-verifier.ps1")
         $quality = Test-CaptureResult -Result ([pscustomobject]$result)
+        $handlerCompleted = $true
         Write-AgentLog "quality task=$($task.id) passed=$($quality.Passed) references=$($quality.ReferenceCount) valid_sources=$($quality.ValidSourceCount) completeness=$([math]::Round($quality.Completeness, 4))"
         Invoke-GatewayApi -Method Post -Path "/api/device-gateway/tasks/$($task.id)/complete" -Body @{
             lease_token = $active.LeaseToken
@@ -366,6 +379,23 @@ function Complete-ActiveTask {
         } | Out-Null
         Write-AgentLog "completed task=$($task.id) device=$($active.DeviceSerial)"
     } catch {
+        if ($active.DeviceSerial -and -not $handlerCompleted) {
+            $script:deviceFailures = @($script:deviceFailures | Where-Object {
+                ([datetimeoffset]$_.Until).UtcDateTime -gt [datetime]::UtcNow -or
+                    ([datetimeoffset]$_.TaskUntil).UtcDateTime -gt [datetime]::UtcNow
+            }) + @(New-CaptureDeviceFailure -Serial $active.DeviceSerial `
+                -Platform $task.platform -TaskId $task.id -Message $_.Exception.Message)
+            try {
+                $failureJson = ConvertTo-Json -InputObject @($script:deviceFailures) -Depth 5
+                [IO.File]::WriteAllText("$deviceFailurePath.tmp", $failureJson, [Text.UTF8Encoding]::new($false))
+                if (Test-Path -LiteralPath $deviceFailurePath) {
+                    [IO.File]::Replace("$deviceFailurePath.tmp", $deviceFailurePath, $null)
+                } else {
+                    [IO.File]::Move("$deviceFailurePath.tmp", $deviceFailurePath)
+                }
+                Write-AgentLog "device cooldown device=$($active.DeviceSerial) platform=$($task.platform) task=$($task.id)"
+            } catch { Write-AgentLog "device cooldown persistence failed: $($_.Exception.Message)" }
+        }
         Send-TaskFailure -Task $task -LeaseToken $active.LeaseToken -Message $_.Exception.Message
     } finally {
         Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
@@ -454,11 +484,12 @@ try {
             $online = @(Get-AuthorizedDeviceSerials @(& $adb devices -l 2>$null))
             $configured = @($script:config.deviceSerials | Where-Object { $_ })
             $pool = if ($configured.Count -gt 0) { $configured } else { $online }
+            $globalExcluded = @(Get-CaptureExcludedSerials -Failures $script:deviceFailures)
             $idleDeviceCount = @(
                 Get-IdleDeviceSerials `
                     -ConfiguredSerials $pool `
                     -OnlineSerials $online `
-                    -BusySerials $busySerials
+                    -BusySerials (@($busySerials) + $globalExcluded)
             ).Count
 
             $claimCapabilities = @("gateway.healthcheck")

@@ -28,8 +28,7 @@ function Test-CaptureResult {
         $parsed = $null
         if (
             $source.status -eq "collected" -and
-            ($null -eq $source.PSObject.Properties["url_resolution"] -or
-                $source.url_resolution -eq "exact") -and
+            (-not $source.url_resolution -or $source.url_resolution -eq "exact") -and
             [Uri]::TryCreate($url, [UriKind]::Absolute, [ref]$parsed) -and
             $parsed.Scheme -in @("http", "https") -and
             $parsed.Host
@@ -67,50 +66,63 @@ function Invoke-VerifiedCapture {
     }
     Write-Warning "capture check failed: references=$($firstQuality.ReferenceCount) valid_sources=$($firstQuality.ValidSourceCount) completeness=$([math]::Round($firstQuality.Completeness, 4))"
 
-    $task = $SerializedTask | ConvertFrom-Json
-    $createdAt = [datetimeoffset]::MinValue
-    if ($task.created_at) {
-        $styles = [Globalization.DateTimeStyles]::AssumeUniversal -bor
-            [Globalization.DateTimeStyles]::AdjustToUniversal
-        [datetimeoffset]::TryParse(
-            [string]$task.created_at,
-            [Globalization.CultureInfo]::InvariantCulture,
-            $styles,
-            [ref]$createdAt
-        ) | Out-Null
-    }
-    $ageSeconds = if ($createdAt -eq [datetimeoffset]::MinValue) {
-        0
-    } else {
-        ([datetimeoffset]::UtcNow - $createdAt).TotalSeconds
-    }
-    if ($ageSeconds -ge $RetryWindowSeconds) {
-        Write-Warning "second capture skipped: task age $([math]::Round($ageSeconds))s exceeds retry window ${RetryWindowSeconds}s"
-        return $first
-    }
-
-    try {
-        $task.id = "$($task.id)-verify-2"
-        $retryTaskJson = $task | ConvertTo-Json -Depth 30 -Compress
-        $retry = Convert-CaptureResult -Output @(& $HandlerPath -TaskJson $retryTaskJson)
-        $retryQuality = Test-CaptureResult -Result $retry
-        Write-Warning "second capture checked: references=$($retryQuality.ReferenceCount) valid_sources=$($retryQuality.ValidSourceCount) completeness=$([math]::Round($retryQuality.Completeness, 4))"
-        if (-not $firstQuality.AnswerPresent -and $retryQuality.AnswerPresent) {
-            return $retry
-        }
-        if (
-            $retryQuality.AnswerPresent -and
-            $retryQuality.ValidSourceCount -gt $firstQuality.ValidSourceCount
-        ) {
-            return $retry
-        }
-        if ($retryQuality.AnswerPresent -and
-            $retryQuality.ValidSourceCount -eq $firstQuality.ValidSourceCount -and
-            $retryQuality.Completeness -gt $firstQuality.Completeness) {
-            return $retry
-        }
-    } catch {
-        Write-Warning "Second capture failed; retaining first result: $($_.Exception.Message)"
-    }
+    Write-Warning "partial result retained; source-only retries run inside the collector, never replay the prompt"
     return $first
+}
+
+function Invoke-SourceCollectionRetry {
+    param([Parameter(Mandatory)][scriptblock]$Collect,
+        [int]$MaxAttempts = 2, [int]$RetryWindowSeconds = 1800)
+    $started = [datetime]::UtcNow
+    $result = & $Collect -KnownSources @()
+    $records = @{}
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        foreach ($record in @($result.sources)) {
+            $key = [string]$record.index
+            if (-not $key) { throw "Source-only retry requires stable source indices" }
+            $existing = $records[$key]
+            $recordQuality = Test-CaptureResult -Result ([pscustomobject]@{
+                answer = 'source'; reference_count = 1; sources = @($record)
+            })
+            $existingQuality = if ($existing) {
+                Test-CaptureResult -Result ([pscustomobject]@{
+                    answer = 'source'; reference_count = 1; sources = @($existing)
+                })
+            } else { $null }
+            if (-not $existing -or (-not $existingQuality.Passed -and $recordQuality.Passed -and
+                (-not $existing.title -or -not $record.title -or $existing.title -eq $record.title))) {
+                $records[$key] = $record
+            }
+        }
+        $result.sources = @($records.Values | Sort-Object { [int]$_.index })
+        $result.reference_count = [math]::Max([int]$result.reference_count, $result.sources.Count)
+        $quality = Test-CaptureResult -Result ([pscustomobject]@{
+            answer = 'source'; reference_count = $result.reference_count; sources = $result.sources
+        })
+        Write-Warning "source-only check attempt=$attempt references=$($result.reference_count) valid_sources=$($quality.ValidSourceCount) completeness=$([math]::Round($quality.Completeness,4))"
+        if ($quality.Passed -or $attempt -ge $MaxAttempts -or
+            ([datetime]::UtcNow - $started).TotalSeconds -ge $RetryWindowSeconds) { break }
+        try {
+            $retry = & $Collect -KnownSources @($records.Values)
+            $retry.reference_count = [math]::Max([int]$result.reference_count, [int]$retry.reference_count)
+            $result = $retry
+        } catch {
+            Write-Warning "source-only retry failed; keeping collected sources: $($_.Exception.Message)"
+            break
+        }
+    }
+    return $result
+}
+
+function Find-KnownSourceRecord {
+    param([object[]]$Records, [int]$Index, [string]$Title)
+    foreach ($record in $Records) {
+        if ([int]$record.index -eq $Index -and $Title -and $record.title -eq $Title) {
+            $quality = Test-CaptureResult -Result ([pscustomobject]@{
+                answer='source'; reference_count=1; sources=@($record)
+            })
+            if ($quality.Passed) { return $record }
+        }
+    }
+    return $null
 }

@@ -8,6 +8,7 @@
 
 $ErrorActionPreference = "Stop"
 . (Join-Path (Split-Path $PSScriptRoot -Parent) "gateway-share-receiver.ps1")
+. (Join-Path (Split-Path $PSScriptRoot -Parent) "gateway-capture-verifier.ps1")
 $appiumBaseUrl = "http://127.0.0.1:4723"
 $elementKey = "element-6066-11e4-a52e-4f735466cecf"
 $resultRoot = "C:\ProgramData\MobileGateway\results"
@@ -433,9 +434,18 @@ function Ensure-AndroidDeviceUnlocked {
             throw "Could not wake Android device $script:deviceSerial"
         }
         Start-Sleep -Milliseconds 700
-        $source = Get-PageSource -SessionId $SessionId
-        if ($source -notmatch 'com\.android\.systemui:id/keyguard_lock_screen_panel') {
+        # Check the window service before touching accessibility: a residual
+        # source browser can crash the hierarchy dumper even when unlocked.
+        $windowState = (& adb -s $script:deviceSerial shell dumpsys window | Out-String)
+        $lockStates = @([regex]::Matches($windowState,
+            '(?:mDreamingLockscreen|isStatusBarKeyguard|mShowingLockscreen)=(true|false)'))
+        if ($LASTEXITCODE -eq 0 -and $lockStates.Count -gt 0 -and
+            @($lockStates | Where-Object { $_.Groups[1].Value -eq 'true' }).Count -eq 0) {
             return
+        }
+        if ($lockStates.Count -eq 0) {
+            $source = Get-PageSource -SessionId $SessionId
+            if ($source -notmatch 'com\.android\.systemui:id/keyguard_lock_screen_panel') { return }
         }
         & adb -s $script:deviceSerial shell input swipe 540 1900 540 500 300 |
             Out-Null
@@ -2302,7 +2312,8 @@ function Resolve-YuanbaoSourceUrl {
 function Get-DeepSeekSources {
     param(
         [Parameter(Mandatory)][string]$SessionId,
-        [Parameter(Mandatory)][int]$ReferenceCount
+        [Parameter(Mandatory)][int]$ReferenceCount,
+        [object[]]$KnownSources = @()
     )
 
     $collected = @{}
@@ -2320,6 +2331,13 @@ function Get-DeepSeekSources {
             -ReferenceCount $ReferenceCount `
             -ErrorMessage $_.Exception.Message
     }
+    $alreadyOpen = $answerDocument.OuterXml -match 'text="搜索结果"'
+    if ($alreadyOpen -and $KnownSources.Count) {
+        for ($scroll = 0; $scroll -lt 10; $scroll++) {
+            & adb -s $script:deviceSerial shell input swipe 540 700 540 1850 250 | Out-Null
+        }
+    }
+    if (-not $alreadyOpen) {
     $markerNode = $answerDocument.SelectSingleNode(
         "//*[@text='$ReferenceCount 个网页' or @text='已阅读 $ReferenceCount 个网页']"
     )
@@ -2341,6 +2359,7 @@ function Get-DeepSeekSources {
             -ErrorMessage "ADB failed to open the DeepSeek source panel"
     }
     Start-Sleep -Seconds 1
+    }
     $panelError = "Source was not visible before collection ended"
     $stalls = 0
     while ($collected.Count -lt $ReferenceCount -and $stalls -lt 5) {
@@ -2391,6 +2410,14 @@ function Get-DeepSeekSources {
             }
             $siteName = $filtered[0]
             $title = $filtered[1]
+            $known = if ($KnownSources.Count) {
+                Find-KnownSourceRecord -Records $KnownSources -Index $ordinal -Title $title
+            } else { $null }
+            if ($known) {
+                $collected[[string]$ordinal] = $known
+                $processed = $true
+                continue
+            }
             $expectedHost = Get-DeepSeekExpectedHost -SiteName $siteName
             $bounds = Get-Bounds -Node $item
             if (-not $bounds) {
@@ -2849,7 +2876,8 @@ function Get-QwenResearchSourceTitles {
 function Get-PanelSources {
     param(
         [Parameter(Mandatory)][string]$SessionId,
-        [Parameter(Mandatory)][int]$ReferenceCount
+        [Parameter(Mandatory)][int]$ReferenceCount,
+        [object[]]$KnownSources = @()
     )
 
     if ($Platform -eq "qwen" -and $ReferenceCount -lt 1) {
@@ -2858,7 +2886,10 @@ function Get-PanelSources {
             sources = @()
         }
     }
-    if ($Platform -eq "yuanbao") {
+    $currentSource = Get-PageSource -SessionId $SessionId
+    if ($Platform -eq "yuanbao" -and $currentSource -match 'text="引用来源\s*\d+"') {
+        Write-GatewayTrace "reusing current source panel for source-only retry"
+    } elseif ($Platform -eq "yuanbao") {
         Write-GatewayTrace "source marker lookup"
         $answerDocument = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
         $markerNode = $answerDocument.SelectSingleNode(
@@ -2942,6 +2973,10 @@ function Get-PanelSources {
             -ReferenceCount $ReferenceCount)
         $resolved = @()
         foreach ($catalogItem in $catalog) {
+            $known = if ($KnownSources.Count) {
+                Find-KnownSourceRecord -Records $KnownSources -Index $catalogItem.index -Title $catalogItem.title
+            } else { $null }
+            if ($known) { $resolved += $known; continue }
             $record = New-SourceRecord `
                 -Index $catalogItem.index `
                 -Title $catalogItem.title `
@@ -3707,7 +3742,8 @@ function Resolve-KimiInlineSearchFallback {
 function Get-KimiInlineSources {
     param(
         [Parameter(Mandatory)][string]$SessionId,
-        [Parameter(Mandatory)][int]$ReferenceCount
+        [Parameter(Mandatory)][int]$ReferenceCount,
+        [object[]]$KnownSources = @()
     )
 
     if ($ReferenceCount -lt 1) { return @() }
@@ -3729,6 +3765,10 @@ function Get-KimiInlineSources {
         return @($records.ToArray())
     }
     foreach ($item in $catalog) {
+        $known = if ($KnownSources.Count) {
+            Find-KnownSourceRecord -Records $KnownSources -Index ($records.Count + 1) -Title $item.title
+        } else { $null }
+        if ($known) { $records.Add($known); continue }
         $record = New-SourceRecord `
             -Index ($records.Count + 1) `
             -Title $item.title `
@@ -3912,33 +3952,40 @@ try {
     $answerCompletedAt = Get-Date
 
     $sourceCollectionStartedAt = Get-Date
+    $sourceCollection = Invoke-SourceCollectionRetry -Collect {
+    param([object[]]$KnownSources)
     $panelCollection = $null
-    $sources = switch ($Platform) {
+    $collectedSources = switch ($Platform) {
         "deepseek" {
             @(Get-DeepSeekSources `
                 -SessionId $sessionId `
-                -ReferenceCount $answerInfo.reference_count)
+                -ReferenceCount $answerInfo.reference_count -KnownSources $KnownSources)
         }
         { $_ -in @("yuanbao", "qwen") } {
             $panelCollection = Get-PanelSources `
                 -SessionId $sessionId `
-                -ReferenceCount $answerInfo.reference_count
+                -ReferenceCount $answerInfo.reference_count -KnownSources $KnownSources
             @($panelCollection.sources)
         }
         "kimi" {
             @(Get-KimiInlineSources `
                 -SessionId $sessionId `
-                -ReferenceCount $answerInfo.reference_count)
+                -ReferenceCount $answerInfo.reference_count -KnownSources $KnownSources)
         }
     }
-    $sourceCollectionCompletedAt = Get-Date
-    Write-GatewayTrace "sources complete count=$(@($sources).Count)"
+    $count = [int]$answerInfo.reference_count
     if ($Platform -in @("yuanbao", "qwen") -and $panelCollection) {
-        $answerInfo.reference_count = [int]$panelCollection.reference_count
+        $count = [int]$panelCollection.reference_count
     } elseif ($Platform -eq "kimi") {
         # Inline cards, not the much larger search candidate list, define citations.
-        $answerInfo.reference_count = @($sources).Count
+        $count = @($collectedSources).Count
     }
+    @{ reference_count = $count; sources = @($collectedSources) }
+    }
+    $sources = @($sourceCollection.sources)
+    $answerInfo.reference_count = [int]$sourceCollection.reference_count
+    $sourceCollectionCompletedAt = Get-Date
+    Write-GatewayTrace "sources complete count=$(@($sources).Count)"
     if (
         $answerInfo.reference_count -gt 0 -and
         @($sources).Count -ne [int]$answerInfo.reference_count
