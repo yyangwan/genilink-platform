@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import { chromium } from 'playwright-core';
 import { extractQwenResult } from './qwen-extract.mjs';
 import { readQwenPageState, advanceQwenAnswer } from './qwen-state.mjs';
+import { collectQwenSources } from './qwen-sources.mjs';
 
 const [taskPath, resultPath, profilePath, browserMode = 'headless'] = process.argv.slice(2);
 const task = JSON.parse(await fs.readFile(taskPath, 'utf8'));
@@ -55,21 +56,7 @@ try {
     if (!clicked) break;
     await page.waitForTimeout(100);
   }
-  const snapshot = await page.evaluate(() => {
-    const markdown = [...document.querySelectorAll('.qk-markdown-react')].at(-1);
-    let region = markdown?.parentElement;
-    while (region && region !== document.body && !/已完成分析.*参考|已完成思考.*参考|\d+\s*篇来源/s.test(region.innerText)) {
-      region = region.parentElement;
-    }
-    const referenceTexts = [...(region || document).querySelectorAll('span')].map(span => span.textContent || '');
-    const referenceCount = Math.max(0, ...referenceTexts.map(text => Number(text.match(/共参考\s*(\d+)\s*篇资料/)?.[1] || text.match(/参考\s*(\d+)\s*篇资料/)?.[1] || text.match(/(\d+)\s*篇来源/)?.[1] || 0)));
-    const links = [...(region || document).querySelectorAll('a[href]')].map(anchor => ({
-      url: anchor.href,
-      title: anchor.innerText,
-      siteName: anchor.hostname,
-    }));
-    return { answer: markdown?.innerText || '', referenceCount, links };
-  });
+  const snapshot = await collectQwenSources(page);
   snapshot.sourceCollectionDurationMs = Date.now() - sourcesStarted;
   const result = extractQwenResult(snapshot);
   result.duration_ms = Date.now() - started;

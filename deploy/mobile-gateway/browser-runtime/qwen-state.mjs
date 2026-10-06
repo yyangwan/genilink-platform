@@ -1,7 +1,7 @@
 // This function is also evaluated in the browser; keep it self-contained.
 export function readQwenPageState() {
   const visible = element => !!element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden';
-  const buttons = [...document.querySelectorAll('button')].filter(visible);
+  const buttons = [...document.querySelectorAll('button, [role="button"]')].filter(visible);
   const loginRequired = buttons.some(button => button.getAttribute('aria-label') === '关闭登录');
   const dialogs = [...document.querySelectorAll('[role="dialog"], [role="alert"]')].filter(visible).map(n => n.innerText).join('\n');
   const verificationFrame = [...document.querySelectorAll('iframe')].some(frame =>
