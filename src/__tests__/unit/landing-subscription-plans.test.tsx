@@ -26,6 +26,6 @@ describe('LandingSubscriptionPlans', () => {
     expect(screen.getByRole('heading', { name: '定制方案' })).toBeTruthy();
     expect(screen.getByText('托管运营，按结果付费')).toBeTruthy();
     expect(screen.getByText('私有化部署')).toBeTruthy();
-    expect(screen.getByRole('link', { name: /联系客服定制/ }).getAttribute('href')).toMatch(/^mailto:support@genilink\.cn/);
+    expect(screen.getByRole('link', { name: /联系客服定制/ }).getAttribute('href')).toBe('#contact');
   });
 });

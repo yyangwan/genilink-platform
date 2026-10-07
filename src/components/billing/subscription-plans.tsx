@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowRight, BookOpenText, Check, Headphones, ShieldCheck, X } from 'lucide-react';
 import type { BillingCycle, SubscriptionTier } from '@/types/billing';
 import { SUBSCRIPTION_PLAN_MATRIX, SUBSCRIPTION_TIERS, getTierDefinition } from '@/lib/billing/tiers';
-import { CUSTOM_PLAN_CONTACT_HREF, CUSTOM_SUBSCRIPTION_PLAN } from '@/lib/billing/custom-plan';
+import { CUSTOM_SUBSCRIPTION_PLAN } from '@/lib/billing/custom-plan';
 import { formatSubscriptionPrice, type SubscriptionPlanView } from './subscription-plan-content';
 import styles from './subscription-plans.module.css';
 
@@ -156,11 +156,11 @@ export function LandingSubscriptionPlans({
             <li key={feature}><Check size={16} /><span>{feature}</span></li>
           ))}
         </ul>
-        <Link className={styles.customCta} href={CUSTOM_PLAN_CONTACT_HREF}>
+        <a className={styles.customCta} href="#contact">
           <Headphones size={17} />
           联系客服定制
           <ArrowRight size={16} />
-        </Link>
+        </a>
       </article>
 
       <div className={styles.guideCallout}>

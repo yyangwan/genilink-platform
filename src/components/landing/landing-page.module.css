@@ -28,6 +28,95 @@
   color: var(--text-primary);
 }
 
+.heroContact {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  text-decoration: none;
+}
+
+.heroContact svg { flex-shrink: 0; color: var(--color-primary); }
+.heroContact:hover { color: var(--text-primary); }
+
+.contactBand {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  align-items: center;
+  gap: 64px;
+  width: min(1320px, calc(100% - 32px));
+  margin: 24px auto 72px;
+  padding: clamp(24px, 4vw, 56px);
+  border: 1px solid rgba(255, 159, 45, 0.2);
+  border-radius: 24px;
+  background: radial-gradient(ellipse at top left, rgba(255, 159, 45, 0.1), transparent 65%), var(--bg-card);
+  scroll-margin-top: 96px;
+}
+
+.contactEyebrow,
+.contactEmail,
+.contactDownload {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-primary);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.contactCopy h2 {
+  max-width: 640px;
+  margin: 18px 0;
+  font-family: var(--font-display);
+  font-size: clamp(28px, 3vw, 42px);
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+
+.contactCopy > p {
+  max-width: 560px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.9;
+}
+
+.contactTopics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 24px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contactTopics li {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.contactQrCard { display: grid; justify-items: center; gap: 12px; text-align: center; }
+.contactQrLink { display: block; width: min(280px, 100%); border-radius: 12px; overflow: hidden; background: #fff; }
+.contactQrImage { display: block; width: 100%; height: auto; }
+.contactQrCard strong { font-size: 14px; }
+.contactQrCard p { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.7; }
+.contactEmail:hover,
+.contactDownload:hover { text-decoration: underline; text-underline-offset: 4px; }
+.heroContact:focus-visible,
+.contactBand a:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 5px; }
+
+@media (max-width: 760px) {
+  .contactBand { grid-template-columns: minmax(0, 1fr); gap: 32px; margin-bottom: 44px; }
+  .heroContact { font-size: 12px; }
+  .contactEmail { overflow-wrap: anywhere; }
+}
+
 .nav {
   position: sticky;
   top: 0;
