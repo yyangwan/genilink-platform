@@ -15,6 +15,7 @@ import {
   Globe2,
   LineChart,
   Menu,
+  MessageCircle,
   Pause,
   Play,
   Radar,
@@ -307,6 +308,7 @@ export function LandingPage() {
             <a href="#pricing" onClick={() => setMobileNavOpen(false)}>订阅方案</a>
             <a href="#questions" onClick={() => setMobileNavOpen(false)}>常见问题</a>
             <Link href="/blog" onClick={() => setMobileNavOpen(false)}>知识普及</Link>
+            <a href="#contact" onClick={() => setMobileNavOpen(false)}>咨询客服</a>
             <Link href={loginHref} className={styles.mobileLogin} onClick={() => setMobileNavOpen(false)}>
               登录平台
             </Link>
@@ -369,6 +371,12 @@ export function LandingPage() {
             {error ? <p className={styles.errorText}>{error}</p> : null}
             <p className={styles.formNote}>提交官网后注册/登录，即可体验基础网站分析，查看官网被 AI 理解和引用的准备情况。</p>
           </form>
+
+          <a href="#contact" className={styles.heroContact}>
+            <MessageCircle size={16} aria-hidden="true" />
+            想先了解适合你的方案？咨询微信客服
+            <ArrowRight size={14} aria-hidden="true" />
+          </a>
 
           <div className={styles.heroStats} aria-label="平台能力摘要">
             <span>
@@ -471,6 +479,28 @@ export function LandingPage() {
         </div>
       </section>
 
+      <section id="contact" className={styles.contactBand} aria-labelledby="contact-title">
+        <div className={styles.contactCopy}>
+          <span className={styles.contactEyebrow}><MessageCircle size={18} aria-hidden="true" />微信客服 · 咨询与支持</span>
+          <h2 id="contact-title">找到适合你的 AI 搜索增长方案</h2>
+          <p>不确定从哪里开始？扫码联系智链客服，聊聊你的品牌、官网和增长目标，一起明确下一步。</p>
+          <ul className={styles.contactTopics}>
+            <li>产品功能与使用指导</li>
+            <li>套餐选择与团队需求</li>
+            <li>企业合作与定制咨询</li>
+          </ul>
+          <a href="mailto:support@genilink.cn" className={styles.contactEmail}>邮件联系：support@genilink.cn<ArrowUpRight size={14} aria-hidden="true" /></a>
+        </div>
+        <div className={styles.contactQrCard}>
+          <a href="/landing/customer-service-wechat.png" target="_blank" rel="noopener noreferrer" aria-label="查看智链微信客服二维码大图" className={styles.contactQrLink}>
+            <Image src="/landing/customer-service-wechat.png" alt="智链微信客服二维码，使用微信扫一扫咨询客服" width={1086} height={1360} unoptimized className={styles.contactQrImage} />
+          </a>
+          <strong>微信扫一扫，联系智链客服</strong>
+          <p>手机访问可查看大图，长按保存后在微信中识别。</p>
+          <a href="/landing/customer-service-wechat.png" download="智链微信客服二维码.png" className={styles.contactDownload}>保存客服二维码<ArrowRight size={14} aria-hidden="true" /></a>
+        </div>
+      </section>
+
       <footer id="questions" className={styles.footer}>
         <div className={styles.footerLead}>
           <BrandLockup />
@@ -492,7 +522,8 @@ export function LandingPage() {
             <Link href="/blog">知识文章</Link>
             <Link href="/pricing-guide">套餐权益说明</Link>
             <Link href="/support">帮助支持</Link>
-            <a href="mailto:support@genilink.cn">联系我们</a>
+            <a href="#contact">微信客服</a>
+            <a href="mailto:support@genilink.cn">邮件联系</a>
           </div>
           <div>
             <strong>条款</strong>
@@ -502,7 +533,6 @@ export function LandingPage() {
         </div>
         <div className={styles.footerBottom}>
           <span>© 2026 GeniLink 智链</span>
-          <span className={styles.serviceStatus}><i />平台服务正常</span>
           <span>为个人与规模化团队打造</span>
         </div>
       </footer>
