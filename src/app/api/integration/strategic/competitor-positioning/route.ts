@@ -1,15 +1,3 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
+import { retiredVisibilityEndpoint } from '@/lib/visibility/retired-endpoint';
 
-export async function GET(req: NextRequest) {
-  const result = await resolveGuard(req, { capability: 'competitorPositioning' });
-  if (!result.ok) return result.response;
-
-  const upstream = await fetchUpstream(
-    result.ctx,
-    `/api/strategic/projects/${result.ctx.projectId}/competitor-positioning`,
-    { errorMessage: 'Failed to fetch competitor positioning' },
-  );
-  if ('response' in upstream) return upstream.response;
-  return NextResponse.json(upstream.data);
-}
+export async function GET() { return retiredVisibilityEndpoint('/compare'); }

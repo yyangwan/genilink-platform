@@ -230,6 +230,9 @@ describe('reconcilePendingUsage（设计 §12.5 五分支）', () => {
 
     const decisions = await reconcilePendingUsage({ lookup: async () => ({ found: false }) });
     expect(decisions).toEqual([{ operationId: OP, action: 'released' }]);
+    expect(prisma.usageEvent.findMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      where: expect.objectContaining({ feature: 'content_generation' }),
+    }));
   });
 
   it('commits when ContentOS reports usage committed', async () => {

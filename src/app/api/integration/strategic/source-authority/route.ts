@@ -1,18 +1,3 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
+import { retiredVisibilityEndpoint } from '@/lib/visibility/retired-endpoint';
 
-export async function GET(req: NextRequest) {
-  const result = await resolveGuard(req, { capability: 'sourceAuthority' });
-  if (!result.ok) return result.response;
-
-  const auditId = req.nextUrl.searchParams.get('auditId');
-  const qs = auditId ? `?audit_id=${auditId}` : '';
-
-  const upstream = await fetchUpstream(
-    result.ctx,
-    `/api/strategic/projects/${result.ctx.projectId}/source-authority-trends${qs}`,
-    { errorMessage: 'Failed to fetch source authority trends' },
-  );
-  if ('response' in upstream) return upstream.response;
-  return NextResponse.json(upstream.data);
-}
+export async function GET() { return retiredVisibilityEndpoint('/strategic'); }

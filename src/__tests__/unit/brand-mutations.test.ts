@@ -1,0 +1,16 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@/lib/db', () => ({ prisma: { $transaction: vi.fn() } }));
+vi.mock('@/lib/billing/access', () => ({ hasBrandCapacity: vi.fn() }));
+vi.mock('@/lib/proxy/route-guard', () => ({ fetchUpstream: vi.fn() }));
+import { prisma } from '@/lib/db';
+import { hasBrandCapacity } from '@/lib/billing/access';
+import { mutateRegisteredBrand } from '@/lib/visibility/brand-mutations';
+const actor = { workspaceId: 'workspace', userId: 'actor' };
+const tx = { workspaceMember: { findUnique: vi.fn() }, $queryRaw: vi.fn(), brand: { findFirst: vi.fn(), update: vi.fn() }, projectBrand: { findMany: vi.fn() }, projectIntelligenceContext: { findUnique: vi.fn(), upsert: vi.fn() }, projectContextOutbox: { create: vi.fn() } };
+describe('registered brand context propagation', () => {
+  beforeEach(() => { vi.resetAllMocks(); vi.mocked(prisma.$transaction).mockImplementation(async fn => (fn as unknown as (db: typeof tx) => Promise<unknown>)(tx) as never); tx.workspaceMember.findUnique.mockResolvedValue({ role: 'editor' }); tx.$queryRaw.mockResolvedValue([{ id: 'owned' }]); tx.brand.findFirst.mockResolvedValue({ id: 'brand', isCompetitor: false }); tx.projectBrand.findMany.mockImplementation(async args => args.where.brandId ? [{ projectId: 'p1' }, { projectId: 'p2' }] : []); tx.projectIntelligenceContext.findUnique.mockResolvedValue({ version: 2, contentHash: 'old' }); tx.projectIntelligenceContext.upsert.mockImplementation(async input => input.update); vi.mocked(hasBrandCapacity).mockResolvedValue(true); });
+  it('freezes every affected project in the same brand mutation transaction', async () => { const result = await mutateRegisteredBrand(actor, 'brand', { name: '新名' }); expect(result.projectIds).toEqual(['p1', 'p2']); expect(tx.projectContextOutbox.create).toHaveBeenCalledTimes(2); expect(tx.brand.update).toHaveBeenCalledWith({ where: { id: 'brand' }, data: { name: '新名' } }); expect(prisma.$transaction).toHaveBeenCalledOnce(); });
+  it('preserves associations and sends empty project snapshots for a soft deletion', async () => { await mutateRegisteredBrand(actor, 'brand', {}, true); expect(tx.brand.update).toHaveBeenCalledWith({ where: { id: 'brand' }, data: { deletedAt: expect.any(Date) } }); expect(tx.projectContextOutbox.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ snapshot: { version: 3, brands: [] } }) })); });
+  it('rejects a category change if the target registration quota is full', async () => { vi.mocked(hasBrandCapacity).mockResolvedValue(false); await expect(mutateRegisteredBrand(actor, 'brand', { isCompetitor: true })).rejects.toMatchObject({ status: 402 }); expect(tx.brand.update).not.toHaveBeenCalled(); expect(tx.projectContextOutbox.create).not.toHaveBeenCalled(); });
+  it('rejects viewers and missing brands before mutation', async () => { tx.workspaceMember.findUnique.mockResolvedValue({ role: 'viewer' }); await expect(mutateRegisteredBrand(actor, 'brand', {})).rejects.toMatchObject({ status: 403 }); tx.workspaceMember.findUnique.mockResolvedValue({ role: 'owner' }); tx.brand.findFirst.mockResolvedValue(null); await expect(mutateRegisteredBrand(actor, 'brand', {})).rejects.toMatchObject({ status: 404 }); expect(tx.brand.update).not.toHaveBeenCalled(); });
+});

@@ -261,6 +261,9 @@ export async function reconcilePendingUsage(params: {
 
   const pending = await prisma.usageEvent.findMany({
     where: {
+      // This lookup belongs to ContentOS. Visibility reservations must never be
+      // released because ContentOS has no workflow for a sampling audit.
+      feature: 'content_generation',
       status: { in: [USAGE_STATUS.reserved, USAGE_STATUS.pendingReconcile] },
       operationId: { not: null },
       createdAt: { lt: new Date(now.getTime() - RECONCILE_AFTER_MS) },

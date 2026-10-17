@@ -76,13 +76,14 @@ const zhijianSection: NavSection = {
     { label: "趋势分析", href: "/trends", icon: TrendingUp },
     { label: "竞品对比", href: "/compare", icon: GitCompareArrows },
     { label: "内容洞察", href: "/insights", icon: BarChart3 },
+    { label: "证据分析", href: "/intelligence", icon: FileText },
     { label: "战略智能", href: "/strategic", icon: Target },
     { label: "网站分析", href: "/website-analysis", icon: Globe2 },
   ],
 };
 
-const zhijianWorkflowItems = zhijianSection.items.slice(0, 8);
-const zhijianToolItems = zhijianSection.items.slice(8);
+const zhijianWorkflowItems = zhijianSection.items.slice(0, 9);
+const zhijianToolItems = zhijianSection.items.slice(9);
 
 const zhichuangSection: NavSection = {
   id: "zhichuang",

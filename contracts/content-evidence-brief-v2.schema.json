@@ -1,0 +1,337 @@
+{
+  "$defs": {
+    "CaptureConditions": {
+      "additionalProperties": false,
+      "properties": {
+        "searchMode": {
+          "default": "unknown",
+          "enum": [
+            "enabled",
+            "disabled",
+            "unknown"
+          ],
+          "title": "Searchmode",
+          "type": "string"
+        },
+        "modelVersion": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modelversion"
+        },
+        "accountClass": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Accountclass"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location"
+        }
+      },
+      "title": "CaptureConditions",
+      "type": "object"
+    },
+    "DraftAuthorization": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "scope": {
+          "const": "content_draft",
+          "enum": [
+            "content_draft"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "signature": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Signature",
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "title": "Expiresat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "scope",
+        "signature",
+        "expiresAt"
+      ],
+      "title": "DraftAuthorization",
+      "type": "object"
+    },
+    "DraftExecution": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "enum": [
+            "wechat",
+            "weibo",
+            "xiaohongshu",
+            "douyin",
+            "website",
+            "zhihu",
+            "toutiao"
+          ],
+          "title": "Channel",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "generate_draft",
+            "manual_task"
+          ],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel",
+        "mode"
+      ],
+      "title": "DraftExecution",
+      "type": "object"
+    },
+    "DraftFact": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "entityId": {
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "statement": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "scope": {
+          "maxLength": 1000,
+          "minLength": 5,
+          "title": "Scope",
+          "type": "string"
+        },
+        "validFrom": {
+          "format": "date-time",
+          "title": "Validfrom",
+          "type": "string"
+        },
+        "validUntil": {
+          "format": "date-time",
+          "title": "Validuntil",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/FactSource"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "entityId",
+        "statement",
+        "scope",
+        "validFrom",
+        "validUntil",
+        "source"
+      ],
+      "title": "DraftFact",
+      "type": "object"
+    },
+    "DraftTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "platform": {
+          "enum": [
+            "qwen",
+            "deepseek",
+            "doubao",
+            "kimi",
+            "hunyuan"
+          ],
+          "title": "Platform",
+          "type": "string"
+        },
+        "promptHash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Prompthash",
+          "type": "string"
+        },
+        "prompt": {
+          "maxLength": 5000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "conditions": {
+          "$ref": "#/$defs/CaptureConditions"
+        }
+      },
+      "required": [
+        "platform",
+        "promptHash",
+        "prompt"
+      ],
+      "title": "DraftTarget",
+      "type": "object"
+    },
+    "FactSource": {
+      "additionalProperties": false,
+      "properties": {
+        "citationId": {
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Citationid",
+          "type": "string"
+        },
+        "snapshotId": {
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Snapshotid",
+          "type": "string"
+        },
+        "url": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^https?://",
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "citationId",
+        "snapshotId",
+        "url"
+      ],
+      "title": "FactSource",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 2,
+      "enum": [
+        2
+      ],
+      "title": "Schemaversion",
+      "type": "integer"
+    },
+    "projectId": {
+      "maxLength": 50,
+      "minLength": 1,
+      "title": "Projectid",
+      "type": "string"
+    },
+    "runId": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Runid",
+      "type": "string"
+    },
+    "actionId": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Actionid",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 200,
+      "minLength": 5,
+      "title": "Title",
+      "type": "string"
+    },
+    "execution": {
+      "$ref": "#/$defs/DraftExecution"
+    },
+    "aiTargets": {
+      "items": {
+        "$ref": "#/$defs/DraftTarget"
+      },
+      "maxItems": 5,
+      "minItems": 1,
+      "title": "Aitargets",
+      "type": "array"
+    },
+    "facts": {
+      "items": {
+        "$ref": "#/$defs/DraftFact"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Facts",
+      "type": "array"
+    },
+    "approval": {
+      "$ref": "#/$defs/DraftAuthorization"
+    },
+    "publicationAllowed": {
+      "const": false,
+      "enum": [
+        false
+      ],
+      "title": "Publicationallowed",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "projectId",
+    "runId",
+    "actionId",
+    "title",
+    "execution",
+    "aiTargets",
+    "facts",
+    "approval",
+    "publicationAllowed"
+  ],
+  "title": "EvidenceBriefV2",
+  "type": "object",
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

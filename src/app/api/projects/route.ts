@@ -96,10 +96,11 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Auto-create own brand if brandName provided (outside transaction — HTTP sync is non-deterministic)
+  let brandConfigurationPending = false;
+  // Brand, association and context commit together; project creation remains independently successful.
   if (brandName?.trim()) {
-    await createBrandForProject(brandName, project.id, workspaceId);
+    brandConfigurationPending = !await createBrandForProject(brandName, project.id, workspaceId, session.user.id);
   }
 
-  return NextResponse.json({ project }, { status: 201 });
+  return NextResponse.json({ project, brandConfigurationPending }, { status: 201 });
 }

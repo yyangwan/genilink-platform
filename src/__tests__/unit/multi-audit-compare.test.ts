@@ -1,151 +1,23 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NextRequest } from 'next/server';
-import { GET as getAuditsHistory } from '@/app/api/integration/trends/audits-history/route';
-import { POST as compareAudits } from '@/app/api/integration/strategic/compare-audits/route';
-
-// Mock auth & workspace
-vi.mock('@/lib/auth/config', () => ({
-  auth: vi.fn().mockResolvedValue({ user: { id: 'user-1' } }),
-}));
-vi.mock('@/lib/auth/get-workspace', () => ({
-  getWorkspaceId: vi.fn().mockResolvedValue('ws-1'),
-}));
-vi.mock('@/lib/auth/workspace', () => ({
-  verifyProjectInWorkspace: vi.fn().mockResolvedValue({ id: 'proj-1' }),
-  getWorkspaceRole: vi.fn().mockResolvedValue('owner'),
-}));
-vi.mock('@/lib/billing/guard', () => ({
-  requireBilling: vi.fn().mockResolvedValue({
-    capabilities: { trendHistoryDays: 365, strategicIntelligence: 'basic' },
-  }),
-  requireBillingCapability: vi.fn(),
-  BillingError: class extends Error {},
-  BillingCapabilityError: class extends Error {},
-}));
-vi.mock('@/lib/auth/service-jwt', () => ({
-  issueVisibilityProjectJWT: vi.fn().mockResolvedValue('project-jwt'),
-  issueVisibilityWorkspaceJWT: vi.fn().mockResolvedValue('workspace-jwt'),
-}));
-
-const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
-
-const makeReq = (url: string, init?: RequestInit) => new NextRequest(new Request(url, init));
-const getFetchedRequest = () => mockFetch.mock.calls[0]?.[0] as Request | undefined;
-
-const historyResponse = [
-  { id: 1, status: 'completed', platforms: ['gpt-4'], created_at: '2026-05-01T00:00:00Z', completed_at: '2026-05-01T01:00:00Z' },
-  { id: 2, status: 'completed', platforms: ['gpt-4', 'claude-3'], created_at: '2026-05-15T00:00:00Z', completed_at: '2026-05-15T01:00:00Z' },
-  { id: 3, status: 'failed', platforms: ['gpt-4'], created_at: '2026-05-20T00:00:00Z', completed_at: null },
-];
-
-const compareResponse = {
-  audits: [
-    { audit_id: 1, date: '2026-05-01', overall_score: 72, mention_rate: 0.45, sentiment_breakdown: { positive: 60, neutral: 30, negative: 10 }, top_sources: [{ domain: 'example.com', count: 5 }], competitor_mention_rates: [{ brand: 'BrandX', mention_rate: 0.3 }], structure_distribution: { list: 50, comparison: 30 }, topic_distribution: { pricing: 20 } },
-    { audit_id: 2, date: '2026-05-15', overall_score: 78, mention_rate: 0.52, sentiment_breakdown: { positive: 65, neutral: 25, negative: 10 }, top_sources: [{ domain: 'example.com', count: 8 }, { domain: 'newsource.com', count: 3 }], competitor_mention_rates: [{ brand: 'BrandX', mention_rate: 0.25 }], structure_distribution: { list: 55, comparison: 25 }, topic_distribution: { pricing: 18 } },
-  ],
-  diffs: {
-    mention_rate_delta: 0.07,
-    score_delta: 6,
-    source_changes: { added: ['newsource.com'], removed: [] },
-    competitor_changes: [{ brand: 'BrandX', delta: -0.05 }],
-  },
-};
-
-describe('GET /api/integration/trends/audits-history', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('returns audit history from upstream', async () => {
-    mockFetch.mockResolvedValueOnce(Response.json(historyResponse));
-
-    const req = makeReq('http://localhost/api/integration/trends/audits-history?projectId=proj-1');
-    const res = await getAuditsHistory(req);
-    const data = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(data).toHaveLength(3);
-    expect(data[0].id).toBe(1);
-
-    const upstreamReq = getFetchedRequest();
-    expect(upstreamReq).toBeDefined();
-    expect(upstreamReq?.url).toContain('/api/trends/proj-1/audits-history?limit=20');
-    expect(upstreamReq?.method).toBe('GET');
-    expect(upstreamReq?.headers.get('authorization')).toBe('Bearer project-jwt');
-  });
-
-  it('returns 502 on upstream failure', async () => {
-    mockFetch.mockResolvedValueOnce(Response.json({ error: 'upstream failed' }, { status: 500 }));
-
-    const req = makeReq('http://localhost/api/integration/trends/audits-history?projectId=proj-1');
-    const res = await getAuditsHistory(req);
-
-    expect(res.status).toBe(502);
-  });
-
-});
-
-describe('POST /api/integration/strategic/compare-audits', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('returns comparison data from upstream', async () => {
-    mockFetch.mockResolvedValueOnce(Response.json(compareResponse));
-
-    const req = makeReq('http://localhost/api/integration/strategic/compare-audits?projectId=proj-1', {
-      method: 'POST',
-      body: JSON.stringify({ audit_ids: [1, 2] }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const res = await compareAudits(req);
-    const data = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(data.audits).toHaveLength(2);
-    expect(data.diffs.score_delta).toBe(6);
-
-    const upstreamReq = getFetchedRequest();
-    expect(upstreamReq).toBeDefined();
-    expect(upstreamReq?.url).toContain('/api/strategic/projects/proj-1/compare-audits');
-    expect(upstreamReq?.method).toBe('POST');
-    expect(upstreamReq?.headers.get('authorization')).toBe('Bearer project-jwt');
-    expect(await upstreamReq?.text()).toBe(JSON.stringify({ audit_ids: [1, 2] }));
-  });
-
-  it('rejects fewer than 2 audit_ids', async () => {
-    const req = makeReq('http://localhost/api/integration/strategic/compare-audits?projectId=proj-1', {
-      method: 'POST',
-      body: JSON.stringify({ audit_ids: [1] }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const res = await compareAudits(req);
-
-    expect(res.status).toBe(400);
-  });
-
-  it('rejects more than 5 audit_ids', async () => {
-    const req = makeReq('http://localhost/api/integration/strategic/compare-audits?projectId=proj-1', {
-      method: 'POST',
-      body: JSON.stringify({ audit_ids: [1, 2, 3, 4, 5, 6] }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const res = await compareAudits(req);
-
-    expect(res.status).toBe(400);
-  });
-
-  it('returns 502 on upstream failure', async () => {
-    mockFetch.mockResolvedValueOnce(Response.json({ error: 'upstream failed' }, { status: 500 }));
-
-    const req = makeReq('http://localhost/api/integration/strategic/compare-audits?projectId=proj-1', {
-      method: 'POST',
-      body: JSON.stringify({ audit_ids: [1, 2] }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const res = await compareAudits(req);
-
-    expect(res.status).toBe(502);
+import { describe, expect, it, vi } from 'vitest';
+import { GET as history } from '@/app/api/integration/trends/audits-history/route';
+import { GET as scores } from '@/app/api/integration/trends/route';
+import { GET as alias } from '@/app/api/integration/trends/history/route';
+import { POST as compare } from '@/app/api/integration/compare/route';
+import { POST as multi } from '@/app/api/integration/strategic/compare-audits/route';
+import { GET as authority } from '@/app/api/integration/strategic/source-authority/route';
+import { GET as positioning } from '@/app/api/integration/strategic/competitor-positioning/route';
+import { GET as structure } from '@/app/api/integration/strategic/structure-evolution/route';
+import { GET as insights } from '@/app/api/integration/content-intelligence/route';
+vi.mock('@/lib/proxy/route-guard', () => ({ resolveGuard: vi.fn(), fetchUpstream: vi.fn() }));
+import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
+describe('retired legacy analysis APIs', () => {
+  it.each([history, scores, alias, compare, multi, authority, positioning, structure, insights])('returns explicit retirement without upstream work or quota', async handler => {
+    const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+    try {
+      const response = await handler(); expect(response.status).toBe(410);
+      expect(await response.json()).toMatchObject({ error: 'VISIBILITY_ENDPOINT_RETIRED', replacement: expect.stringMatching(/^\//) });
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      expect(resolveGuard).not.toHaveBeenCalled(); expect(fetchUpstream).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
+    } finally { vi.unstubAllGlobals(); }
   });
 });

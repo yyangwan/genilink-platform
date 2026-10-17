@@ -62,7 +62,7 @@ describe("new user empty states", () => {
 
     expect(screen.getByText("先创建一个项目")).toBeTruthy();
     expect(screen.queryByText("智见")).toBeNull();
-    expect(mocks.useSectionFetch.mock.calls).toEqual([[null], [null], [null]]);
+    expect(mocks.useSectionFetch).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "创建第一个项目" }));
     expect(mocks.openWizard).toHaveBeenCalledOnce();

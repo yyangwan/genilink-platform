@@ -249,6 +249,11 @@ deploy_image() {
 
   bootstrap_nginx
 
+  # Install the retry scheduler before changing active traffic. The old release
+  # may reject early ticks; persisted work is delivered after the new slot is live.
+  bash "$SCRIPT_DIR/install-context-sync-timer.sh" \
+    || fail "context retry timer installation failed; active release was not changed"
+
   if docker container inspect "$target_container" >/dev/null 2>&1; then
     docker rm -f "$target_container" >/dev/null
   fi

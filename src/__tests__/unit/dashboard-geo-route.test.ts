@@ -1,104 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { NextRequest } from 'next/server';
-
-vi.mock('@/lib/auth/config', () => ({
-  auth: vi.fn().mockResolvedValue({
-    user: { id: 'user-1', email: 'user@example.com', name: 'Test User' },
-  }),
-}));
-
-vi.mock('@/lib/auth/get-workspace', () => ({
-  getWorkspaceId: vi.fn().mockResolvedValue('workspace-1'),
-}));
-
-vi.mock('@/lib/auth/workspace', () => ({
-  getWorkspaceRole: vi.fn().mockResolvedValue('owner'),
-}));
-
-vi.mock('@/lib/auth/service-jwt', () => ({
-  issueVisibilityProjectJWT: vi.fn().mockResolvedValue('project-jwt'),
-}));
-
-vi.mock('@/lib/db', () => ({
-  prisma: {
-    project: {
-      findFirst: vi.fn().mockResolvedValue({ id: 'project-1' }),
-    },
-  },
-}));
-
-vi.mock('@/lib/proxy/zhijian-client', () => ({
-  proxyRequest: vi.fn().mockResolvedValue({
-    overallScore: 73,
-    mentionCount: 12,
-    platformCoverage: [{ name: 'ChatGPT', score: 80 }],
-    suggestions: [{ text: 'Improve comparison content', priority: 'high' }],
-  }),
-}));
-
-vi.mock('@/lib/billing/guard', () => ({
-  requireBilling: vi.fn().mockResolvedValue({ capabilities: { optimizationAdvice: 'full' } }),
-  BillingError: class extends Error {},
-}));
-
+import { describe, expect, it, vi } from 'vitest';
+vi.mock('@/lib/proxy/zhijian-client', () => ({ proxyRequest: vi.fn() }));
 import { proxyRequest } from '@/lib/proxy/zhijian-client';
-import { BillingError, requireBilling } from '@/lib/billing/guard';
 import { GET } from '@/app/api/dashboard/geo/route';
-
-describe('GET /api/dashboard/geo', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('uses the current Visibility integration summary endpoint', async () => {
-    const req = new NextRequest('http://localhost/api/dashboard/geo?project=project-1');
-    const res = await GET(req);
-    const data = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(proxyRequest).toHaveBeenCalledWith({
-      projectId: 'project-1',
-      service: 'visibility',
-      path: '/api/integration/summary?project_id=project-1',
-      accessToken: 'project-jwt',
-    });
-    expect(data).toEqual({
-      websites: [{
-        id: 'ChatGPT',
-        name: 'ChatGPT',
-        domain: 'ChatGPT',
-        aiScore: 80,
-        citationCount: 0,
-        lastAnalyzedAt: null,
-      }],
-      totalCitations: 12,
-      avgAiScore: 73,
-      optimizationTasks: [{ text: 'Improve comparison content', priority: 'high', status: 'pending' }],
-    });
-  });
-
-  it('returns an empty geo summary when no project is selected', async () => {
-    const req = new NextRequest('http://localhost/api/dashboard/geo');
-    const res = await GET(req);
-    const data = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(data).toEqual({
-      websites: [],
-      totalCitations: 0,
-      avgAiScore: null,
-      optimizationTasks: [],
-    });
+describe('retired geo score mapping', () => {
+  it('never maps AI platforms to websites or mentions to citation counts', async () => {
+    const response = await GET(); expect(response.status).toBe(410);
+    const data = await response.json(); expect(data.replacement).toBe('/dashboard');
+    expect(data.websites).toBeUndefined(); expect(data.totalCitations).toBeUndefined();
     expect(proxyRequest).not.toHaveBeenCalled();
-  });
-
-  it('returns a subscription state instead of an empty summary when visibility access is not active', async () => {
-    vi.mocked(requireBilling).mockRejectedValueOnce(new BillingError('visibility'));
-
-    const req = new NextRequest('http://localhost/api/dashboard/geo?project=project-1');
-    const res = await GET(req);
-
-    expect(res.status).toBe(403);
-    await expect(res.json()).resolves.toEqual({ error: 'NO_SUBSCRIPTION', module: 'visibility' });
   });
 });

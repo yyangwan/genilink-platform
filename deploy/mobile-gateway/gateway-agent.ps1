@@ -375,6 +375,10 @@ function Complete-ActiveTask {
         $quality = Test-CaptureResult -Result ([pscustomobject]$result)
         $handlerCompleted = $true
         Write-AgentLog "quality task=$($task.id) passed=$($quality.Passed) references=$($quality.ReferenceCount) valid_sources=$($quality.ValidSourceCount) completeness=$([math]::Round($quality.Completeness, 4))"
+        if ($task.payload.PSObject.Properties['capture_contract_version'] -and $task.payload.capture_contract_version -eq 2) {
+            . (Join-Path $PSScriptRoot 'capture-v2.ps1')
+            $result = ConvertTo-CaptureV2 -Task $task -Result $result
+        }
         Invoke-GatewayApi -Method Post -Path "/api/device-gateway/tasks/$($task.id)/complete" -Body @{
             lease_token = $active.LeaseToken
             result = $result

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0.0] - 2026-10-17
+
+### Added
+- 逐平台引用分析、所有观测实体对比、来源正文证据、人工复核、行动材料、固定复测与在线/PDF报告。
+- 项目品牌身份关联、持久上下文同步与每分钟重试调度；新版采集契约与人工内容任务入口。
+### Fixed
+- 成功创建采集后再次操作使用新幂等键；失败结果未知时保留原编号。
+- 更新五项已审核的阿里云订阅通知短信模板。
+### Deployment
+- 新分析服务使用专用数据库和 OSS；ContentOS 先部署，前端通过既有 SHA 镜像蓝绿管道切换。
+- 历史测试审计不兼容回填；质量评测与真实采集验收独立于部署状态。
+
 ## [0.2.0.10] - 2026-09-26
 
 ### Added

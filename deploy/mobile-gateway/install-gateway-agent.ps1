@@ -30,6 +30,7 @@ $deviceSelectorPath = Join-Path $root "gateway-device-selector.ps1"
 $sourceDeviceSelector = Join-Path $PSScriptRoot "gateway-device-selector.ps1"
 $verifierPath = Join-Path $root "gateway-capture-verifier.ps1"
 $sourceVerifier = Join-Path $PSScriptRoot "gateway-capture-verifier.ps1"
+$sourceCaptureV2 = Join-Path $PSScriptRoot 'capture-v2.ps1'
 $shareReceiverPath = Join-Path $root "gateway-share-receiver.ps1"
 $sourceShareReceiver = Join-Path $PSScriptRoot "gateway-share-receiver.ps1"
 $httpClientPath = Join-Path $root "gateway-http-client.mjs"
@@ -51,6 +52,7 @@ if ([IO.Path]::GetFullPath($sourceDeviceSelector) -ne [IO.Path]::GetFullPath($de
 }
 if ([IO.Path]::GetFullPath($sourceVerifier) -ne [IO.Path]::GetFullPath($verifierPath)) {
     Copy-Item -LiteralPath $sourceVerifier -Destination $verifierPath -Force
+    Copy-Item -LiteralPath $sourceCaptureV2 -Destination (Join-Path $root 'capture-v2.ps1') -Force
 }
 if ([IO.Path]::GetFullPath($sourceShareReceiver) -ne [IO.Path]::GetFullPath($shareReceiverPath)) {
     Copy-Item -LiteralPath $sourceShareReceiver -Destination $shareReceiverPath -Force

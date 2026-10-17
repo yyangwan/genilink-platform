@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withBrandRoute } from '@/lib/auth/brand-route';
 import { prisma } from '@/lib/db';
 import { hasBrandCapacity } from '@/lib/billing/access';
+import { Prisma } from '@/generated/prisma/client';
+import { AssociationError } from '@/lib/visibility/project-brand-associations';
 import { isUniqueViolation } from '@/lib/prisma-helpers';
 
 type BrandRoute = (req: NextRequest, context: { params: Promise<Record<string, string>> }) => Promise<Response>;
@@ -35,7 +37,12 @@ export const POST: BrandRoute = withBrandRoute(async (req, { userId, workspaceId
   // Create brand (partial unique index catches duplicate active names)
   let brand;
   try {
-    brand = await prisma.brand.create({
+    brand = await prisma.$transaction(async tx => {
+      const member = await tx.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId, userId } } });
+      if (!member || !['owner', 'admin', 'editor', 'member'].includes(member.role)) throw new AssociationError('需要品牌写入权限', 403);
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR UPDATE`);
+      if (!await hasBrandCapacity(userId, workspaceId, competitor)) throw new AssociationError('目标品牌类别额度已满', 402);
+    return tx.brand.create({
       data: {
         name: name.trim(),
         aliases: aliases ?? [],
@@ -46,7 +53,9 @@ export const POST: BrandRoute = withBrandRoute(async (req, { userId, workspaceId
         workspaceId,
       },
     });
+    });
   } catch (err: unknown) {
+    if (err instanceof AssociationError) return NextResponse.json({ error: err.message }, { status: err.status });
     // P2002 = unique constraint violation
     if (isUniqueViolation(err)) {
       return NextResponse.json({ error: '同名品牌已存在' }, { status: 409 });

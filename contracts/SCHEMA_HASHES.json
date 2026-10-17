@@ -7,5 +7,8 @@
   "fixtures/capabilities-valid.json": "c59d65f0db9c1ceb34a6226588a892636851c145bd123aa902903707d3722170",
   "fixtures/create-brief-request-valid.json": "bb469c4ca64cb175dfb45b1ca8f8a24cb9fa353ff0c574aed32c4af110614a48",
   "fixtures/create-workflow-request-valid.json": "d6318c4993a84d293695d1239726668c08c35ea8cfdb60dabb006a0dfa84f30a",
-  "fixtures/workflow-view-partial.json": "d32a7407915eba2a70ca61dd7c74136830cf564d3a1b8f1d3350336864f107a5"
+  "fixtures/workflow-view-partial.json": "d32a7407915eba2a70ca61dd7c74136830cf564d3a1b8f1d3350336864f107a5",
+  "visibility-capture-v2.schema.json": "4f395a8e2bdfc6d91343aa9e494fce3d138f289d368e8e7bff85c1464b4ba931",
+  "content-evidence-brief-v2.schema.json": "3b0f6ee4fb3e7ba1d6ef9d34a8a01cd1a7f2ea55bacc195b5f66a4497a3426b8",
+  "fixtures/evidence-brief-v2-valid.json": "97f576d779550c1e3d475d68138739d5b70c360516ae39011f9e98eec68a861c"
 }

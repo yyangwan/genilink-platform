@@ -6,26 +6,6 @@ export interface KPIData {
   empty?: boolean;
 }
 
-export interface PlatformCoverage {
-  name: string;
-  score: number;
-}
-
-export interface VisibilityTrendPoint {
-  date: string;
-  score: number;
-}
-
-export interface VisibilitySummary {
-  overallScore: number | null;
-  mentionCount: number;
-  platformCoverage: PlatformCoverage[];
-  competitorRank: number | null;
-  suggestions: Suggestion[];
-  latestAuditDate: string | null;
-  trend: VisibilityTrendPoint[];
-}
-
 export interface GeoSummary {
   websites: {
     id: string;
