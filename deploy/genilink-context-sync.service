@@ -1,0 +1,17 @@
+[Unit]
+Description=Deliver persisted Genilink project brand context
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/opt/genilink-platform/.env
+ExecStart=/usr/bin/node /opt/genilink-platform/deploy/context-sync-worker.mjs
+TimeoutStartSec=60
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+MemoryMax=128M
+CPUQuota=20%

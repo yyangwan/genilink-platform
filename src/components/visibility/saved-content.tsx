@@ -1,0 +1,9 @@
+"use client";
+import { useState } from 'react';
+import { useSectionFetch } from '@/components/dashboard/use-section-fetch';
+
+export function SavedContent({ projectId, runId, kind, id, close }: { projectId: string; runId: string; kind: string; id: string; close: () => void }) {
+  const [offset, setOffset] = useState(0);
+  const content = useSectionFetch<{ items: Array<{ id: string; text: string }>; next_offset: number | null }>(`/api/integration/intelligence?${new URLSearchParams({ projectId, view: 'content', runId, ownerKind: kind, ownerId: id, offset: String(offset) })}`);
+  return <aside role="dialog" aria-label="保存的原文" className="dashboard-surface my-4 p-5"><div className="flex justify-between"><h2>保存的原文</h2><button onClick={close}>关闭原文</button></div>{content.loading ? <p>加载中…</p> : content.error || content.locked ? <p>原文暂不可读或当前订阅无访问权限，请重试。</p> : <>{content.data?.items.map(item => <p className="my-3 whitespace-pre-wrap break-words" key={item.id}>{item.text}</p>)}<div className="flex gap-4"><button disabled={offset === 0} onClick={() => setOffset(0)}>回到开头</button>{content.data?.next_offset != null && <button onClick={() => setOffset(content.data!.next_offset!)}>下一页</button>}</div></>}</aside>;
+}

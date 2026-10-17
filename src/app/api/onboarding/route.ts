@@ -59,9 +59,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Auto-create own brand if brandName provided
+    let brandConfigurationPending = false;
+    // Optional own-brand initialization
     if (brandName?.trim()) {
-      await createBrandForProject(brandName, project.id, workspace.id);
+      brandConfigurationPending = !await createBrandForProject(brandName, project.id, workspace.id, userId);
     }
 
     // Update user onboarding status
@@ -85,6 +86,7 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({
       workspaceId: workspace.id,
       projectId: project.id,
+      brandConfigurationPending,
     });
 
     response.cookies.set('genilink-workspace', workspace.id, {
@@ -143,12 +145,13 @@ export async function POST(req: NextRequest) {
     return { workspaceId: workspace.id, projectId: project.id };
   });
 
-  // Auto-create own brand if brandName provided (outside transaction — HTTP sync is non-deterministic)
+  let brandConfigurationPending = false;
+  // Optional brand initialization is an atomic context transaction.
   if (brandName?.trim()) {
-    await createBrandForProject(brandName, result.projectId, result.workspaceId);
+    brandConfigurationPending = !await createBrandForProject(brandName, result.projectId, result.workspaceId, userId);
   }
 
-  const response = NextResponse.json(result);
+  const response = NextResponse.json({ ...result, brandConfigurationPending });
 
   response.cookies.set('genilink-workspace', result.workspaceId, {
     httpOnly: false,

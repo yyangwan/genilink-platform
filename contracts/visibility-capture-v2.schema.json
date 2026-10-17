@@ -1,0 +1,312 @@
+{
+  "$defs": {
+    "Adapter": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "Adapter",
+      "type": "object"
+    },
+    "Answer": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "maxLength": 200000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "complete",
+            "partial"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "contentHash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Contenthash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "status",
+        "contentHash"
+      ],
+      "title": "Answer",
+      "type": "object"
+    },
+    "CaptureConditions": {
+      "additionalProperties": false,
+      "properties": {
+        "searchMode": {
+          "default": "unknown",
+          "enum": [
+            "enabled",
+            "disabled",
+            "unknown"
+          ],
+          "title": "Searchmode",
+          "type": "string"
+        },
+        "modelVersion": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modelversion"
+        },
+        "accountClass": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Accountclass"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location"
+        }
+      },
+      "title": "CaptureConditions",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "properties": {
+        "ordinal": {
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Ordinal",
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "answer_reference",
+            "search_candidate",
+            "text_link",
+            "named_inference",
+            "unknown"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "snippet": {
+          "default": "",
+          "maxLength": 4000,
+          "title": "Snippet",
+          "type": "string"
+        },
+        "urlResolution": {
+          "enum": [
+            "exact",
+            "site_root",
+            "candidate",
+            "unavailable",
+            "unknown"
+          ],
+          "title": "Urlresolution",
+          "type": "string"
+        },
+        "answerAnchor": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Answeranchor"
+        }
+      },
+      "required": [
+        "ordinal",
+        "kind",
+        "urlResolution"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "SourcePanel": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "complete",
+            "partial",
+            "unknown",
+            "unavailable"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "expectedCount": {
+          "anyOf": [
+            {
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expectedcount"
+        },
+        "capturedCount": {
+          "maximum": 200,
+          "minimum": 0,
+          "title": "Capturedcount",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "status",
+        "capturedCount"
+      ],
+      "title": "SourcePanel",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contractVersion": {
+      "const": 2,
+      "enum": [
+        2
+      ],
+      "title": "Contractversion",
+      "type": "integer"
+    },
+    "taskId": {
+      "maxLength": 36,
+      "minLength": 1,
+      "title": "Taskid",
+      "type": "string"
+    },
+    "platform": {
+      "maxLength": 50,
+      "minLength": 1,
+      "title": "Platform",
+      "type": "string"
+    },
+    "surface": {
+      "enum": [
+        "app",
+        "web"
+      ],
+      "title": "Surface",
+      "type": "string"
+    },
+    "observedAt": {
+      "format": "date-time",
+      "title": "Observedat",
+      "type": "string"
+    },
+    "answer": {
+      "$ref": "#/$defs/Answer"
+    },
+    "conditions": {
+      "$ref": "#/$defs/CaptureConditions"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/Source"
+      },
+      "maxItems": 200,
+      "title": "Sources",
+      "type": "array"
+    },
+    "sourcePanel": {
+      "$ref": "#/$defs/SourcePanel"
+    },
+    "adapter": {
+      "$ref": "#/$defs/Adapter"
+    }
+  },
+  "required": [
+    "contractVersion",
+    "taskId",
+    "platform",
+    "surface",
+    "observedAt",
+    "answer",
+    "conditions",
+    "sources",
+    "sourcePanel",
+    "adapter"
+  ],
+  "title": "CaptureV2",
+  "type": "object"
+}

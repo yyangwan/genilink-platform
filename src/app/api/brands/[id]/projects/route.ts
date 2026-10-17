@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { AssociationError, changeBrandAssociation, attemptAssociationDelivery } from '@/lib/visibility/project-brand-associations';
+import { ContextConflict } from '@/lib/visibility/project-context';
 import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
@@ -61,18 +63,19 @@ export async function DELETE(
     return NextResponse.json({ error: 'Brand not found' }, { status: 404 });
   }
 
-  const { projectId } = await req.json();
-  if (!projectId) {
+  const input = await req.json().catch(() => null);
+  const projectId = input?.projectId;
+  if (typeof projectId !== 'string' || !projectId || projectId.length > 100) {
     return NextResponse.json({ error: 'projectId is required' }, { status: 400 });
   }
 
-  const deleted = await prisma.projectBrand.deleteMany({
-    where: { brandId, projectId },
-  });
-
-  if (deleted.count === 0) {
-    return NextResponse.json({ error: 'Association not found' }, { status: 404 });
+  const actor = { userId: session.user.id, workspaceId, projectId };
+  try {
+    const context = await changeBrandAssociation(actor, brandId, 'remove');
+    return NextResponse.json({ success: true, contextVersion: context.version, syncPending: await attemptAssociationDelivery(actor) });
+  } catch (error) {
+    if (error instanceof AssociationError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof ContextConflict) return NextResponse.json({ error: error.message }, { status: 409 });
+    throw error;
   }
-
-  return NextResponse.json({ success: true });
 }

@@ -70,6 +70,11 @@ jobs:
       - name: Test container key permission preparation
         run: sudo bash deploy/test-container-key-access.sh
 
+      - name: Validate context retry scheduler
+        run: |
+          bash -n deploy/install-context-sync-timer.sh
+          systemd-analyze verify deploy/genilink-context-sync.service deploy/genilink-context-sync.timer
+
       - name: Build
         run: NODE_OPTIONS="--max-old-space-size=4096" npm run build
         env:

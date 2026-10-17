@@ -1,164 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveGuard, fetchUpstream } from '@/lib/proxy/route-guard';
 import { prisma } from '@/lib/db';
-import type { CapabilityLevel } from '@/lib/billing/tiers';
+import type { CitationReport } from '@/types/citation-report';
+import { scopeCitationReport } from '@/lib/visibility/report-scope';
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const result = await resolveGuard(req);
-  if (!result.ok) return result.response;
-
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guard = await resolveGuard(req, { capability: 'auditReport' });
+  if (!guard.ok) return guard.response;
   const { id } = await params;
-
-  // Fetch own brand names from prisma (ProjectBrand join table)
-  const ownBrandNamesPromise = prisma.projectBrand
-    .findMany({
-      where: { projectId: result.ctx.projectId },
-      include: { brand: true },
-    })
-    .then((associations) =>
-      new Set(
-        associations
-          .filter((a) => a.brand && !a.brand.deletedAt && !a.brand.isCompetitor)
-          .map((a) => a.brand.name),
-      ),
-    )
-    .catch(() => new Set<string>());
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15_000);
-
-  try {
-    // Try GET first, fallback to POST (generate) if no report exists
-    let res = await fetch(result.ctx.upstreamUrl(`/api/audits/${id}/report`), {
-      headers: result.ctx.headers,
-      signal: controller.signal,
-    });
-
-    if (res.status === 404) {
-      res = await fetch(result.ctx.upstreamUrl(`/api/audits/${id}/report`), {
-        method: 'POST',
-        headers: result.ctx.headers,
-        signal: controller.signal,
-      });
-    }
-
-    clearTimeout(timer);
-
-    if (!res.ok) {
-      return NextResponse.json(
-        { error: `Upstream error: ${res.status}` },
-        { status: res.status >= 500 ? 502 : res.status }
-      );
-    }
-
-    const report = await res.json();
-
-    // Fetch query results for brand/prompt details
-    const [results, ownBrandNames] = await Promise.all([
-      fetch(result.ctx.upstreamUrl(`/api/audits/${id}/results`), {
-        headers: result.ctx.headers,
-        signal: AbortSignal.timeout(15_000),
-      }).then((r) => (r.ok ? r.json() : [])),
-      ownBrandNamesPromise,
-    ]);
-
-    const mapped = mapReport(report, Array.isArray(results) ? results : [], ownBrandNames);
-    return NextResponse.json(scopeReport(mapped, result.ctx.billing.capabilities.auditReport));
-  } catch (err) {
-    clearTimeout(timer);
-    if ((err as Error).name === 'AbortError') {
-      return NextResponse.json({ error: 'Upstream timeout' }, { status: 504 });
-    }
-    return NextResponse.json({ error: 'Failed to fetch report' }, { status: 502 });
-  }
-}
-
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const result = await resolveGuard(req);
-  if (!result.ok) return result.response;
-
-  const { id } = await params;
-  const upstream = await fetchUpstream(result.ctx, `/api/audits/${id}/report`, {
-    method: 'POST',
-    timeoutMs: 30_000,
-    errorMessage: 'Failed to generate report',
-  });
+  if (!/^[1-9][0-9]{0,17}$/.test(id)) return NextResponse.json({ error: '无效的审计编号' }, { status: 400 });
+  const upstream = await fetchUpstream(guard.ctx, `/api/intelligence/audits/${id}/report`, { errorMessage: '审计报告暂不可用' });
   if ('response' in upstream) return upstream.response;
-  return NextResponse.json(upstream.data);
+  const report = upstream.data as CitationReport;
+  if (report?.schema !== 'citation-report-1' || report.audit_id !== id || report.project_id !== guard.ctx.projectId) return NextResponse.json({ error: '报告上下文不匹配' }, { status: 502 });
+  if (report.measurements && (report.measurements.scope_run_id !== report.run_id || report.measurements.results.some(item => item.version !== 'paired-source-presence-2' || item.baseline_run_id !== report.run_id && item.followup_run_id !== report.run_id))) return NextResponse.json({ error: '复测与报告修订不匹配' }, { status: 502 });
+  const pending = await prisma.projectContextOutbox.count({ where: { projectId: guard.ctx.projectId, deliveredAt: null } });
+  return NextResponse.json(scopeCitationReport(report, guard.ctx.billing.capabilities.auditReport, pending > 0), { headers: { 'Cache-Control': 'no-store' } });
 }
 
-type QueryResult = Record<string, unknown>;
-
-/** Map upstream ReportOut + QueryResult[] → frontend ReportData */
-function mapReport(report: Record<string, unknown>, results: QueryResult[], ownBrandNames: Set<string>) {
-  const platformScores = (report.platform_scores as Record<string, number>) || {};
-  const platforms = Object.entries(platformScores).map(([platform, score]) => ({
-    platform,
-    score: Math.round(score * 10) / 10,
-  }));
-
-  const rawInsights = (report.insights as string[]) || [];
-  const insights = rawInsights.map((text, i) => ({
-    id: String(i),
-    type: text.includes('最佳') || text.includes('优势') ? 'strength'
-      : text.includes('需要') || text.includes('改进') || text.includes('较低') ? 'weakness'
-      : 'opportunity' as const,
-    text,
-    priority: text.includes('需要') || text.includes('较低') ? 'high' as const : 'medium' as const,
-  }));
-
-  const brandMap = new Map<string, { count: number; mentioned: number; confidence: number }>();
-  for (const r of results) {
-    const brand = (r.brand_name as string) || '未知';
-    const existing = brandMap.get(brand) || { count: 0, mentioned: 0, confidence: 0 };
-    existing.count++;
-    if (r.mention_found) existing.mentioned++;
-    if (r.mention_confidence) existing.confidence += r.mention_confidence as number;
-    brandMap.set(brand, existing);
-  }
-  const brands = [...brandMap.entries()].map(([brand, stats]) => ({
-    brand,
-    mention_count: stats.mentioned,
-    visibility_score: Math.round((stats.mentioned / stats.count) * 100),
-    is_own: ownBrandNames.has(brand),
-  }));
-
-  return {
-    audit_id: report.audit_id,
-    overall_score: report.overall_score,
-    score_label: (report.overall_score as number) >= 70 ? '优秀' : (report.overall_score as number) >= 40 ? '良好' : '待优化',
-    mention_rate: report.mention_rate,
-    competitor_rank: report.competitor_rank,
-    platforms,
-    insights,
-    brands,
-    prompts: results.slice(0, 50).map((r) => ({
-      platform: r.platform,
-      prompt: r.prompt_text,
-      brand: r.brand_name,
-      mentioned: r.mention_found,
-      confidence: r.mention_confidence,
-      recommended: r.is_recommended,
-      rank: r.recommendation_rank,
-    })),
-  };
-}
-
-function scopeReport(report: ReturnType<typeof mapReport>, level: CapabilityLevel) {
-  if (level === 'basic') {
-    return {
-      ...report,
-      insights: report.insights.slice(0, 3),
-      brands: [],
-      prompts: [],
-      entitlementLevel: level,
-    };
-  }
-  return { ...report, entitlementLevel: level };
+export async function POST() {
+  return NextResponse.json({ error: '报告直接读取最新分析快照，请在证据分析中明确发起分析' }, { status: 409 });
 }

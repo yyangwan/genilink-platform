@@ -79,7 +79,7 @@ describe('POST /api/projects', () => {
         workspaceId: 'ws-1',
       },
     });
-    expect(createBrandForProject).toHaveBeenCalledWith('Alpha Brand', 'proj-1', 'ws-1');
+    expect(createBrandForProject).toHaveBeenCalledWith('Alpha Brand', 'proj-1', 'ws-1', 'user-1');
   });
 
   it('blocks project creation after the current tier reaches its project limit', async () => {

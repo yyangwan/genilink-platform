@@ -1,6 +1,6 @@
 {
   "name": "genilink-platform",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
@@ -11,7 +11,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "test": "vitest run --pool threads --configLoader native --config vitest.config.mjs",
+    "test": "vitest run --pool threads --configLoader native --config vitest.config.mjs --maxWorkers=4",
     "test:e2e": "playwright test",
     "release:check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release-check.ps1"
   },

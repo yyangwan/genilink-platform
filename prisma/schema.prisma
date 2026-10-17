@@ -192,6 +192,8 @@ model Project {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
+  intelligenceContext ProjectIntelligenceContext?
+  intelligenceOutbox ProjectContextOutbox[]
   projectBrands      ProjectBrand[]
   acquisitionIntents AcquisitionIntent[]
   funnelEvents       FunnelEvent[]
@@ -228,6 +230,9 @@ model ProjectBrand {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   brandId   String   @db.Text
   brand     Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  analysisRole String @default("registered") @db.Text
+  entityId String? @db.Text
+  identityVersion Int?
   createdAt DateTime @default(now())
 
   @@unique([projectId, brandId])
@@ -748,4 +753,48 @@ model UsageEvent {
   @@index([workspaceId, feature, periodStart, status])
   @@index([status, expiresAt])
   @@index([createdAt])
+}
+
+
+model ProjectIntelligenceContext {
+  projectId String @id @db.Text
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  version Int @default(0)
+  contentHash String @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+model ProjectContextOutbox {
+  id String @id @default(cuid()) @db.Text
+  projectId String @db.Text
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  version Int
+  contentHash String @db.Text
+  snapshot Json
+  createdBy String @db.Text
+  createdAt DateTime @default(now())
+  deliveredAt DateTime?
+  attempts Int @default(0)
+  nextAttemptAt DateTime?
+  lastErrorCode String? @db.Text
+  @@unique([projectId, version])
+  @@index([projectId, deliveredAt, version])
+}
+
+
+model ProjectBrandReviewEvent {
+  id String @id @default(cuid()) @db.Text
+  projectId String @db.Text
+  brandId String @db.Text
+  entityId String? @db.Text
+  identityVersion Int?
+  analysisRole String @db.Text
+  reason String @db.Text
+  createdBy String @db.Text
+  contextVersion Int
+  idempotencyKey String @db.Text
+  requestHash String @db.Text
+  createdAt DateTime @default(now())
+  @@unique([projectId, idempotencyKey])
+  @@index([projectId, brandId, createdAt])
 }

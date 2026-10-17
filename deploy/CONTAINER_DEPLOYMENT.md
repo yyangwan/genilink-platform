@@ -31,6 +31,15 @@ immutable image. Production does not run `npm ci` or `next build`.
 
 Runtime configuration remains on the server:
 
+- Citation intelligence requires the independently deployed `genilink_intelligence`
+  Nginx upstream and healthy API/worker on its new database before this release.
+  `VISIBILITY_SERVICE_URL=http://127.0.0.1:18018` uses its stable local entry;
+  the public `/visibility/api/` location switches with the frontend Nginx reload.
+- Configure an independent strong `VISIBILITY_CONTEXT_SYNC_SECRET` and
+  `VISIBILITY_CONTEXT_SYNC_ORIGIN=https://genilink.cn`. The release installs
+  `genilink-context-sync.timer` before changing traffic, retries persisted context
+  every minute, and reads credentials only from the server environment file.
+
 - `/opt/genilink-platform/.env` remains the source of truth. Before `docker run`,
   `prepare-docker-env.sh` writes a mode-0600 temporary Docker env file, removes
   dotenv-style outer quotes, and validates the selected SMS provider's required

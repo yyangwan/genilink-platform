@@ -18,6 +18,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  */
 vi.mock('@/lib/db', () => ({
   prisma: {
+    $transaction: vi.fn(async fn => fn(prisma)),
+    $queryRaw: vi.fn().mockResolvedValue([{ id: 'ws-1' }]),
+    workspaceMember: { findUnique: vi.fn().mockResolvedValue({ role: 'owner' }) },
     brand: {
       create: vi.fn(),
       findFirst: vi.fn(),

@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
 import { validateWorkspaceAccess } from '@/lib/auth/workspace';
+import { AssociationError, changeBrandAssociation, attemptAssociationDelivery } from '@/lib/visibility/project-brand-associations';
+import { ContextConflict } from '@/lib/visibility/project-context';
 import { isUniqueViolation } from '@/lib/prisma-helpers';
 
 // Verify user owns the project (with workspace membership check)
@@ -65,8 +67,9 @@ export async function POST(
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
-  const { brandId } = await req.json();
-  if (!brandId) {
+  const input = await req.json().catch(() => null);
+  const brandId = input?.brandId;
+  if (typeof brandId !== 'string' || !brandId || brandId.length > 100) {
     return NextResponse.json({ error: 'brandId is required' }, { status: 400 });
   }
 
@@ -78,19 +81,16 @@ export async function POST(
     return NextResponse.json({ error: 'Brand not found' }, { status: 404 });
   }
 
-  // Create association
+  const actor = { userId: session.user.id, workspaceId, projectId };
   try {
-    await prisma.projectBrand.create({
-      data: { projectId, brandId },
-    });
-  } catch (err: unknown) {
-    if (isUniqueViolation(err)) {
-      return NextResponse.json({ error: '品牌已关联到此项目' }, { status: 409 });
-    }
-    throw err;
+    const context = await changeBrandAssociation(actor, brandId, 'associate');
+    return NextResponse.json({ success: true, contextVersion: context.version, syncPending: await attemptAssociationDelivery(actor) }, { status: 201 });
+  } catch (error) {
+    if (error instanceof AssociationError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof ContextConflict) return NextResponse.json({ error: error.message }, { status: 409 });
+    if (isUniqueViolation(error)) return NextResponse.json({ error: '品牌已关联到此项目' }, { status: 409 });
+    throw error;
   }
-
-  return NextResponse.json({ success: true }, { status: 201 });
 }
 
 // DELETE /api/projects/[id]/brands — disassociate a brand from a project
@@ -109,19 +109,19 @@ export async function DELETE(
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
-  const { brandId } = await req.json();
-  if (!brandId) {
+  const input = await req.json().catch(() => null);
+  const brandId = input?.brandId;
+  if (typeof brandId !== 'string' || !brandId || brandId.length > 100) {
     return NextResponse.json({ error: 'brandId is required' }, { status: 400 });
   }
 
-  // Delete association
-  const deleted = await prisma.projectBrand.deleteMany({
-    where: { projectId, brandId },
-  });
-
-  if (deleted.count === 0) {
-    return NextResponse.json({ error: 'Association not found' }, { status: 404 });
+  const actor = { userId: session.user.id, workspaceId, projectId };
+  try {
+    const context = await changeBrandAssociation(actor, brandId, 'remove');
+    return NextResponse.json({ success: true, contextVersion: context.version, syncPending: await attemptAssociationDelivery(actor) });
+  } catch (error) {
+    if (error instanceof AssociationError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof ContextConflict) return NextResponse.json({ error: error.message }, { status: 409 });
+    throw error;
   }
-
-  return NextResponse.json({ success: true });
 }

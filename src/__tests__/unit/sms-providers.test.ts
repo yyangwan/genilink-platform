@@ -126,13 +126,13 @@ describe('SMS providers', () => {
 
     const receipt = await deliverAliyunSmsTemplate(
       '+8613800138000',
-      'SMS_511735358',
+      'SMS_512621534',
       { plan: '专业版', endDate: '2026-09-24' },
     );
 
     expect(mocks.aliyunSendSms).toHaveBeenCalledWith(expect.objectContaining({
       phoneNumbers: '13800138000',
-      templateCode: 'SMS_511735358',
+      templateCode: 'SMS_512621534',
       templateParam: JSON.stringify({ plan: '专业版', endDate: '2026-09-24' }),
     }));
     expect(receipt).toEqual({ providerMessageId: 'message-1', requestId: 'request-1' });
