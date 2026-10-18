@@ -173,6 +173,15 @@ manual mapping after public DNS resolves the domain to the production server.
 
 ### Capture Recovery
 
+- Capture-v2 rejects answers consisting only of UI progress labels, such as
+  `已完成思考，参考了 12 篇资料`. The gateway formatter and backend both apply
+  this check; passing it does not establish answer or source completeness.
+- When no capture-ready Android device is available, the agent reports
+  `gateway_device_unavailable`. The backend releases the assignment and waits
+  at least 30 seconds before retrying, without consuming a capture attempt.
+  The wait ends with `gateway_device_wait_timeout` once task age reaches the
+  greater of 300 seconds and the configured capture task timeout. The backend
+  also reconciles pending capture-v2 waits if the gateway stops polling.
 - Qwen uses the persistent Chrome profile under `browser-runtime/profile`.
   A visible login or verification dialog fails fast with `QWEN_LOGIN_REQUIRED`
   or `QWEN_CHALLENGE_REQUIRED`; the task is not automatically replayed.
