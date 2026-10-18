@@ -21,7 +21,7 @@ export function CitationReportView({ report, projectId }: { report: CitationRepo
   const [owner, setOwner] = useState<{ kind: string; id: string } | null>(null);
   const open = (kind: string, id: string) => setOwner({ kind, id });
   const platforms = (report.platforms || []).filter(row => !platform || row.platform === platform);
-  return <div className="space-y-5">
+  return <div className="audit-workspace space-y-5">
     <section className="dashboard-surface p-5"><h2 className="font-semibold">{states[report.status] || '状态待核对'}</h2><p className="mt-2 text-sm">修订 {report.revision ?? '尚未创建'}{report.run_id && ` · ${report.run_id}`}</p>
       {!report.snapshot_current && <p className="mt-2 text-sm text-[var(--color-warning)]">{report.context_sync_pending ? '品牌配置尚未同步。' : ''}当前快照尚不能作为最新建议，请先完成采集、分析或身份核对。已有内容仅供回查。</p>}
       {report.coverage && <p className="mt-2 text-sm">已分析字符 {report.coverage.analyzed_characters ?? 0}/{report.coverage.total_characters ?? 0} · 已保存来源正文 {report.coverage.captured_sources ?? 0}/{report.coverage.sources ?? 0}</p>}
