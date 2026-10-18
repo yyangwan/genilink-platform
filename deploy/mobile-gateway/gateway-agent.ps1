@@ -338,6 +338,9 @@ function Send-TaskFailure {
     if ($Message -match 'QWEN_LOGIN_REQUIRED|QWEN_CHALLENGE_REQUIRED|QWEN_INTERACTIVE_SESSION_REQUIRED') {
         $Code = "gateway_auth_required"
     }
+    if ($Message -match 'No capture-ready Android device is currently available') {
+        $Code = "gateway_device_unavailable"
+    }
     try {
         Invoke-GatewayApi -Method Post -Path "/api/device-gateway/tasks/$($Task.id)/fail" -Body @{
             lease_token = $LeaseToken

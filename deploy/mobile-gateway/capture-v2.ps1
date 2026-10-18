@@ -1,4 +1,4 @@
-# Pure output formatting: no platform control, network access, or secrets.
+﻿# Pure output formatting: no platform control, network access, or secrets.
 function Get-CaptureField {
     param([object]$Value, [string]$Name, [object]$Default = $null)
     if ($Value -is [Collections.IDictionary]) {
@@ -13,6 +13,7 @@ function ConvertTo-CaptureV2 {
     param([object]$Task, [object]$Result)
     $text = [string](Get-CaptureField $Result 'answer' '')
     if ([string]::IsNullOrWhiteSpace($text) -or $text.Length -gt 200000) { throw 'Capture answer is empty or exceeds the v2 limit' }
+    if ($text.Trim() -match '^(?:(?:已完成思考|思考已完成|正在思考|思考中|正在搜索|搜索中)(?:[，,。\s]*(?:参考了\s*\d+\s*篇资料|已阅读\s*\d+\s*个网页))?|参考了\s*\d+\s*篇资料)[。\s]*$') { throw 'Capture answer contains only a UI progress label' }
     $sha = [Security.Cryptography.SHA256]::Create()
     try { $hash = ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($text)))).Replace('-', '').ToLowerInvariant() }
     finally { $sha.Dispose() }

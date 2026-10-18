@@ -9,6 +9,28 @@ const task: CaptureStatus = { audit_id: '12', status: 'running', expected_sample
   samples: [{ id: 'a', platform: 'qwen', status: 'sealed' }, { id: 'b', platform: 'qwen', status: 'failed' }, { id: 'c', platform: 'doubao', status: 'sealed' }, { id: 'd', platform: 'doubao', status: 'pending' }] };
 
 describe('task progress and recovery', () => {
+  it('shows scheduled refresh and source gaps without claiming analysis is executing', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ ...task, status: 'partial', analysis_pending: 0,
+      refresh_waiting: true, refresh_wait_reason: 'enhancement_quota', refresh_available_at: '2026-10-19T00:48:07Z',
+      source_pending: 0, source_failed_documents: 2, source_unresolved: 35 })));
+    render(<CaptureProgress projectId="p1" auditId="12" />);
+    await screen.findByText('等待下一次增量分析额度');
+    expect(screen.getByText(/当前未在执行/)).toBeTruthy();
+    expect(screen.getByText('2 个来源正文未获取 · 35 条来源缺少精确链接')).toBeTruthy();
+    expect(screen.queryByText('正在处理分析任务')).toBeNull();
+  });
+
+  it('distinguishes a failed analysis from a partial published analysis', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ ...task, analysis_pending: 0, refresh_pending: false, analysis_status: 'failed' }))
+      .mockResolvedValueOnce(Response.json({ ...task, analysis_pending: 0, refresh_pending: false, analysis_status: 'partial', published_run_id: 'run2', semantic_error_count: 1 }));
+    vi.stubGlobal('fetch', fetcher);
+    render(<CaptureProgress projectId="p1" auditId="12" />);
+    await screen.findByText('分析失败，尚未产出本次结果');
+    fireEvent.click(screen.getByRole('button', { name: '刷新状态' }));
+    await screen.findByText('已产出部分分析，存在证据缺口');
+    expect(screen.getByText('1 个文本片段解析失败，其他片段仍保留')).toBeTruthy();
+  });
+
   it('keeps last known counters on a failed status query and recovers without creating an audit', async () => {
     const fetcher = vi.fn().mockResolvedValueOnce(Response.json(task)).mockRejectedValueOnce(new Error('连接中断')).mockResolvedValueOnce(Response.json({ ...task, sealed: 3 }));
     vi.stubGlobal('fetch', fetcher);

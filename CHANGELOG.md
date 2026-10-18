@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.1.0] - 2026-10-18
+
+### Fixed
+- 采集进度和概览明确区分排期等待、执行、失败与部分结果，并展示来源正文和链接缺口。
+- 千问过滤纯思考状态文字；采集网关对无可用设备报告独立错误，以保留等待退避。
+
 ## [0.3.0.1] - 2026-10-18
 
 ### Changed
