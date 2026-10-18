@@ -1,11 +1,11 @@
 "use client";
+import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 import { useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useSectionFetch } from '@/components/dashboard/use-section-fetch';
 import { SubscriptionRequiredState } from '@/components/billing/subscription-required-state';
 import type { ContentWorkbench } from '@/types/content-workbench';
-import { getAiPlatformLabel } from '@/lib/ai-platforms';
 import { EvidenceDraftExecution } from './evidence-draft-execution';
 import { ManualContentTasks } from './manual-content-tasks';
 
@@ -27,7 +27,7 @@ function BridgePage({ projectId, approvalId }: { projectId: string; approvalId: 
       {!data.items.length && <p>暂无获批草稿材料。请先核对证据、批准行动计划与适用事实，再审批内容材料。</p>}
       {data.items.map(item => <article key={item.id} className="space-y-3 border-t border-[var(--border)] pt-4"><h3 className="font-semibold">{item.title}</h3><p className="text-sm">{states[item.status] || '状态待核对'} · 审批版本 {item.version} · 截止 {new Date(item.expires_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</p>
         {item.execution && <p className="text-sm">{channels[item.execution.channel] || '渠道待核对'} · {item.execution.mode === 'manual_task' ? '人工内容任务' : '生成待审核草稿'} · {item.fact_count} 条获批事实</p>}
-        {item.ai_targets.map((target, index) => <p key={index} className="text-sm">目标平台：{getAiPlatformLabel(target.platform)} · {target.prompt}</p>)}
+        {item.ai_targets.map((target, index) => <p key={index} className="text-sm">目标平台：<AiPlatformLabel platform={target.platform} iconSize={16} /> · {target.prompt}</p>)}
         {item.audit_id && <Link className="block text-sm text-[var(--color-primary)]" href={`/audits/${item.audit_id}/report?project=${encodeURIComponent(projectId)}`}>查看关联审计当前报告</Link>}
         {item.status === 'ready' && <EvidenceDraftExecution key={`${projectId}-${item.id}`} projectId={projectId} approvalId={item.id} disabled={!data.can_prepare} onManualCreated={() => setManualRefresh(old => old + 1)} />}
       </article>)}

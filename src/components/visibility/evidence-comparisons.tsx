@@ -1,7 +1,7 @@
 "use client";
+import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 import { useRef, useState } from "react";
 import type { EvidenceRun } from "@/types/intelligence";
-import { getAiPlatformLabel } from "@/lib/ai-platforms";
 
 const relations: Record<string, string> = { supports: "支持", partial: "部分支持", contradicts: "冲突", unverified: "无法核验" };
 export function EvidenceComparisons({ items = [], run, projectId, onSaved, onSourceOpen, readOnly = false }: {
@@ -30,7 +30,7 @@ export function EvidenceComparisons({ items = [], run, projectId, onSaved, onSou
     finally { setBusy(false); }
   };
   return <div className="space-y-3">{items.map(item => <section key={item.id} className="dashboard-surface p-5">
-    <p className="text-sm text-[var(--text-secondary)]">{getAiPlatformLabel(item.platform)} · 模型判定：{relations[item.relation] || "无法核验"} · {run.claim_reviews?.[item.id] ? `人工判定：${relations[run.claim_reviews[item.id].relation]} v${run.claim_reviews[item.id].version}` : "待人工复核"}</p>
+    <p className="text-sm text-[var(--text-secondary)]"><AiPlatformLabel platform={item.platform} iconSize={16} /> · 模型判定：{relations[item.relation] || "无法核验"} · {run.claim_reviews?.[item.id] ? `人工判定：${relations[run.claim_reviews[item.id].relation]} v${run.claim_reviews[item.id].version}` : "待人工复核"}</p>
     <div className="mt-3 grid gap-4 md:grid-cols-2"><div><h3 className="text-sm font-semibold">回答观点</h3><blockquote className="mt-2 border-l-2 border-[var(--color-primary)] pl-4 text-sm">{item.answer_quote}</blockquote></div>
       <div><h3 className="text-sm font-semibold">{item.source_title || "该回答实际引用的原文"}</h3><blockquote className="mt-2 border-l-2 border-[var(--color-primary)] pl-4 text-sm">{item.source_quote || "没有取得可验证的支持片段"}</blockquote>
         <button className="mt-3 text-sm text-[var(--color-primary)]" onClick={() => onSourceOpen(item.snapshot_id)}>查看来源上下文</button></div></div>

@@ -22,7 +22,8 @@ describe('explicit capture from visibility page', () => {
     expect(replace).toHaveBeenCalledWith('/visibility?project=p1&auditId=12', { scroll: false });
     expect(screen.getByRole('button', { name: '新建另一次采集' })).toBeTruthy();
     expect(fetcher.mock.calls[1][0]).toBe('/api/integration/intelligence');
-    expect(JSON.parse(fetcher.mock.calls[1][1].body)).toMatchObject({ action: 'capture', projectId: 'p1', promptIds: [1], platforms: ['qwen'], rounds: 3 });
+    expect(JSON.parse(fetcher.mock.calls[1][1].body)).toMatchObject({ action: 'capture', projectId: 'p1', promptIds: [1], rounds: 3 });
+    expect(JSON.parse(fetcher.mock.calls[1][1].body)).not.toHaveProperty('surface');
     expect(refetch).toHaveBeenCalledTimes(1);
   });
 });

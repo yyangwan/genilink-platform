@@ -69,6 +69,25 @@ describe('project-scoped intelligence proxy', () => {
   const samplingRequest = () => new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({
     projectId: 'trusted-project', action: 'capture', promptIds: [1], platforms: ['qwen'], rounds: 3, surface: 'web', idempotencyKey: 'stable-key-123',
   }) });
+  it('owns platform coverage and transport policy even when the caller sends overrides', async () => {
+    vi.mocked(fetchUpstream).mockResolvedValue({ data: { audit_id: '12' } });
+    const response = await POST(samplingRequest());
+    expect(response.status).toBe(202);
+    expect(fetchUpstream).toHaveBeenCalledWith(expect.anything(), '/api/intelligence/projects/trusted-project/audits', expect.objectContaining({
+      body: expect.objectContaining({ sampling: expect.objectContaining({
+        platforms: ['qwen', 'deepseek', 'doubao', 'kimi', 'hunyuan'], surface: 'managed_v1',
+      }) }),
+    }));
+  });
+  it('accepts customer settings without transport fields and bounds the full platform total', async () => {
+    vi.mocked(fetchUpstream).mockResolvedValue({ data: { audit_id: '12' } });
+    const request = (rounds: number) => new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({
+      action: 'capture', promptIds: Array.from({ length: 21 }, (_, i) => i + 1), rounds, idempotencyKey: 'managed-key-123',
+    }) });
+    expect((await POST(request(10))).status).toBe(400);
+    expect(reserveContentGeneration).not.toHaveBeenCalled();
+    expect((await POST(request(1))).status).toBe(202);
+  });
   it('dispatches a bounded source retry without creating a new audit quota charge', async () => {
     const response = await POST(new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({
       action: 'retrySource', auditId: '123', documentId: 'a'.repeat(32), idempotencyKey: 'retry-key-123',
