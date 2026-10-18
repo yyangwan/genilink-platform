@@ -16,3 +16,5 @@ if(-not $script:body.retryable){throw 'Transient errors should remain retryable'
 Send-TaskFailure $task 'token' 'missing handler' 'handler_not_installed'
 if($script:body.retryable){throw 'Missing handler cannot be retried'}
 Write-Output 'Gateway failure policy tests passed'
+Send-TaskFailure $task 'token' 'No capture-ready Android device is currently available'
+if (-not $script:body.retryable -or $script:body.error_code -ne 'gateway_device_unavailable' -or $script:body.retry_after_seconds -lt 30) { throw 'Device wait must retain retry backoff' }

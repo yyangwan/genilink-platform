@@ -1,4 +1,4 @@
-$LiveXmlPath = if ($args.Count -gt 0) { [string]$args[0] } else { $null }
+﻿$LiveXmlPath = if ($args.Count -gt 0) { [string]$args[0] } else { $null }
 $ErrorActionPreference = "Stop"
 $sourcePath = Join-Path $PSScriptRoot "handlers\research-app-common.ps1"
 $tokens = $null
@@ -49,3 +49,14 @@ if ($LiveXmlPath) {
     $titles | Select-Object -First 5
 }
 Write-Output "Qwen send and answer guard tests passed"
+$script:fixture = @'
+<hierarchy>
+  <node class="android.widget.TextView" text="test prompt" bounds="[30,100][900,200]" />
+  <node class="android.widget.TextView" text="已完成思考，参考了10篇资料" bounds="[30,210][900,260]" />
+  <node class="android.widget.TextView" text="这是实际的回答正文，包含品牌对比和选择建议。" bounds="[30,280][900,800]" />
+</hierarchy>
+'@
+$answer = Get-AnswerInfo -Source $script:fixture -Prompt 'test prompt'
+if ($answer.answer -ne '这是实际的回答正文，包含品牌对比和选择建议。' -or $answer.reference_count -ne 10) { throw 'Qwen progress label replaced the real answer' }
+$script:fixture = $script:fixture -replace '<node class="android.widget.TextView" text="这是实际的回答正文[^>]+/>', ''
+if ((Get-AnswerInfo -Source $script:fixture -Prompt 'test prompt').answer) { throw 'Qwen progress-only page became an answer' }

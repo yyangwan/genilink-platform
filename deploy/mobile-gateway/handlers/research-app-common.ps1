@@ -1670,7 +1670,7 @@ function Get-AnswerInfo {
                     $text -match '^(千问|快速|工作助理|AI生视频|生活帮手)$' -or
                     $text -match '^发消息或按住说话' -or
                     $text -match '^内容由 AI 生成' -or
-                    $text -match '^参考了\s*\d+\s*篇资料$' -or
+                    $text -match '^(?:(?:已完成思考|思考已完成)[，,。\s]*)?(?:参考了\s*\d+\s*篇资料)?[。\s]*$' -or
                     $text -match '^(正在|思考中|搜索中)'
                 ) {
                     continue
