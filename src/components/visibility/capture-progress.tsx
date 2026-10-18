@@ -58,7 +58,8 @@ function TaskProgress({ projectId, auditId, onPublished }: { projectId: string; 
   const waiting = data?.status === 'pending';
   const running = data && ['pending', 'running'].includes(data.status);
   const title = error ? '暂时无法同步任务状态' : !data ? '正在读取采集任务' : running ? (waiting ? '任务已创建，等待执行' : '正在采集平台回答') : data.failed ? '回答采集已结束，部分样本未成功' : '回答采集已结束';
-  const analysisLabel = !data ? '' : data.refresh_waiting
+  const waitingForRefresh = data?.refresh_waiting && !data.analysis_pending;
+  const analysisLabel = !data ? '' : waitingForRefresh
     ? (data.refresh_wait_reason === 'enhancement_quota' ? '等待下一次增量分析额度' : '等待合并最新数据')
     : data.refresh_status === 'failed' ? '最新数据刷新失败，需要重试'
     : data.analysis_pending || (data.refresh_pending && data.refresh_status !== null) ? '正在处理分析任务'
@@ -71,7 +72,7 @@ function TaskProgress({ projectId, auditId, onPublished }: { projectId: string; 
     {data && <><progress aria-label="回答采集进度" value={data.sealed} max={Math.max(data.expected_samples, 1)} /><div className="capture-stages">
       <div><h3>平台回答</h3><strong>{data.sealed} 已入库 · {data.failed} 未成功</strong><p>未完成与失败样本不计为品牌缺席</p></div>
       <div><h3>来源正文归档</h3><strong>{data.source_pending ? `${data.source_pending} 项待处理` : '当前无待处理项'}</strong><p>{data.source_failed_documents || data.source_unresolved ? `${data.source_failed_documents || 0} 个来源正文未获取 · ${data.source_unresolved || 0} 条来源缺少精确链接` : '与回答采集可并行；不代表全文完整'}</p></div>
-      <div><h3>证据分析</h3><strong>{analysisLabel}</strong><p>{data.refresh_waiting && data.refresh_available_at ? `预计 ${new Date(data.refresh_available_at).toLocaleString('zh-CN')} 继续；当前未在执行` : data.semantic_error_count ? `${data.semantic_error_count} 个文本片段解析失败，其他片段仍保留` : '回答采集完成不等于报告已完成'}</p></div>
+      <div><h3>证据分析</h3><strong>{analysisLabel}</strong><p>{waitingForRefresh && data.refresh_available_at ? `预计 ${new Date(data.refresh_available_at).toLocaleString('zh-CN')} 继续；当前未在执行` : data.semantic_error_count ? `${data.semantic_error_count} 个文本片段解析失败，其他片段仍保留` : '回答采集完成不等于报告已完成'}</p></div>
     </div></>}
     {!!platforms.length && <details className="capture-platforms"><summary>查看分平台采集进度 <span>{platforms.length} 个平台</span></summary><div>{platforms.map(platform => {
       const samples = data!.samples!.filter(sample => sample.platform === platform);

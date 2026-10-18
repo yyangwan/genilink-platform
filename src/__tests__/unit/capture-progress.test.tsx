@@ -9,6 +9,15 @@ const task: CaptureStatus = { audit_id: '12', status: 'running', expected_sample
   samples: [{ id: 'a', platform: 'qwen', status: 'sealed' }, { id: 'b', platform: 'qwen', status: 'failed' }, { id: 'c', platform: 'doubao', status: 'sealed' }, { id: 'd', platform: 'doubao', status: 'pending' }] };
 
 describe('task progress and recovery', () => {
+  it('keeps current analysis visible while the next refresh is scheduled', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ ...task, analysis_status: 'running',
+      refresh_waiting: true, refresh_available_at: '2026-10-19T00:48:07Z' })));
+    render(<CaptureProgress projectId="p1" auditId="12" />);
+    await screen.findByText('正在处理分析任务');
+    expect(screen.queryByText(/当前未在执行/)).toBeNull();
+    expect(screen.queryByText('等待合并最新数据')).toBeNull();
+  });
+
   it('shows scheduled refresh and source gaps without claiming analysis is executing', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ ...task, status: 'partial', analysis_pending: 0,
       refresh_waiting: true, refresh_wait_reason: 'enhancement_quota', refresh_available_at: '2026-10-19T00:48:07Z',
