@@ -19,7 +19,7 @@ export function VisibilityOverview({ data, projectId, compact = false }: { data:
   return <section aria-label="最新审计概览" className="dashboard-surface space-y-4 p-5">
     <div className="flex flex-wrap justify-between gap-3"><h2 className="font-semibold">最新审计{data.latest_audit ? ` #${data.latest_audit.id}` : ' · 尚无记录'}</h2><Link className="text-sm text-[var(--color-primary)]" href={`/intelligence?${projectQuery}`}>采集与证据分析</Link></div>
     {data.context_sync_pending && <p role="status" className="text-sm text-[var(--color-warning)]">品牌配置待同步，请先同步配置后采集或分析。</p>}
-    {data.latest_audit ? <p className="text-sm">{states[data.latest_audit.status] || '采集状态待核对'} · {new Date(data.latest_audit.created_at).toLocaleString("zh-CN")} · {states[report?.status || 'needs_analysis'] || '分析状态待核对'}{report?.revision != null && ` · 修订 ${report.revision}`}</p> : <p>尚未创建审计，请先添加提示词，再明确选择平台和采集轮次。</p>}
+    {data.latest_audit ? <p className="text-sm">{states[data.latest_audit.status] || '采集状态待核对'} · {new Date(data.latest_audit.created_at).toLocaleString("zh-CN")} · {states[report?.status || 'needs_analysis'] || '分析状态待核对'}{report?.revision != null && ` · 修订 ${report.revision}`}</p> : <p>尚未创建审计，请先添加提示词并设置独立采集轮次。</p>}
     {data.processing && !data.waiting && <p role="status" className="text-sm text-[var(--color-primary)]">采集或分析正在进行；这里只展示最新审计已取得的样本，尚不是完整结果。</p>}
     {data.waiting && <p role="status" className="text-sm text-[var(--color-warning)]">后续任务已排期，当前处于等待；具体原因与继续时间可在采集进度中查看。</p>}
     {report && !report.snapshot_current && <p className="text-sm text-[var(--color-warning)]">当前快照尚未就绪或需要更新，已有内容仅供回查，不作为最新优化结论。</p>}

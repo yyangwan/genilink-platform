@@ -20,6 +20,9 @@ describe('explicit capture from visibility page', () => {
     fireEvent.click(screen.getByText('开始多轮采集'));
     await screen.findByText(/已创建采集任务 #12/);
     expect(replace).toHaveBeenCalledWith('/visibility?project=p1&auditId=12', { scroll: false });
+    expect(screen.getByRole('link', { name: '查看任务详情' }).getAttribute('href')).toBe('/intelligence?project=p1&auditId=12');
+    expect(screen.getByRole('button', { name: '采集设置' }).getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(screen.getByRole('button', { name: '采集设置' }));
     expect(screen.getByRole('button', { name: '新建另一次采集' })).toBeTruthy();
     expect(fetcher.mock.calls[1][0]).toBe('/api/integration/intelligence');
     expect(JSON.parse(fetcher.mock.calls[1][1].body)).toMatchObject({ action: 'capture', projectId: 'p1', promptIds: [1], rounds: 3 });

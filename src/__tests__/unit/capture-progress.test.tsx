@@ -78,4 +78,15 @@ describe('task progress and recovery', () => {
     expect(screen.queryByText('2 已入库 · 1 未成功')).toBeNull();
     expect(published).toHaveBeenCalledOnce();
   });
+  it('records only observed status changes after the first task snapshot', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(Response.json(task)).mockResolvedValueOnce(Response.json({ ...task,
+      samples: task.samples!.map(sample => sample.id === 'd' ? { ...sample, status: 'sealed' } : sample), sealed: 3 }));
+    vi.stubGlobal('fetch', fetcher);
+    render(<CaptureProgress projectId="p1" auditId="12" />);
+    await screen.findByText('2 已入库 · 1 未成功');
+    fireEvent.click(screen.getByText(/最近状态变化/));
+    expect(screen.getByText(/尚未观察到新的变化/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '刷新状态' }));
+    await screen.findByText(/豆包有回答入库/);
+  });
 });

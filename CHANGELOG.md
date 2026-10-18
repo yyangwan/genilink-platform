@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.3.0] - 2026-10-19
+
+### Added
+- 可见性分析页在当前审计下直接展示结果总览、分平台比较、来源证据与优化行动，提供平台筛选和原文入口。
+- 采集任务显示阶段状态、分平台进度及本次打开页面后观察到的状态变化，分析修订就绪后自动更新。
+
+### Fixed
+- 新采集任务与历史审计严格按审计编号读取，避免展示上一轮结论；解析覆盖为零时明确提示无法判断品牌表现。
+- 采集设置移至页面顶部入口，去除概览中要求客户选择采集平台的旧文案。
+
 ## [0.3.2.0] - 2026-10-18
 
 ### Fixed
