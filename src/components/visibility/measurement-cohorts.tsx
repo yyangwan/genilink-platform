@@ -1,9 +1,9 @@
 "use client";
+import { AiPlatformLabel, AiPlatformList } from "@/components/ui/ai-platform-label";
 
 import { useEffect, useRef, useState } from 'react';
 import { PresenceMetrics, type PresenceMetric } from './presence-metrics';
 import type { EvidenceRun, EvidenceRunListItem } from '@/types/intelligence';
-import { getAiPlatformLabel } from '@/lib/ai-platforms';
 
 type Cohort = { id: string; title: string; baseline_run_id: string; expected_samples: number; platforms: string[]; entities: Array<{ id: string; name: string; identity_status: string }> };
 type Retest = { id: string; audit_id: string; capture_status: string; published_run_id: string | null };
@@ -64,11 +64,11 @@ export function MeasurementCohorts({ run, runs, projectId, onCaptureStarted, onO
     <div className="flex flex-wrap gap-3"><select aria-label="固定复测方案" value={selected} disabled={busy} onChange={event => { setSelected(event.target.value); setFollowup(''); }} className={cls}><option value="">选择复测方案</option>{cohorts.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select>
       <button disabled={busy} onClick={() => setRefresh(old => old + 1)} className={cls}>刷新复测状态</button>
       <button disabled={busy || !cohort} onClick={() => submit('startRetest')} className={`${cls} disabled:opacity-40`}>发起固定样本复测（1次审计额度）</button></div>
-    {cohort && <p className="text-sm">固定样本：{cohort.expected_samples}轮回答 · {cohort.platforms.map(getAiPlatformLabel).join('、')} · 原提示词后续修改不会改变本方案。</p>}
+    {cohort && <p className="text-sm">固定样本：{cohort.expected_samples}轮回答 · <AiPlatformList platforms={cohort.platforms} iconSize={16} /> · 原提示词后续修改不会改变本方案。</p>}
     {(loadedCohort === selected ? retests : []).map(task => <p key={task.id} className="text-sm">复测审计 {task.audit_id} · {statuses[task.capture_status] || '待确认'} · {task.published_run_id ? '分析结果可用' : '等待分析结果'}</p>)}
     {cohort && <div className="flex flex-wrap gap-3"><select aria-label="复测分析结果" value={followup} disabled={busy} onChange={event => setFollowup(event.target.value)} className={cls}><option value="">选择复测后的已发布分析</option>{runs.filter(item => item.id !== cohort.baseline_run_id && ['ready', 'partial'].includes(item.status)).map(item => <option key={item.id} value={item.id}>审计 {item.audit_id} · 修订 {item.revision}</option>)}</select><button disabled={busy || !followup} onClick={() => submit('compareCohort')} className={`${cls} disabled:opacity-40`}>计算并保存观测对比</button></div>}
     {(loadedCohort === selected ? results : []).map(result => <div key={result.id} className="space-y-4">{result.platforms.map(platform => <section key={platform.platform} className="dashboard-surface space-y-3 p-5">
-      <h3 className="font-semibold">{getAiPlatformLabel(platform.platform)} · {statuses[platform.status] || '待确认'}</h3>
+      <h3 className="font-semibold"><AiPlatformLabel platform={platform.platform} iconSize={16} /> · {statuses[platform.status] || '待确认'}</h3>
       <p className="text-sm text-[var(--text-secondary)]">共同有效回答 {platform.included.length}/{platform.expected_samples} · 问题簇 {platform.prompt_clusters} · 排除 {platform.excluded.length} · 额外样本 {platform.out_of_cohort.length}</p>
       <PresenceMetrics metrics={platform.metrics.map(metric => ({ ...platform.source_populations?.[metric.metric], ...metric }))} platformStatus={platform.status} entities={result.entities} runIds={{ baseline: result.baseline_run_id, followup: result.followup_run_id }} onOpen={onOpenEvidence} />
       {platform.excluded.length > 0 && <details className="text-sm"><summary>查看样本排除原因</summary><ul className="mt-2 space-y-1">{platform.excluded.map(item => <li key={item.baseline_sample_id}>第{item.sample_index}轮 · {reasons[item.reason] || '条件无法核对'} · 样本 {item.baseline_sample_id}</li>)}</ul></details>}

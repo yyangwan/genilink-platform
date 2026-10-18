@@ -10,6 +10,7 @@ import { issueContentProjectJWT } from '@/lib/auth/service-jwt';
 import { requireBilling } from '@/lib/billing/guard';
 import { requestHash as hashRequest } from '@/lib/billing/idempotency';
 import { lookupWorkflowByOperation } from '@/lib/content/contentos-internal-client';
+import { CAPTURE_PLATFORMS } from '@/lib/visibility/capture-policy';
 
 const validId = (id: string | null): id is string => !!id && /^[a-f0-9]{32}$/.test(id);
 const badRequest = () => NextResponse.json({ error: '无效的证据查询参数' }, { status: 400 });
@@ -342,19 +343,17 @@ export async function POST(req: NextRequest) {
   if (body.action === 'capture') {
     if (!Array.isArray(body.promptIds) || !body.promptIds.length || body.promptIds.length > 100 ||
         !body.promptIds.every(value => Number.isSafeInteger(value) && value > 0) ||
-        !Array.isArray(body.platforms) || !body.platforms.length || body.platforms.length > 5 ||
-        !body.platforms.every(value => ['qwen', 'deepseek', 'doubao', 'kimi', 'hunyuan'].includes(value)) ||
         !Number.isInteger(body.rounds) || Number(body.rounds) < 1 || Number(body.rounds) > 10 ||
-        !['app', 'web'].includes(String(body.surface)) || typeof body.idempotencyKey !== 'string' ||
+        typeof body.idempotencyKey !== 'string' ||
         !/^[a-zA-Z0-9_-]{8,100}$/.test(body.idempotencyKey) ||
-        new Set(body.promptIds).size !== body.promptIds.length || new Set(body.platforms).size !== body.platforms.length ||
-        body.promptIds.length * body.platforms.length * Number(body.rounds) > 1000) return badRequest();
+        new Set(body.promptIds).size !== body.promptIds.length ||
+        body.promptIds.length * CAPTURE_PLATFORMS.length * Number(body.rounds) > 1000) return badRequest();
     const associations = await prisma.projectBrand.findMany({ where: { projectId: guard.ctx.projectId }, include: { brand: true }, orderBy: { brandId: 'asc' } });
     const brands = associations.filter(row => row.brand && !row.brand.deletedAt).map(row => ({
       id: row.brand.id, name: row.brand.name, aliases: row.brand.aliases || [], is_competitor: row.brand.isCompetitor || false,
     }));
-    const sampling = { promptIds: body.promptIds, platforms: body.platforms, rounds: body.rounds,
-      surface: body.surface, idempotencyKey: body.idempotencyKey, conditions: { searchMode: 'unknown' } };
+    const sampling = { promptIds: body.promptIds, platforms: [...CAPTURE_PLATFORMS], rounds: body.rounds,
+      surface: 'managed_v1', idempotencyKey: body.idempotencyKey, conditions: { searchMode: 'unknown' } };
     const operationId = 'visibility-capture-' + createHash('sha256').update(`${guard.ctx.workspaceId}:${guard.ctx.projectId}:${body.idempotencyKey}`).digest('hex');
     const requestHash = createHash('sha256').update(JSON.stringify({ projectId: guard.ctx.projectId, sampling, brands })).digest('hex');
     const reservation = await reserveContentGeneration({ userId: guard.ctx.session.user.id, workspaceId: guard.ctx.workspaceId,

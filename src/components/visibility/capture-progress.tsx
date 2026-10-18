@@ -1,9 +1,9 @@
 "use client";
+import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { RefreshCw, Radio, AlertCircle } from 'lucide-react';
-import { getAiPlatformLabel } from '@/lib/ai-platforms';
 
 export interface CaptureStatus {
   audit_id: string; status: string; expected_samples: number; sealed: number; failed: number;
@@ -76,7 +76,7 @@ function TaskProgress({ projectId, auditId, onPublished }: { projectId: string; 
     </div></>}
     {!!platforms.length && <details className="capture-platforms"><summary>查看分平台采集进度 <span>{platforms.length} 个平台</span></summary><div>{platforms.map(platform => {
       const samples = data!.samples!.filter(sample => sample.platform === platform);
-      return <div className="capture-platform-row" key={platform}><strong>{getAiPlatformLabel(platform)}</strong><span>{samples.filter(sample => sample.status === 'sealed').length} / {samples.length} 已入库</span><span>{samples.filter(sample => sample.status === 'failed').length} 未成功</span></div>;
+      return <div className="capture-platform-row" key={platform}><strong><AiPlatformLabel platform={platform} iconSize={16} /></strong><span>{samples.filter(sample => sample.status === 'sealed').length} / {samples.length} 已入库</span><span>{samples.filter(sample => sample.status === 'failed').length} 未成功</span></div>;
     })}</div></details>}
     <div className="capture-progress__footer"><p role={error ? 'alert' : undefined}>{error ? `${error} 状态查询异常不代表任务失败，已有进度仍保留。` : '可以离开页面，稍后继续查看。本面板分别展示采集、正文和分析状态。'}</p><div className="flex shrink-0 flex-wrap gap-2"><button type="button" disabled={checking} onClick={() => setRefresh(value => value + 1)} className="dashboard-button dashboard-button--secondary"><RefreshCw size={14} className={checking ? 'animate-spin' : ''} />{error ? '重新查询' : '刷新状态'}</button><Link className="dashboard-button dashboard-button--primary" href={`/intelligence?${new URLSearchParams({ project: projectId, auditId })}`}>查看本次证据</Link></div></div>
   </section>;

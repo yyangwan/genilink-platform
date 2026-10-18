@@ -1,7 +1,7 @@
 "use client";
+import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 import { useRef, useState } from 'react';
 import Link from 'next/link';
-import { getAiPlatformLabel } from '@/lib/ai-platforms';
 
 interface Preview { brief: { schemaVersion: number; projectId: string; title: string; execution: { channel: string; mode: string }; aiTargets: Array<{ platform: string; prompt: string }>; facts: Array<{ id: string; statement: string; scope: string }>; approval: { id: string; expiresAt: string }; publicationAllowed: boolean } }
 interface Workflow { id: string; status: string; contentPieceId: string | null; platforms: Array<{ platform: string; status: string; error?: { message: string } }> }
@@ -47,7 +47,7 @@ export function EvidenceDraftExecution({ projectId, approvalId, disabled = false
     <button disabled={disabled || busy || !/^[a-f0-9]{32}$/.test(approvalId)} onClick={() => submit('previewDraft')} className={`${cls} disabled:opacity-40`}>重新验证并准备材料</button>
     {message && <p role="status" className="text-sm">{message}</p>}
     {preview && <div className="space-y-3 rounded-lg border border-[var(--border)] p-4 text-sm"><h3 className="font-semibold">{preview.brief.title}</h3><p>{preview.brief.execution.mode === 'manual_task' ? '已准备人工内容材料' : '材料已验证，等待明确创建草稿任务'}</p>
-      {preview.brief.aiTargets.map((target, index) => <p key={index}>{getAiPlatformLabel(target.platform)} · {target.prompt}</p>)}
+      {preview.brief.aiTargets.map((target, index) => <p key={index}><AiPlatformLabel platform={target.platform} iconSize={16} /> · {target.prompt}</p>)}
       <h4 className="font-semibold">获批事实与适用范围</h4>{preview.brief.facts.map(fact => <p key={fact.id}>{fact.statement}<span className="block text-[var(--text-secondary)]">仅适用：{fact.scope}</span></p>)}
       <p className="text-[var(--text-secondary)]">材料审批截止：{new Date(preview.brief.approval.expiresAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}。草稿与发布分开，成稿仍需审核。</p>
       {preview.brief.execution.mode === 'generate_draft' && <button disabled={disabled || busy || !!workflow} onClick={() => submit('generateDraft')} className={`${cls} disabled:opacity-40`}>创建草稿生成任务（预占1次额度）</button>}

@@ -33,10 +33,10 @@ describe('audit-scoped insight and suggestion pages', () => {
     response({ ...base, view: 'insights', observations: { prompt_platforms: [], claims: [], mentions: [{ id: 'm1', entity_id: 'e1', entity_name: '新发现品牌', owner_kind: 'snapshot', owner_id: 's1', quote: '新发现品牌的原文观点', sentiment: 'unknown', contexts: [{ platform: 'qwen', response_id: 'r1', source_id: 'c1', kind: 'answer_reference' }, { platform: 'deepseek', response_id: 'r2', source_id: 'c2', kind: 'search_candidate' }] }] } });
     render(<InsightsPage />);
     expect(screen.getByText('新发现品牌的原文观点')).toBeTruthy();
-    expect(screen.getByText(/实际引用.*检索候选/)).toBeTruthy();
+    expect(screen.getByText((_text, element) => element?.tagName === 'P' && /实际引用.*检索候选/.test(element.textContent || ''))).toBeTruthy();
     fireEvent.change(screen.getByLabelText('分析平台'), { target: { value: 'deepseek' } });
-    expect(screen.getByText(/检索候选.*卡片 c2/)).toBeTruthy();
-    expect(screen.queryByText(/实际引用.*卡片 c1/)).toBeNull();
+    expect(screen.getByText((_text, element) => element?.tagName === 'P' && /检索候选.*卡片 c2/.test(element.textContent || ''))).toBeTruthy();
+    expect(screen.queryByText((_text, element) => element?.tagName === 'P' && /实际引用.*卡片 c1/.test(element.textContent || ''))).toBeNull();
   });
   it('rejects unrelated audit snapshots', () => {
     response({ ...base, selected_audit_id: '11', view: 'suggestions' }); render(<SuggestionsPage />);

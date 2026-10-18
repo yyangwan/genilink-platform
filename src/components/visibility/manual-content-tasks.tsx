@@ -1,6 +1,6 @@
 "use client";
+import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 import { useEffect, useRef, useState } from 'react';
-import { getAiPlatformLabel } from '@/lib/ai-platforms';
 
 type Task = { id: string; status: string; version: number; title: string; channel: string; materialState: string; expiresAt: string;
   ownerUserId: string | null; completionNotes: string | null; deliveryUrl: string | null; aiTargets: Array<{ platform: string; prompt: string }>;
@@ -40,7 +40,7 @@ export function ManualContentTasks({ projectId, readOnly = false, blocked = fals
     {tasks.length === 0 && <p className="text-sm text-[var(--text-secondary)]">暂无人工任务，请先审批并创建材料任务。</p>}
     {tasks.map(task => <article key={task.id} className="dashboard-surface space-y-3 p-5"><h3 className="font-semibold">{task.title} · {labels[task.channel] || task.channel}</h3>
       <p className="text-sm">{labels[task.status] || '待确认'} · {task.ownerUserId ? '负责人已领取' : '尚未领取'} · 材料{task.materialState === 'expired' ? '已过期，需重新审批' : '待下一次操作实时复验'}</p>
-      {task.aiTargets.map((target, index) => <p key={index} className="text-sm">{getAiPlatformLabel(target.platform)} · {target.prompt}</p>)}
+      {task.aiTargets.map((target, index) => <p key={index} className="text-sm"><AiPlatformLabel platform={target.platform} iconSize={16} /> · {target.prompt}</p>)}
       <details className="text-sm"><summary>查看获批事实及范围</summary>{task.facts.map(fact => <p key={fact.id} className="mt-2">{fact.statement}<span className="block text-[var(--text-secondary)]">仅适用：{fact.scope}</span></p>)}</details>
       <p className="text-xs text-[var(--text-secondary)]">材料期限：{new Date(task.expiresAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</p>
       {task.completionNotes && <p className="text-sm">交付说明：{task.completionNotes}</p>}

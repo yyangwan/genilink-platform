@@ -1,6 +1,6 @@
+import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 import Link from 'next/link';
 import type { CitationReport } from '@/types/citation-report';
-import { getAiPlatformLabel } from '@/lib/ai-platforms';
 import { PlatformDiagnoses } from './platform-diagnoses';
 
 export function StrategicEvidence({ report, projectId, platform, onOpen }: { report: CitationReport; projectId: string; platform: string; onOpen: (kind: string, id: string) => void }) {
@@ -11,7 +11,7 @@ export function StrategicEvidence({ report, projectId, platform, onOpen }: { rep
       const sources = (report.sources || []).filter(item => item.platform === row.platform);
       const references = sources.filter(item => item.kind === 'answer_reference');
       const proofs = (report.evidence || []).filter(item => item.platform === row.platform);
-      return <article key={row.platform} className="dashboard-surface space-y-3 p-5"><h3 className="font-semibold">{getAiPlatformLabel(row.platform)} · 证据缺口与待核验事项</h3>
+      return <article key={row.platform} className="dashboard-surface space-y-3 p-5"><h3 className="font-semibold"><AiPlatformLabel platform={row.platform} iconSize={16} /> · 证据缺口与待核验事项</h3>
         <p className="text-sm">实际引用卡片 {references.length} 条 · 其中已保存正文 {references.filter(item => item.fetch_status === 'captured').length} 条 · 检索候选 {sources.filter(item => item.kind === 'search_candidate').length} 条</p>
         {row.metrics.map(metric => <p key={metric.metric} className="text-sm">{({ answer_presence: '回答', cited_card_presence: '引用卡片', cited_archive_presence: '保存正文', candidate_card_presence: '检索候选' } as Record<string, string>)[metric.metric] || metric.metric}：{metric.included.length} 次有效回答，{metric.excluded.length} 次排除；{metric.excluded.length ? '先在比较页核对排除原因，避免用未知样本判断品牌缺失。' : '当前有效范围内可查看实体分布。'}</p>)}
         {!references.length && <p className="text-sm">未取得实际引用卡片，不能据此判断平台不引用来源；先核对来源面板与引用类别。</p>}

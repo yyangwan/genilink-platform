@@ -27,6 +27,17 @@ describe('capture operation identity', () => {
     fireEvent.click(button);
   }
 
+  it('collects across platforms without exposing transport or platform selectors', async () => {
+    const { requests, onCreated } = setup([Response.json({ audit_id: '12' })]);
+    await start();
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith('12'));
+    expect(screen.queryByRole('combobox', { name: '采集入口' })).toBeNull();
+    expect(screen.queryByRole('group', { name: '采集平台' })).toBeNull();
+    expect(screen.getByText(/5 个平台.*15 次计划采集/)).toBeTruthy();
+    expect(requests[0]).not.toHaveProperty('surface');
+    expect(requests[0]).not.toHaveProperty('platforms');
+  });
+
   it('starts a new audit with a new key after an acknowledged successful capture', async () => {
     const { requests, onCreated } = setup([
       Response.json({ audit_id: '12' }), Response.json({ audit_id: '13' }),

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.2.0] - 2026-10-18
+
+### Fixed
+- 采集设置只保留提示词和轮次，由服务端统一覆盖五个平台，隐藏采集端选择与实现细节。
+- 补齐审计分析、报告、对比、建议和复测中的平台图标，沿用统一的平台名称及别名映射。
+
 ## [0.3.1.1] - 2026-10-18
 
 ### Fixed
