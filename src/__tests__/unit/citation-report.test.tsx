@@ -1,11 +1,16 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 vi.mock('@/components/dashboard/use-section-fetch', () => ({ useSectionFetch: vi.fn(() => ({ data: { items: [{ id: 'segment', text: '<script>saved plain text</script>' }], next_offset: null }, loading: false, error: false, locked: false })) }));
 import { useSectionFetch } from '@/components/dashboard/use-section-fetch';
 import { CitationReportView } from '@/components/visibility/citation-report';
 import type { CitationReport } from '@/types/citation-report';
 afterEach(cleanup);
+// jsdom does not implement native dialog methods; modal focus behavior is verified in-browser.
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
+});
 const report: CitationReport = { schema: 'citation-report-1', audit_id: '12', project_id: 'p1', run_id: 'a'.repeat(32), status: 'stale', snapshot_current: false,
   entities: [{ id: 'other', name: '未登记品牌', role: 'unregistered', kind: 'brand', identity_status: 'provisional', response_count: 1, source_mentions: 0, platform_response_counts: {} }],
   platforms: [{ platform: 'qwen', samples: 2, metrics: [{ metric: 'cited_archive_presence', included: [], excluded: [{ response_id: 'r1', reason: 'cited_archive_incomplete' }], entities: [{ entity_id: 'other', numerator: 0, denominator: 0 }] }] }, { platform: 'deepseek', samples: 1, metrics: [] }],

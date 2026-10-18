@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(), useRouter: () => ({ replace }) }));
 vi.mock('@/components/project/project-context', () => ({ useProject: () => ({ currentProjectId: 'p1', projects: [], loading: false, openWizard: vi.fn() }) }));
 vi.mock('@/components/visibility/use-visibility-dashboard', () => ({ useVisibilityDashboard: vi.fn() }));
 import { useVisibilityDashboard } from '@/components/visibility/use-visibility-dashboard';
@@ -17,6 +19,8 @@ describe('explicit capture from visibility page', () => {
     expect(fetcher).toHaveBeenCalledTimes(1); expect(fetcher.mock.calls[0][0]).toContain('view=prompts');
     fireEvent.click(screen.getByText('开始多轮采集'));
     await screen.findByText(/已创建采集任务 #12/);
+    expect(replace).toHaveBeenCalledWith('/visibility?project=p1&auditId=12', { scroll: false });
+    expect(screen.getByRole('button', { name: '新建另一次采集' })).toBeTruthy();
     expect(fetcher.mock.calls[1][0]).toBe('/api/integration/intelligence');
     expect(JSON.parse(fetcher.mock.calls[1][1].body)).toMatchObject({ action: 'capture', projectId: 'p1', promptIds: [1], platforms: ['qwen'], rounds: 3 });
     expect(refetch).toHaveBeenCalledTimes(1);

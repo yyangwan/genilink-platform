@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0.1] - 2026-10-18
+
+### Changed
+- 统一审计分析控件指针与状态样式，将九项分析功能归入四组导航。
+- 增加持续采集进度、分平台计数、查询中断恢复及审计上下文链接。
+- 折叠采集设置，使用模态抽屉阅读原文，并优化来源和平台信息层次。
+
 ## [0.3.0.0] - 2026-10-17
 
 ### Added
