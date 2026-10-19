@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.3.1] - 2026-10-19
+
+### Fixed
+- 当本次审计没有成功分析任何字符时，将后端的数据缺口诊断归为分析修复事项，不计作品牌优化建议，也不显示行动审批入口；仍可查看来源证据及运行诊断。
+
 ## [0.3.3.0] - 2026-10-19
 
 ### Added
