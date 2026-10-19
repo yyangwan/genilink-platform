@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.3.2] - 2026-10-19
+
+### Fixed
+- 可见性分析页对最新审计也读取完整分析工作台，确保来源与证据页签显示真实来源明细，而非仅有首页概览统计。
+
 ## [0.3.3.1] - 2026-10-19
 
 ### Fixed

@@ -29,4 +29,26 @@ describe('explicit capture from visibility page', () => {
     expect(JSON.parse(fetcher.mock.calls[1][1].body)).not.toHaveProperty('surface');
     expect(refetch).toHaveBeenCalledTimes(1);
   });
+  it('loads full source detail for the latest audit instead of using the summary-only dashboard', async () => {
+    const summary = { schema: 'citation-report-1' as const, project_id: 'p1', audit_id: '12', run_id: 'run12',
+      status: 'partial', snapshot_current: true, revision: 2, coverage: { responses: 1, sources: 1, captured_sources: 1 }, platforms: [] };
+    vi.mocked(useVisibilityDashboard).mockReturnValue({ data: { schema: 'citation-dashboard-1', project_id: 'p1', enabled: true,
+      processing: false, latest_audit: { id: '12', status: 'completed', stage: 'done', created_at: '2026-10-19', platforms: ['qwen'] },
+      report: summary, can_capture: false }, loading: false, error: false, locked: false, refetch: vi.fn() });
+    const fetcher = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('analysis-workspace')) return Response.json({ schema: 'citation-workspace-1', project_id: 'p1',
+        selected_audit_id: '12', latest_audit_id: '12', processing: false, audits: [{ id: '12', status: 'completed', created_at: '2026-10-19' }],
+        report: { ...summary, sources: [{ id: 's1', response_id: 'r1', platform: 'qwen', title: '已保存的引用文章',
+          kind: 'answer_reference', snippet: '文章摘要', snapshot_id: null, fetch_status: 'captured' }] } });
+      if (url.includes('view=capture')) return Response.json({ audit_id: '12', status: 'completed', expected_samples: 1, sealed: 1,
+        failed: 0, source_pending: 0, analysis_pending: 0, refresh_pending: false, published_run_id: null, analysis_status: 'failed', samples: [] });
+      return Response.json([]);
+    });
+    vi.stubGlobal('fetch', fetcher);
+    render(<VisibilityPage />);
+    await screen.findByRole('tab', { name: /来源与证据/ });
+    fireEvent.click(screen.getByRole('tab', { name: /来源与证据/ }));
+    expect(await screen.findByText('已保存的引用文章')).toBeTruthy();
+    expect(fetcher.mock.calls.some(([url]) => String(url).includes('analysis-workspace') && String(url).includes('auditId=12'))).toBe(true);
+  });
 });

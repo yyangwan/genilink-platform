@@ -21,17 +21,17 @@ function ProjectVisibility({ projectId }: { projectId: string }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const queryAudit = search.get('project') === projectId && /^[1-9][0-9]{0,17}$/.test(search.get('auditId') || '') ? search.get('auditId') : null;
   const auditId = createdAudit || queryAudit || dashboard.data?.latest_audit?.id || '';
-  const selectedUrl = auditId && dashboard.data?.latest_audit?.id !== auditId
+  const selectedUrl = auditId
     ? `/api/integration/analysis-workspace?${new URLSearchParams({ projectId, auditId, view: 'insights' })}` : null;
   const selected = useSectionFetch<AnalysisWorkspace>(selectedUrl);
   const selectedData = selected.data?.selected_audit_id === auditId ? selected.data : null;
-  const currentData: CitationDashboard | null = dashboard.data ? selectedUrl && selectedData ? {
+  const currentData: CitationDashboard | null = dashboard.data ? selectedData ? {
     ...dashboard.data,
     latest_audit: { id: auditId, status: selectedData.audits.find(item => item.id === auditId)?.status || 'pending', stage: '',
       created_at: selectedData.audits.find(item => item.id === auditId)?.created_at || '', platforms: (selectedData.report?.platforms || []).map(item => item.platform) },
     report: selectedData.report,
     processing: selectedData.processing,
-  } : dashboard.data : null;
+  } : { ...dashboard.data, report: null } : null;
   const refresh = useCallback(() => { dashboard.refetch(); if (selectedUrl) selected.refetch(); }, [dashboard.refetch, selected.refetch, selectedUrl]);
   useEffect(() => {
     if (!selectedUrl || !selectedData?.processing) return;
@@ -51,7 +51,8 @@ function ProjectVisibility({ projectId }: { projectId: string }) {
       {auditId && <CaptureProgress projectId={projectId} auditId={auditId} onPublished={refresh} report={currentData?.report} />}
       {selectedUrl && selected.error && <p role="alert" className="visibility-results__notice">本次审计的分析快照暂不可读，采集任务状态仍可回查。<button type="button" onClick={selected.refetch}>重试读取</button></p>}
       {dashboard.data.can_capture ? <div id="visibility-capture-settings" className={settingsOpen || !auditId ? 'visibility-config visibility-config--open' : 'visibility-config'} hidden={!settingsOpen && !!auditId}><div className="visibility-config__head"><div><h2>采集设置</h2><p>选择提示词和独立轮次，系统采集支持平台的回答与可获取的来源正文。</p></div><Link href={`/settings/prompts?project=${encodeURIComponent(projectId)}`}>管理提示词 ↗</Link></div><CaptureControls key={projectId} activeAuditId={auditId} projectId={projectId} enabled={dashboard.data.enabled} onCreated={track} /></div> : <p className="dashboard-surface p-4 text-sm">采集入口暂不可用。请确认功能已启用、品牌配置已同步，且具有项目写入权限和完整分析权限。</p>}
-      {currentData && <VisibilityResults key={`${projectId}:${auditId}`} data={currentData} projectId={projectId} auditId={auditId} />}
+      {selectedUrl && selected.loading && !selectedData && <p role="status">正在读取本次审计的来源与分析明细…</p>}
+      {currentData && (!selectedUrl || selectedData) && <VisibilityResults key={`${projectId}:${auditId}`} data={currentData} projectId={projectId} auditId={auditId} />}
     </>}
   </div>;
 }
