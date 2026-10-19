@@ -28,6 +28,11 @@ describe('visibility results for the selected audit', () => {
     render(<VisibilityResults data={emptyAnalysis} projectId="p1" auditId="12" />);
     expect(screen.getByText(/当前不能据此判断品牌表现/)).toBeTruthy();
     expect(screen.getByText(/暂无可用的文本分析结论/)).toBeTruthy();
+    expect(screen.getByText('先处理数据缺口')).toBeTruthy();
+    expect(screen.queryByText('回答仍需核验')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: '优化行动' }));
+    expect(screen.getByText('先修复分析数据')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: '进入行动计划与审批 →' })).toBeNull();
     fireEvent.click(screen.getByRole('tab', { name: /来源与证据/ }));
     expect(screen.getByText('测试文章')).toBeTruthy();
   });
