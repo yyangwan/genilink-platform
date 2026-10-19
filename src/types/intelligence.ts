@@ -2,7 +2,7 @@ export interface EvidenceRunListItem {
   id: string; audit_id: string; revision: number; status: string; created_at: string;
   coverage: { total_segments?: number; segment_states?: Record<string, number>; total_characters?: number;
     analyzed_characters?: number; responses?: number; failed_responses?: number; sources?: number;
-    captured_sources?: number; complete?: boolean };
+    captured_sources?: number; complete?: boolean; semantic_error_count?: number };
 }
 export interface EvidenceRun extends EvidenceRunListItem {
   identity_reviews?: Record<string, { event_id: string; version: number; decision: string; canonical_name: string; reason: string }>;
