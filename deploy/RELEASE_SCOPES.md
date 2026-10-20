@@ -35,7 +35,10 @@ are cloud release-infrastructure changes and take the full server check path.
 
 1. Validate locally with both `powershell` and `pwsh`:
    `-NoProfile -ExecutionPolicy Bypass -File deploy/mobile-gateway/test-release.ps1`.
-   Run `node --test deploy/mobile-gateway/browser-runtime/*.test.mjs` as well.
+   Install the gateway's isolated test dependencies with
+   `npm ci --prefix deploy/mobile-gateway/browser-runtime --ignore-scripts`, then
+   run `npm --prefix deploy/mobile-gateway/browser-runtime test` as well.
+   Production gateway installs continue to use `--omit=dev` (no test-only jsdom).
 2. Push from local git, create a PR, require passing gateway checks, then merge.
 3. Build a gateway archive from the exact landed full SHA using `git archive`.
    Verify its SHA-256 on transfer; never publish a dirty working-tree directory.

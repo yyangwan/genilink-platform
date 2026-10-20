@@ -53,7 +53,10 @@ jobs:
         run: .\deploy\mobile-gateway\test-release.ps1
       - name: Validate gateway browser parsers
         shell: pwsh
-        run: node --test deploy/mobile-gateway/browser-runtime/*.test.mjs
+        run: |
+          npm ci --prefix deploy/mobile-gateway/browser-runtime --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm --prefix deploy/mobile-gateway/browser-runtime test
 
   build:
     needs: changes
