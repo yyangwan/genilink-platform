@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   LayoutDashboard,
@@ -31,7 +31,6 @@ import {
   LayoutTemplate,
   Plug,
   Tag,
-  Target,
   Globe2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -72,18 +71,21 @@ const zhijianSection: NavSection = {
     { label: "可见性分析", href: "/visibility", icon: Play },
     { label: "审计记录", href: "/audits", icon: FileText },
     { label: "定时任务", href: "/schedules", icon: Clock },
-    { label: "优化建议", href: "/suggestions", icon: Lightbulb },
-    { label: "趋势分析", href: "/trends", icon: TrendingUp },
-    { label: "竞品对比", href: "/compare", icon: GitCompareArrows },
-    { label: "内容洞察", href: "/insights", icon: BarChart3 },
-    { label: "证据分析", href: "/intelligence", icon: FileText },
-    { label: "战略智能", href: "/strategic", icon: Target },
+    { label: "审计洞察", href: "/intelligence?view=overview", icon: LayoutDashboard },
+    { label: "平台差异对照", href: "/intelligence?view=platforms", icon: GitCompareArrows },
+    { label: "品牌发现对比", href: "/intelligence?view=entities", icon: Tag },
+    { label: "来源文章库", href: "/intelligence?view=sources", icon: FileText },
+    { label: "观点与证据", href: "/intelligence?view=evidence", icon: Eye },
+    { label: "优化行动", href: "/intelligence?view=actions", icon: Lightbulb },
+    { label: "内容创作方案", href: "/intelligence?view=drafts", icon: PenTool },
+    { label: "行动效果复测", href: "/intelligence?view=measurements", icon: TrendingUp },
     { label: "网站分析", href: "/website-analysis", icon: Globe2 },
   ],
 };
 
-const zhijianWorkflowItems = zhijianSection.items.slice(0, 9);
-const zhijianToolItems = zhijianSection.items.slice(9);
+const zhijianCaptureItems = zhijianSection.items.slice(0, 3);
+const zhijianAnalysisItems = zhijianSection.items.slice(3, 11);
+const zhijianToolItems = zhijianSection.items.slice(11);
 
 const zhichuangSection: NavSection = {
   id: "zhichuang",
@@ -124,6 +126,7 @@ function saveAccordionState(state: Record<string, boolean>) {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
@@ -139,7 +142,7 @@ export default function Sidebar() {
 
   // Auto-expand 智見 if current route is a 智見 page
   useEffect(() => {
-    const isZhijianRoute = zhijianSection.items.some((item) => pathname.startsWith(item.href));
+    const isZhijianRoute = zhijianSection.items.some((item) => pathname.startsWith(item.href.split("?")[0]));
     if (isZhijianRoute && !accordion[zhijianSection.id]) {
       setAccordion((prev) => {
         const next = { ...prev, [zhijianSection.id]: true };
@@ -193,7 +196,7 @@ export default function Sidebar() {
   const currentWorkspace = workspaces.find((w) => w.id === currentWorkspaceId) || workspaces[0];
   useEffect(() => {
     setMobileOpen(false);
-  }, [pathname]);
+  }, [pathname, searchParams]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -214,11 +217,15 @@ export default function Sidebar() {
 
   const isActive = useCallback(
     (href: string) => {
+      if (href.startsWith("/intelligence?")) {
+        return pathname === "/intelligence" &&
+          (searchParams.get("view") || "overview") === new URLSearchParams(href.split("?")[1]).get("view");
+      }
       if (href === "/dashboard") return pathname === "/dashboard";
       if (href === "/content") return pathname === "/content";
       return pathname.startsWith(href);
     },
-    [pathname]
+    [pathname, searchParams]
   );
 
   const isSectionActive = (section: NavSection) =>
@@ -227,10 +234,19 @@ export default function Sidebar() {
   const navLink = (item: NavItem) => {
     const active = isActive(item.href);
     const Icon = item.icon;
+    let href = item.href;
+    if (href.startsWith("/intelligence?")) {
+      const params = new URLSearchParams(href.split("?")[1]);
+      for (const key of ["project", "auditId", "runId"]) {
+        const value = searchParams.get(key);
+        if (value) params.set(key, value);
+      }
+      href = `/intelligence?${params}`;
+    }
     return (
       <Link
         key={item.href}
-        href={item.href}
+        href={href}
         className={cn(
           "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all relative",
           "duration-[var(--duration-short)]"
@@ -337,7 +353,7 @@ export default function Sidebar() {
           <div
             className={cn(
               "overflow-hidden transition-all duration-[var(--duration-medium)]",
-              accordion[zhijianSection.id] ? "max-h-[560px] opacity-100" : "max-h-0 opacity-0"
+              accordion[zhijianSection.id] ? "max-h-[900px] opacity-100" : "max-h-0 opacity-0"
             )}
           >
             <div className="pl-4 space-y-0.5">
@@ -347,11 +363,20 @@ export default function Sidebar() {
                   className="text-[10px] font-medium uppercase tracking-wider shrink-0"
                   style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}
                 >
-                  AI 可见性工作流
+                  采集与记录
                 </span>
                 <div className="flex-1" style={{ borderTop: "1px solid var(--border)" }} />
               </div>
-              {zhijianWorkflowItems.map((item) => navLink(item))}
+              {zhijianCaptureItems.map((item) => navLink(item))}
+
+              <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
+                <div className="flex-1" style={{ borderTop: "1px solid var(--border)" }} />
+                <span className="text-[10px] font-medium uppercase tracking-wider shrink-0" style={{ color: "var(--text-muted)" }}>
+                  分析与行动
+                </span>
+                <div className="flex-1" style={{ borderTop: "1px solid var(--border)" }} />
+              </div>
+              {zhijianAnalysisItems.map((item) => navLink(item))}
 
               <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
                 <div className="flex-1" style={{ borderTop: "1px solid var(--border)" }} />

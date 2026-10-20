@@ -1,3 +1,2 @@
-"use client";
-import { AnalysisWorkspacePage } from '@/components/visibility/analysis-workspace-page';
-export default function ComparePage() { return <AnalysisWorkspacePage view="compare" />; }
+import { LegacyAnalysisRedirect } from "@/components/visibility/legacy-analysis-redirect";
+export default function ComparePage() { return <LegacyAnalysisRedirect view="entities" />; }

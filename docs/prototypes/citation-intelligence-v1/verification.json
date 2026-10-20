@@ -1,0 +1,56 @@
+{
+  "screens": [
+    {
+      "view": "overview",
+      "title": "把可见性结果变成下一步行动",
+      "horizontalOverflow": false
+    },
+    {
+      "view": "platforms",
+      "title": "同一个问题，分别看清各平台",
+      "horizontalOverflow": false
+    },
+    {
+      "view": "brands",
+      "title": "从全部内容中发现品牌与机会",
+      "horizontalOverflow": false
+    },
+    {
+      "view": "sources",
+      "title": "来源文章库",
+      "horizontalOverflow": false
+    },
+    {
+      "view": "evidence",
+      "title": "逐个观点核对原文证据",
+      "horizontalOverflow": false
+    },
+    {
+      "view": "actions",
+      "title": "每条优化建议，都有证据和验收目标",
+      "horizontalOverflow": false
+    },
+    {
+      "view": "brief",
+      "title": "把证据转为可执行的内容方案",
+      "horizontalOverflow": false
+    },
+    {
+      "view": "measure",
+      "title": "行动完成之后，逐平台验证变化",
+      "horizontalOverflow": false
+    }
+  ],
+  "browserErrors": [],
+  "interactionChecks": [
+    "platform evidence link",
+    "source snapshot modal",
+    "platform evidence tabs",
+    "brand confirmation and focus list",
+    "source status filter",
+    "empty search state",
+    "content brief flow",
+    "modal keyboard dismissal",
+    "mobile evidence layout"
+  ]
+}

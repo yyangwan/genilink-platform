@@ -40,6 +40,10 @@ logs/
 .claude/
 motion/
 prototypes/
+!docs/prototypes/
+docs/prototypes/*
+!docs/prototypes/citation-intelligence-v1/
+!docs/prototypes/citation-intelligence-v1/**
 skills-lock.json
 
 # local browser/app automation captures
