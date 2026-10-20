@@ -9,12 +9,13 @@ $statusPath = Join-Path $root "status.json"
 $mutex = [Threading.Mutex]::new($false, "Global\MobileGatewayAgent")
 $script:activeTasks = @{}
 $deviceFailurePath = Join-Path $root "device-failures.json"
+. (Join-Path $PSScriptRoot "gateway-device-selector.ps1")
+. (Join-Path $PSScriptRoot "gateway-browser-task.ps1")
 $script:deviceFailures = @()
 if (Test-Path -LiteralPath $deviceFailurePath) {
-    try { $script:deviceFailures = @(Get-Content -LiteralPath $deviceFailurePath -Raw | ConvertFrom-Json) }
+    try { $script:deviceFailures = @(Read-CaptureDeviceFailures -Path $deviceFailurePath) }
     catch { Write-Warning "Device failure state is unreadable; starting with an empty cooldown list" }
 }
-. (Join-Path $PSScriptRoot "gateway-device-selector.ps1")
 
 if (-not $mutex.WaitOne(0)) {
     throw "Another gateway agent instance is already running"
@@ -107,7 +108,11 @@ function Get-DeviceSnapshot {
 
 function Send-Heartbeat {
     $snapshot = Get-DeviceSnapshot
-    $degraded = -not ($snapshot.adbHealthy -and $snapshot.appiumHealthy)
+    $browserReady = -not $script:config.browserRoot -or
+        (Test-InteractiveBrowserSession -UserId $script:config.browserInteractiveUser)
+    $snapshot.browserReady = [bool]$browserReady
+    $snapshot.browserIssue = if ($browserReady) { $null } else { 'interactive_session_required' }
+    $degraded = -not ($snapshot.adbHealthy -and $snapshot.appiumHealthy -and $browserReady)
     Invoke-GatewayApi -Method Post -Path "/api/device-gateway/heartbeat" -Body @{
         display_name = $env:COMPUTERNAME
         status = if ($degraded) { "degraded" } else { "online" }
@@ -338,6 +343,9 @@ function Send-TaskFailure {
     if ($Message -match 'QWEN_LOGIN_REQUIRED|QWEN_CHALLENGE_REQUIRED|QWEN_INTERACTIVE_SESSION_REQUIRED') {
         $Code = "gateway_auth_required"
     }
+    if ($Message -match '\bCAPTURE_POPUP_[A-Z_]+') {
+        $Code = "gateway_intervention_required"
+    }
     if ($Message -match 'No capture-ready Android device is currently available') {
         $Code = "gateway_device_unavailable"
     }
@@ -346,7 +354,7 @@ function Send-TaskFailure {
             lease_token = $LeaseToken
             error_code = $Code
             error_message = $Message
-            retryable = $Code -notin @("handler_not_installed", "gateway_auth_required")
+            retryable = $Code -notin @("handler_not_installed", "gateway_auth_required", "gateway_intervention_required")
             retry_after_seconds = 30
         } | Out-Null
     } catch {
@@ -395,13 +403,7 @@ function Complete-ActiveTask {
             }) + @(New-CaptureDeviceFailure -Serial $active.DeviceSerial `
                 -Platform $task.platform -TaskId $task.id -Message $_.Exception.Message)
             try {
-                $failureJson = ConvertTo-Json -InputObject @($script:deviceFailures) -Depth 5
-                [IO.File]::WriteAllText("$deviceFailurePath.tmp", $failureJson, [Text.UTF8Encoding]::new($false))
-                if (Test-Path -LiteralPath $deviceFailurePath) {
-                    [IO.File]::Replace("$deviceFailurePath.tmp", $deviceFailurePath, $null)
-                } else {
-                    [IO.File]::Move("$deviceFailurePath.tmp", $deviceFailurePath)
-                }
+                Save-CaptureDeviceFailures -Path $deviceFailurePath -Failures $script:deviceFailures
                 Write-AgentLog "device cooldown device=$($active.DeviceSerial) platform=$($task.platform) task=$($task.id)"
             } catch { Write-AgentLog "device cooldown persistence failed: $($_.Exception.Message)" }
         }
@@ -505,7 +507,8 @@ try {
             if ($activeAppCount -lt $maxConcurrentTasks -and $idleDeviceCount -gt 0) {
                 $claimCapabilities += "appium.prompt"
             }
-            if ($script:config.browserRoot -and $activeBrowserCount -lt 1) {
+            if ($script:config.browserRoot -and $activeBrowserCount -lt 1 -and
+                (Test-InteractiveBrowserSession -UserId $script:config.browserInteractiveUser)) {
                 $claimCapabilities += "browser.prompt"
             }
             $claimCapabilities = @($claimCapabilities | Where-Object { $_ -in $script:config.capabilities })

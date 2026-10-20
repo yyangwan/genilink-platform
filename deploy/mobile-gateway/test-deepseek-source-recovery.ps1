@@ -1,4 +1,8 @@
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'gateway-popup-guard.ps1')
+. (Join-Path $PSScriptRoot 'gateway-popup-evidence.ps1')
+$packageName = 'com.deepseek.chat'
+$script:capturePopupState = @{}
 $sourcePath = Join-Path $PSScriptRoot "handlers\research-app-common.ps1"
 $tokens = $null
 $errors = $null
@@ -7,7 +11,7 @@ $ast = [Management.Automation.Language.Parser]::ParseFile(
 )
 if ($errors.Count) { throw "DeepSeek handler syntax error: $($errors[0])" }
 $names = @(
-    "Get-PageSource", "New-SourceRecord", "Complete-DeepSeekSourceRecords",
+    "Get-PageSource", "Get-RawPageSource", "New-SourceRecord", "Complete-DeepSeekSourceRecords",
     "Get-DeepSeekExpectedHost", "Get-DeepSeekSources"
 )
 foreach ($function in @($ast.FindAll({

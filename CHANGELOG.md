@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0.1] - 2026-10-21
+
+### Fixed
+- Harden mobile capture with conservative upgrade-dialog dismissal, protected-popup interruption evidence and partial-result retention.
+- Fix device cooldown persistence, interactive browser readiness, Doubao source-list layout handling and Kimi answer-progress detection.
+
 ## [0.4.0.0] - 2026-10-20
 
 ### Changed

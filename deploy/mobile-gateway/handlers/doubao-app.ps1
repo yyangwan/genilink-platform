@@ -6,6 +6,8 @@
 $ErrorActionPreference = "Stop"
 . (Join-Path (Split-Path $PSScriptRoot -Parent) "gateway-share-receiver.ps1")
 . (Join-Path (Split-Path $PSScriptRoot -Parent) "gateway-capture-verifier.ps1")
+. (Join-Path (Split-Path $PSScriptRoot -Parent) "gateway-popup-guard.ps1")
+. (Join-Path (Split-Path $PSScriptRoot -Parent) "gateway-popup-evidence.ps1")
 $appiumBaseUrl = "http://127.0.0.1:4723"
 $packageName = "com.larus.nova"
 $elementKey = "element-6066-11e4-a52e-4f735466cecf"
@@ -19,6 +21,7 @@ $copyLinkLabel = [Text.Encoding]::UTF8.GetString(
     [Convert]::FromBase64String("5aSN5Yi26ZO+5o6l")
 )
 $task = $TaskJson | ConvertFrom-Json
+$script:capturePopupState = @{}
 $mutexSerial = ([string]$task.payload.device_serial) -replace "[^a-zA-Z0-9_-]", "_"
 if (-not $mutexSerial) {
     $mutexSerial = "unassigned"
@@ -76,6 +79,7 @@ function Find-AppiumElement {
                 return $elementId
             }
         } catch {
+            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
             if ((Get-Date) -ge $deadline) {
                 if ($Optional) {
                     return $null
@@ -111,6 +115,7 @@ function Find-AppiumElementByXPath {
             return $elementId
         }
     } catch {
+        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
         if (-not $Optional) {
             throw
         }
@@ -145,7 +150,7 @@ function Invoke-ElementClick {
     }
 }
 
-function Get-PageSource {
+function Get-RawPageSource {
     param([Parameter(Mandatory)][string]$SessionId)
 
     $response = Invoke-AppiumRequest `
@@ -156,7 +161,22 @@ function Get-PageSource {
     [string]$response.value
 }
 
+function Get-PageSource {
+    param([Parameter(Mandatory)][string]$SessionId)
+    Invoke-CaptureSourceGuard -ReadSource { Get-RawPageSource -SessionId $SessionId } `
+        -ExpectedPackage $packageName -DeviceSerial $script:deviceSerial `
+        -TaskKey ([string]$task.id) -TaskPrompt ([string]$task.payload.prompt) `
+        -ResultRoot $resultRoot -State $script:capturePopupState
+}
+
 function Get-NativePageSource {
+    Invoke-CaptureSourceGuard -ReadSource { Get-RawNativePageSource } `
+        -ExpectedPackage $packageName -DeviceSerial $script:deviceSerial `
+        -TaskKey ([string]$task.id) -TaskPrompt ([string]$task.payload.prompt) `
+        -ResultRoot $resultRoot -State $script:capturePopupState
+}
+
+function Get-RawNativePageSource {
     $devicePath = "/sdcard/mobile-gateway-doubao.xml"
     $localPath = Join-Path $resultRoot "$($script:taskWorkingPrefix)-doubao-current.xml"
     for ($attempt = 0; $attempt -lt 3; $attempt++) {
@@ -255,7 +275,9 @@ function Get-DirectClipboardText {
                 if ($nested -match '^https?://') {
                     $text = $nested
                 }
-            } catch {}
+            } catch {
+                if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+}
         }
         $text
     } finally {
@@ -540,6 +562,7 @@ function Get-ReferenceSummary {
             }
         }
     } catch {
+        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
         return $result
     }
     $result
@@ -551,6 +574,7 @@ function Get-VisibleReferenceItems {
     try {
         [xml]$document = $Source
     } catch {
+        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
         return @()
     }
 
@@ -607,6 +631,7 @@ function Get-ReferenceListBounds {
             }
         }
     } catch {
+        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
         return $null
     }
     $null
@@ -679,6 +704,7 @@ function ConvertTo-CanonicalSourceUrl {
         $builder.Fragment = ""
         $builder.Uri.AbsoluteUri
     } catch {
+        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
         $Url
     }
 }
@@ -943,25 +969,50 @@ function Get-DoubaoVisibleSourceNodes {
     @($items | Sort-Object index)
 }
 
+function Get-DoubaoReferenceScrollContainer {
+    param([Parameter(Mandatory)][xml]$Document)
+
+    # These IDs are also used outside sources; require source-panel descendants.
+    foreach ($id in @("recyclerView", "message_list")) {
+        foreach ($candidate in @($Document.SelectNodes(
+            "//*[@resource-id='$packageName`:id/$id' and @scrollable='true']" +
+            "[.//*[@resource-id='$packageName`:id/tv_reference_title' or " +
+            "@resource-id='$packageName`:id/ll_source_item']]"
+        ))) {
+            try { $bounds = Get-NativeNodeBounds -Node $candidate } catch {
+                if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+ continue }
+            if ($bounds -and ($bounds.right - $bounds.left) -ge 3 -and
+                ($bounds.bottom - $bounds.top) -ge 3) {
+                return $candidate
+            }
+        }
+    }
+    return $null
+}
+
 function Invoke-DoubaoReferenceSwipe {
     param(
         [Parameter(Mandatory)][xml]$Document,
         [Parameter(Mandatory)][ValidateSet("up", "down")][string]$Direction
     )
 
-    $list = $Document.SelectSingleNode(
-        "//*[@resource-id='$packageName`:id/message_list' and @scrollable='true']"
-    )
-    if (-not $list) { throw "Doubao scrollable message_list was not found" }
+    $list = Get-DoubaoReferenceScrollContainer -Document $Document
+    if (-not $list) { throw "Doubao source-panel scroll container with valid bounds was not found" }
     $bounds = Get-NativeNodeBounds -Node $list
-    $x = [int]($bounds.right - 100)
+    $width = $bounds.right - $bounds.left
+    $height = $bounds.bottom - $bounds.top
+    $x = $bounds.right - [int][math]::Max(1, [math]::Floor($width * 0.1))
+    $inset = [int][math]::Max(1, [math]::Floor($height * 0.2))
+    $upperY = $bounds.top + $inset
+    $lowerY = $bounds.bottom - $inset
     if ($Direction -eq "up") {
-        $startY = [int][math]::Min($bounds.bottom - 200, $bounds.top + 1150)
-        $endY = [int][math]::Max($bounds.top + 250, $startY - 450)
+        $startY = $lowerY
+        $endY = $upperY
         $duration = 450
     } else {
-        $startY = [int]($bounds.top + 400)
-        $endY = [int][math]::Min($bounds.bottom - 200, $bounds.top + 1400)
+        $startY = $upperY
+        $endY = $lowerY
         $duration = 350
     }
     & adb -s $script:deviceSerial shell input swipe `
@@ -1096,19 +1147,9 @@ function Get-DoubaoSources {
             "[.//*[@text='1.']]"
         )
         if ($firstItem) { break }
-        $scrollList = $topDocument.SelectSingleNode(
-            "//*[@resource-id='$packageName`:id/message_list' and @scrollable='true']"
-        )
+        $scrollList = Get-DoubaoReferenceScrollContainer -Document $topDocument
         if (-not $scrollList) { break }
-        $scrollBounds = Get-NativeNodeBounds -Node $scrollList
-        $scrollX = [int]($scrollBounds.right - 100)
-        $scrollEndY = [int][math]::Min(
-            $scrollBounds.bottom - 200,
-            $scrollBounds.top + 1400
-        )
-        & adb -s $script:deviceSerial shell input swipe `
-            $scrollX ($scrollBounds.top + 400) $scrollX $scrollEndY 350 | Out-Null
-        Start-Sleep -Milliseconds 500
+        Invoke-DoubaoReferenceSwipe -Document $topDocument -Direction down
     }
     $catalog = @(Get-DoubaoSourceCatalog -ReferenceCount $summary.reference_count)
     $catalogByIndex = @{}
@@ -1142,6 +1183,7 @@ function Get-DoubaoSources {
                 $item = Find-DoubaoSourceNode `
                     -Index $catalogCursor -Title $catalogTitle
             } catch {
+                if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
                 $locationError = $_.Exception.Message
             }
             if ($item) {
@@ -1159,11 +1201,15 @@ function Get-DoubaoSources {
                 $clipboardBefore = $null
                 $recentBefore = $null
                 try {
-                    try { $clipboardBefore = Get-DirectClipboardText } catch {}
+                    try { $clipboardBefore = Get-DirectClipboardText } catch {
+                        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+}
                     try {
                         $recentBefore = & adb -s $script:deviceSerial shell `
                             dumpsys activity recents | Out-String
-                    } catch {}
+                    } catch {
+                        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+}
                     Invoke-NativeNodeTap -Node $item.node
                     Start-Sleep -Seconds 2
 
@@ -1192,7 +1238,9 @@ function Get-DoubaoSources {
                     }
                     if (-not $rawUrl) {
                         $detailDocument = $null
-                        try { [xml]$detailDocument = Get-NativePageSource } catch {}
+                        try { [xml]$detailDocument = Get-NativePageSource } catch {
+                            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+}
                         $pageTitleNode = if ($detailDocument) {
                             $detailDocument.SelectSingleNode(
                                 "//*[@resource-id='$packageName`:id/tv_title']"
@@ -1229,6 +1277,7 @@ function Get-DoubaoSources {
                                     try {
                                         [xml]$detailDocument = Get-NativePageSource
                                     } catch {
+                                        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
                                         continue
                                     }
                                     $shareButton = $detailDocument.SelectSingleNode(
@@ -1250,7 +1299,9 @@ function Get-DoubaoSources {
                                     "//*[@resource-id='$packageName`:id/btn_share' or " +
                                     "@content-desc='分享']"
                                 )
-                            } catch {}
+                            } catch {
+                                if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+}
                         }
                         if (-not $rawUrl -and -not $shareButton) {
                             throw "Doubao source detail did not expose Share"
@@ -1283,6 +1334,7 @@ function Get-DoubaoSources {
                                     throw "Doubao Copy Link did not provide an HTTP URL"
                                 }
                             } catch {
+                                if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
                                 if (-not (Test-ShareReceiverEnabled -Serial $script:deviceSerial)) { throw }
                                 [xml]$shareState = Get-NativePageSource
                                 if (-not $shareState.SelectSingleNode(
@@ -1315,15 +1367,20 @@ function Get-DoubaoSources {
                     $sourceResult.domain = ([Uri]$canonicalUrl).Host.ToLowerInvariant()
                     $sourceResult.url_resolution = "exact"
                     $sourceResult.status = "collected"
+                    Remember-CaptureSource -State $script:capturePopupState -Record $sourceResult
                 } catch {
+                    if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
                     $sourceResult.error_message = $_.Exception.Message
                 } finally {
-                    try {
-                        Return-ToDoubaoChat -SessionId "adb" | Out-Null
-                        Restore-NativeReferencePanel
-                    } catch {
-                        if (-not $sourceResult.error_message) {
-                            $sourceResult.error_message = $_.Exception.Message
+                    if (-not $script:capturePopupState.CapturePopupBlocked) {
+                        try {
+                            Return-ToDoubaoChat -SessionId "adb" | Out-Null
+                            Restore-NativeReferencePanel
+                        } catch {
+                            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+                            if (-not $sourceResult.error_message) {
+                                $sourceResult.error_message = $_.Exception.Message
+                            }
                         }
                     }
                 }
@@ -1358,6 +1415,7 @@ function Get-DoubaoSources {
             $catalogCursor++
         }
     } catch {
+        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
         $collectionFailure = $_.Exception.Message
     }
 
@@ -1379,6 +1437,7 @@ function Get-AssistantMessage {
     try {
         [xml]$document = $Source
     } catch {
+        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
         return $null
     }
 
@@ -1461,6 +1520,7 @@ function Get-FirstAssistantText {
     try {
         [xml]$document = $Source
     } catch {
+        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
         return $null
     }
     $messageListId = "$packageName`:id/message_list"
@@ -1718,6 +1778,7 @@ try {
                 break
             }
         } catch {
+            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
             # Doubao's animated home can keep UiAutomator from reaching idle.
         }
     }
@@ -1751,6 +1812,7 @@ try {
             "//*[@resource-id='$packageName`:id/action_send']"
         )
     } catch {
+        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
         # The animated composer can prevent UiAutomator from reaching idle.
     }
     if ($sendNode -and $sendNode.GetAttribute("bounds") -match (
@@ -1783,6 +1845,7 @@ try {
         try {
             $source = Get-NativePageSource
         } catch {
+            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
             continue
         }
         if (
@@ -1816,6 +1879,8 @@ try {
         throw "Timed out waiting for Doubao response after $timeoutSeconds seconds"
     }
     $answerCompletedAt = Get-Date
+    $script:capturePopupState.CapturedAnswer = $message.answer
+    $script:capturePopupState.ReferenceCount = (Get-ReferenceSummary -Source $finalSource).reference_count
 
     $sessionId = $null
     $sourceCollectionStartedAt = Get-Date
@@ -1931,6 +1996,7 @@ try {
                 -Body $null `
                 -TimeoutSeconds 15 | Out-Null
         } catch {
+            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
             # The Appium new-command timeout will clean up an orphaned session.
         }
     }

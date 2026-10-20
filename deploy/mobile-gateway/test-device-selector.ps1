@@ -58,3 +58,6 @@ Assert-Equal @(Get-CaptureExcludedSerials @($failure) deepseek task-2 $now.AddMi
 $globalFailure = New-CaptureDeviceFailure device-c kimi task-3 'Android UI hierarchy dump failed' $now
 Assert-Equal (Get-CaptureExcludedSerials @($globalFailure) deepseek task-4 $now) device-c 'hierarchy failure quarantines all apps'
 Assert-Equal @(Get-CaptureExcludedSerials @($globalFailure) deepseek task-4 $now.AddHours(2)).Count 0 'expired quarantine recovers'
+$popupFailure = New-CaptureDeviceFailure device-c yuanbao task-5 'CAPTURE_POPUP_MANUAL_REQUIRED' $now
+Assert-Equal (Get-CaptureExcludedSerials @($popupFailure) kimi task-6 $now.AddMinutes(30)) device-c 'manual popup blocks device across apps'
+Assert-Equal @(Get-CaptureExcludedSerials @($popupFailure) kimi task-6 $now.AddHours(2)).Count 0 'popup quarantine is bounded'

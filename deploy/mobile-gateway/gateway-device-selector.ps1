@@ -1,3 +1,32 @@
+function Read-CaptureDeviceFailures {
+    param([Parameter(Mandatory)][string]$Path)
+    $saved = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    # Enumerate explicitly: ConvertFrom-Json in Windows PowerShell 5.1 emits an
+    # array as one pipeline object, unlike newer PowerShell versions.
+    foreach ($failure in $saved) { $failure }
+}
+
+function Save-CaptureDeviceFailures {
+    param([Parameter(Mandatory)][string]$Path, [object[]]$Failures = @())
+
+    $destination = [IO.Path]::GetFullPath($Path)
+    $suffix = [guid]::NewGuid().ToString('N')
+    $temporary = "$destination.$suffix.tmp"
+    $backup = "$destination.$suffix.bak"
+    try {
+        $json = ConvertTo-Json -InputObject @($Failures) -Depth 5
+        [IO.File]::WriteAllText($temporary, $json, [Text.UTF8Encoding]::new($false))
+        if (Test-Path -LiteralPath $destination) {
+            # Windows PowerShell converts $null to an empty path for this overload.
+            [IO.File]::Replace($temporary, $destination, $backup)
+        } else {
+            [IO.File]::Move($temporary, $destination)
+        }
+    } finally {
+        Remove-Item -LiteralPath $temporary, $backup -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Get-AuthorizedDeviceSerials {
     param([string[]]$AdbDeviceLines)
 
@@ -98,13 +127,14 @@ function Get-CaptureExcludedSerials {
 function New-CaptureDeviceFailure {
     param([string]$Serial, [string]$Platform, [string]$TaskId,
         [string]$Message, [datetime]$Now = [datetime]::UtcNow)
-    $globalFailure = $Message -match 'UI hierarchy dump failed|not authorized|device offline|is locked'
+    $popupFailure = $Message -match '\bCAPTURE_POPUP_[A-Z_]+'
+    $globalFailure = $popupFailure -or $Message -match 'UI hierarchy dump failed|not authorized|device offline|is locked'
     [pscustomobject]@{
         Serial = $Serial
         Platform = $Platform
         TaskId = $TaskId
         Global = [bool]$globalFailure
-        Until = $Now.AddMinutes($(if ($globalFailure) { 20 } else { 10 })).ToString('o')
+        Until = $Now.AddMinutes($(if ($popupFailure) { 60 } elseif ($globalFailure) { 20 } else { 10 })).ToString('o')
         TaskUntil = $Now.AddHours(1).ToString('o')
     }
 }
