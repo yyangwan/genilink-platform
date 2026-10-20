@@ -138,7 +138,7 @@ function AuditsContent() {
             className="inline-flex items-center gap-1 text-xs font-medium"
             style={{ color: "var(--color-primary)", fontFamily: "var(--font-body)" }}
           >
-            查看报告
+            查看审计洞察
             <ArrowRight className="w-3 h-3" />
           </span>
         );
@@ -163,8 +163,9 @@ function AuditsContent() {
   const handleRowClick = (row: AuditListItem) => {
     const status = getAuditStatus(row);
     if (isAuditFinished(status)) {
-      const projectQuery = currentProjectId ? `?project=${encodeURIComponent(currentProjectId)}` : "";
-      router.push(`/audits/${row.id}/report${projectQuery}`);
+      const query = new URLSearchParams({ view: "overview", auditId: String(row.id) });
+      if (currentProjectId) query.set("project", currentProjectId);
+      router.push(`/intelligence?${query}`);
     }
   };
 
