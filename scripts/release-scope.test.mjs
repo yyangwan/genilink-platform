@@ -38,4 +38,5 @@ test('workflow gates both independent job groups before existing cloud chain', (
   assert.match(workflow, /build:\s+needs: changes\s+if: needs\.changes\.outputs\.server == 'true'/);
   assert.match(workflow, /container:[\s\S]*?needs: build/);
   assert.match(workflow, /deploy:[\s\S]*?needs: container/);
+  assert.doesNotMatch(workflow, /shell:\s*\$\{\{\s*matrix\./);
 });

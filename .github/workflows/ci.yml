@@ -43,8 +43,13 @@ jobs:
         shell: [powershell, pwsh]
     steps:
       - uses: actions/checkout@v4
-      - name: Validate gateway runtime and offline regressions
-        shell: ${{ matrix.shell }}
+      - name: Validate gateway runtime and offline regressions (Windows PowerShell)
+        if: matrix.shell == 'powershell'
+        shell: powershell
+        run: .\deploy\mobile-gateway\test-release.ps1
+      - name: Validate gateway runtime and offline regressions (PowerShell 7)
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
         run: .\deploy\mobile-gateway\test-release.ps1
       - name: Validate gateway browser parsers
         shell: pwsh
