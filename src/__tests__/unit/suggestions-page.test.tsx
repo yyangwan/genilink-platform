@@ -6,8 +6,9 @@ vi.mock('@/components/project/project-context', () => ({ useProject: () => ({ pr
 vi.mock('@/components/project/use-project-id', () => ({ useProjectId: () => ({ projectId: 'p1', loading: false }) }));
 vi.mock('@/components/dashboard/use-section-fetch', () => ({ useSectionFetch: vi.fn() }));
 import { useSectionFetch } from '@/components/dashboard/use-section-fetch';
-import SuggestionsPage from '@/app/(dashboard)/suggestions/page';
-import InsightsPage from '@/app/(dashboard)/insights/page';
+import { AnalysisWorkspacePage } from '@/components/visibility/analysis-workspace-page';
+const SuggestionsPage = () => <AnalysisWorkspacePage view="suggestions" />;
+const InsightsPage = () => <AnalysisWorkspacePage view="insights" />;
 const base = { schema: 'citation-workspace-1', project_id: 'p1', enabled: true, audits: [{ id: '12', status: 'completed', created_at: '2026-10-15' }], selected_audit_id: '12', latest_audit_id: '12', processing: false, can_act: false, can_review: false,
   report: { schema: 'citation-report-1', project_id: 'p1', audit_id: '12', run_id: 'run12', status: 'ready', snapshot_current: true, platforms: [{ platform: 'qwen' }, { platform: 'deepseek' }], diagnoses: [{ id: 'd1', record_id: 'd1', platform: 'qwen', finding: 'Qwen独立观察', response_ids: ['r1'] }, { id: 'd2', record_id: 'd2', platform: 'deepseek', finding: 'DeepSeek独立观察', response_ids: ['r2'] }], evidence: [], sources: [] } };
 function response(data: unknown, locked = false) { vi.mocked(useSectionFetch).mockReturnValue({ data, locked, loading: false, error: false, refetch: vi.fn() } as never); }

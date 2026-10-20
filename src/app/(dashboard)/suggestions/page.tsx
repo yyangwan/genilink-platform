@@ -1,3 +1,2 @@
-"use client";
-import { AnalysisWorkspacePage } from '@/components/visibility/analysis-workspace-page';
-export default function Page() { return <AnalysisWorkspacePage view="suggestions" />; }
+import { LegacyAnalysisRedirect } from "@/components/visibility/legacy-analysis-redirect";
+export default function Page() { return <LegacyAnalysisRedirect view="actions" />; }

@@ -71,10 +71,10 @@ export function AuditSnapshotSelector({
         </span>
         {selectedAuditId !== null && (
           <Link
-            href={`/audits/${selectedAuditId}/report?project=${encodeURIComponent(projectId)}`}
+            href={`/intelligence?${new URLSearchParams({ project: projectId, auditId: String(selectedAuditId), view: 'overview' })}`}
             className="dashboard-button dashboard-button--secondary"
           >
-            查看完整报告
+            查看审计洞察
             <ExternalLink size={13} />
           </Link>
         )}

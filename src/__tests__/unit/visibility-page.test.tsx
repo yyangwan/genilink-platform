@@ -20,7 +20,7 @@ describe('explicit capture from visibility page', () => {
     fireEvent.click(screen.getByText('开始多轮采集'));
     await screen.findByText(/已创建采集任务 #12/);
     expect(replace).toHaveBeenCalledWith('/visibility?project=p1&auditId=12', { scroll: false });
-    expect(screen.getByRole('link', { name: '查看任务详情' }).getAttribute('href')).toBe('/intelligence?project=p1&auditId=12');
+    expect(screen.getByRole('link', { name: '查看任务详情' }).getAttribute('href')).toBe('/intelligence?project=p1&auditId=12&view=overview');
     expect(screen.getByRole('button', { name: '采集设置' }).getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(screen.getByRole('button', { name: '采集设置' }));
     expect(screen.getByRole('button', { name: '新建另一次采集' })).toBeTruthy();
@@ -29,7 +29,7 @@ describe('explicit capture from visibility page', () => {
     expect(JSON.parse(fetcher.mock.calls[1][1].body)).not.toHaveProperty('surface');
     expect(refetch).toHaveBeenCalledTimes(1);
   });
-  it('loads full source detail for the latest audit instead of using the summary-only dashboard', async () => {
+  it('keeps capture status separate from the prototype-aligned analysis pages', async () => {
     const summary = { schema: 'citation-report-1' as const, project_id: 'p1', audit_id: '12', run_id: 'run12',
       status: 'partial', snapshot_current: true, revision: 2, coverage: { responses: 1, sources: 1, captured_sources: 1 }, platforms: [] };
     vi.mocked(useVisibilityDashboard).mockReturnValue({ data: { schema: 'citation-dashboard-1', project_id: 'p1', enabled: true,
@@ -46,9 +46,10 @@ describe('explicit capture from visibility page', () => {
     });
     vi.stubGlobal('fetch', fetcher);
     render(<VisibilityPage />);
-    await screen.findByRole('tab', { name: /来源与证据/ });
-    fireEvent.click(screen.getByRole('tab', { name: /来源与证据/ }));
-    expect(await screen.findByText('已保存的引用文章')).toBeTruthy();
-    expect(fetcher.mock.calls.some(([url]) => String(url).includes('analysis-workspace') && String(url).includes('auditId=12'))).toBe(true);
+    expect(await screen.findByText('本次采集之后')).toBeTruthy();
+    expect(screen.getByRole('link', { name: '进入审计洞察 →' }).getAttribute('href'))
+      .toBe('/intelligence?project=p1&auditId=12&view=overview&runId=run12');
+    expect(screen.queryByRole('tab', { name: /来源与证据/ })).toBeNull();
+    expect(fetcher.mock.calls.some(([url]) => String(url).includes('analysis-workspace'))).toBe(false);
   });
 });

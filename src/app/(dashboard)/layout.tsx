@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { Suspense } from "react";
 import { auth } from "@/lib/auth/config";
 import Sidebar from "@/components/sidebar/sidebar";
 import { ProjectProviderWrapper } from "@/components/project/project-provider";
@@ -22,7 +23,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen flex" style={{ background: "var(--bg-base)" }}>
-      <Sidebar />
+      <Suspense fallback={null}><Sidebar /></Suspense>
 
       {/* Main content area — offset by sidebar width on desktop */}
       <main

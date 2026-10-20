@@ -21,7 +21,7 @@ describe('single-snapshot visibility overview', () => {
     expect(screen.getByText(/回答样本未知或尚未取得/)).toBeTruthy();
     expect(screen.getAllByText('未知（无有效样本）').length).toBeGreaterThan(0);
     expect(screen.queryByText('AI可见性得分')).toBeNull();
-    expect(screen.getByText('查看本次在线报告、来源证据与 PDF').closest('a')?.getAttribute('href')).toBe('/audits/12/report?project=p1&auditId=12');
+    expect(screen.getByText('查看本次审计洞察与来源证据').closest('a')?.getAttribute('href')).toBe('/intelligence?project=p1&auditId=12&view=overview');
   });
   it('labels processing and stale snapshots rather than presenting old conclusions as current', () => {
     render(<VisibilityOverview data={{ ...data, processing: true, context_sync_pending: true, report: { ...data.report!, status: 'stale', snapshot_current: false } }} projectId="p1" />);
