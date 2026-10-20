@@ -107,6 +107,7 @@ function Invoke-SourceCollectionRetry {
             $retry.reference_count = [math]::Max([int]$result.reference_count, [int]$retry.reference_count)
             $result = $retry
         } catch {
+            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
             Write-Warning "source-only retry failed; keeping collected sources: $($_.Exception.Message)"
             break
         }

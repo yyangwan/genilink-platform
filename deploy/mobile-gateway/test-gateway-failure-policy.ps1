@@ -18,3 +18,7 @@ if($script:body.retryable){throw 'Missing handler cannot be retried'}
 Write-Output 'Gateway failure policy tests passed'
 Send-TaskFailure $task 'token' 'No capture-ready Android device is currently available'
 if (-not $script:body.retryable -or $script:body.error_code -ne 'gateway_device_unavailable' -or $script:body.retry_after_seconds -lt 30) { throw 'Device wait must retain retry backoff' }
+foreach ($code in @('CAPTURE_POPUP_MANUAL_REQUIRED','CAPTURE_POPUP_RETRY_EXHAUSTED','CAPTURE_POPUP_RESUME_MISMATCH')) {
+    Send-TaskFailure $task 'token' $code
+    if ($script:body.retryable -or $script:body.error_code -ne 'gateway_intervention_required') { throw 'Popup intervention must stop automatic task replay' }
+}

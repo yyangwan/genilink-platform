@@ -1,4 +1,5 @@
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'gateway-popup-evidence.ps1')
 $sourcePath = Join-Path $PSScriptRoot "handlers\research-app-common.ps1"
 $tokens = $null
 $errors = $null

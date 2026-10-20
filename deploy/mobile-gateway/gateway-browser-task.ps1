@@ -1,3 +1,19 @@
+function Test-InteractiveBrowserSession {
+    param([string]$UserId)
+    if (-not $UserId) { return $true } # Legacy headless browser configuration.
+    $username = ($UserId -split '\\')[-1]
+    $savedPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $null = & quser.exe $username 2>$null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    } finally {
+        $ErrorActionPreference = $savedPreference
+    }
+}
+
 function Invoke-InteractiveBrowserCapture {
     param(
         [Parameter(Mandatory)][string]$NodePath,

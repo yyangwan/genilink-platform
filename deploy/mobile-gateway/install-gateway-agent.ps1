@@ -44,6 +44,13 @@ if ($BrowserInteractiveUser) {
 }
 
 New-Item -ItemType Directory -Path $configDirectory, $handlerRoot -Force | Out-Null
+foreach ($name in @('gateway-popup-guard.ps1', 'gateway-popup-evidence.ps1')) {
+    $source = Join-Path $PSScriptRoot $name
+    $target = Join-Path $root $name
+    if ([IO.Path]::GetFullPath($source) -ne [IO.Path]::GetFullPath($target)) {
+        Copy-Item -LiteralPath $source -Destination $target -Force
+    }
+}
 if ([IO.Path]::GetFullPath($sourceAgent) -ne [IO.Path]::GetFullPath($agentPath)) {
     Copy-Item -LiteralPath $sourceAgent -Destination $agentPath -Force
 }
