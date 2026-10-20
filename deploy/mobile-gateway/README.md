@@ -1,5 +1,10 @@
 # Mobile Device Gateway
 
+This gateway is released independently of the cloud service and web client.
+See [release scopes](../RELEASE_SCOPES.md) for gateway-only checks, exact-SHA
+publishing, configuration preservation and rollback. Gateway-only changes must
+not trigger cloud image builds or server deployment.
+
 Windows gateway host:
 
 - Hostname: `CHAO`
