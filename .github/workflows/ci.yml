@@ -11,7 +11,56 @@ on:
     branches: [main]
 
 jobs:
+  changes:
+    name: Classify release scope
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.scope.outputs.server }}
+      gateway: ${{ steps.scope.outputs.gateway }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Test release routing
+        run: node --test scripts/release-scope.test.mjs
+      - name: Detect changed systems
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [[ "$BASE_SHA" =~ ^0+$ ]]; then BASE_SHA=$(git hash-object -t tree /dev/null); fi
+          node scripts/release-scope.mjs --base "$BASE_SHA" --head "$HEAD_SHA"
+
+  gateway:
+    name: Gateway checks (${{ matrix.shell }})
+    needs: changes
+    if: needs.changes.outputs.gateway == 'true'
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [powershell, pwsh]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate gateway runtime and offline regressions (Windows PowerShell)
+        if: matrix.shell == 'powershell'
+        shell: powershell
+        run: .\deploy\mobile-gateway\test-release.ps1
+      - name: Validate gateway runtime and offline regressions (PowerShell 7)
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        run: .\deploy\mobile-gateway\test-release.ps1
+      - name: Validate gateway browser parsers
+        shell: pwsh
+        run: |
+          npm ci --prefix deploy/mobile-gateway/browser-runtime --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm --prefix deploy/mobile-gateway/browser-runtime test
+
   build:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
     runs-on: ubuntu-latest
 
     services:

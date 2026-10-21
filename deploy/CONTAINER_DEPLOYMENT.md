@@ -1,5 +1,9 @@
 # Frontend container deployment
 
+This runbook applies only to the cloud service and web client, not the device
+gateway. See [independent release scopes](RELEASE_SCOPES.md). Gateway-only changes
+skip these build/image/deploy jobs; cloud releases never update gateway files.
+
 The production frontend is built once in GitHub Actions and deployed as an
 immutable image. Production does not run `npm ci` or `next build`.
 
