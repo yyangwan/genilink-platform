@@ -15,19 +15,14 @@ describe('explicit capture from visibility page', () => {
     const fetcher = vi.fn().mockImplementation(async (_url, init) => new Response(JSON.stringify(init?.method === 'POST' ? { audit_id: '12' } : [{ id: 1, text: '有哪些方案' }])));
     vi.stubGlobal('fetch', fetcher);
     render(<VisibilityPage />);
-    await waitFor(() => expect((screen.getByText('开始多轮采集') as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() => expect((screen.getByRole('button', { name: '开始本次采集' }) as HTMLButtonElement).disabled).toBe(false));
     expect(fetcher).toHaveBeenCalledTimes(1); expect(fetcher.mock.calls[0][0]).toContain('view=prompts');
-    fireEvent.click(screen.getByText('开始多轮采集'));
+    fireEvent.click(screen.getByRole('button', { name: '开始本次采集' }));
     await screen.findByText(/已创建采集任务 #12/);
     expect(replace).toHaveBeenCalledWith('/visibility?project=p1&auditId=12', { scroll: false });
     expect(screen.getByRole('link', { name: '查看任务详情' }).getAttribute('href')).toBe('/intelligence?project=p1&auditId=12&view=overview');
-    expect(screen.getByRole('button', { name: '采集设置' }).getAttribute('aria-expanded')).toBe('false');
-    fireEvent.click(screen.getByRole('button', { name: '采集设置' }));
-    expect(screen.getByRole('button', { name: '新建另一次采集' })).toBeTruthy();
-    expect(fetcher.mock.calls[1][0]).toBe('/api/integration/intelligence');
-    expect(JSON.parse(fetcher.mock.calls[1][1].body)).toMatchObject({ action: 'capture', projectId: 'p1', promptIds: [1], rounds: 3 });
-    expect(JSON.parse(fetcher.mock.calls[1][1].body)).not.toHaveProperty('surface');
-    expect(refetch).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: '采集设置' })).toBeNull();
+    expect(screen.getByRole('button', { name: '正在确认任务状态…' })).toBeTruthy();
   });
   it('keeps capture status separate from the prototype-aligned analysis pages', async () => {
     const summary = { schema: 'citation-report-1' as const, project_id: 'p1', audit_id: '12', run_id: 'run12',

@@ -103,13 +103,14 @@ export function CitationOverview({ run, onView }: { run: EvidenceRun; onView: (v
   </div>;
 }
 
-export function PlatformComparison({ run, onOpenAnswer, onView }: {
-  run: EvidenceRun; onOpenAnswer: (id: string) => void; onView: (view: CitationViewId) => void;
+export function PlatformComparison({ run, onOpenAnswer, onView, selectedPlatform, onPlatformChange }: {
+  run: EvidenceRun; onOpenAnswer: (id: string) => void; onView: (view: CitationViewId) => void; selectedPlatform?: string; onPlatformChange?: (platform: string) => void;
 }) {
   const prompts = useMemo(() => Array.from(new Map(run.responses.map(item => [item.prompt_hash || item.prompt, item.prompt])).entries()), [run.responses]);
   const [selected, setSelected] = useState(prompts[0]?.[0] || "");
   const responses = run.responses.filter(item => (item.prompt_hash || item.prompt) === selected);
   const platformNames = Array.from(new Set(responses.map(item => item.platform)));
+  const activePlatform = platformNames.includes(selectedPlatform || "") ? selectedPlatform : "";
   return <div className="citation-stack">
     <section className="citation-panel citation-pad">
       <div className="citation-section-head"><h2>同一提示词</h2><span className="citation-tag">按真实采样分别呈现</span></div>
@@ -118,8 +119,9 @@ export function PlatformComparison({ run, onOpenAnswer, onView }: {
       </select>
       {!prompts.length && <p className="citation-muted">本次审计没有可对照的回答。</p>}
     </section>
+    <div className="citation-tabs" role="tablist" aria-label="平台分析切换"><button role="tab" aria-selected={!activePlatform} onClick={() => onPlatformChange?.("")}>全部平台</button>{platformNames.map(name => <button key={name} role="tab" aria-selected={activePlatform === name} onClick={() => onPlatformChange?.(name)}><AiPlatformLabel platform={name} /></button>)}</div>
     <div className="citation-comparison-grid">
-      {platformNames.map(platform => {
+      {platformNames.filter(name => !activePlatform || name === activePlatform).map(platform => {
         const samples = responses.filter(item => item.platform === platform);
         const sources = run.sources.filter(item => samples.some(sample => sample.id === item.response_id));
         const diagnosis = (run.summary.platforms || []).some(item => item.platform === platform && item.analyzed_responses > 0)

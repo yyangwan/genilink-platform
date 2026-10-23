@@ -77,6 +77,7 @@ export async function GET(req: NextRequest) {
           !/^(?:[a-f0-9]{32}|[0-9]{1,18})$/.test(ownerId) || !/^[0-9]{1,8}$/.test(offset)) return badRequest();
       path += `/content?${new URLSearchParams({ owner_kind: kind, owner_id: ownerId, offset })}`;
     } else if (view === 'actions') path += '/actions';
+    else if (view === 'evaluationCohort') path += '/evaluation-cohort';
     else if (view !== 'detail') return badRequest();
   }
   const result = await fetchUpstream(guard.ctx, path, { errorMessage: '证据分析服务暂不可用' });
@@ -90,11 +91,28 @@ export async function POST(req: NextRequest) {
   if (!['owner', 'admin', 'editor', 'member'].includes(guard.ctx.role)) {
     return NextResponse.json({ error: '需要项目写入权限' }, { status: 403 });
   }
-  let body: { brandId?: unknown; analysisRole?: unknown; newEntityName?: unknown; mentionId?: unknown; sourceEntityId?: unknown; targetEntityId?: unknown; taskId?: unknown; taskAction?: unknown; deliveryUrl?: unknown; cohortId?: unknown; baselineRunId?: unknown; followupRunId?: unknown; entityIds?: unknown; url?: unknown; contentHash?: unknown; publishedAt?: unknown; auditId?: unknown; documentId?: unknown; runId?: unknown; approvalId?: unknown; factIds?: unknown; channel?: unknown; title?: unknown; expiresAt?: unknown; evidenceId?: unknown; reviewId?: unknown; factId?: unknown; relation?: unknown; sourceQuote?: unknown; scope?: unknown; validFrom?: unknown; validUntil?: unknown; actionId?: unknown; diagnosisId?: unknown; expectedRevision?: unknown; entityId?: unknown; decision?: unknown; canonicalName?: unknown; reason?: unknown; expectedVersion?: unknown; action?: unknown; promptIds?: unknown; platforms?: unknown; rounds?: unknown; surface?: unknown; idempotencyKey?: unknown };
+  let body: { baseHash?: unknown; decisions?: unknown; brandId?: unknown; analysisRole?: unknown; newEntityName?: unknown; mentionId?: unknown; sourceEntityId?: unknown; targetEntityId?: unknown; taskId?: unknown; taskAction?: unknown; deliveryUrl?: unknown; cohortId?: unknown; baselineRunId?: unknown; followupRunId?: unknown; entityIds?: unknown; url?: unknown; contentHash?: unknown; publishedAt?: unknown; auditId?: unknown; documentId?: unknown; runId?: unknown; approvalId?: unknown; factIds?: unknown; channel?: unknown; title?: unknown; expiresAt?: unknown; evidenceId?: unknown; reviewId?: unknown; factId?: unknown; relation?: unknown; sourceQuote?: unknown; scope?: unknown; validFrom?: unknown; validUntil?: unknown; actionId?: unknown; diagnosisId?: unknown; expectedRevision?: unknown; entityId?: unknown; decision?: unknown; canonicalName?: unknown; reason?: unknown; expectedVersion?: unknown; action?: unknown; promptIds?: unknown; platforms?: unknown; rounds?: unknown; surface?: unknown; idempotencyKey?: unknown };
   try { body = await req.json(); } catch { return badRequest(); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return badRequest();
   const requiresCurrentContext = ['generateDraft', 'approveDraft', 'previewDraft', 'approveFact', 'createAction', 'approveAction', 'createCohort', 'compareCohort', 'startRetest', 'capture', 'analyze', 'createManualTask'].includes(String(body.action)) || body.action === undefined || body.action === 'updateManualTask' && body.taskAction !== 'cancel';
   if (requiresCurrentContext && await prisma.projectContextOutbox.count({ where: { projectId: guard.ctx.projectId, deliveredAt: null } })) return NextResponse.json({ error: '品牌配置尚未同步，请先完成同步后再分析或使用材料' }, { status: 409 });
+  if (body.action === 'reviewEvaluationCohort') {
+    if (typeof body.runId !== 'string' || !validId(body.runId) ||
+        typeof body.baseHash !== 'string' || !/^[a-f0-9]{64}$/.test(body.baseHash) ||
+        !body.decisions || typeof body.decisions !== 'object' || Array.isArray(body.decisions) ||
+        Object.keys(body.decisions).length < 1 || Object.keys(body.decisions).length > 100 ||
+        !Object.entries(body.decisions).every(([key, value]) => /^[a-f0-9]{64}$/.test(key) && ['eligible', 'excluded'].includes(String(value))) ||
+        typeof body.reason !== 'string' || body.reason.trim().length < 5 || body.reason.length > 2000 ||
+        !Number.isSafeInteger(body.expectedVersion) || Number(body.expectedVersion) < 0 ||
+        typeof body.idempotencyKey !== 'string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(body.idempotencyKey)) return badRequest();
+    const result = await fetchUpstream(guard.ctx, `/api/intelligence/runs/${body.runId}/evaluation-cohort/review`, {
+      method: 'POST', body: { baseHash: body.baseHash, decisions: body.decisions, reason: body.reason,
+        expectedVersion: body.expectedVersion, idempotencyKey: body.idempotencyKey },
+      errorMessage: '评分范围审核尚未确认，请使用相同请求编号重试',
+    });
+    if ('response' in result) return result.response;
+    return NextResponse.json(result.data, { status: 202 });
+  }
   if (body.action === 'bindProjectBrand') {
     if (typeof body.brandId !== 'string' || !body.brandId || body.brandId.length > 50 || !['registered', 'comparison'].includes(String(body.analysisRole)) || body.entityId !== null && (typeof body.entityId !== 'string' || !validId(body.entityId)) ||
         typeof body.reason !== 'string' || body.reason.trim().length < 5 || body.reason.length > 2000 || !Number.isSafeInteger(body.expectedVersion) || Number(body.expectedVersion) < 0 || typeof body.idempotencyKey !== 'string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(body.idempotencyKey)) return badRequest();
@@ -343,16 +361,16 @@ export async function POST(req: NextRequest) {
   if (body.action === 'capture') {
     if (!Array.isArray(body.promptIds) || !body.promptIds.length || body.promptIds.length > 100 ||
         !body.promptIds.every(value => Number.isSafeInteger(value) && value > 0) ||
-        !Number.isInteger(body.rounds) || Number(body.rounds) < 1 || Number(body.rounds) > 10 ||
+        (body.rounds !== undefined && body.rounds !== 1) ||
         typeof body.idempotencyKey !== 'string' ||
         !/^[a-zA-Z0-9_-]{8,100}$/.test(body.idempotencyKey) ||
         new Set(body.promptIds).size !== body.promptIds.length ||
-        body.promptIds.length * CAPTURE_PLATFORMS.length * Number(body.rounds) > 1000) return badRequest();
+        body.promptIds.length * CAPTURE_PLATFORMS.length > 1000) return badRequest();
     const associations = await prisma.projectBrand.findMany({ where: { projectId: guard.ctx.projectId }, include: { brand: true }, orderBy: { brandId: 'asc' } });
     const brands = associations.filter(row => row.brand && !row.brand.deletedAt).map(row => ({
       id: row.brand.id, name: row.brand.name, aliases: row.brand.aliases || [], is_competitor: row.brand.isCompetitor || false,
     }));
-    const sampling = { promptIds: body.promptIds, platforms: [...CAPTURE_PLATFORMS], rounds: body.rounds,
+    const sampling = { promptIds: body.promptIds, platforms: [...CAPTURE_PLATFORMS], rounds: 1,
       surface: 'managed_v1', idempotencyKey: body.idempotencyKey, conditions: { searchMode: 'unknown' } };
     const operationId = 'visibility-capture-' + createHash('sha256').update(`${guard.ctx.workspaceId}:${guard.ctx.projectId}:${body.idempotencyKey}`).digest('hex');
     const requestHash = createHash('sha256').update(JSON.stringify({ projectId: guard.ctx.projectId, sampling, brands })).digest('hex');

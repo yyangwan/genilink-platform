@@ -50,6 +50,24 @@ describe('project-scoped intelligence proxy', () => {
     expect(response.status).toBe(400);
     expect(fetchUpstream).not.toHaveBeenCalled();
   });
+
+  it('reads the scoped evaluation cohort and validates review writes without spending generation quota', async () => {
+    const runId = 'a'.repeat(32);
+    await GET(new NextRequest(`http://localhost/api/integration/intelligence?view=evaluationCohort&runId=${runId}`));
+    expect(fetchUpstream).toHaveBeenLastCalledWith(expect.anything(), `/api/intelligence/runs/${runId}/evaluation-cohort`, expect.anything());
+    const payload = { action: 'reviewEvaluationCohort', runId, baseHash: 'b'.repeat(64),
+      decisions: { ['c'.repeat(64)]: 'eligible' }, reason: '已核验通用选型问题', expectedVersion: 0, idempotencyKey: 'review-key-123', actorId: 'spoofed' };
+    const response = await POST(new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify(payload) }));
+    expect(response.status).toBe(202);
+    expect(fetchUpstream).toHaveBeenLastCalledWith(expect.anything(), `/api/intelligence/runs/${runId}/evaluation-cohort/review`, expect.objectContaining({
+      body: { baseHash: payload.baseHash, decisions: payload.decisions, reason: payload.reason, expectedVersion: 0, idempotencyKey: payload.idempotencyKey },
+    }));
+    expect(reserveContentGeneration).not.toHaveBeenCalled();
+    vi.mocked(fetchUpstream).mockClear();
+    const invalid = await POST(new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({ ...payload, decisions: [] }) }));
+    expect(invalid.status).toBe(400);
+    expect(fetchUpstream).not.toHaveBeenCalled();
+  });
   it('rejects viewer writes before accessing upstream', async () => {
     vi.mocked(resolveGuard).mockResolvedValue({ ok: true, ctx: { projectId: 'trusted-project', role: 'viewer' } } as Awaited<ReturnType<typeof resolveGuard>>);
     const response = await POST(new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({ projectId: 'trusted-project', auditId: '1' }) }));
@@ -67,7 +85,7 @@ describe('project-scoped intelligence proxy', () => {
     expect(fetchUpstream).toHaveBeenCalledWith(expect.anything(), '/api/intelligence/audits/123/runs', expect.objectContaining({ method: 'POST' }));
   });
   const samplingRequest = () => new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({
-    projectId: 'trusted-project', action: 'capture', promptIds: [1], platforms: ['qwen'], rounds: 3, surface: 'web', idempotencyKey: 'stable-key-123',
+    projectId: 'trusted-project', action: 'capture', promptIds: [1], platforms: ['qwen'], rounds: 1, surface: 'web', idempotencyKey: 'stable-key-123',
   }) });
   it('owns platform coverage and transport policy even when the caller sends overrides', async () => {
     vi.mocked(fetchUpstream).mockResolvedValue({ data: { audit_id: '12' } });
@@ -75,18 +93,19 @@ describe('project-scoped intelligence proxy', () => {
     expect(response.status).toBe(202);
     expect(fetchUpstream).toHaveBeenCalledWith(expect.anything(), '/api/intelligence/projects/trusted-project/audits', expect.objectContaining({
       body: expect.objectContaining({ sampling: expect.objectContaining({
-        platforms: ['qwen', 'deepseek', 'doubao', 'kimi', 'hunyuan'], surface: 'managed_v1',
+        platforms: ['qwen', 'deepseek', 'doubao', 'kimi', 'hunyuan'], surface: 'managed_v1', rounds: 1,
       }) }),
     }));
   });
   it('accepts customer settings without transport fields and bounds the full platform total', async () => {
     vi.mocked(fetchUpstream).mockResolvedValue({ data: { audit_id: '12' } });
-    const request = (rounds: number) => new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({
+    const request = (rounds?: number) => new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({
       action: 'capture', promptIds: Array.from({ length: 21 }, (_, i) => i + 1), rounds, idempotencyKey: 'managed-key-123',
     }) });
     expect((await POST(request(10))).status).toBe(400);
     expect(reserveContentGeneration).not.toHaveBeenCalled();
     expect((await POST(request(1))).status).toBe(202);
+    expect((await POST(request())).status).toBe(202);
   });
   it('dispatches a bounded source retry without creating a new audit quota charge', async () => {
     const response = await POST(new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({

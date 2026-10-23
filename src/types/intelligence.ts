@@ -1,3 +1,23 @@
+export type BrandScoreDimension = 'presence' | 'recommendation' | 'position' | 'reasons';
+export interface BrandScoreAggregate {
+  rule_version: string; cohort_hash: string; score: number | null;
+  covered_weight: number; missing_sample_ids: string[]; status: 'complete' | 'pending';
+}
+export interface CompetitiveComparison {
+  version: 'competitive-comparison-v1'; minimum_gap_points: number; candidate_gap_count: number;
+  interpretation: 'single_audit_observation'; ordering_basis: 'observed_gap_not_business_priority'; threshold_note: string;
+  scope_scores: Array<{ entity_id: string; axis: 'overall' | 'platform' | 'category' | 'platform_category';
+    scope: string | [string, string]; sample_count: number; total: BrandScoreAggregate;
+    dimensions: Record<BrandScoreDimension, BrandScoreAggregate> }>;
+  gaps: Array<{ id: string; own_entity_id: string; comparison_entity_id: string; platform: string; category: string;
+    dimension: BrandScoreDimension; own_score: number; comparison_score: number; gap_points: number;
+    cohort_hash: string; sample_count: number; supporting_sample_ids: string[]; prompts: string[];
+    response_ids: string[]; evidence_ids: string[]; finding: string; cause_status: 'not_established'; review_state: 'needs_review';
+    action: { status: 'proposed'; title: string; task: string; target_prompts: string[]; owner_role: string;
+      materials_needed: string[]; acceptance: string;
+      retest: { platform: string; prompt_hashes: string[]; dimension: BrandScoreDimension; success_check: string } } }>;
+}
+
 export interface EvidenceRunListItem {
   id: string; audit_id: string; revision: number; status: string; created_at: string;
   coverage: { total_segments?: number; segment_states?: Record<string, number>; total_characters?: number;
@@ -11,6 +31,38 @@ export interface EvidenceRun extends EvidenceRunListItem {
     kind: string; snippet: string; document_id: string | null; snapshot_id: string | null; fetch_status: string }>;
   responses: Array<{ id: string; platform: string; prompt: string; prompt_hash: string; observed_at: string; error: boolean }>;
   summary: {
+    brand_evaluation?: {
+      comparison: CompetitiveComparison;
+      version: 'brand-visibility-v1';
+      weights: { presence: number; recommendation: number; position: number; reasons: number };
+      cohort_hash: string | null;
+      status: 'requires_prompt_review' | 'missing_planned_cohort' | 'no_competitive_prompts' | 'complete' | 'partial';
+      score: null;
+      brand_scores: Array<{ entity_id: string; rule_version: string; cohort_hash: string;
+        score: number | null; covered_weight: number; missing_sample_ids: string[]; status: 'complete' | 'pending' }>;
+      answer_scores: Array<{
+        entity_id: string; response_id: string; sample_id: string | null; platform: string;
+        score: number | null; status: 'pending' | 'partial' | 'complete';
+        dimensions: { presence: number | null; recommendation: number | null; position: number | null; reasons: number | null };
+        conflicting_fields: string[]; evidence_ids: string[];
+        position_status: 'whole_answer_list_not_verified' | 'verified_explicit_list'; interpretation: 'model_extracted_unreviewed';
+        position_evidence: { rank: number; list_size: number; start: number; end: number; quote: string } | null;
+      }>;
+    };
+    brand_signals?: {
+      version: 'brand-signals-v1';
+      status: 'extracted' | 'partial' | 'pending';
+      answer_segments: number; extracted_segments: number; rejected_spans: number;
+      score_status: 'awaiting_evaluation_cohort';
+      observations: Array<{
+        id: string; response_id: string; segment_id: string; platform: string; prompt_hash: string;
+        observed_name: string; entity_id: string | null; mention_ids: string[];
+        quote: string; start: number; end: number;
+        recommendation: 0 | 1 | 2 | 3 | 4 | null; explicit_rank: number | null;
+        reason_level: 'none' | 'generic' | 'specific' | 'need_matched' | null;
+        analysis_status: string; review_state: 'unreviewed'; scope: 'segment';
+      }>;
+    };
     claim_evidence?: Array<{ id: string; answer_quote: string; source_quote: string; relation: string; review_state: string;
       snapshot_id: string; source_title: string; source_url: string | null; platform: string }>;
     prompt_platforms?: Array<{ prompt_hash: string; prompt: string; platform: string; sample_count: number; comparable: boolean }>;

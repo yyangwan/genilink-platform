@@ -22,7 +22,7 @@ describe('capture operation identity', () => {
   }
 
   async function start() {
-    const button = await screen.findByRole('button', { name: '开始多轮采集' });
+    const button = await screen.findByRole('button', { name: '开始本次采集' });
     await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(button);
   }
@@ -33,7 +33,9 @@ describe('capture operation identity', () => {
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith('12'));
     expect(screen.queryByRole('combobox', { name: '采集入口' })).toBeNull();
     expect(screen.queryByRole('group', { name: '采集平台' })).toBeNull();
-    expect(screen.getByText(/5 个平台.*15 次计划采集/)).toBeTruthy();
+    expect(screen.getByText(/5 个平台.*5 次计划采集/)).toBeTruthy();
+    expect(requests[0]).toHaveProperty('rounds', 1);
+    expect(screen.queryByRole('spinbutton')).toBeNull();
     expect(requests[0]).not.toHaveProperty('surface');
     expect(requests[0]).not.toHaveProperty('platforms');
   });
@@ -50,6 +52,17 @@ describe('capture operation identity', () => {
     expect(requests[0].promptIds).toEqual(requests[1].promptIds);
     expect(requests[0].idempotencyKey).toBeTruthy();
     expect(requests[1].idempotencyKey).not.toBe(requests[0].idempotencyKey);
+  });
+
+  it.each(['checking', 'running'] as const)('does not start another capture while task state is %s', async taskState => {
+    const fetcher = vi.fn().mockResolvedValue(Response.json([{ id: 1, text: '有哪些方案' }]));
+    vi.stubGlobal('fetch', fetcher);
+    render(<CaptureControls projectId="p1" enabled taskState={taskState} onCreated={vi.fn()} />);
+    await screen.findByText(/已选 1/);
+    const button = screen.getByRole('button');
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(button);
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it.each(['server', 'network', 'missing-receipt'] as const)('reuses the key after an uncertain %s failure', async kind => {

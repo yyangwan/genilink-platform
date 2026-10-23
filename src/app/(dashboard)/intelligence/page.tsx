@@ -2,13 +2,13 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from 'next/navigation';
+import { BrandScoreWorkspace } from '@/components/visibility/brand-score-workspace';
 import { CaptureProgress } from '@/components/visibility/capture-progress';
 import { ReadingDrawer } from '@/components/ui/reading-drawer';
 import { Loader2, RefreshCw } from "lucide-react";
 import { useProject } from "@/components/project/project-context";
 import { PageHeader } from "@/components/ui/page-header";
 import type { EvidenceRun, EvidenceRunListItem } from "@/types/intelligence";
-import { CaptureControls } from "@/components/visibility/capture-controls";
 import { MeasurementCohorts } from '@/components/visibility/measurement-cohorts';
 import { PublishedAssets } from '@/components/visibility/published-assets';
 import { DraftBriefs } from "@/components/visibility/draft-briefs";
@@ -48,6 +48,7 @@ function IntelligenceRoot() {
 function IntelligenceContent({ currentProjectId }: { currentProjectId: string }) {
   const search = useSearchParams(), router = useRouter();
   const initialAudit = search.get('project') === currentProjectId && /^[1-9][0-9]{0,17}$/.test(search.get('auditId') || '') ? search.get('auditId')! : '';
+  const [selectedPlatform, setSelectedPlatform] = useState("");
   const [runs, setRuns] = useState<EvidenceRunListItem[]>([]);
   const [runId, setRunId] = useState(search.get("project") === currentProjectId ? search.get("runId") || "" : "");
   const [loadedRun, setLoadedRun] = useState<EvidenceRun | null>(null);
@@ -73,11 +74,6 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
   const [retrying, setRetrying] = useState<string | null>(null);
   const retryKeys = useRef(new Map<string, string>());
   const published = useCallback((id: string) => { setRunId(id); setRefresh(value => value + 1); }, []);
-  const track = (id: string) => {
-    setCaptureId(id); setCaptureExpanded(true); setAuditId(id); setRunId(''); setLoadedRun(null); setDocument(null);
-    router.replace(`/intelligence?${new URLSearchParams({ project: currentProjectId, auditId: id, view: tab })}`, { scroll: false });
-    setRefresh(value => value + 1);
-  };
   const changeTab = (id: string) => {
     const params = new URLSearchParams({ project: currentProjectId, view: id });
     if (captureId || run?.audit_id) params.set('auditId', captureId || run!.audit_id);
@@ -182,12 +178,9 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
     </div>
     {tab === "overview" && <details className="citation-capture-details" open={captureExpanded}
       onToggle={event => setCaptureExpanded(event.currentTarget.open)}>
-      <summary>本次采集任务与采集设置 <span>查看各平台进度、来源归档与分析状态</span></summary>
+      <summary>本次任务进度 <span>查看各平台进度、来源归档与分析状态</span></summary>
       {(captureId || run?.audit_id) && <CaptureProgress key={retrying || "task"} projectId={currentProjectId}
         auditId={captureId || run!.audit_id} onPublished={captureId ? published : undefined} />}
-      <details className="audit-settings"><summary>采集设置<span>提示词与独立轮次 · 展开配置</span></summary>
-        <CaptureControls projectId={currentProjectId} enabled={enabled} activeAuditId={captureId || run?.audit_id} onCreated={track} />
-      </details>
       <div className="citation-analysis-trigger">
         <input aria-label="审计编号" placeholder="审计编号" inputMode="numeric" value={auditId}
           onChange={event => setAuditId(event.target.value)} />
@@ -198,15 +191,16 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
     <CitationViewNav value={tab} onChange={changeTab} />
     {!run && <div className="citation-panel citation-empty">{runId ? "正在读取分析版本…" : "完成一次审计后，在审计洞察中选择分析版本。尚无结果时不会填入示例数据。"}</div>}
     {run && <div className="citation-result" aria-label={viewMeta.title}>
-      {tab === "overview" && <CitationOverview run={run} onView={changeTab} />}
+      {["overview", "entities", "platforms"].includes(tab) && <BrandScoreWorkspace key={run.id + tab} run={run} mode={tab === "entities" ? "brands" : tab === "platforms" ? "platforms" : "overview"} onEvidence={id => open("answer", id, "评分依据：原始回答")} onPlatformSelect={setSelectedPlatform} />}
+      {tab === "overview" && !run.summary.brand_evaluation && <CitationOverview run={run} onView={changeTab} />}
       {tab === "platforms" && <PlatformComparison key={run.id} run={run}
-        onOpenAnswer={id => open("answer", id, "同题原始回答")} onView={changeTab} />}
+        selectedPlatform={selectedPlatform} onPlatformChange={setSelectedPlatform} onOpenAnswer={id => open("answer", id, "同题原始回答")} onView={changeTab} />}
       {tab === "entities" && <>
         <EntityComparison run={run} onReview={() => {
           const details = globalThis.document.getElementById("citation-entity-review") as HTMLDetailsElement | null;
           if (details) { details.open = true; details.scrollIntoView({ behavior: "smooth", block: "start" }); }
         }} />
-        <details id="citation-entity-review" className="citation-deep-details"><summary>实体身份与项目名单管理</summary>
+        <details open id="citation-entity-review" className="citation-deep-details"><summary>品牌身份确认与项目名单管理</summary>
           <ProjectBrandBindings key={"brand-bindings-" + run.id} projectId={currentProjectId} run={run} onSaved={() => setRefresh(value => value + 1)} />
           <ProjectBrandContext key={"brand-context-" + currentProjectId} projectId={currentProjectId} refreshKey={refresh} onSaved={() => setRefresh(value => value + 1)} />
           <IdentityReview key={run.id} run={run} projectId={currentProjectId} onSaved={() => setRefresh(value => value + 1)} />
@@ -248,7 +242,7 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
         <MeasurementBaseline run={run} />
         <MeasurementCohorts key={run.id} run={run} runs={runs} projectId={currentProjectId}
           onOpenEvidence={(id, kind, ownerId) => open(kind, ownerId, "复测来源证据", id)}
-          onCaptureStarted={id => track(id)} />
+          onCaptureStarted={id => router.push(`/visibility?${new URLSearchParams({ project: currentProjectId, auditId: id })}`)} />
         <PublishedAssets key={"assets-" + run.id} run={run} projectId={currentProjectId} />
       </>}
       <p className="citation-method-note">当前为固定修订 {run.revision} · {label(run.status)}。未分析与未知内容不计为品牌缺席；后续补采会产生新修订。</p>
