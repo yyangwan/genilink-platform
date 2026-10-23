@@ -22,12 +22,12 @@ function isStatus(value: CaptureStatus, auditId: string): boolean {
     [value.expected_samples, value.sealed, value.failed, value.source_pending, value.analysis_pending].every(n => Number.isInteger(n) && n >= 0);
 }
 
-export function CaptureProgress({ projectId, auditId, onPublished, report }: { projectId: string; auditId: string; onPublished?: (id: string) => void; report?: CitationReport | null }) {
+export function CaptureProgress({ projectId, auditId, onPublished, report, onStatus }: { projectId: string; auditId: string; onPublished?: (id: string) => void; report?: CitationReport | null; onStatus?: (status: CaptureStatus) => void }) {
   // Remounting by project + audit prevents stale data from leaking between task contexts.
-  return <TaskProgress key={`${projectId}:${auditId}`} projectId={projectId} auditId={auditId} onPublished={onPublished} report={report?.audit_id === auditId ? report : null} />;
+  return <TaskProgress key={`${projectId}:${auditId}`} projectId={projectId} auditId={auditId} onPublished={onPublished} onStatus={onStatus} report={report?.audit_id === auditId ? report : null} />;
 }
 
-function TaskProgress({ projectId, auditId, onPublished, report }: { projectId: string; auditId: string; onPublished?: (id: string) => void; report?: CitationReport | null }) {
+function TaskProgress({ projectId, auditId, onPublished, report, onStatus }: { projectId: string; auditId: string; onPublished?: (id: string) => void; report?: CitationReport | null; onStatus?: (status: CaptureStatus) => void }) {
   const [data, setData] = useState<CaptureStatus | null>(null);
   const [error, setError] = useState('');
   const [updated, setUpdated] = useState<Date | null>(null);
@@ -71,6 +71,7 @@ function TaskProgress({ projectId, auditId, onPublished, report }: { projectId: 
     void poll();
     return () => { controller.abort(); clearTimeout(timer); };
   }, [projectId, auditId, refresh]);
+  useEffect(() => { if (data) onStatus?.(data); }, [data, onStatus]);
   const published = data?.published_run_id;
   useEffect(() => { if (published) onPublished?.(published); }, [published, onPublished]);
   const waiting = data?.status === 'pending';

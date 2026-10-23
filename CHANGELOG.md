@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0.0 — 2026-10-23
+
+新增固定规则品牌评分、四维雷达图、平台得分对照及证据回溯；采集默认一次，主入口常驻；保留品牌身份确认与调整。
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
