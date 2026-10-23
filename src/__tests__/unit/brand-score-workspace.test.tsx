@@ -19,9 +19,11 @@ function fixture(): EvidenceRun {
 
 describe('brand evaluation presentation', () => {
   it('does not invent a score for an older report without evaluation data', () => {
-    render(<BrandScoreWorkspace run={{ summary: {} } as EvidenceRun} />);
-    expect(screen.getByText(/当前修订尚无固定规则评分/)).toBeTruthy();
-    expect(screen.queryByRole('img')).toBeNull();
+    const { container } = render(<BrandScoreWorkspace run={{ summary: {}, responses: [], coverage: {} } as unknown as EvidenceRun} />);
+    expect(screen.getByRole('status').textContent).toContain('当前审计修订尚未生成新版评分');
+    expect(screen.getByRole('heading', { name: '品牌能力轮廓' })).toBeTruthy();
+    expect(container.querySelectorAll('circle')).toHaveLength(0);
+    expect(screen.getByRole('img')).toBeTruthy();
   });
   it('keeps unknown radar dimensions empty rather than plotting zeros', () => {
     const { container } = render(<BrandScoreWorkspace run={fixture()} />);
