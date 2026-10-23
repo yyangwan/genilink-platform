@@ -19,7 +19,7 @@ import { MentionBindings } from '@/components/visibility/mention-bindings';
 import { ProjectBrandBindings } from '@/components/visibility/project-brand-bindings';
 import { ProjectBrandContext } from '@/components/visibility/project-brand-context';
 import { EntityAliases } from '@/components/visibility/entity-aliases';
-import { ActionIntro, CitationOverview, CitationViewNav, citationViews, DraftEvidenceSummary, EntityComparison, EvidenceWorkspace, MeasurementBaseline, PlatformComparison, SourceLibrary, WorkflowIntro } from "@/components/visibility/citation-prototype-views";
+import { ActionIntro, CitationViewNav, citationViews, DraftEvidenceSummary, EntityComparison, EvidenceWorkspace, MeasurementBaseline, PlatformComparison, SourceLibrary, WorkflowIntro } from "@/components/visibility/citation-prototype-views";
 
 const labels: Record<string, string> = {
   queued: "排队中", running: "分析中", ready: "已完成", partial: "部分完成", failed: "失败",
@@ -192,7 +192,7 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
     {!run && <div className="citation-panel citation-empty">{runId ? "正在读取分析版本…" : "完成一次审计后，在审计洞察中选择分析版本。尚无结果时不会填入示例数据。"}</div>}
     {run && <div className="citation-result" aria-label={viewMeta.title}>
       {["overview", "entities", "platforms"].includes(tab) && <BrandScoreWorkspace key={run.id + tab} run={run} mode={tab === "entities" ? "brands" : tab === "platforms" ? "platforms" : "overview"} onEvidence={id => open("answer", id, "评分依据：原始回答")} onPlatformSelect={setSelectedPlatform} />}
-      {tab === "overview" && !run.summary.brand_evaluation && <CitationOverview run={run} onView={changeTab} />}
+
       {tab === "platforms" && <PlatformComparison key={run.id} run={run}
         selectedPlatform={selectedPlatform} onPlatformChange={setSelectedPlatform} onOpenAnswer={id => open("answer", id, "同题原始回答")} onView={changeTab} />}
       {tab === "entities" && <>
