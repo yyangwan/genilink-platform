@@ -173,7 +173,8 @@
         "backend/app/intelligence/sources.py",
         "backend/app/intelligence/pipeline.py",
         "backend/app/intelligence/source_metrics.py",
-        "backend/app/config.py"
+        "backend/app/config.py",
+        "backend/app/intelligence/model_budget.py"
       ],
       "acceptance": [
         "正文取得、保存文字分析覆盖和原文章完整性独立返回，HTTP200不等于全文",
@@ -186,11 +187,15 @@
           "Versioned source quality retained in snapshots and manifests; known challenge/empty/suspected navigation bodies excluded from article analysis, evidence and denominators.",
           "Original-article completeness remains unknown; advertising disclosures retained without assigning independent authority.",
           "Fixed source metrics to compare decompressed text against body_hash and verify compressed objects separately.",
-          "Official DeepSeek bounded structured non-thinking request policy shared by extraction and evidence verification; request policy included in cache signature."
+          "Official DeepSeek bounded structured non-thinking request policy shared by extraction and evidence verification; request policy included in cache signature.",
+          "Frozen per-run request/token phase ledger; extraction/context/verification reserves, with answer workload planned first and remaining extraction capacity available to sources.",
+          "Fenced pre-call reservation, idempotent actual-usage settlement, conservative unknown-usage accounting and old-lease recovery; per-subject deferral reasons exposed in coverage/readiness.",
+          "Budget config changes create a new immutable revision; cached extraction reuse does not add provider requests or tokens.",
+          "Real MySQL concurrency and stale-settlement checks passed; one real-input pipeline call settled 4441 tokens, then a second revision reused cache with zero new calls."
         ],
         "remaining": [
-          "Stage-reserved extraction/context/verification budgets and resumability acceptance.",
-          "More extractor/boundary quality cases and long-source validation; heuristic quality flags do not prove full article completeness."
+          "Integrate the reserved context phase with A02 runtime context analysis.",
+          "Expand extractor/boundary/long-source quality distribution checks; flags do not prove whole-article completeness."
         ]
       }
     },
@@ -635,8 +640,8 @@
     "backendBranch": "codex/citation-value-foundation",
     "portalBranch": "codex/citation-value-v3",
     "verification": {
-      "backendTestsPassed": 786,
-      "backendTestsSkipped": 9,
+      "backendTestsPassed": 802,
+      "backendTestsSkipped": 10,
       "backendRuff": "passed",
       "prototypeViews": 9,
       "prototypeChecks": 13,
@@ -656,14 +661,22 @@
       "calibrationTokens": 27584,
       "independentSemanticAcceptance": false,
       "portalTestsSkipped": 1,
-      "backendOfflineImageEntrypoint": "verified_local_source_not_docker_build"
+      "backendOfflineImageEntrypoint": "verified_local_source_not_docker_build",
+      "budgetMysqlConcurrency": "passed",
+      "budgetRealPipelineModelCalls": 1,
+      "budgetRealPipelineTokens": 4441,
+      "budgetCachedRevisionNewCalls": 0,
+      "budgetMysqlTestsPassed": 3,
+      "budgetFullRegression": "passed",
+      "budgetCompile": "passed"
     },
     "productionUiChangeLocation": "local_worktree_only",
     "backendCommits": [
       "8571a2b",
       "3acba4e",
       "6c0e7dc",
-      "d35de76"
+      "d35de76",
+      "180ea11"
     ],
     "providerStatus": "restored_http_200_verified",
     "portalCommits": [
