@@ -1,0 +1,594 @@
+{
+  "version": "citation-value-plan-v1.1",
+  "date": "2026-10-24",
+  "status": "in_progress",
+  "plan": "citation-intelligence-value-execution-plan-20261024.md",
+  "constraints": {
+    "captureRounds": 1,
+    "scoreRule": "brand-visibility-v1",
+    "weights": {
+      "presence": 30,
+      "recommendation": 30,
+      "position": 20,
+      "reasons": 20
+    },
+    "historicalBackfill": false,
+    "databaseStrategy": "fresh_schema_initialization",
+    "legacyDatabaseCompatibility": false,
+    "migrationPrerelease": false,
+    "automaticPublishing": false,
+    "gatewayReleaseIncluded": false,
+    "uiImplementationRequiresApprovedPrototype": true,
+    "approvedPrototypeVersion": "citation-intelligence-v3",
+    "implementationStarted": true
+  },
+  "tasks": [
+    {
+      "id": "R00",
+      "milestone": "M1",
+      "owner": "审计后端/数据契约",
+      "status": "in_progress",
+      "dependsOn": [],
+      "prototypeGate": false,
+      "title": "冻结最新结构和契约并提供空库初始化",
+      "modules": [
+        "backend/app/intelligence/models.py",
+        "backend/alembic/schema",
+        "backend/scripts/check_intelligence_image.py",
+        "prisma/schema.prisma",
+        "数据库初始化入口",
+        "新契约定义"
+      ],
+      "acceptance": [
+        "直接定义三张后端表、配置偏好JSON、BrandFact两种来源分支、TaskPack v2及修订载荷/稳定键合同",
+        "在空MySQL/PostgreSQL验证最新结构初始化、约束及API/worker读写启动",
+        "不实施历史数据搬迁、旧库升级适配、旧镜像数据库兼容或兼容前置发布"
+      ],
+      "progress": {
+        "implemented": [
+          "Added strict contracts for targets, evidence, two fact-source branches, task revisions and observation specifications."
+        ],
+        "remaining": [
+          "ORM/latest fresh-schema initialization and API/worker DB verification",
+          "Runtime permissions and evidence ownership checks"
+        ]
+      }
+    },
+    {
+      "id": "V01",
+      "milestone": "M1",
+      "owner": "后端/质量",
+      "status": "in_progress",
+      "dependsOn": [],
+      "prototypeGate": false,
+      "title": "冻结近期真实材料并回放结构失败",
+      "modules": [
+        "backend/app/intelligence/semantics.py",
+        "backend/app/intelligence/evaluation_export.py",
+        "backend/tests"
+      ],
+      "acceptance": [
+        "冻结最近一至两次材料的hash、完整文字、owner和offset，不重采或改写旧Run",
+        "attributes等结构错误能定位并按明确规则无损处理或失败，不能补空冒充成功",
+        "新流水线验收记录包括实际语义结果、覆盖和预算，不能仅凭JSON通过放行"
+      ],
+      "progress": {
+        "implemented": [
+          "Read-only recent-two-audit freeze and 186-case integrity replay; unique input 384229 characters.",
+          "Strict extraction arrays; audited singleton attribute repair; no empty-success fallback."
+        ],
+        "remaining": [
+          "Restore analysis provider balance; bounded real model replay and manual semantic-quality checks"
+        ]
+      }
+    },
+    {
+      "id": "B01",
+      "milestone": "M1",
+      "owner": "审计后端",
+      "status": "planned",
+      "dependsOn": [
+        "V01"
+      ],
+      "prototypeGate": false,
+      "title": "冻结目标品牌基表和三态出现结果",
+      "modules": [
+        "backend/app/intelligence/project_context.py",
+        "backend/app/intelligence/ingestion.py",
+        "backend/app/intelligence/pipeline.py",
+        "backend/app/intelligence/brand_evaluation.py"
+      ],
+      "acceptance": [
+        "自有品牌完全未出现仍有目标行，不伪造提及",
+        "完整回答、完整分析及身份可判断才允许observed_absent；失败或歧义为unknown",
+        "来源发现不污染回答指标，未登记品牌可核实后比较，无关歧义不阻断其他品牌"
+      ]
+    },
+    {
+      "id": "B02",
+      "milestone": "M1",
+      "owner": "审计后端/门户契约",
+      "status": "planned",
+      "dependsOn": [
+        "B01"
+      ],
+      "prototypeGate": false,
+      "title": "分层就绪度与问题审核新修订契约",
+      "modules": [
+        "backend/app/intelligence/evaluation_reviews.py",
+        "backend/app/intelligence/brand_evaluation.py",
+        "backend/app/intelligence/workspace.py",
+        "backend/app/api/intelligence.py",
+        "src/types/intelligence.ts",
+        "src/app/api/integration/intelligence/route.ts"
+      ],
+      "acceptance": [
+        "返回采集、语义、身份、问题范围、来源、评分和洞察各自状态及原因/补救动作",
+        "审核沿用实名、权限、CAS和幂等，形成新修订且旧分母不改写",
+        "缺总分不禁止有证据的单维结果，无适用竞争问题有明确状态"
+      ]
+    },
+    {
+      "id": "B03",
+      "milestone": "M1",
+      "owner": "审计后端",
+      "status": "in_progress",
+      "dependsOn": [
+        "R00",
+        "V01"
+      ],
+      "prototypeGate": false,
+      "title": "来源质量证据与分阶段预算恢复",
+      "modules": [
+        "backend/app/intelligence/sources.py",
+        "backend/app/intelligence/pipeline.py",
+        "backend/app/intelligence/source_metrics.py",
+        "backend/app/config.py"
+      ],
+      "acceptance": [
+        "正文取得、保存文字分析覆盖和原文章完整性独立返回，HTTP200不等于全文",
+        "通用抽取、上下文、核验在总预算内分别预留和记账，延后范围可追溯",
+        "缓存、重试及断点恢复不重复计样本或消耗，受限来源不封锁独立成立的回答结论"
+      ],
+      "progress": {
+        "implemented": [
+          "Permanent provider account/config errors stop automatic retry and retain safe reason codes; transient errors keep bounded retry."
+        ],
+        "remaining": [
+          "Independent source-completeness/coverage contract",
+          "Stage-reserved budgets, resumability and live validation"
+        ]
+      }
+    },
+    {
+      "id": "A01",
+      "milestone": "M2",
+      "owner": "分析/后端",
+      "status": "planned",
+      "dependsOn": [
+        "R00",
+        "B02"
+      ],
+      "prototypeGate": false,
+      "title": "业务场景分类、审核和固定聚合",
+      "modules": [
+        "backend/app/intelligence/contextual_analysis.py",
+        "backend/app/intelligence/evaluation_reviews.py",
+        "backend/app/intelligence/brand_evaluation.py"
+      ],
+      "acceptance": [
+        "问题意图、目标客户、需求、约束和主场景有版本，建议与人工决定分开",
+        "多标签不重复计入主分母，品牌预设问题与中性问题分开",
+        "场景重要性有项目配置版本及中性默认值，修改不改变评分权重或触发模型调用",
+        "未登记品牌定向问题和歧义名称有审核路径"
+      ]
+    },
+    {
+      "id": "A02",
+      "milestone": "M2",
+      "owner": "分析/后端",
+      "status": "planned",
+      "dependsOn": [
+        "R00",
+        "A01",
+        "B03"
+      ],
+      "prototypeGate": false,
+      "title": "全量信息单元和上下文第二遍分析",
+      "modules": [
+        "backend/app/intelligence/semantics.py",
+        "backend/app/intelligence/pipeline.py",
+        "backend/app/intelligence/information_units.py",
+        "backend/app/intelligence/contextual_analysis.py"
+      ],
+      "acceptance": [
+        "第一遍不限品牌抽取功能、参数、案例、条件、风险等，保留主体与逐字证据",
+        "ContextAnalysis按问题/条件/材料/模型版本隔离，纯文本缓存不混入业务owner",
+        "需求匹配能定位原问题要求，模型不把我方材料补写成回答中的内容"
+      ]
+    },
+    {
+      "id": "A03",
+      "milestone": "M2",
+      "owner": "审计后端/门户契约",
+      "status": "planned",
+      "dependsOn": [
+        "R00",
+        "B01"
+      ],
+      "prototypeGate": false,
+      "title": "我方材料资产版本与事实来源",
+      "modules": [
+        "backend/app/intelligence/owned_assets.py",
+        "backend/app/intelligence/models.py",
+        "backend/app/intelligence/reviews.py",
+        "backend/app/api/intelligence.py",
+        "src/app/api/integration/intelligence/route.ts"
+      ],
+      "acceptance": [
+        "有限URL/资料登记有归属、用途、版本、快照与核实状态，Run冻结实际使用版本",
+        "BrandFact来源恰好一种citation_review或owned_asset_revision，授权导出与Brief共用该联合类型",
+        "没有CitationObservation的自有材料也能独立批准事实，不伪造引用或ClaimReview",
+        "批准事实能追溯材料范围与有效期，未知资料不等于产品能力缺失"
+      ]
+    },
+    {
+      "id": "A04",
+      "milestone": "M2",
+      "owner": "分析/后端",
+      "status": "planned",
+      "dependsOn": [
+        "A02",
+        "B03"
+      ],
+      "prototypeGate": false,
+      "title": "锚点核验与逐次来源观察",
+      "modules": [
+        "backend/app/intelligence/ingestion.py",
+        "backend/app/intelligence/evidence.py",
+        "backend/app/intelligence/source_metrics.py",
+        "backend/app/intelligence/workspace.py"
+      ],
+      "acceptance": [
+        "锚点冻结并优先关联对应观点/引用，无锚点回退方式可见",
+        "候选覆盖和未检查范围明确，数字/时间/条件冲突与部分支持可区分",
+        "同文章各平台的实际引用/候选来源及正文版本分别可回查，转载不重复增加独立证据权重"
+      ]
+    },
+    {
+      "id": "A05",
+      "milestone": "M2",
+      "owner": "分析/后端",
+      "status": "planned",
+      "dependsOn": [
+        "A02",
+        "A03",
+        "A04"
+      ],
+      "prototypeGate": false,
+      "title": "六类机会、任务包和可解释排序",
+      "modules": [
+        "backend/app/intelligence/opportunities.py",
+        "backend/app/intelligence/diagnosis.py",
+        "backend/app/intelligence/competitive_actions.py",
+        "backend/app/intelligence/competitive_comparison.py"
+      ],
+      "acceptance": [
+        "复用PlatformDiagnosis，正文机会不依赖已有总分或分差",
+        "A05即输出冻结的TaskPack v2，无需到E02重新变形；新增子目标必须创建新修订",
+        "每条机会含本平台问题/场景、证据/反证、事实/假设/未知、我方材料状态和具体交付",
+        "排序绑定priorityPolicyVersion，未设置业务偏好明确披露，设置变化的排序影响可解释，不冒充ROI或成功概率"
+      ]
+    },
+    {
+      "id": "E01",
+      "milestone": "M3",
+      "owner": "审计后端",
+      "status": "planned",
+      "dependsOn": [
+        "R00",
+        "A05"
+      ],
+      "prototypeGate": false,
+      "title": "行动不可变修订及相关依赖重批",
+      "modules": [
+        "backend/app/intelligence/models.py",
+        "backend/app/intelligence/actions.py",
+        "backend/app/intelligence/drafts.py",
+        "backend/app/api/intelligence.py"
+      ],
+      "acceptance": [
+        "ActionPlanRevision只追加，审批绑定具体修订与依赖签名",
+        "相关事实/证据变化阻断并可修订重批，无关事实或较新Run不导致全部失效",
+        "并发旧版本拒绝，历史批准、Brief与产物按原版本可回查"
+      ]
+    },
+    {
+      "id": "E02",
+      "milestone": "M3",
+      "owner": "智见/门户/ContentOS",
+      "status": "planned",
+      "dependsOn": [
+        "E01",
+        "A03"
+      ],
+      "prototypeGate": false,
+      "title": "竞争任务的合资格材料和EvidenceBrief v3",
+      "modules": [
+        "backend/app/intelligence/drafts.py",
+        "backend/app/intelligence/actions.py",
+        "src/app/api/integration/intelligence/route.ts",
+        "ContentOS evidence-briefs契约/能力声明/工作流"
+      ],
+      "acceptance": [
+        "诊断证据与我方批准事实分离，竞品事实不能当作我方主张",
+        "多问题/平台保留各自目标，不拼接promptHash；缺材料明确阻断正式创作",
+        "接收端能力就绪后才发起额度预占；四渠道草稿与官网等人工任务保持边界，无自动发布"
+      ]
+    },
+    {
+      "id": "E03",
+      "milestone": "M3",
+      "owner": "审计后端/门户契约",
+      "status": "planned",
+      "dependsOn": [
+        "E01"
+      ],
+      "prototypeGate": false,
+      "title": "任务归并、责任人及执行交付状态",
+      "modules": [
+        "backend/app/intelligence/actions.py",
+        "backend/app/intelligence/content_workbench.py",
+        "backend/app/intelligence/models.py",
+        "backend/app/api/intelligence.py"
+      ],
+      "acceptance": [
+        "同资产/事实/意图合并任务并保留多个平台子目标，冲突事实分开",
+        "负责人、期限、准备/执行/交付/验收/取消状态及产物可追踪，审批状态独立",
+        "旧修订产物不自动归给新任务，生成成功不算发布或可见性改善"
+      ]
+    },
+    {
+      "id": "M01",
+      "milestone": "M4",
+      "owner": "审计后端",
+      "status": "planned",
+      "dependsOn": [
+        "B01",
+        "B02"
+      ],
+      "prototypeGate": false,
+      "title": "单轮描述模式与目标指标配对",
+      "modules": [
+        "backend/app/intelligence/measurement.py",
+        "backend/app/intelligence/measurement_history.py",
+        "backend/app/api/intelligence.py"
+      ],
+      "acceptance": [
+        "模式、指标版本、brandTargetIds和比较范围冻结进cohort规范/hash，结果去重不混用描述与推断模式",
+        "descriptive_v1支持一题一次，基线完全未出现且entityId为空的目标品牌也能与首次出现结果配对",
+        "仅可比且双方已知的维度产生observed_delta，未知或条件变化不汇总改善分数",
+        "原推断模式20题3轮门槛不变，单轮不输出统计区间、显著性或因果声明"
+      ]
+    },
+    {
+      "id": "M02",
+      "milestone": "M4",
+      "owner": "审计后端/门户契约",
+      "status": "planned",
+      "dependsOn": [
+        "E02",
+        "E03",
+        "M01"
+      ],
+      "prototypeGate": false,
+      "title": "行动发布资产和观察时间链",
+      "modules": [
+        "backend/app/intelligence/measurement.py",
+        "backend/app/intelligence/models.py",
+        "backend/app/intelligence/measurement_history.py",
+        "backend/app/api/intelligence.py"
+      ],
+      "acceptance": [
+        "资产、行动修订、Brief/交付、cohort和结果均有明确关联",
+        "核对基线/发布/复测采样时间，未知或顺序不合格不声称发布前后验收",
+        "交付验收与逐平台可见性观察分开，单平台退化不被均分隐藏"
+      ]
+    },
+    {
+      "id": "U00",
+      "milestone": "M1",
+      "owner": "产品/设计",
+      "status": "completed",
+      "dependsOn": [],
+      "prototypeGate": false,
+      "title": "v3交互原型与用户确认",
+      "modules": [
+        "docs/prototypes/citation-intelligence-v3",
+        "原型验收记录"
+      ],
+      "acceptance": [
+        "以已确认v2为视觉基线，保留v1/v2并将新确认稿/交互/截图纳入版本管理",
+        "展示就绪、品牌/来源抽屉、我方材料登记核实与事实批准、场景重要性设置、机会到执行及单次观察状态",
+        "覆盖正常/未知/失败/冲突，用户确认后记录准确原型版本；未确认不实现对应UI"
+      ],
+      "progress": {
+        "implemented": [
+          "Nine-view v3 clickable prototype based on approved v2; 13 critical checks desktop/mobile."
+        ],
+        "remaining": [],
+        "approval": "User: 认可，按 v3 继续实现 (2026-10-24)"
+      }
+    },
+    {
+      "id": "U01",
+      "milestone": "M1",
+      "owner": "门户",
+      "status": "planned",
+      "dependsOn": [
+        "U00",
+        "B01",
+        "B02"
+      ],
+      "prototypeGate": true,
+      "title": "评价就绪、品牌核实与一致比较范围",
+      "modules": [
+        "src/components/visibility/brand-score-workspace.tsx",
+        "src/components/visibility/identity-review.tsx",
+        "src/app/(dashboard)/intelligence/page.tsx",
+        "src/types/intelligence.ts"
+      ],
+      "acceptance": [
+        "缺分说明具体原因，问题审核和身份核实可完成并进入新修订",
+        "每个品牌行能查看证据，身份确认/用于比较/登记品牌库分别操作",
+        "跨Tab及刷新保持自有/对比品牌、平台和场景，失效对象不静默替换"
+      ]
+    },
+    {
+      "id": "U02",
+      "milestone": "M2",
+      "owner": "门户",
+      "status": "planned",
+      "dependsOn": [
+        "U00",
+        "A03",
+        "A04",
+        "A05",
+        "U01"
+      ],
+      "prototypeGate": true,
+      "title": "场景、材料、来源观察和机会证据下钻",
+      "modules": [
+        "src/components/visibility/citation-prototype-views.tsx",
+        "src/components/visibility/evidence-comparisons.tsx",
+        "src/app/(dashboard)/intelligence/page.tsx",
+        "src/types/intelligence.ts"
+      ],
+      "acceptance": [
+        "文章可展开全部平台/回答/引用类型/版本，入口打开正确原文",
+        "我方材料可登记URL/受支持文字、查看取得或受限/失败状态、合规重试、核对版本、提出并批准事实，提示新分析修订",
+        "来源文章与我方材料分类型；可设置场景重要性，未设置的默认排序与当前策略版本可见",
+        "概览可进入全部机会和对应行动/证据，携带完整比较范围"
+      ]
+    },
+    {
+      "id": "U03",
+      "milestone": "M3",
+      "owner": "门户/ContentOS",
+      "status": "planned",
+      "dependsOn": [
+        "U00",
+        "E02",
+        "E03",
+        "U02"
+      ],
+      "prototypeGate": true,
+      "title": "行动修订、材料准备和交付用户路径",
+      "modules": [
+        "src/components/visibility/action-plans.tsx",
+        "src/components/visibility/approved-facts.tsx",
+        "src/components/visibility/draft-briefs.tsx",
+        "src/components/visibility/evidence-draft-execution.tsx",
+        "src/components/visibility/manual-content-tasks.tsx"
+      ],
+      "acceptance": [
+        "由机会带入行动修订及合资格事实，不要求客户手填版本或反复重选",
+        "无材料、事实过期、版本冲突及失效审批都有可完成的下一步",
+        "责任人、交付记录、人工任务和待审草稿可追踪，发布仍单独登记"
+      ]
+    },
+    {
+      "id": "U04",
+      "milestone": "M4",
+      "owner": "门户",
+      "status": "planned",
+      "dependsOn": [
+        "U00",
+        "M02",
+        "U03"
+      ],
+      "prototypeGate": true,
+      "title": "一次观察预检与逐平台变化界面",
+      "modules": [
+        "src/components/visibility/measurement-cohorts.tsx",
+        "src/components/visibility/published-assets.tsx",
+        "src/app/(dashboard)/intelligence/page.tsx"
+      ],
+      "acceptance": [
+        "发起前显示样本/条件/发布时序及可得到的描述结果，仍一次采集",
+        "默认选中该cohort关联复测，按平台/问题/行动维度查看前后证据",
+        "观察变化、数据不足、不可比和统计判断不可用分别呈现"
+      ]
+    },
+    {
+      "id": "Q01",
+      "milestone": "cross-cutting",
+      "owner": "质量/产品",
+      "status": "planned",
+      "dependsOn": [
+        "V01"
+      ],
+      "prototypeGate": false,
+      "title": "真实标注、分层质量与阶段放行",
+      "modules": [
+        "backend/app/intelligence/evaluation.py",
+        "backend/app/intelligence/evaluation_export.py",
+        "backend/tests",
+        "阶段验收记录"
+      ],
+      "acceptance": [
+        "先校准代表性真实样本，再扩大独立留出集；实体/证据/理由/排名/任务可执行性分别评价",
+        "披露真实分子分母与未知，不把测试通过或样本数量当作语义质量合格",
+        "不虚构事实、不串证据、不越租户；有明确机会却遗漏不能放行，无机会不凑数"
+      ]
+    },
+    {
+      "id": "Q02",
+      "milestone": "M4",
+      "owner": "全链路/发布",
+      "status": "planned",
+      "dependsOn": [
+        "R00",
+        "B03",
+        "A05",
+        "U01",
+        "U02",
+        "U03",
+        "U04",
+        "Q01"
+      ],
+      "prototypeGate": false,
+      "title": "真实价值闭环与分系统发布核验",
+      "modules": [
+        "跨系统验收用例",
+        "各仓库PR与CI",
+        "部署运行记录"
+      ],
+      "acceptance": [
+        "至少一条真实机会经过计划/事实批准、内容或人工交付、发布登记和单轮观察",
+        "各系统独立门禁及PR/CI通过；接收端能力先发布，审计API/worker再发布，门户最后发布",
+        "精确提交/健康/资源/回滚及业务结果分别记录，不发布无关网关改动"
+      ]
+    }
+  ],
+  "progress": {
+    "prototype": "citation-intelligence-v3",
+    "prototypeStatus": "approved_by_user",
+    "productionUiChanged": false,
+    "productionDeployed": false,
+    "realSemanticQuality": "not_evaluated",
+    "providerBlocker": "HTTP_402_insufficient_balance",
+    "backendBranch": "codex/citation-value-foundation",
+    "portalBranch": "codex/citation-value-v3",
+    "verification": {
+      "backendTestsPassed": 736,
+      "backendTestsSkipped": 9,
+      "backendRuff": "passed",
+      "prototypeViews": 9,
+      "prototypeChecks": 13,
+      "prototypeMobileWidth": 390,
+      "prototypeDesktopWidth": 1440,
+      "prototypeExternalRequests": 0
+    }
+  }
+}

@@ -1,0 +1,10 @@
+const paths={overview:'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',platforms:'M3 7h18 M3 17h18 M17 3l4 4-4 4 M7 13l-4 4 4 4',brands:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M19 8v6 M16 11h6',sources:'M4 3h12l4 4v14H4z M15 3v5h5 M8 12h8 M8 16h6',evidence:'M10 13a5 5 0 0 0 7 0l4-4a5 5 0 0 0-7-7l-2 2 M14 11a5 5 0 0 0-7 0l-4 4a5 5 0 0 0 7 7l2-2',actions:'M9 18h6 M10 21h4 M8 14a7 7 0 1 1 8 0l-1 3H9z',brief:'M12 3l9 9-9 9-9-9z M12 8v8 M8 12h8',measure:'M3 3v18h18 M7 14l4-5 4 3 6-8',arrow:'M5 12h14 M13 6l6 6-6 6',check:'M5 12l4 4L20 5',info:'M12 8v5 M12 16h.01 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0'};
+const labels={overview:'审计洞察',platforms:'平台差异对照',brands:'品牌发现对比',sources:'来源文章库',evidence:'观点与证据',actions:'优化行动',brief:'内容创作方案',measure:'行动效果复测'};
+const state={view:'overview',brandMode:'all',brandFilter:'all',sourceStatus:'all',platform:'DeepSeek',actionScope:'all',tracked:false,briefCreated:false,period:14};
+function icon(k,size=16){return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[k]||paths.info}"/></svg>`}
+const badge=(text,tone='')=>`<span class="badge ${tone}">${text}</span>`;
+const btn=(text,target,tone='')=>`<button class="btn ${tone}" onclick="showView('${target}')">${text}${icon('arrow',13)}</button>`;
+const footer=()=>`<footer class="footer"><span>品牌、文章与全部指标均为虚构示例；平台差异不代表平台固有偏好。</span><span>GeniLink / Prototype v3</span></footer>`;
+function head(eyebrow,title,sub,buttons=''){return `<div class="head"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><div class="sub">${sub}</div></div><div class="buttons">${buttons}</div></div>`}
+function metric(label,value,hint,color=''){return `<div class="panel metric"><label>${label}</label><div class="value ${color}">${value}</div><div class="hint">${hint}</div></div>`}
+function table(headers,rows){return `<table class="table"><thead><tr>${headers.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>`}
