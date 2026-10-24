@@ -20,7 +20,8 @@
     "gatewayReleaseIncluded": false,
     "uiImplementationRequiresApprovedPrototype": true,
     "approvedPrototypeVersion": "citation-intelligence-v3",
-    "implementationStarted": true
+    "implementationStarted": true,
+    "approvedA01Controls": true
   },
   "tasks": [
     {
@@ -150,10 +151,10 @@
         "implemented": [
           "Seven independent readiness axes exposed by run detail, including provider blocker and remediation.",
           "Prompt-review unknown decision preserves weight and blocks total; latest decision/CAS version loaded.",
-          "New revision notification, unchanged old denominator, exact-payload idempotent retry in portal."
+          "New revision notification, unchanged old denominator, exact-payload idempotent retry in portal.",
+          "A01 supplies versioned per-question scenario/brand-scope review and verbatim requirements; suggested and human-confirmed context are separate."
         ],
         "remaining": [
-          "Per-question scenario/intent fields and rationale details",
           "Real API/worker/model integration acceptance on fresh database"
         ]
       }
@@ -203,7 +204,7 @@
       "id": "A01",
       "milestone": "M2",
       "owner": "分析/后端",
-      "status": "planned",
+      "status": "completed",
       "dependsOn": [
         "R00",
         "B02"
@@ -220,7 +221,21 @@
         "多标签不重复计入主分母，品牌预设问题与中性问题分开",
         "场景重要性有项目配置版本及中性默认值，修改不改变评分权重或触发模型调用",
         "未登记品牌定向问题和歧义名称有审核路径"
-      ]
+      ],
+      "progress": {
+        "implemented": [
+          "Fixed eight-scenario taxonomy, literal suggestions with verbatim offsets and explicit unreviewed state.",
+          "Named context/eligibility review, primary and secondary labels, directed/unregistered/ambiguous name handling, prompt evidence validation, CAS and idempotent new revisions.",
+          "Reviewed-primary scenario/platform/target score projections; secondary tags do not duplicate counts and missing scopes never fall back to whole-audit scores.",
+          "Portal durable preference API/UI with project lock, version/conflict handling, safe replay, outbox pending status and auditable neutral reset; no model or capture calls.",
+          "Approved A01 local prototype forms implemented as centered dialogs; scenario URL survives supported analysis tab changes."
+        ],
+        "remaining": [],
+        "notes": [
+          "Context interpretation quality and semantic suggestions remain A02/Q01. Opportunity ordering consumes preferences in A05; this task does not claim existing actions are already reprioritized.",
+          "Other global brand/platform scope unification remains U01."
+        ]
+      }
     },
     {
       "id": "A02",
@@ -640,7 +655,7 @@
     "backendBranch": "codex/citation-value-foundation",
     "portalBranch": "codex/citation-value-v3",
     "verification": {
-      "backendTestsPassed": 802,
+      "backendTestsPassed": 817,
       "backendTestsSkipped": 10,
       "backendRuff": "passed",
       "prototypeViews": 9,
@@ -648,7 +663,6 @@
       "prototypeMobileWidth": 390,
       "prototypeDesktopWidth": 1440,
       "prototypeExternalRequests": 0,
-      "portalTestsPassed": 766,
       "portalReleaseSourceGates": "passed",
       "actualM1MobileWidth": 390,
       "actualM1MobileOverflow": false,
@@ -660,7 +674,6 @@
       "calibrationCases": 8,
       "calibrationTokens": 27584,
       "independentSemanticAcceptance": false,
-      "portalTestsSkipped": 1,
       "backendOfflineImageEntrypoint": "verified_local_source_not_docker_build",
       "budgetMysqlConcurrency": "passed",
       "budgetRealPipelineModelCalls": 1,
@@ -668,7 +681,12 @@
       "budgetCachedRevisionNewCalls": 0,
       "budgetMysqlTestsPassed": 3,
       "budgetFullRegression": "passed",
-      "budgetCompile": "passed"
+      "budgetCompile": "passed",
+      "scenarioRealPostgresProof": "passed",
+      "scenarioModelCalls": 0,
+      "scenarioFrozenCasesChecked": 186,
+      "scenarioUniqueRealPrompts": 1,
+      "scenarioPrototypeChecks": 13
     },
     "productionUiChangeLocation": "local_worktree_only",
     "backendCommits": [
@@ -676,13 +694,15 @@
       "3acba4e",
       "6c0e7dc",
       "d35de76",
-      "180ea11"
+      "180ea11",
+      "816f669"
     ],
     "providerStatus": "restored_http_200_verified",
     "portalCommits": [
       "a7e5160",
       "4f3d650",
-      "1d310d2"
+      "1d310d2",
+      "7db162b"
     ]
   }
 }
