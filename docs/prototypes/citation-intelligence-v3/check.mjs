@@ -46,11 +46,13 @@ try {
   await nav('审计洞察');
   await page.getByRole('button',{name:'问题待审核',exact:true}).click();
   await page.getByRole('button',{name:'审核问题范围 →',exact:true}).click();
-  await page.getByRole('button',{name:'保存范围审核',exact:true}).click();
+  await page.getByRole('button',{name:'保存范围与场景审核',exact:true}).click();
   assert.equal(await page.getByRole('alert').isVisible(),true);
   await page.getByLabel('审核依据',{exact:true}).fill('两个问题均未指定品牌，属于通用选型问题。');
-  await page.getByRole('button',{name:'保存范围审核',exact:true}).click();
-  await page.getByRole('button',{name:'进入新修订',exact:true}).click();
+  await page.locator('#question-scene-0').selectOption({label:'实施适配'});
+  await page.locator('#question-scene-1').selectOption({label:'价格与成本'});
+  await page.getByRole('button',{name:'保存范围与场景审核',exact:true}).click();
+  await page.getByRole('button',{name:'查看示例新修订',exact:true}).click();
   assert.ok((await page.locator('main').innerText()).includes('修订 7'));
   await nav('品牌发现对比');
   await page.getByRole('button',{name:'分析失败',exact:true}).click();

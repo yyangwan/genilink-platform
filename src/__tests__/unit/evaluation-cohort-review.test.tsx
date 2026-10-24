@@ -34,6 +34,8 @@ it('retries an uncertain write with exactly the same body and idempotency key', 
   await screen.findByLabelText(cell.prompt);
   fireEvent.change(screen.getByLabelText('审核依据'), { target: { value: '这是需要逐项核对的中性需求问题' } });
   fireEvent.change(screen.getByLabelText(cell.prompt), { target: { value: 'eligible' } });
+  fireEvent.change(screen.getByLabelText('第1题主场景'), { target: { value: 'selection' } });
+  fireEvent.change(screen.getByLabelText('第1题问题指向'), { target: { value: 'neutral' } });
   fireEvent.click(screen.getByRole('button', { name: '保存范围审核' }));
   await screen.findByRole('button', { name: '使用相同请求重试' });
   expect(screen.queryByText(/private upstream/)).toBeNull();

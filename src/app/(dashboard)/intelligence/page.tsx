@@ -1,4 +1,5 @@
 "use client";
+import { ScenarioPreferences } from '@/components/visibility/scenario-preferences';
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -50,12 +51,15 @@ function IntelligenceRoot() {
 function IntelligenceContent({ currentProjectId }: { currentProjectId: string }) {
   const search = useSearchParams(), router = useRouter();
   const initialAudit = search.get('project') === currentProjectId && /^[1-9][0-9]{0,17}$/.test(search.get('auditId') || '') ? search.get('auditId')! : '';
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState("");
   const [runs, setRuns] = useState<EvidenceRunListItem[]>([]);
   const [runId, setRunId] = useState(search.get("project") === currentProjectId ? search.get("runId") || "" : "");
   const [loadedRun, setLoadedRun] = useState<EvidenceRun | null>(null);
   const run = loadedRun?.id === runId ? loadedRun : null;
   const [enabled, setEnabled] = useState(false);
+  const selectedScenario = search.get('project') === currentProjectId ? search.get('scenario') || 'all' : 'all';
+  const changeScenario = (scenario: string) => { const params = new URLSearchParams(search.toString()); params.set('project', currentProjectId); params.set('scenario', scenario); router.replace(`/intelligence?${params}`, { scroll: false }); };
   const requestedView = search.get("view") || "";
   const tab = requestedView === "facts" || citationViews.some(view => view.id === requestedView) ? requestedView : "overview";
   const viewMeta = citationViews.find(view => view.id === tab) ||
@@ -79,7 +83,8 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
   const retryKeys = useRef(new Map<string, string>());
   const published = useCallback((id: string) => { setRunId(id); setRefresh(value => value + 1); }, []);
   const changeTab = (id: string) => {
-    const params = new URLSearchParams({ project: currentProjectId, view: id });
+    const params = new URLSearchParams(search.get('project') === currentProjectId ? search.toString() : '');
+    params.set('project', currentProjectId); params.set('view', id);
     if (captureId || run?.audit_id) params.set('auditId', captureId || run!.audit_id);
     if (runId) params.set('runId', runId);
     router.replace(`/intelligence?${params}`, { scroll: false });
@@ -202,7 +207,7 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
     {!run && <div className="citation-panel citation-empty">{runId ? "正在读取分析版本…" : "完成一次审计后，在审计洞察中选择分析版本。尚无结果时不会填入示例数据。"}</div>}
     {run && <div className="citation-result" aria-label={viewMeta.title}>
       {runs.filter(item => item.audit_id === run.audit_id && item.revision > run.revision && ['ready', 'partial', 'failed'].includes(item.status)).sort((a, b) => b.revision - a.revision).slice(0, 1).map(item => <div key={item.id} role="status" className="citation-notice"><div>新分析修订 {item.revision} {item.status === 'failed' ? '分析尚未成功，可查看处理状态' : '已就绪'}，当前仍显示修订 {run.revision}。</div><button type="button" className="citation-link" onClick={() => { setRunId(item.id); setReviewRunId(null); setAwaitingRevision(null); router.replace('/intelligence?' + new URLSearchParams({ project: currentProjectId, auditId: item.audit_id, runId: item.id, view: tab }), { scroll: false }); }}>查看新修订 →</button></div>)}
-      {["overview", "entities", "platforms"].includes(tab) && <BrandScoreWorkspace key={run.id + tab} run={run} mode={tab === "entities" ? "brands" : tab === "platforms" ? "platforms" : "overview"} onEvidence={id => open("answer", id, "评分依据：原始回答")} onPlatformSelect={setSelectedPlatform} readinessPanel={tab === 'overview' ? <ResultReadiness readiness={run.readiness} onRemedy={remedy => {
+      {["overview", "entities", "platforms"].includes(tab) && <BrandScoreWorkspace key={run.id + tab} run={run} mode={tab === "entities" ? "brands" : tab === "platforms" ? "platforms" : "overview"} onEvidence={id => open("answer", id, "评分依据：原始回答")} onPlatformSelect={setSelectedPlatform} onPreferences={() => setPreferencesOpen(true)} scenarioValue={selectedScenario} onScenarioSelect={changeScenario} readinessPanel={tab === 'overview' ? <ResultReadiness readiness={run.readiness} onRemedy={remedy => {
         if (remedy.action === 'review_prompt_scope') setReviewRunId(run.id);
         else if (remedy.view === 'capture') router.push('/visibility?' + new URLSearchParams({ project: currentProjectId, auditId: run.audit_id }));
         else changeTab(remedy.view);
@@ -262,7 +267,8 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
       </>}
       <p className="citation-method-note">当前为固定修订 {run.revision} · {label(run.status)}。未分析与未知内容不计为品牌缺席；后续补采会产生新修订。</p>
     </div>}
-    {run && reviewRunId === run.id && <ReadingDrawer title="确认本次竞争评价的问题范围" eyebrow="问题资格审核" closeLabel="关闭审核" onClose={() => setReviewRunId(null)}><EvaluationCohortReview key={currentProjectId + run.id} projectId={currentProjectId} run={run} onSaved={() => { setAwaitingRevision(run.revision); setRefresh(value => value + 1); }} /></ReadingDrawer>}
+    {preferencesOpen && currentProjectId && <ReadingDrawer variant="modal" title="设置场景重要性" eyebrow="业务优先级" closeLabel="关闭偏好设置" onClose={() => setPreferencesOpen(false)}><ScenarioPreferences key={currentProjectId} projectId={currentProjectId} /></ReadingDrawer>}
+    {run && reviewRunId === run.id && <ReadingDrawer variant="modal" title="确认本次竞争评价的问题范围" eyebrow="问题资格审核" closeLabel="关闭审核" onClose={() => setReviewRunId(null)}><EvaluationCohortReview key={currentProjectId + run.id} projectId={currentProjectId} run={run} onSaved={() => { setAwaitingRevision(run.revision); setRefresh(value => value + 1); }} /></ReadingDrawer>}
     {document && run && <ReadingDrawer title={document.title || "保存正文"} onClose={() => setDocument(null)}>{contentLoading ? <p className="py-6">正在读取原文…</p> : contentError ? <p role="alert">{contentError}</p> : content.map(item => <p key={item.id} className="mt-4 whitespace-pre-wrap break-words text-sm leading-7">{item.text}</p>)}<div className="mt-5 flex gap-4 text-sm"><button disabled={offset === 0 || contentLoading} onClick={() => { setContentLoading(true); setContentError(""); setOffset(value => Math.max(0, value - 20)); }} className="dashboard-button dashboard-button--secondary">上一页</button><button disabled={nextOffset === null || contentLoading} onClick={() => { setContentLoading(true); setContentError(""); setOffset(nextOffset || 0); }} className="dashboard-button dashboard-button--secondary">下一页</button></div></ReadingDrawer>}
   </div>;
 }

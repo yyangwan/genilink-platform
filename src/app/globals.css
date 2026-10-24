@@ -586,3 +586,9 @@ a:hover {
     width: 100%;
   }
 }
+
+/* Centered forms use the approved review prototype; evidence keeps its side drawer. */
+.reading-drawer--modal{inset:0;margin:auto;width:min(620px,92vw);height:fit-content;max-height:88dvh;overflow-y:auto;border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 80px #0006}
+
+.reading-drawer--modal::backdrop{backdrop-filter:blur(3px)}
+.reading-drawer select,.reading-drawer summary{cursor:pointer}.reading-drawer select:disabled{cursor:not-allowed}

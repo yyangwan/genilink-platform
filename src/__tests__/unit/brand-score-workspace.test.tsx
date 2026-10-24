@@ -18,6 +18,14 @@ function fixture(): EvidenceRun {
 }
 
 describe('brand evaluation presentation', () => {
+  it('never falls back to whole-audit scores when a selected scenario is unresolved', () => {
+    const run = fixture();
+    run.summary.brand_evaluation!.brand_scores = [{ entity_id: 'own', ...aggregate(83) }] as never;
+    const { container } = render(<BrandScoreWorkspace run={run} mode="overview" scenarioValue="cost" onScenarioSelect={vi.fn()} />);
+    expect(screen.queryByText('83')).toBeNull();
+    expect(screen.getByText(/当前场景没有已确认的评价问题/)).toBeTruthy();
+    expect(container.querySelectorAll('svg polygon[fill-opacity]')).toHaveLength(0);
+  });
   it('keeps an unmentioned registry target visible without requiring a fabricated entity', () => {
     const run = fixture();
     run.summary.entities = [];

@@ -1,3 +1,9 @@
+export interface ScenarioComparison {
+  version: string; taxonomy: Record<string, string>; total_questions: number; reviewed_questions: number;
+  questions: Array<{ prompt_hash: string; primary_scenario: string | null }>;
+  scope_scores: Array<{ target_id: string; scenario: string; platform: string; sample_count: number; sample_ids: string[];
+    total: BrandScoreAggregate; dimensions: Record<BrandScoreDimension, BrandScoreAggregate> }>;
+}
 export type BrandScoreDimension = 'presence' | 'recommendation' | 'position' | 'reasons';
 export interface BrandPresence {
   version: 'brand-presence-v1'; mapping_hash: string;
@@ -51,6 +57,7 @@ export interface EvidenceRun extends EvidenceRunListItem {
     kind: string; snippet: string; document_id: string | null; snapshot_id: string | null; fetch_status: string }>;
   responses: Array<{ id: string; platform: string; prompt: string; prompt_hash: string; observed_at: string; error: boolean }>;
   summary: {
+    scenario_comparison?: ScenarioComparison;
     brand_presence?: BrandPresence;
     brand_evaluation?: {
       comparison: CompetitiveComparison;

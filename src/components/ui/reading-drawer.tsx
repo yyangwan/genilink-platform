@@ -4,7 +4,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 
 /** Native modal semantics provide focus containment and inert background content. */
-export function ReadingDrawer({ title, children, onClose, eyebrow = '原文与证据', closeLabel = '关闭原文' }: { title: string; children: ReactNode; onClose: () => void; eyebrow?: string; closeLabel?: string }) {
+export function ReadingDrawer({ title, children, onClose, eyebrow = '原文与证据', closeLabel = '关闭原文', variant = 'drawer' }: { title: string; children: ReactNode; onClose: () => void; eyebrow?: string; closeLabel?: string; variant?: 'drawer' | 'modal' }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const trigger = document.activeElement;
@@ -18,7 +18,7 @@ export function ReadingDrawer({ title, children, onClose, eyebrow = '原文与�
       if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
     };
   }, []);
-  return <dialog ref={ref} className="reading-drawer" aria-label={title}
+  return <dialog ref={ref} className={`reading-drawer${variant === 'modal' ? ' reading-drawer--modal' : ''}`} aria-label={title}
     onCancel={event => { event.preventDefault(); onClose(); }}
     onClick={event => { if (event.target === event.currentTarget) {
       const rect = event.currentTarget.getBoundingClientRect();
