@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
         typeof body.baseHash !== 'string' || !/^[a-f0-9]{64}$/.test(body.baseHash) ||
         !body.decisions || typeof body.decisions !== 'object' || Array.isArray(body.decisions) ||
         Object.keys(body.decisions).length < 1 || Object.keys(body.decisions).length > 100 ||
-        !Object.entries(body.decisions).every(([key, value]) => /^[a-f0-9]{64}$/.test(key) && ['eligible', 'excluded'].includes(String(value))) ||
+        !Object.entries(body.decisions).every(([key, value]) => /^[a-f0-9]{64}$/.test(key) && ['eligible', 'excluded', 'needs_review'].includes(String(value))) ||
         typeof body.reason !== 'string' || body.reason.trim().length < 5 || body.reason.length > 2000 ||
         !Number.isSafeInteger(body.expectedVersion) || Number(body.expectedVersion) < 0 ||
         typeof body.idempotencyKey !== 'string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(body.idempotencyKey)) return badRequest();

@@ -3,6 +3,8 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BrandScoreWorkspace } from '@/components/visibility/brand-score-workspace';
+import { ResultReadiness } from '@/components/visibility/result-readiness';
+import { EvaluationCohortReview } from '@/components/visibility/evaluation-cohort-review';
 import { CaptureProgress } from '@/components/visibility/capture-progress';
 import { ReadingDrawer } from '@/components/ui/reading-drawer';
 import { Loader2, RefreshCw } from "lucide-react";
@@ -63,6 +65,8 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const [reviewRunId, setReviewRunId] = useState<string | null>(null);
+  const [awaitingRevision, setAwaitingRevision] = useState<number | null>(null);
   const [document, setDocument] = useState<{ kind: string; id: string; title: string; analysisRunId?: string } | null>(null);
   const [content, setContent] = useState<Array<{ id: string; text: string }>>([]);
   const [offset, setOffset] = useState(0);
@@ -105,6 +109,12 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
     const timer = setTimeout(() => setRefresh(value => value + 1), 5000);
     return () => clearTimeout(timer);
   }, [run]);
+
+  useEffect(() => {
+    if (!run || awaitingRevision === null || run.revision > awaitingRevision || runs.some(item => item.audit_id === run.audit_id && item.revision > awaitingRevision && ['ready', 'partial', 'failed'].includes(item.status))) return;
+    const timer = setTimeout(() => setRefresh(value => value + 1), 5000);
+    return () => clearTimeout(timer);
+  }, [run, runs, awaitingRevision]);
 
   useEffect(() => {
     if (!document || !runId || !currentProjectId) return;
@@ -191,7 +201,12 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
     <CitationViewNav value={tab} onChange={changeTab} />
     {!run && <div className="citation-panel citation-empty">{runId ? "正在读取分析版本…" : "完成一次审计后，在审计洞察中选择分析版本。尚无结果时不会填入示例数据。"}</div>}
     {run && <div className="citation-result" aria-label={viewMeta.title}>
-      {["overview", "entities", "platforms"].includes(tab) && <BrandScoreWorkspace key={run.id + tab} run={run} mode={tab === "entities" ? "brands" : tab === "platforms" ? "platforms" : "overview"} onEvidence={id => open("answer", id, "评分依据：原始回答")} onPlatformSelect={setSelectedPlatform} />}
+      {runs.filter(item => item.audit_id === run.audit_id && item.revision > run.revision && ['ready', 'partial', 'failed'].includes(item.status)).sort((a, b) => b.revision - a.revision).slice(0, 1).map(item => <div key={item.id} role="status" className="citation-notice"><div>新分析修订 {item.revision} {item.status === 'failed' ? '分析尚未成功，可查看处理状态' : '已就绪'}，当前仍显示修订 {run.revision}。</div><button type="button" className="citation-link" onClick={() => { setRunId(item.id); setReviewRunId(null); setAwaitingRevision(null); router.replace('/intelligence?' + new URLSearchParams({ project: currentProjectId, auditId: item.audit_id, runId: item.id, view: tab }), { scroll: false }); }}>查看新修订 →</button></div>)}
+      {["overview", "entities", "platforms"].includes(tab) && <BrandScoreWorkspace key={run.id + tab} run={run} mode={tab === "entities" ? "brands" : tab === "platforms" ? "platforms" : "overview"} onEvidence={id => open("answer", id, "评分依据：原始回答")} onPlatformSelect={setSelectedPlatform} readinessPanel={tab === 'overview' ? <ResultReadiness readiness={run.readiness} onRemedy={remedy => {
+        if (remedy.action === 'review_prompt_scope') setReviewRunId(run.id);
+        else if (remedy.view === 'capture') router.push('/visibility?' + new URLSearchParams({ project: currentProjectId, auditId: run.audit_id }));
+        else changeTab(remedy.view);
+      }} /> : undefined} />}
 
       {tab === "platforms" && <PlatformComparison key={run.id} run={run}
         selectedPlatform={selectedPlatform} onPlatformChange={setSelectedPlatform} onOpenAnswer={id => open("answer", id, "同题原始回答")} onView={changeTab} />}
@@ -247,6 +262,7 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
       </>}
       <p className="citation-method-note">当前为固定修订 {run.revision} · {label(run.status)}。未分析与未知内容不计为品牌缺席；后续补采会产生新修订。</p>
     </div>}
+    {run && reviewRunId === run.id && <ReadingDrawer title="确认本次竞争评价的问题范围" eyebrow="问题资格审核" closeLabel="关闭审核" onClose={() => setReviewRunId(null)}><EvaluationCohortReview key={currentProjectId + run.id} projectId={currentProjectId} run={run} onSaved={() => { setAwaitingRevision(run.revision); setRefresh(value => value + 1); }} /></ReadingDrawer>}
     {document && run && <ReadingDrawer title={document.title || "保存正文"} onClose={() => setDocument(null)}>{contentLoading ? <p className="py-6">正在读取原文…</p> : contentError ? <p role="alert">{contentError}</p> : content.map(item => <p key={item.id} className="mt-4 whitespace-pre-wrap break-words text-sm leading-7">{item.text}</p>)}<div className="mt-5 flex gap-4 text-sm"><button disabled={offset === 0 || contentLoading} onClick={() => { setContentLoading(true); setContentError(""); setOffset(value => Math.max(0, value - 20)); }} className="dashboard-button dashboard-button--secondary">上一页</button><button disabled={nextOffset === null || contentLoading} onClick={() => { setContentLoading(true); setContentError(""); setOffset(nextOffset || 0); }} className="dashboard-button dashboard-button--secondary">下一页</button></div></ReadingDrawer>}
   </div>;
 }

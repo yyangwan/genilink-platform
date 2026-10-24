@@ -86,7 +86,7 @@
       "id": "B01",
       "milestone": "M1",
       "owner": "审计后端",
-      "status": "planned",
+      "status": "in_progress",
       "dependsOn": [
         "V01"
       ],
@@ -102,13 +102,24 @@
         "自有品牌完全未出现仍有目标行，不伪造提及",
         "完整回答、完整分析及身份可判断才允许observed_absent；失败或歧义为unknown",
         "来源发现不污染回答指标，未登记品牌可核实后比较，无关歧义不阻断其他品牌"
-      ]
+      ],
+      "progress": {
+        "implemented": [
+          "Registered targets frozen in manifest; discovered mapping and three-state observations projected into summary.",
+          "All target rows retained with nullable entity IDs, source-only separation, per-platform fixed denominators and target scores.",
+          "Unrelated identity ambiguity no longer blocks other entities; fourteen presence/readiness tests."
+        ],
+        "remaining": [
+          "Bounded real-input semantic validation after provider balance restoration",
+          "Use stable target IDs throughout downstream opportunities/actions"
+        ]
+      }
     },
     {
       "id": "B02",
       "milestone": "M1",
       "owner": "审计后端/门户契约",
-      "status": "planned",
+      "status": "in_progress",
       "dependsOn": [
         "B01"
       ],
@@ -126,7 +137,18 @@
         "返回采集、语义、身份、问题范围、来源、评分和洞察各自状态及原因/补救动作",
         "审核沿用实名、权限、CAS和幂等，形成新修订且旧分母不改写",
         "缺总分不禁止有证据的单维结果，无适用竞争问题有明确状态"
-      ]
+      ],
+      "progress": {
+        "implemented": [
+          "Seven independent readiness axes exposed by run detail, including provider blocker and remediation.",
+          "Prompt-review unknown decision preserves weight and blocks total; latest decision/CAS version loaded.",
+          "New revision notification, unchanged old denominator, exact-payload idempotent retry in portal."
+        ],
+        "remaining": [
+          "Per-question scenario/intent fields and rationale details",
+          "Real API/worker/model integration acceptance on fresh database"
+        ]
+      }
     },
     {
       "id": "B03",
@@ -424,7 +446,7 @@
       "id": "U01",
       "milestone": "M1",
       "owner": "门户",
-      "status": "planned",
+      "status": "in_progress",
       "dependsOn": [
         "U00",
         "B01",
@@ -442,7 +464,18 @@
         "缺分说明具体原因，问题审核和身份核实可完成并进入新修订",
         "每个品牌行能查看证据，身份确认/用于比较/登记品牌库分别操作",
         "跨Tab及刷新保持自有/对比品牌、平台和场景，失效对象不静默替换"
-      ]
+      ],
+      "progress": {
+        "implemented": [
+          "Approved v3 conclusion and readiness cards wired to backend responses.",
+          "Registry/discovered target rows feed existing radar/table; identity management retained.",
+          "Real prompt-review drawer and explicit new-revision switch;390px overflow fixed."
+        ],
+        "remaining": [
+          "Shared own/comparison/platform/scenario URL context across all views",
+          "Prototype-to-runtime full workflow acceptance"
+        ]
+      }
     },
     {
       "id": "U02",
@@ -574,21 +607,30 @@
   "progress": {
     "prototype": "citation-intelligence-v3",
     "prototypeStatus": "approved_by_user",
-    "productionUiChanged": false,
+    "productionUiChanged": true,
     "productionDeployed": false,
     "realSemanticQuality": "not_evaluated",
     "providerBlocker": "HTTP_402_insufficient_balance",
     "backendBranch": "codex/citation-value-foundation",
     "portalBranch": "codex/citation-value-v3",
     "verification": {
-      "backendTestsPassed": 736,
+      "backendTestsPassed": 750,
       "backendTestsSkipped": 9,
       "backendRuff": "passed",
       "prototypeViews": 9,
       "prototypeChecks": 13,
       "prototypeMobileWidth": 390,
       "prototypeDesktopWidth": 1440,
-      "prototypeExternalRequests": 0
-    }
+      "prototypeExternalRequests": 0,
+      "portalTestsPassed": 766,
+      "portalReleaseSourceGates": "passed",
+      "actualM1MobileWidth": 390,
+      "actualM1MobileOverflow": false
+    },
+    "productionUiChangeLocation": "local_worktree_only",
+    "backendCommits": [
+      "8571a2b",
+      "3acba4e"
+    ]
   }
 }

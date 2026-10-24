@@ -1,4 +1,23 @@
 export type BrandScoreDimension = 'presence' | 'recommendation' | 'position' | 'reasons';
+export interface BrandPresence {
+  version: 'brand-presence-v1'; mapping_hash: string;
+  targets: Array<{ target_id: string; registry_brand_id: string | null; entity_id: string | null;
+    name: string; names: string[]; role: string; identity_status: string; reason_codes: string[];
+    candidate_entity_ids?: string[]; presence_counts: Partial<Record<'present' | 'observed_absent' | 'unknown', number>>;
+    source_mentions: number }>;
+  observations: Array<{ target_id: string; entity_id: string | null; sample_id: string;
+    response_id: string | null; platform: string; state: 'present' | 'observed_absent' | 'unknown';
+    reason_codes: string[]; evidence_ids: string[]; coverage_complete: boolean;
+    score: number | null; dimensions: Record<BrandScoreDimension, number | null> }>;
+  scope_scores: Array<{ target_id: string; platform: string; total: BrandScoreAggregate;
+    dimensions: Record<BrandScoreDimension, BrandScoreAggregate> }>;
+}
+export interface ResultReadiness {
+  version: 'result-readiness-v1';
+  items: Array<{ key: string; title: string; state: 'ready' | 'partial' | 'pending' | 'blocked' | 'not_applicable';
+    completed: number; total: number | null; reason_codes: string[]; detail: string;
+    remedy: { view: string; action: string; label: string } }>;
+}
 export interface BrandScoreAggregate {
   rule_version: string; cohort_hash: string; score: number | null;
   covered_weight: number; missing_sample_ids: string[]; status: 'complete' | 'pending';
@@ -25,12 +44,14 @@ export interface EvidenceRunListItem {
     captured_sources?: number; complete?: boolean; semantic_error_count?: number };
 }
 export interface EvidenceRun extends EvidenceRunListItem {
+  readiness?: ResultReadiness;
   identity_reviews?: Record<string, { event_id: string; version: number; decision: string; canonical_name: string; reason: string }>;
   claim_reviews?: Record<string, { id: string; version: number; relation: string; source_quote: string; reason: string }>;
   sources: Array<{ id: string; response_id: string; platform: string; title: string; url: string | null;
     kind: string; snippet: string; document_id: string | null; snapshot_id: string | null; fetch_status: string }>;
   responses: Array<{ id: string; platform: string; prompt: string; prompt_hash: string; observed_at: string; error: boolean }>;
   summary: {
+    brand_presence?: BrandPresence;
     brand_evaluation?: {
       comparison: CompetitiveComparison;
       version: 'brand-visibility-v1';

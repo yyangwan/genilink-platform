@@ -39,6 +39,7 @@ describe('project-scoped intelligence proxy', () => {
     expect(fetchUpstream).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'trusted-project' }),
       '/api/intelligence/projects/trusted-project/operations', expect.anything());
     expect(reserveContentGeneration).not.toHaveBeenCalled();
+
   });
   it('does not proxy traversal in run or content IDs', async () => {
     const response = await GET(new NextRequest('http://localhost/api/integration/intelligence?view=detail&runId=../auth'));
@@ -63,6 +64,9 @@ describe('project-scoped intelligence proxy', () => {
       body: { baseHash: payload.baseHash, decisions: payload.decisions, reason: payload.reason, expectedVersion: 0, idempotencyKey: payload.idempotencyKey },
     }));
     expect(reserveContentGeneration).not.toHaveBeenCalled();
+    const pendingReview = await POST(new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({ ...payload, decisions: { ['c'.repeat(64)]: 'needs_review' } }) }));
+    expect(pendingReview.status).toBe(202);
+    expect(fetchUpstream).toHaveBeenLastCalledWith(expect.anything(), `/api/intelligence/runs/${runId}/evaluation-cohort/review`, expect.objectContaining({ body: expect.objectContaining({ decisions: { ['c'.repeat(64)]: 'needs_review' } }) }));
     vi.mocked(fetchUpstream).mockClear();
     const invalid = await POST(new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({ ...payload, decisions: [] }) }));
     expect(invalid.status).toBe(400);

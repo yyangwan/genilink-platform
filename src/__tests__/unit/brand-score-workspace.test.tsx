@@ -18,6 +18,22 @@ function fixture(): EvidenceRun {
 }
 
 describe('brand evaluation presentation', () => {
+  it('keeps an unmentioned registry target visible without requiring a fabricated entity', () => {
+    const run = fixture();
+    run.summary.entities = [];
+    const zero = aggregate(0) as NonNullable<EvidenceRun['summary']['brand_presence']>['scope_scores'][number]['total'];
+    run.summary.brand_presence = {
+      version: 'brand-presence-v1', mapping_hash: 'mapping',
+      targets: [{ target_id: 'registry:own', registry_brand_id: 'own', entity_id: null, name: '云衡', names: ['云衡'], role: 'own', identity_status: 'confirmed', reason_codes: [], presence_counts: { observed_absent: 1 }, source_mentions: 0 }],
+      observations: [{ target_id: 'registry:own', entity_id: null, sample_id: 's1', response_id: null, platform: 'qwen', state: 'observed_absent', reason_codes: [], evidence_ids: [], coverage_complete: true, score: 0, dimensions: { presence: 0, recommendation: 0, position: 0, reasons: 0 } }],
+      scope_scores: [{ target_id: 'registry:own', platform: 'all', total: zero, dimensions: { presence: zero, recommendation: zero, position: zero, reasons: zero } }],
+    };
+    const { container } = render(<BrandScoreWorkspace run={run} />);
+    expect(screen.getByText('云衡')).toBeTruthy();
+    expect(screen.getByText(/完整分析未提及 1/)).toBeTruthy();
+    expect(container.querySelectorAll('svg circle')).toHaveLength(4);
+    expect(screen.queryByRole('button', { name: '查看回答原文 →' })).toBeNull();
+  });
   it('does not invent a score for an older report without evaluation data', () => {
     const { container } = render(<BrandScoreWorkspace run={{ summary: {}, responses: [], coverage: {} } as unknown as EvidenceRun} />);
     expect(screen.getByRole('status').textContent).toContain('当前审计修订尚未生成新版评分');
