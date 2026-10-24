@@ -192,10 +192,10 @@
           "Frozen per-run request/token phase ledger; extraction/context/verification reserves, with answer workload planned first and remaining extraction capacity available to sources.",
           "Fenced pre-call reservation, idempotent actual-usage settlement, conservative unknown-usage accounting and old-lease recovery; per-subject deferral reasons exposed in coverage/readiness.",
           "Budget config changes create a new immutable revision; cached extraction reuse does not add provider requests or tokens.",
-          "Real MySQL concurrency and stale-settlement checks passed; one real-input pipeline call settled 4441 tokens, then a second revision reused cache with zero new calls."
+          "Real MySQL concurrency and stale-settlement checks passed; one real-input pipeline call settled 4441 tokens, then a second revision reused cache with zero new calls.",
+          "A02 now consumes the reserved context phase, persists fenced result/usage together, and exposes per-context failed/deferred status and scoped zero-call cache reuse."
         ],
         "remaining": [
-          "Integrate the reserved context phase with A02 runtime context analysis.",
           "Expand extractor/boundary/long-source quality distribution checks; flags do not prove whole-article completeness."
         ]
       }
@@ -241,7 +241,7 @@
       "id": "A02",
       "milestone": "M2",
       "owner": "分析/后端",
-      "status": "planned",
+      "status": "completed",
       "dependsOn": [
         "R00",
         "A01",
@@ -259,7 +259,26 @@
         "第一遍不限品牌抽取功能、参数、案例、条件、风险等，保留主体与逐字证据",
         "ContextAnalysis按问题/条件/材料/模型版本隔离，纯文本缓存不混入业务owner",
         "需求匹配能定位原问题要求，模型不把我方材料补写成回答中的内容"
-      ]
+      ],
+      "progress": {
+        "implemented": [
+          "Twelve owner-free information-unit classes with literal subject/value/conditions/time spans, stable IDs and explicit unknown conditions; no empty-success fallback.",
+          "Durable ContextAnalysis per frozen question/platform/conditions/reviewed needs/material version/model; separate pure-text cache signature and project-scoped reuse.",
+          "Distinguish evaluated solutions, monitored platforms, sources and feature/category concepts without granting registry identities or fact approval.",
+          "Need-matched reasons require the current answer unit plus reviewed question evidence; non-solution subjects remain in all-information views without entering solution comparison.",
+          "Context requests use fenced phase reservations and atomic result/usage checkpoints; failures, budget deferral and extraction defects remain visible.",
+          "Full-text non-overlap 900-character segmentation addresses observed output truncation while preserving original offsets and the tail.",
+          "Project-scoped bounded read-only unit/context APIs, same-name mention and cross-platform role isolation, source multi-observation regression checks.",
+          "Final local real-MySQL calibration: two frozen answers / one prompt / 2982 characters, 48 accepted units, four context interpretations, eight requests and 42798 actual tokens; partial defects retained.",
+          "New local budget revision reused four real context results and all extraction caches with zero new requests/tokens and an unchanged old manifest."
+        ],
+        "remaining": [],
+        "evidence": [
+          "Backend commit 9685bcd; docs/citation-value-context-analysis-20261024.md",
+          "Final full backend regression: 845 passed / 10 skipped; Ruff, compileall and local offline entrypoint passed",
+          "Independent semantic quality, representative source-body coverage and holdout acceptance remain Q01; this technical completion does not grant release approval."
+        ]
+      }
     },
     {
       "id": "A03",
@@ -608,7 +627,8 @@
       ],
       "progress": {
         "implemented": [
-          "Provisional implementation-agent review of frozen real samples, actual token/coverage receipts, source challenge/navigation/advertorial cases; no gold labels fabricated."
+          "Provisional implementation-agent review of frozen real samples, actual token/coverage receipts, source challenge/navigation/advertorial cases; no gold labels fabricated.",
+          "Current A02 local real-MySQL calibration retained truncation/condition-type probe failures, final 48-unit/four-context outputs and actual usage; no independent gold labels or release acceptance fabricated."
         ],
         "remaining": [
           "Independent representative gold and holdout labels for entity/role, recommendation, reasons, ranking, support and actionable tasks.",
@@ -655,7 +675,7 @@
     "backendBranch": "codex/citation-value-foundation",
     "portalBranch": "codex/citation-value-v3",
     "verification": {
-      "backendTestsPassed": 817,
+      "backendTestsPassed": 845,
       "backendTestsSkipped": 10,
       "backendRuff": "passed",
       "prototypeViews": 9,
@@ -686,7 +706,17 @@
       "scenarioModelCalls": 0,
       "scenarioFrozenCasesChecked": 186,
       "scenarioUniqueRealPrompts": 1,
-      "scenarioPrototypeChecks": 13
+      "scenarioPrototypeChecks": 13,
+      "contextRuntimeTestsPassed": 27,
+      "contextFinalModelRequests": 8,
+      "contextFinalTokens": 42798,
+      "contextAcceptedUnits": 48,
+      "contextCompletedInterpretations": 4,
+      "contextCalibrationTotalRequests": 18,
+      "contextCalibrationTotalTokens": 98219,
+      "contextMysqlCachedRevisionNewRequests": 0,
+      "contextMysqlCachedRevisionNewTokens": 0,
+      "contextIndependentSemanticAcceptance": false
     },
     "productionUiChangeLocation": "local_worktree_only",
     "backendCommits": [
@@ -695,7 +725,8 @@
       "6c0e7dc",
       "d35de76",
       "180ea11",
-      "816f669"
+      "816f669",
+      "9685bcd"
     ],
     "providerStatus": "restored_http_200_verified",
     "portalCommits": [
