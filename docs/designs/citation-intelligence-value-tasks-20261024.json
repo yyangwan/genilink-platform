@@ -27,13 +27,13 @@
       "id": "R00",
       "milestone": "M1",
       "owner": "审计后端/数据契约",
-      "status": "in_progress",
+      "status": "completed",
       "dependsOn": [],
       "prototypeGate": false,
       "title": "冻结最新结构和契约并提供空库初始化",
       "modules": [
         "backend/app/intelligence/models.py",
-        "backend/alembic/schema",
+        "backend/alembic/value_schema",
         "backend/scripts/check_intelligence_image.py",
         "prisma/schema.prisma",
         "数据库初始化入口",
@@ -46,11 +46,16 @@
       ],
       "progress": {
         "implemented": [
-          "Added strict contracts for targets, evidence, two fact-source branches, task revisions and observation specifications."
+          "Latest 58-table fresh MySQL baseline and explicit empty-target initializer; no history or old-schema upgrades.",
+          "Three versioned tables, project/version/idempotency constraints, two valid BrandFact source branches, owned-object backup coverage.",
+          "Portal businessPreferences JSON included in canonical signed context/outbox; real PostgreSQL-to-MySQL receipt and replay verification.",
+          "Fresh MySQL API startup, health and worker heartbeat verified with zero model calls; PostgreSQL transaction rollback and workspace isolation verified."
         ],
-        "remaining": [
-          "ORM/latest fresh-schema initialization and API/worker DB verification",
-          "Runtime permissions and evidence ownership checks"
+        "remaining": [],
+        "evidence": [
+          "Backend docs/citation-value-fresh-database-20261024.md",
+          "Isolated real MySQL concurrency/backup/retry/deployment tests: 7 passed",
+          "Portal real PostgreSQL context/outbox test: 1 passed"
         ]
       }
     },
@@ -75,10 +80,13 @@
       "progress": {
         "implemented": [
           "Read-only recent-two-audit freeze and 186-case integrity replay; unique input 384229 characters.",
-          "Strict extraction arrays; audited singleton attribute repair; no empty-success fallback."
+          "Strict extraction arrays; audited singleton attribute repair; no empty-success fallback.",
+          "Restored provider tested locally on frozen inputs; citation-intelligence-21 calibration: 3 platform answers and 5 saved source texts, 8 requests / 27584 tokens.",
+          "Validated accepted Unicode spans; retained rejected candidates and unique-span repair receipts; truncated completion cannot pass.",
+          "Processed-input coverage separated from local defects; unrelated defects do not block other registered brands."
         ],
         "remaining": [
-          "Restore analysis provider balance; bounded real model replay and manual semantic-quality checks"
+          "Expand representative semantic review and independent holdout acceptance; current calibration is not release eligible."
         ]
       }
     },
@@ -174,11 +182,15 @@
       ],
       "progress": {
         "implemented": [
-          "Permanent provider account/config errors stop automatic retry and retain safe reason codes; transient errors keep bounded retry."
+          "Permanent provider account/config errors stop automatic retry and retain safe reason codes; transient errors keep bounded retry.",
+          "Versioned source quality retained in snapshots and manifests; known challenge/empty/suspected navigation bodies excluded from article analysis, evidence and denominators.",
+          "Original-article completeness remains unknown; advertising disclosures retained without assigning independent authority.",
+          "Fixed source metrics to compare decompressed text against body_hash and verify compressed objects separately.",
+          "Official DeepSeek bounded structured non-thinking request policy shared by extraction and evidence verification; request policy included in cache signature."
         ],
         "remaining": [
-          "Independent source-completeness/coverage contract",
-          "Stage-reserved budgets, resumability and live validation"
+          "Stage-reserved extraction/context/verification budgets and resumability acceptance.",
+          "More extractor/boundary quality cases and long-source validation; heuristic quality flags do not prove full article completeness."
         ]
       }
     },
@@ -557,7 +569,7 @@
       "id": "Q01",
       "milestone": "cross-cutting",
       "owner": "质量/产品",
-      "status": "planned",
+      "status": "in_progress",
       "dependsOn": [
         "V01"
       ],
@@ -573,7 +585,16 @@
         "先校准代表性真实样本，再扩大独立留出集；实体/证据/理由/排名/任务可执行性分别评价",
         "披露真实分子分母与未知，不把测试通过或样本数量当作语义质量合格",
         "不虚构事实、不串证据、不越租户；有明确机会却遗漏不能放行，无机会不凑数"
-      ]
+      ],
+      "progress": {
+        "implemented": [
+          "Provisional implementation-agent review of frozen real samples, actual token/coverage receipts, source challenge/navigation/advertorial cases; no gold labels fabricated."
+        ],
+        "remaining": [
+          "Independent representative gold and holdout labels for entity/role, recommendation, reasons, ranking, support and actionable tasks.",
+          "Separate measured quality denominators from structure/test success; current release acceptance remains false."
+        ]
+      }
     },
     {
       "id": "Q02",
@@ -609,12 +630,12 @@
     "prototypeStatus": "approved_by_user",
     "productionUiChanged": true,
     "productionDeployed": false,
-    "realSemanticQuality": "not_evaluated",
-    "providerBlocker": "HTTP_402_insufficient_balance",
+    "realSemanticQuality": "calibrated_not_release_accepted",
+    "providerBlocker": null,
     "backendBranch": "codex/citation-value-foundation",
     "portalBranch": "codex/citation-value-v3",
     "verification": {
-      "backendTestsPassed": 750,
+      "backendTestsPassed": 786,
       "backendTestsSkipped": 9,
       "backendRuff": "passed",
       "prototypeViews": 9,
@@ -625,12 +646,30 @@
       "portalTestsPassed": 766,
       "portalReleaseSourceGates": "passed",
       "actualM1MobileWidth": 390,
-      "actualM1MobileOverflow": false
+      "actualM1MobileOverflow": false,
+      "freshMysqlTables": 58,
+      "freshMysqlRuntimeChecks": 12,
+      "realMysqlTestsPassed": 7,
+      "realPostgresTestsPassed": 1,
+      "crossServiceContextReceipts": "verified",
+      "calibrationCases": 8,
+      "calibrationTokens": 27584,
+      "independentSemanticAcceptance": false,
+      "portalTestsSkipped": 1,
+      "backendOfflineImageEntrypoint": "verified_local_source_not_docker_build"
     },
     "productionUiChangeLocation": "local_worktree_only",
     "backendCommits": [
       "8571a2b",
-      "3acba4e"
+      "3acba4e",
+      "6c0e7dc",
+      "d35de76"
+    ],
+    "providerStatus": "restored_http_200_verified",
+    "portalCommits": [
+      "a7e5160",
+      "4f3d650",
+      "1d310d2"
     ]
   }
 }
