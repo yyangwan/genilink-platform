@@ -22,7 +22,7 @@ import { MentionBindings } from '@/components/visibility/mention-bindings';
 import { ProjectBrandBindings } from '@/components/visibility/project-brand-bindings';
 import { ProjectBrandContext } from '@/components/visibility/project-brand-context';
 import { EntityAliases } from '@/components/visibility/entity-aliases';
-import { ActionIntro, CitationViewNav, citationViews, DraftEvidenceSummary, EntityComparison, EvidenceWorkspace, MeasurementBaseline, PlatformComparison, SourceLibrary, WorkflowIntro } from "@/components/visibility/citation-prototype-views";
+import { CitationViewNav, citationViews, DraftEvidenceSummary, EntityComparison, EvidenceWorkspace, MeasurementBaseline, PlatformComparison, SourceLibrary, WorkflowIntro } from "@/components/visibility/citation-prototype-views";
 
 const labels: Record<string, string> = {
   queued: "排队中", running: "分析中", ready: "已完成", partial: "部分完成", failed: "失败",
@@ -228,6 +228,7 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
           <MentionBindings key={"bindings-" + run.id} run={run} projectId={currentProjectId} onSaved={() => setRefresh(value => value + 1)} />
         </details>
       </>}
+      {tab === 'sources' && search.get('actionId') && <button type="button" className="citation-link" onClick={() => changeTab('actions')}>返回原行动计划 →</button>}
       {tab === "sources" && <SourceLibrary key={run.id} run={run} retrying={retrying} projectId={currentProjectId} onSaved={() => setRefresh(value => value + 1)}
         onOpenAnswer={id => open("answer", id, "引用该来源的回答")}
         onOpenSource={(id, title) => open("snapshot", id, title)}
@@ -243,10 +244,7 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
           </div>)}</details>}
       </>}
       {tab === "actions" && <>
-        <ActionIntro run={run} onView={changeTab} />
-        <details className="citation-deep-details"><summary>创建和审批行动计划</summary>
-          <ActionPlans key={run.id} run={run} projectId={currentProjectId} />
-        </details>
+        <ActionPlans key={run.id} run={run} projectId={currentProjectId} />
         <button className="citation-link" onClick={() => changeTab("facts")}>核对已批准品牌事实 →</button>
       </>}
       {tab === "facts" && <ApprovedFacts key={run.id} run={run} projectId={currentProjectId} />}

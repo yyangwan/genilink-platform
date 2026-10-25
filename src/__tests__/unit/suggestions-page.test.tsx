@@ -25,8 +25,10 @@ describe('audit-scoped insight and suggestion pages', () => {
     fireEvent.change(screen.getByLabelText('分析平台'), { target: { value: 'qwen' } });
     expect(screen.getAllByText(/Qwen独立观察/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/DeepSeek独立观察/)).toBeNull();
-    const create = screen.getByText('创建行动计划') as HTMLButtonElement;
-    expect(create.disabled).toBe(true); fireEvent.click(create);
+    const actionWorkspace = screen.getByRole('link', { name: '查看完整优化行动与修订 →' });
+    expect(actionWorkspace.getAttribute('href')).toContain('view=actions');
+    expect(actionWorkspace.getAttribute('href')).toContain('platform=qwen');
+    expect(screen.queryByRole('button', { name: '创建行动计划' })).toBeNull();
     expect(vi.mocked(fetch).mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
     expect(useSectionFetch).toHaveBeenCalledWith('/api/integration/analysis-workspace?projectId=p1&view=suggestions&auditId=12');
   });

@@ -473,7 +473,8 @@
         "notes": [
           "Backend technical completion only; U02/U03 detail/diff/reapproval UI and E02 shared FactSource/EvidenceBrief v3/ContentOS remain pending.",
           "Selected fact validity/own identity is not semantic entailment. Old report, citation-fact approval and Brief v2 global stamp remain distinct; complete shared qualification and delivery in E02.",
-          "No production access/write, real model requests or real cloud-object writes. No push, PR or deployment. Independent Q01 semantic/task-value and Q02 real execution acceptance remain unaccepted."
+          "No production access/write, real model requests or real cloud-object writes. No push, PR or deployment. Independent Q01 semantic/task-value and Q02 real execution acceptance remain unaccepted.",
+          "Action task/revision/detail/history UI is now partially wired under U02/U03; full delivery, facts-to-Brief v3 and execution remain pending."
         ]
       }
     },
@@ -661,14 +662,17 @@
           "Material registration, acquisition status/retry, immutable version reading, named verification and exact fact approval/withdrawal with validity and audit trail.",
           "Scoped write proxy synchronizes current server-owned brand registry; uncertain writes retain the exact idempotent request; async drawer results keyed to selected material.",
           "A04 backend contracts for per-observation anchors, snapshot versions, checked/unchecked coverage and copy families are ready; portal consumer not yet connected.",
-          "A05 backend emits concrete immutable task packages and priority preview, preserves excluded scopes and distinct source observations; full portal consumer remains pending."
+          "Approved v3 opportunity/task cards and full actionable package details now consume A05: exact original questions, all platform/scenario targets, observations/hypotheses/counterevidence, asset/new deliverable, outlines, acceptance and material requirements.",
+          "Task workspace keeps own/comparison/platform/scenario and action/opportunity URL state; filters match the same child observation, reads all bounded pages before filtering, preserves out-of-scope evidence, and removes not-applicable creation.",
+          "Frozen versus explicit current-preference read-only ranking, review/preparation queues, exact Unicode saved-text locating, source-kind distinctions and platform icons wired without exposing collection surface."
         ],
         "remaining": [
-          "Portal per-platform source observations, exact body versions, anchor/conflict and checked/unchecked drilldown using A04 contracts.",
-          "Portal opportunity/task detail with all targets, materials, exact evidence/counterevidence, explicit queues and priority preview; unified own/compare/platform/scenario context and disabled not-applicable action entry."
+          "Portal per-platform source observations, exact body versions, anchor/conflict and checked/unchecked coverage/content-family drilldown using A04 contracts.",
+          "Overview-to-full-opportunity deep links and unified own/comparison/platform/scenario context across all views; current full scope controls are implemented in the task workspace only."
         ],
         "evidence": [
-          "docs/reviews/citation-owned-materials-a03-20261025.md"
+          "docs/reviews/citation-owned-materials-a03-20261025.md",
+          "docs/reviews/citation-value-task-workspace-20261025.md; task component/BFF focused18 passed; complete release:check passed; actual component desktop and390x844 browser checks."
         ]
       }
     },
@@ -676,7 +680,7 @@
       "id": "U03",
       "milestone": "M3",
       "owner": "门户/ContentOS",
-      "status": "planned",
+      "status": "in_progress",
       "dependsOn": [
         "U00",
         "E02",
@@ -696,7 +700,22 @@
         "由机会带入行动修订及合资格事实，不要求客户手填版本或反复重选",
         "无材料、事实过期、版本冲突及失效审批都有可完成的下一步",
         "责任人、交付记录、人工任务和待审草稿可追踪，发布仍单独登记"
-      ]
+      ],
+      "progress": {
+        "implemented": [
+          "Project-scoped create/approve/revise/detail/history bridge consumes exact E01 revision IDs/CAS and all TaskPack fields, fixes review scope, preserves dependency differences and old approvals.",
+          "Task proposal/readiness, concrete delivery edits, exact uncertain-request retry, conflict lockout, original Unicode evidence reader and immutable revision-history differences follow the approved v3 components.",
+          "Materials entry and return keep project/Run/action identity; old suggestions view points to one full action workspace instead of a separate write surface."
+        ],
+        "remaining": [
+          "E02 shared fact qualification, selecting new eligible own facts and formal EvidenceBrief v3/ContentOS/manual-task delivery.",
+          "E03 execution ownership/deadlines/delivery/acceptance state and exact revision-to-artifact association.",
+          "Full real customer opportunity-to-material-review-to-creation/delivery journey and independent task-value acceptance."
+        ],
+        "evidence": [
+          "docs/reviews/citation-value-task-workspace-20261025.md; focused18 passed and full portal release:check passed; actual components checked with inert synthetic data."
+        ]
+      }
     },
     {
       "id": "U04",
