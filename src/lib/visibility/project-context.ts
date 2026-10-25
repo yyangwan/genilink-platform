@@ -28,7 +28,7 @@ export async function freezeContextInTransaction(tx: Prisma.TransactionClient, c
   await tx.projectContextOutbox.create({ data: { projectId: ctx.projectId, version, contentHash, snapshot: { version, brands, business_preferences }, createdBy: ctx.session.user.id } });
   return context;
 }
-export async function freezeProjectContext(ctx: GuardContext, expectedVersion: number) {
+export async function freezeProjectContext(ctx: GuardContext, expectedVersion?: number) {
   return prisma.$transaction(async tx => { await lockContextProject(tx, ctx); return freezeContextInTransaction(tx, ctx, expectedVersion); });
 }
 export async function deliverProjectContext(ctx: Pick<GuardContext, 'projectId' | 'headers' | 'upstreamUrl'>, limit = 20) {

@@ -284,7 +284,7 @@
       "id": "A03",
       "milestone": "M2",
       "owner": "审计后端/门户契约",
-      "status": "planned",
+      "status": "completed",
       "dependsOn": [
         "R00",
         "B01"
@@ -293,17 +293,40 @@
       "title": "我方材料资产版本与事实来源",
       "modules": [
         "backend/app/intelligence/owned_assets.py",
-        "backend/app/intelligence/models.py",
+        "backend/app/intelligence/owned_facts.py",
         "backend/app/intelligence/reviews.py",
-        "backend/app/api/intelligence.py",
-        "src/app/api/integration/intelligence/route.ts"
+        "backend/app/intelligence/value_contracts.py",
+        "backend/app/api/intelligence_owned.py",
+        "src/app/api/integration/intelligence/materials/route.ts",
+        "src/components/visibility/owned-materials.tsx"
       ],
       "acceptance": [
         "有限URL/资料登记有归属、用途、版本、快照与核实状态，Run冻结实际使用版本",
         "BrandFact来源恰好一种citation_review或owned_asset_revision，授权导出与Brief共用该联合类型",
         "没有CitationObservation的自有材料也能独立批准事实，不伪造引用或ClaimReview",
         "批准事实能追溯材料范围与有效期，未知资料不等于产品能力缺失"
-      ]
+      ],
+      "progress": {
+        "implemented": [
+          "Own-brand public URL/plain-text registration, audit_reference purpose, immutable material revisions and integrity-checked raw/text snapshots; URL with supplied text preserves the text and retains URL as reference.",
+          "Fenced public acquisition, bounded failure/retry states, named material verification, exact-payload idempotency and locking current-read CAS on real MySQL.",
+          "Verbatim owned facts with actual material revision, verification event, Unicode offsets, scope and explicit validity; no fabricated CitationObservation, ClaimReview, entity, Run or answer mentions.",
+          "Shared citation_review/owned_asset_revision FactSource union for authorized exports and downstream Brief contract; old Brief v2 explicitly rejects owned facts pending E02.",
+          "Material verification/brand-role/revision changes and fact withdrawal/expiry invalidate current use while preserving history; new Run freezes materials and fact provenance without rewriting old manifests.",
+          "Approved v3 material registration/version drawer, verification, fact approval/history/withdrawal and limited retry flow connected through scoped portal proxy; sourceType preserved in URL."
+        ],
+        "remaining": [],
+        "evidence": [
+          "Backend commit 9635e37; docs/citation-value-owned-materials-20261025.md",
+          "Final backend full regression 859 passed / 11 skipped; Ruff and offline source entrypoint passed.",
+          "Real local MySQL concurrent stale-snapshot verification, exact replay, auditless fact and current ownership proof: 1 passed.",
+          "Portal new proxy/component tests 10 passed; final full release:check passed; fictional actual-component desktop and 390px iframe checks documented."
+        ],
+        "notes": [
+          "Technical completion only. Formal Brief v3/ContentOS fact selection remains E02; no automatic content publishing or production deployment.",
+          "This stage made zero model/production/real-cloud-object writes. Independent semantic and value acceptance remain Q01/Q02."
+        ]
+      }
     },
     {
       "id": "A04",
@@ -532,7 +555,7 @@
       "id": "U02",
       "milestone": "M2",
       "owner": "门户",
-      "status": "planned",
+      "status": "in_progress",
       "dependsOn": [
         "U00",
         "A03",
@@ -553,7 +576,21 @@
         "我方材料可登记URL/受支持文字、查看取得或受限/失败状态、合规重试、核对版本、提出并批准事实，提示新分析修订",
         "来源文章与我方材料分类型；可设置场景重要性，未设置的默认排序与当前策略版本可见",
         "概览可进入全部机会和对应行动/证据，携带完整比较范围"
-      ]
+      ],
+      "progress": {
+        "implemented": [
+          "Approved v3 platform-source versus owned-material tabs and URL state.",
+          "Material registration, acquisition status/retry, immutable version reading, named verification and exact fact approval/withdrawal with validity and audit trail.",
+          "Scoped write proxy synchronizes current server-owned brand registry; uncertain writes retain the exact idempotent request; async drawer results keyed to selected material."
+        ],
+        "remaining": [
+          "All per-platform citation observations and corresponding body versions/anchors/conflicts (A04).",
+          "Opportunity/action evidence deep links and complete comparison scope (A05/U01)."
+        ],
+        "evidence": [
+          "docs/reviews/citation-owned-materials-a03-20261025.md"
+        ]
+      }
     },
     {
       "id": "U03",
@@ -675,8 +712,8 @@
     "backendBranch": "codex/citation-value-foundation",
     "portalBranch": "codex/citation-value-v3",
     "verification": {
-      "backendTestsPassed": 845,
-      "backendTestsSkipped": 10,
+      "backendTestsPassed": 859,
+      "backendTestsSkipped": 11,
       "backendRuff": "passed",
       "prototypeViews": 9,
       "prototypeChecks": 13,
@@ -716,7 +753,15 @@
       "contextCalibrationTotalTokens": 98219,
       "contextMysqlCachedRevisionNewRequests": 0,
       "contextMysqlCachedRevisionNewTokens": 0,
-      "contextIndependentSemanticAcceptance": false
+      "contextIndependentSemanticAcceptance": false,
+      "ownedMaterialMysqlTestsPassed": 1,
+      "ownedMaterialPortalTestsPassed": 10,
+      "ownedMaterialModelCalls": 0,
+      "ownedMaterialProductionWrites": 0,
+      "ownedMaterialRealCloudWrites": 0,
+      "ownedMaterialDesktopWidth": 927,
+      "ownedMaterialNarrowCheck": "390px_iframe_visual_not_native_viewport",
+      "ownedMaterialBriefV3Integrated": false
     },
     "productionUiChangeLocation": "local_worktree_only",
     "backendCommits": [
@@ -726,7 +771,8 @@
       "d35de76",
       "180ea11",
       "816f669",
-      "9685bcd"
+      "9685bcd",
+      "9635e37"
     ],
     "providerStatus": "restored_http_200_verified",
     "portalCommits": [

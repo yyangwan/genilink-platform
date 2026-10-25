@@ -228,7 +228,7 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
           <MentionBindings key={"bindings-" + run.id} run={run} projectId={currentProjectId} onSaved={() => setRefresh(value => value + 1)} />
         </details>
       </>}
-      {tab === "sources" && <SourceLibrary key={run.id} run={run} retrying={retrying}
+      {tab === "sources" && <SourceLibrary key={run.id} run={run} retrying={retrying} projectId={currentProjectId} onSaved={() => setRefresh(value => value + 1)}
         onOpenAnswer={id => open("answer", id, "引用该来源的回答")}
         onOpenSource={(id, title) => open("snapshot", id, title)}
         onRetry={retrySource} />}

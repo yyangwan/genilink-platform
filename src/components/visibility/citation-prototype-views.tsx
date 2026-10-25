@@ -1,17 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 import { getAiPlatformLabel } from "@/lib/ai-platforms";
 import { EvidenceComparisons } from "./evidence-comparisons";
 import type { EvidenceRun } from "@/types/intelligence";
+import { OwnedMaterials } from './owned-materials';
 
 export const citationViews = [
   { id: "overview", title: "审计洞察", heading: "把可见性结果变成下一步行动", eyebrow: "AUDIT INSIGHT", subtitle: "按真实审计结果定位优先事项，逐平台核对来源与证据。" },
   { id: "platforms", title: "平台差异对照", heading: "同一个问题，分别看清各平台", eyebrow: "PLATFORM COMPARISON", subtitle: "回答、引用来源和建议分别比较，保留每个平台的采集条件。" },
   { id: "entities", title: "品牌发现对比", heading: "从全部内容中发现品牌与机会", eyebrow: "ENTITY DISCOVERY", subtitle: "包括尚未登记的观察主体，身份须经确认。" },
-  { id: "sources", title: "来源文章库", heading: "来源文章库", eyebrow: "SOURCE LIBRARY", subtitle: "按文章回查各平台引用与正文归档状态。" },
+  { id: "sources", title: "来源文章库", heading: "引用来源与我方材料，各自保留证据角色", eyebrow: "SOURCE & MATERIALS", subtitle: "来源证明本次观察，我方核实材料支撑可以写入内容的事实。" },
   { id: "evidence", title: "观点与证据", heading: "逐个观点核对原文证据", eyebrow: "CLAIM EVIDENCE", subtitle: "把回答观点与保存的来源段落放在一起核对。" },
   { id: "actions", title: "优化行动", heading: "每条优化建议，都有证据和验收目标", eyebrow: "ACTION PLAN", subtitle: "从平台诊断形成有证据的执行任务。" },
   { id: "drafts", title: "内容创作方案", heading: "把证据转为可执行的内容方案", eyebrow: "CONTENT BRIEF", subtitle: "用已确认的事实和证据准备内容材料。" },
@@ -154,10 +155,29 @@ export function PlatformComparison({ run, onOpenAnswer, onView, selectedPlatform
 type Source = EvidenceRun["sources"][number];
 type SourceGroup = { key: string; entries: Source[]; representative: Source };
 
-export function SourceLibrary({ run, onOpenAnswer, onOpenSource, onRetry, retrying }: {
+type SourceProps = {
   run: EvidenceRun; onOpenAnswer: (id: string) => void; onOpenSource: (id: string, title: string) => void;
   onRetry: (id: string) => void; retrying: string | null;
-}) {
+};
+export function SourceLibrary(props: SourceProps & { projectId?: string; onSaved?: () => void }) {
+  const tab = useSyncExternalStore(subscribeSourceType, readSourceType, () => 'observed');
+  if (!props.projectId) return <ObservedSourceLibrary {...props} />;
+  return <div className="citation-stack"><div className="citation-tabs" role="tablist" aria-label="资料类型">
+    {([['observed', '平台引用文章'], ['owned', '我方材料与事实']] as const).map(([value, title]) => <button type="button" key={value} role="tab" aria-selected={tab === value} onClick={() => {
+      const url = new URL(window.location.href); url.searchParams.set('sourceType', value); window.history.replaceState(window.history.state, '', url);
+      window.dispatchEvent(new Event('genilink-source-type-change'));
+    }}>{title}</button>)}</div>
+    {tab === 'owned' ? <OwnedMaterials projectId={props.projectId} run={props.run} onSaved={props.onSaved || (() => {})} /> : <ObservedSourceLibrary {...props} />}
+  </div>;
+}
+
+function readSourceType() { return new URLSearchParams(window.location.search).get('sourceType') === 'owned' ? 'owned' : 'observed'; }
+function subscribeSourceType(callback: () => void) {
+  window.addEventListener('popstate', callback); window.addEventListener('genilink-source-type-change', callback);
+  return () => { window.removeEventListener('popstate', callback); window.removeEventListener('genilink-source-type-change', callback); };
+}
+
+function ObservedSourceLibrary({ run, onOpenAnswer, onOpenSource, onRetry, retrying }: SourceProps) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [platform, setPlatform] = useState("");
