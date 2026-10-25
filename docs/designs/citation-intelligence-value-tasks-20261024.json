@@ -383,7 +383,7 @@
       "id": "A05",
       "milestone": "M2",
       "owner": "分析/后端",
-      "status": "planned",
+      "status": "completed",
       "dependsOn": [
         "A02",
         "A03",
@@ -393,16 +393,43 @@
       "title": "六类机会、任务包和可解释排序",
       "modules": [
         "backend/app/intelligence/opportunities.py",
-        "backend/app/intelligence/diagnosis.py",
-        "backend/app/intelligence/competitive_actions.py",
-        "backend/app/intelligence/competitive_comparison.py"
+        "backend/app/intelligence/opportunity_tasks.py",
+        "backend/app/intelligence/value_contracts.py",
+        "backend/app/intelligence/pipeline.py",
+        "backend/app/intelligence/actions.py",
+        "backend/app/api/intelligence.py"
       ],
       "acceptance": [
         "复用PlatformDiagnosis，正文机会不依赖已有总分或分差",
         "A05即输出冻结的TaskPack v2，无需到E02重新变形；新增子目标必须创建新修订",
         "每条机会含本平台问题/场景、证据/反证、事实/假设/未知、我方材料状态和具体交付",
         "排序绑定priorityPolicyVersion，未设置业务偏好明确披露，设置变化的排序影响可解释，不冒充ROI或成功概率"
-      ]
+      ],
+      "progress": {
+        "implemented": [
+          "Six opportunity kinds use stable registered/discovered targets, observed absence, independent known score dimensions and literal information/context/source evidence; no total-score or ten-point gap prerequisite.",
+          "Unbranded article/answer units and search candidates retain their actual observation kind; identity, missing material, unknown capability and negative/conflict claims remain separate from approved facts.",
+          "Concrete TaskPack v2 delivery contract freezes actual questions, platform/scenario/dimension targets, exact evidence, asset revision/new deliverable, audience state, content-specific outline, channel rationale, own fact candidates, missing materials and acceptance.",
+          "Same literal asset/fact-change/intent merges targets and all source observations; differing conflict text stays separate. Excluded directed scopes remain visible outside executable targets; contract overflow fails closed without truncating target history.",
+          "Versioned lexicographic priority uses correction urgency, scenario importance (neutral50), readiness, scope, controllability and outline-step scope; bounded high-priority candidate retention discloses deferral, no ROI/success probability.",
+          "Frozen/default versus explicit current-preference read-only priority preview preserves old Run/task signatures and makes no model/capture calls.",
+          "Reuse PlatformDiagnosis and existing action creation; published opportunity is immutable and task integrity is checked before copying the exact package into a plan.",
+          "Brief v2 explicitly rejects new TaskPack packages to avoid flattening multi-question/platform targets before E02."
+        ],
+        "remaining": [],
+        "evidence": [
+          "Backend commit 3ce5350; docs/citation-value-opportunities-20261025.md",
+          "Final full backend with real MySQL:904 passed /2 skipped; Ruff, compileall and local offline source API/worker/storage/PDF passed.",
+          "New opportunity/task/API focused20 passed; joint contract/action preflight39 passed.",
+          "Dedicated real local MySQL Pipeline-to-opportunity-to-exact-plan, absent own target without entity, and priority-only immutable preview:1 passed."
+        ],
+        "notes": [
+          "Technical backend completion only. U02 full task/evidence/scoped priority UI, E01 related-dependency immutable action revisions and E02 formal Briefv3/ContentOS remain pending.",
+          "Own approved facts are literal-topic review candidates, not proof of requirement satisfaction. Missing material is unknown, not product incapability; actual semantic/task value acceptance remains Q01.",
+          "Current channel tasks prepare controlled own materials/content experiments; no third-party publication rights, publisher affinity, automated outreach or capture/release changes are inferred.",
+          "No actual model/production/real-cloud-object calls/writes or deployment this stage."
+        ]
+      }
     },
     {
       "id": "E01",
@@ -610,11 +637,12 @@
           "Approved v3 platform-source versus owned-material tabs and URL state.",
           "Material registration, acquisition status/retry, immutable version reading, named verification and exact fact approval/withdrawal with validity and audit trail.",
           "Scoped write proxy synchronizes current server-owned brand registry; uncertain writes retain the exact idempotent request; async drawer results keyed to selected material.",
-          "A04 backend contracts for per-observation anchors, snapshot versions, checked/unchecked coverage and copy families are ready; portal consumer not yet connected."
+          "A04 backend contracts for per-observation anchors, snapshot versions, checked/unchecked coverage and copy families are ready; portal consumer not yet connected.",
+          "A05 backend emits concrete immutable task packages and priority preview, preserves excluded scopes and distinct source observations; full portal consumer remains pending."
         ],
         "remaining": [
           "Portal per-platform source observations, exact body versions, anchor/conflict and checked/unchecked drilldown using A04 contracts.",
-          "Opportunity/action evidence deep links and complete comparison scope (A05/U01)."
+          "Portal opportunity/task detail with all targets, materials, exact evidence/counterevidence, explicit queues and priority preview; unified own/compare/platform/scenario context and disabled not-applicable action entry."
         ],
         "evidence": [
           "docs/reviews/citation-owned-materials-a03-20261025.md"
@@ -741,7 +769,7 @@
     "backendBranch": "codex/citation-value-foundation",
     "portalBranch": "codex/citation-value-v3",
     "verification": {
-      "backendTestsPassed": 883,
+      "backendTestsPassed": 904,
       "backendTestsSkipped": 2,
       "backendRuff": "passed",
       "prototypeViews": 9,
@@ -797,7 +825,16 @@
       "anchorModelCalls": 0,
       "anchorGatewayCaptureImplemented": false,
       "anchorFrontendDrilldownIntegrated": false,
-      "anchorIndependentSemanticAcceptance": false
+      "anchorIndependentSemanticAcceptance": false,
+      "opportunityFocusedTestsPassed": 20,
+      "opportunityMysqlProofPassed": 1,
+      "opportunityFullRegressionMysqlEnabled": true,
+      "opportunityTaskPackV2Generated": true,
+      "opportunityModelCalls": 0,
+      "opportunityProductionWrites": 0,
+      "opportunityFrontendDrilldownIntegrated": false,
+      "opportunityBriefV3Integrated": false,
+      "opportunityIndependentValueAcceptance": false
     },
     "productionUiChangeLocation": "local_worktree_only",
     "backendCommits": [
@@ -809,7 +846,8 @@
       "816f669",
       "9685bcd",
       "9635e37",
-      "3b33372"
+      "3b33372",
+      "3ce5350"
     ],
     "providerStatus": "restored_http_200_verified",
     "portalCommits": [
@@ -817,7 +855,8 @@
       "4f3d650",
       "1d310d2",
       "7db162b",
-      "1e35c13"
+      "1e35c13",
+      "047263a"
     ]
   }
 }
