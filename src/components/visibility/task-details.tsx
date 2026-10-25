@@ -62,7 +62,8 @@ export function RevisionDifferences({ changes }: { changes: RevisionChanges }) {
     <DependencyDifferences changes={changes.dependencies} />{!changes.task.length && !changes.dependencies.length && <p className="citation-muted">首次保存的任务版本。</p>}</>;
 }
 
-export function EvidenceReading({ reference, projectId, onClose }: { reference: EvidenceReference; projectId: string; onClose: () => void }) {
+export type EvidenceReadTarget = Omit<EvidenceReference, 'text_hash'>;
+export function EvidenceReading({ reference, projectId, onClose, context = 'task' }: { reference: EvidenceReadTarget; projectId: string; onClose: () => void; context?: 'task' | 'source' }) {
   const [result, setResult] = useState<{ text: string; start: number } | null>(null), [error, setError] = useState('');
   useEffect(() => {
     const abort = new AbortController();
@@ -77,7 +78,7 @@ export function EvidenceReading({ reference, projectId, onClose }: { reference: 
         const row = page.items.find(row => row.id === reference.segment_id);
         if (row) {
           const text = Array.from(row.text);
-          if (reference.start < row.start || reference.end > row.end || text.slice(reference.start - row.start, reference.end - row.start).join('') !== reference.quote) throw Error('当前保存片段与任务摘录不一致，请核对版本后重新分析。');
+          if (reference.start < row.start || reference.end > row.end || text.slice(reference.start - row.start, reference.end - row.start).join('') !== reference.quote) throw Error('当前保存片段与冻结摘录不一致，请核对版本后重新分析。');
           if (!abort.signal.aborted) setResult({ text: row.text, start: row.start });
           return;
         }
@@ -88,8 +89,8 @@ export function EvidenceReading({ reference, projectId, onClose }: { reference: 
     return () => abort.abort();
   }, [projectId, reference]);
   const chars = Array.from(result?.text || ''), begin = reference.start - (result?.start || 0), end = reference.end - (result?.start || 0);
-  return <ReadingDrawer title="任务依据 · 保存原文" onClose={onClose} closeLabel="关闭任务原文">
+  return <ReadingDrawer title={context === 'source' ? '观点核验 · 保存原文' : '任务依据 · 保存原文'} onClose={onClose} closeLabel={context === 'source' ? '关闭核验原文' : '关闭任务原文'}>
     {error ? <p role="alert" className="citation-notice citation-notice--warning">{error}</p> : !result ? <p role="status">正在定位原文片段…</p> : <blockquote className="task-original">{chars.slice(0, begin).join('')}<mark>{chars.slice(begin, end).join('')}</mark>{chars.slice(end).join('')}</blockquote>}
-    <h3>本任务冻结的原文摘录</h3><blockquote className="task-original">{reference.quote}</blockquote><p className="citation-muted">保留原分析版本与真实来源，不因切换品牌或平台改写引文。</p>
+    <h3>{context === 'source' ? '本次核验冻结的原文摘录' : '本任务冻结的原文摘录'}</h3><blockquote className="task-original">{reference.quote}</blockquote><p className="citation-muted">保留原分析版本与真实来源，不因切换品牌或平台改写引文。</p>
   </ReadingDrawer>;
 }

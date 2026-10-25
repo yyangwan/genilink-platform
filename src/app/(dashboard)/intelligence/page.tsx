@@ -230,8 +230,8 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
       </>}
       {tab === 'sources' && search.get('actionId') && <button type="button" className="citation-link" onClick={() => changeTab('actions')}>返回原行动计划 →</button>}
       {tab === "sources" && <SourceLibrary key={run.id} run={run} retrying={retrying} projectId={currentProjectId} onSaved={() => setRefresh(value => value + 1)}
-        onOpenAnswer={id => open("answer", id, "引用该来源的回答")}
-        onOpenSource={(id, title) => open("snapshot", id, title)}
+        onOpenAnswer={(id, originalRun) => open("answer", id, "引用该来源的回答", originalRun)}
+        onOpenSource={(id, title, originalRun) => open("snapshot", id, title, originalRun)}
         onRetry={retrySource} />}
       {tab === "evidence" && <>
         <EvidenceWorkspace key={run.id} run={run} projectId={currentProjectId}

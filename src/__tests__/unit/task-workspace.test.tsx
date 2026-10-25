@@ -148,7 +148,7 @@ it('locates exact Unicode evidence and preserves the frozen excerpt on mismatch'
   cleanup();
   vi.mocked(fetch).mockResolvedValue(response({ items: [{ id: ref.segment_id, start: 0, end: 30, text: '不相符的另一个原文版本' }], next_offset: null }));
   render(<EvidenceReading reference={ref} projectId={project} onClose={vi.fn()} />);
-  await screen.findByText(/当前保存片段与任务摘录不一致/);
+  await screen.findByText(/当前保存片段与冻结摘录不一致/);
   expect(screen.getByText(ref.quote)).toBeInTheDocument();
   expect(document.querySelector('mark')).toBeNull();
 });

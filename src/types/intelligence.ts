@@ -47,7 +47,8 @@ export interface EvidenceRunListItem {
   id: string; audit_id: string; revision: number; status: string; created_at: string;
   coverage: { total_segments?: number; segment_states?: Record<string, number>; total_characters?: number;
     analyzed_characters?: number; responses?: number; failed_responses?: number; sources?: number;
-    captured_sources?: number; complete?: boolean; semantic_error_count?: number };
+    captured_sources?: number; complete?: boolean; semantic_error_count?: number;
+    evidence_alignment?: import('@/lib/visibility/source-observation').EvidenceAlignment };
 }
 export interface EvidenceRun extends EvidenceRunListItem {
   readiness?: ResultReadiness;
@@ -92,7 +93,10 @@ export interface EvidenceRun extends EvidenceRunListItem {
       }>;
     };
     claim_evidence?: Array<{ id: string; answer_quote: string; source_quote: string; relation: string; review_state: string;
-      snapshot_id: string; source_title: string; source_url: string | null; platform: string }>;
+      snapshot_id: string; source_title: string; source_url: string | null; platform: string;
+      citation_id?: string; response_id?: string; claim_hash?: string; method?: string; source_segment_id?: string; answer_segment_id?: string;
+      verification?: import('@/lib/visibility/source-observation').SourceVerification;
+      content_family_id?: string | null; conflicting_interpretations?: boolean; content_family_relations?: string[] }>;
     prompt_platforms?: Array<{ prompt_hash: string; prompt: string; platform: string; sample_count: number; comparable: boolean }>;
     entities?: Array<{ id: string; name: string; kind: string; role: string; identity_status: string; observed_entities?: Array<{ id: string; name: string }>; observed_names?: string[]; role_conflict?: boolean;
       response_count: number; source_mentions: number; platform_response_counts: Record<string, number> }>;

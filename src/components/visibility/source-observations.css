@@ -1,0 +1,25 @@
+.source-observation-workspace { grid-template-columns: minmax(0, 1fr); }
+.source-observation-workspace > * { min-width: 0; }
+.source-observation-workspace .citation-source-table { min-width: 940px; }
+.source-brand-list { display: flex; flex-wrap: wrap; gap: 7px; }
+.source-platform-observation { display: grid; gap: 4px; margin: 5px 0 12px; }
+.source-observation-card { border: 1px solid var(--border); background: var(--bg-card); border-radius: 14px; padding: 22px; min-width: 0; overflow-wrap: anywhere; }
+.source-observation-card h3 { margin: 22px 0 10px; font-size: 14px; font-weight: 650; }
+.source-observation-card p { margin: 10px 0; line-height: 1.75; }
+.source-observation-head { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.source-observation-head > small { color: var(--text-secondary); }
+.source-tag--reference { color: #6bdbc8; border-color: #286359; background: #103b333d; }
+.source-article-title { font-size: 17px; font-weight: 650; overflow-wrap: anywhere; }
+.source-anchor, .source-verdict { background: #0b11194d; border-left: 2px solid #5d68aa; padding: 14px 16px; margin: 16px 0; }
+.source-anchor blockquote, .source-verdict blockquote { margin: 9px 0; white-space: pre-wrap; line-height: 1.8; }
+.source-kv { display: grid; gap: 12px; margin: 14px 0; }
+.source-kv > div { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 10px; }
+.source-kv dt { color: var(--text-secondary); font-size: 12px; }
+.source-kv dd { margin: 0; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.source-provenance, .source-coverage, .source-checks details { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px; }
+.source-provenance summary, .source-coverage summary, .source-checks summary { cursor: pointer; font-size: 13px; line-height: 1.7; }
+.source-checks { margin-top: 12px; display: grid; gap: 5px; }
+.source-checks p { font-size: 12px; }
+.source-unchecked { color: #dfbc80; font-size: 13px; }
+.source-human-review { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+@media (max-width: 600px) { .source-observation-card { padding: 14px; } .source-kv > div { grid-template-columns: 1fr; gap: 4px; } .source-anchor, .source-verdict { padding: 11px; } }

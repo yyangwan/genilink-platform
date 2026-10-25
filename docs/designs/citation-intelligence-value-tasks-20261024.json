@@ -373,7 +373,7 @@
         ],
         "notes": [
           "Existing gateway currently emits null answerAnchor; this stage provides truthful same-answer fallback and does not claim new gateway capture capabilities.",
-          "U02 portal drilldown remains to consume these backend contracts; no page styling or gateway release in this stage.",
+          "Portal A04 observation drilldown now connected under U02; see docs/reviews/citation-value-source-observations-20261025.md. Overview/global context and independent Q01/Q02 remain unfinished.",
           "No actual model/production/real-OSS writes. Real five-dimension semantic accuracy and representative independent acceptance remain Q01.",
           "Near copies are candidates, not proof of authorship/editorial independence. Independent publisher count remains unknown; content deduplication does not modify the fixed visibility score."
         ]
@@ -648,7 +648,10 @@
         "src/components/visibility/citation-prototype-views.tsx",
         "src/components/visibility/evidence-comparisons.tsx",
         "src/app/(dashboard)/intelligence/page.tsx",
-        "src/types/intelligence.ts"
+        "src/types/intelligence.ts",
+        "src/components/visibility/source-observation-workspace.tsx",
+        "src/components/visibility/source-observations.css",
+        "src/lib/visibility/source-observation.ts"
       ],
       "acceptance": [
         "文章可展开全部平台/回答/引用类型/版本，入口打开正确原文",
@@ -661,18 +664,18 @@
           "Approved v3 platform-source versus owned-material tabs and URL state.",
           "Material registration, acquisition status/retry, immutable version reading, named verification and exact fact approval/withdrawal with validity and audit trail.",
           "Scoped write proxy synchronizes current server-owned brand registry; uncertain writes retain the exact idempotent request; async drawer results keyed to selected material.",
-          "A04 backend contracts for per-observation anchors, snapshot versions, checked/unchecked coverage and copy families are ready; portal consumer not yet connected.",
           "Approved v3 opportunity/task cards and full actionable package details now consume A05: exact original questions, all platform/scenario targets, observations/hypotheses/counterevidence, asset/new deliverable, outlines, acceptance and material requirements.",
           "Task workspace keeps own/comparison/platform/scenario and action/opportunity URL state; filters match the same child observation, reads all bounded pages before filtering, preserves out-of-scope evidence, and removes not-applicable creation.",
-          "Frozen versus explicit current-preference read-only ranking, review/preparation queues, exact Unicode saved-text locating, source-kind distinctions and platform icons wired without exposing collection surface."
+          "Frozen versus explicit current-preference read-only ranking, review/preparation queues, exact Unicode saved-text locating, source-kind distinctions and platform icons wired without exposing collection surface.",
+          "A04 source-observations-v2 consumer: all bounded pages, per-observation platform/kind/original Run/body version/anchor fallback, five-dimension evidence and unchecked ranges, source-only brands, human review and copy-family drilldown. Same-observation filters never borrow another platform body or brand mentions; unreadable versions and unknown coverage remain explicit."
         ],
         "remaining": [
-          "Portal per-platform source observations, exact body versions, anchor/conflict and checked/unchecked coverage/content-family drilldown using A04 contracts.",
           "Overview-to-full-opportunity deep links and unified own/comparison/platform/scenario context across all views; current full scope controls are implemented in the task workspace only."
         ],
         "evidence": [
           "docs/reviews/citation-owned-materials-a03-20261025.md",
-          "docs/reviews/citation-value-task-workspace-20261025.md; task component/BFF focused18 passed; complete release:check passed; actual component desktop and390x844 browser checks."
+          "docs/reviews/citation-value-task-workspace-20261025.md; task component/BFF focused18 passed; complete release:check passed; actual component desktop and390x844 browser checks.",
+          "docs/reviews/citation-value-source-observations-20261025.md; source focused12 plus existing task/bridge/prototype24 passed; final full release:check passed after mobile fix; default and390x844 actual viewport verified and reset."
         ]
       }
     },

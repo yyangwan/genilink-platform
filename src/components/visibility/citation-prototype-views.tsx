@@ -7,6 +7,7 @@ import { getAiPlatformLabel } from "@/lib/ai-platforms";
 import { EvidenceComparisons } from "./evidence-comparisons";
 import type { EvidenceRun } from "@/types/intelligence";
 import { OwnedMaterials } from './owned-materials';
+import { ObservedSourceLibrary, type SourceLibraryProps } from './source-observation-workspace';
 
 export const citationViews = [
   { id: "overview", title: "审计洞察", heading: "把可见性结果变成下一步行动", eyebrow: "AUDIT INSIGHT", subtitle: "按真实审计结果定位优先事项，逐平台核对来源与证据。" },
@@ -152,14 +153,7 @@ export function PlatformComparison({ run, onOpenAnswer, onView, selectedPlatform
   </div>;
 }
 
-type Source = EvidenceRun["sources"][number];
-type SourceGroup = { key: string; entries: Source[]; representative: Source };
-
-type SourceProps = {
-  run: EvidenceRun; onOpenAnswer: (id: string) => void; onOpenSource: (id: string, title: string) => void;
-  onRetry: (id: string) => void; retrying: string | null;
-};
-export function SourceLibrary(props: SourceProps & { projectId?: string; onSaved?: () => void }) {
+export function SourceLibrary(props: SourceLibraryProps & { onSaved?: () => void }) {
   const tab = useSyncExternalStore(subscribeSourceType, readSourceType, () => 'observed');
   if (!props.projectId) return <ObservedSourceLibrary {...props} />;
   return <div className="citation-stack"><div className="citation-tabs" role="tablist" aria-label="资料类型">
@@ -175,90 +169,6 @@ function readSourceType() { return new URLSearchParams(window.location.search).g
 function subscribeSourceType(callback: () => void) {
   window.addEventListener('popstate', callback); window.addEventListener('genilink-source-type-change', callback);
   return () => { window.removeEventListener('popstate', callback); window.removeEventListener('genilink-source-type-change', callback); };
-}
-
-function ObservedSourceLibrary({ run, onOpenAnswer, onOpenSource, onRetry, retrying }: SourceProps) {
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("all");
-  const [platform, setPlatform] = useState("");
-  const groups = useMemo(() => {
-    const map = new Map<string, SourceGroup>();
-    for (const source of run.sources) {
-      const key = source.document_id || source.url || source.id;
-      const group = map.get(key);
-      if (group) group.entries.push(source);
-      else map.set(key, { key, entries: [source], representative: source });
-    }
-    return Array.from(map.values());
-  }, [run.sources]);
-  const filtered = groups.filter(group => {
-    const hasText = (group.representative.title + " " + (group.representative.url || "")).toLowerCase().includes(query.toLowerCase());
-    const statusMatch = status === "all" || (status === "captured"
-      ? group.entries.some(item => item.snapshot_id)
-      : status === "blocked"
-        ? group.entries.some(item => item.fetch_status === "blocked") && !group.entries.some(item => item.snapshot_id)
-        : !group.entries.some(item => item.snapshot_id) && !group.entries.some(item => item.fetch_status === "blocked"));
-    return hasText && statusMatch &&
-      (!platform || group.entries.some(item => item.platform === platform));
-  });
-  const captured = groups.filter(group => group.entries.some(item => item.snapshot_id)).length;
-  const blocked = groups.filter(group => !group.entries.some(item => item.snapshot_id) && group.entries.some(item => item.fetch_status === "blocked")).length;
-  const pending = groups.filter(group => !group.entries.some(item => item.snapshot_id) && !group.entries.some(item => item.fetch_status === "blocked")).length;
-  const statusChoices = [
-    ["all", "全部文章"], ["captured", "正文已保存"], ["blocked", "访问受限"], ["pending", "待处理"],
-  ];
-  return <div className="citation-stack">
-    <section className="citation-panel citation-pad">
-      <div className="citation-section-head"><h2>原文采集覆盖</h2><span className="citation-muted">{groups.length} 篇可辨认文章 · 正文已保存 {captured} 篇</span></div>
-      <div className="citation-coverage-track">
-        <span style={{ width: groups.length ? captured / groups.length * 100 + "%" : "0%" }} />
-        <span style={{ width: groups.length ? blocked / groups.length * 100 + "%" : "0%" }} />
-        <span style={{ width: groups.length ? pending / groups.length * 100 + "%" : "0%" }} />
-      </div>
-      <div className="citation-coverage-legend"><span>● 正文已保存 {captured}</span><span>● 访问受限 {blocked}</span><span>● 待处理 {pending}</span>
-        <small>按文档或精确 URL 归并；正文已保存不代表全文完整。</small></div>
-    </section>
-    <section className="citation-panel citation-pad">
-      <div className="citation-tabs" role="tablist" aria-label="来源正文状态">{statusChoices.map(([value, title]) =>
-        <button key={value} type="button" role="tab" aria-selected={status === value} onClick={() => setStatus(value)}>{title}</button>)}</div>
-      <div className="citation-filter-row">
-        <input aria-label="搜索来源文章" value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索标题或地址" />
-        <select aria-label="来源平台" value={platform} onChange={event => setPlatform(event.target.value)}>
-          <option value="">全部平台</option>
-          {Array.from(new Set(run.sources.map(item => item.platform))).map(name => <option key={name} value={name}>{getAiPlatformLabel(name)}</option>)}
-        </select>
-        <span className="citation-muted">{run.sources.length} 条引用或候选观察</span>
-      </div>
-      <div className="overflow-x-auto"><table className="citation-table citation-source-table"><thead><tr>
-        <th>文章 / 来源</th><th>平台与引用类型</th><th>正文状态</th><th>关联证据</th>
-      </tr></thead><tbody>
-        {filtered.map(group => {
-          const visibleEntries = platform ? group.entries.filter(item => item.platform === platform) : group.entries;
-          const source = visibleEntries[0] || group.representative;
-          const snapshot = group.entries.find(item => item.snapshot_id);
-          const platforms = Array.from(new Set(visibleEntries.map(item => item.platform)));
-          return <tr key={group.key} className="citation-source-entry">
-            <td><strong>{source.title || "未取得来源标题"}</strong><small>{source.url || "未取得精确地址"}</small>
-              <small>{source.snippet || "摘要未取得"}</small></td>
-            <td>{platforms.map(name => <div key={name}><AiPlatformLabel platform={name} iconSize={15} /></div>)}
-              <small>{visibleEntries.some(item => item.kind === "answer_reference") ? "回答实际引用" : "候选或推测来源"} · {visibleEntries.length} 条观察</small></td>
-            <td><span className="citation-tag">{snapshot ? "正文已保存" : source.fetch_status === "blocked" ? "访问受限" : "正文未就绪"}</span></td>
-            <td><div className="citation-source-actions">
-              <button onClick={() => onOpenAnswer(source.response_id)}>关联回答</button>
-              {snapshot && <button onClick={() => onOpenSource(snapshot.snapshot_id!, source.title || "保存正文")}>查看正文</button>}
-              {!snapshot && source.document_id && <button disabled={!!retrying} onClick={() => onRetry(source.document_id!)}>重试采集</button>}
-            </div></td>
-          </tr>;
-        })}</tbody></table></div>
-        {!filtered.length && <p className="citation-empty">当前筛选没有来源。请调整条件；未知正文不能当作文章没有提及品牌。</p>}
-      <p className="citation-muted">回答实际引用、搜索候选与推测来源分别标记；候选不能计入实际引用。</p>
-    </section>
-    <div className="citation-three-up">{[
-      ["文章级版本", "保存正文与抓取时间形成版本；历史回答继续关联当时记录。"],
-      ["转载与独立证据", "相似文章不因标题相近强制合并；同一地址的多次引用保持独立观察。"],
-      ["来源类型区分", "回答引用与检索候选分别呈现，避免把候选计为真实引用。"],
-    ].map(([title, detail]) => <div className="citation-panel citation-pad" key={title}><h3>{title}</h3><p className="citation-muted">{detail}</p></div>)}</div>
-  </div>;
 }
 
 export function EntityComparison({ run, onReview }: { run: EvidenceRun; onReview: () => void }) {
