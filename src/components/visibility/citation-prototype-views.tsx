@@ -7,6 +7,8 @@ import { getAiPlatformLabel } from "@/lib/ai-platforms";
 import { EvidenceComparisons } from "./evidence-comparisons";
 import type { EvidenceRun } from "@/types/intelligence";
 import { OwnedMaterials } from './owned-materials';
+import { scopeResponseIds } from '@/lib/visibility/analysis-scope';
+import type { TaskScope } from '@/lib/visibility/task-view';
 import { ObservedSourceLibrary, type SourceLibraryProps } from './source-observation-workspace';
 
 export const citationViews = [
@@ -105,50 +107,57 @@ export function CitationOverview({ run, onView }: { run: EvidenceRun; onView: (v
   </div>;
 }
 
-export function PlatformComparison({ run, onOpenAnswer, onView, selectedPlatform, onPlatformChange }: {
+export function PlatformComparison({ run, onOpenAnswer, onView, selectedPlatform, onPlatformChange, scope }: {
+  scope?: TaskScope;
   run: EvidenceRun; onOpenAnswer: (id: string) => void; onView: (view: CitationViewId) => void; selectedPlatform?: string; onPlatformChange?: (platform: string) => void;
 }) {
-  const prompts = useMemo(() => Array.from(new Map(run.responses.map(item => [item.prompt_hash || item.prompt, item.prompt])).entries()), [run.responses]);
+  const prompts = useMemo(() => {
+    const ids = scopeResponseIds(run, { platform: '', scenario: scope?.scenario || 'all' });
+    return Array.from(new Map(run.responses.filter(row => ids.has(row.id)).map(item => [item.prompt_hash || item.prompt, item.prompt])).entries());
+  }, [run, scope?.scenario]);
   const [selected, setSelected] = useState(prompts[0]?.[0] || "");
-  const responses = run.responses.filter(item => (item.prompt_hash || item.prompt) === selected);
+  const promptInScope = prompts.some(([hash]) => hash === selected);
+  const responses = run.responses.filter(item => promptInScope && (item.prompt_hash || item.prompt) === selected);
   const platformNames = Array.from(new Set(responses.map(item => item.platform)));
-  const activePlatform = platformNames.includes(selectedPlatform || "") ? selectedPlatform : "";
+  const activePlatform = selectedPlatform || '';
   return <div className="citation-stack">
     <section className="citation-panel citation-pad">
       <div className="citation-section-head"><h2>同一提示词</h2><span className="citation-tag">按真实采样分别呈现</span></div>
       <select aria-label="对照提示词" className="citation-select" value={selected} onChange={event => setSelected(event.target.value)}>
+        {selected && !promptInScope && <option value={selected}>原问题不在当前场景内，请重新选择</option>}
         {prompts.map(([hash, prompt]) => <option key={hash} value={hash}>{prompt}</option>)}
       </select>
       {!prompts.length && <p className="citation-muted">本次审计没有可对照的回答。</p>}
     </section>
-    <div className="citation-tabs" role="tablist" aria-label="平台分析切换"><button role="tab" aria-selected={!activePlatform} onClick={() => onPlatformChange?.("")}>全部平台</button>{platformNames.map(name => <button key={name} role="tab" aria-selected={activePlatform === name} onClick={() => onPlatformChange?.(name)}><AiPlatformLabel platform={name} /></button>)}</div>
+    {!scope && <div className="citation-tabs" role="tablist" aria-label="平台分析切换"><button role="tab" aria-selected={!activePlatform} onClick={() => onPlatformChange?.("")}>全部平台</button>{platformNames.map(name => <button key={name} role="tab" aria-selected={activePlatform === name} onClick={() => onPlatformChange?.(name)}><AiPlatformLabel platform={name} /></button>)}</div>}
     <div className="citation-comparison-grid">
       {platformNames.filter(name => !activePlatform || name === activePlatform).map(platform => {
         const samples = responses.filter(item => item.platform === platform);
         const sources = run.sources.filter(item => samples.some(sample => sample.id === item.response_id));
-        const diagnosis = (run.summary.platforms || []).some(item => item.platform === platform && item.analyzed_responses > 0)
+        const diagnosis = !scope && (run.summary.platforms || []).some(item => item.platform === platform && item.analyzed_responses > 0)
           ? (run.summary.diagnoses || []).find(item => item.platform === platform && (!item.prompt || samples.some(sample => sample.prompt === item.prompt))) : undefined;
-        const claim = (run.summary.claims || []).find(item => samples.some(sample => sample.id === item.owner_id));
+        const claim = (run.summary.claims || []).find(item => item.owner_kind === 'answer' && samples.some(sample => sample.id === item.owner_id));
         return <section className="citation-panel citation-platform-card" key={platform}>
           <div className="citation-platform-card-head"><AiPlatformLabel platform={platform} iconSize={20} />
             <small>{samples.length} 次独立回答</small></div>
           <div className="citation-platform-card-body">
-            <span className="citation-tag">{diagnosis ? "待复核诊断" : "暂无可用诊断"}</span>
+            <span className="citation-tag">{scope ? '同题原始观察' : diagnosis ? "待复核诊断" : "暂无可用诊断"}</span>
             <h3>回答中的观察</h3>
             <p className="citation-answer-snippet">{claim?.quote || "当前没有可核验的回答观点。可打开已采集的原始回答核对。"}</p>
             <h3>平台展示的来源</h3>
             <ul>{sources.slice(0, 3).map(source => <li key={source.id}>{source.title || "未取得标题"}<small> · {source.fetch_status === "captured" ? "正文已存" : "正文未知"}</small></li>)}</ul>
             {!sources.length && <p className="citation-muted">未取得可确认的来源卡片。</p>}
             <div className="citation-hypothesis"><strong>针对该平台的待验证方向</strong>
-              <p>{diagnosis?.action?.task || diagnosis?.finding || "分析或来源证据尚未就绪，不能推断品牌缺口。"}</p></div>
+              <p>{scope ? '下方按当前品牌与场景列出具体机会，请逐项核对原文与材料；不套用其他对象的建议。' : diagnosis?.action?.task || diagnosis?.finding || "分析或来源证据尚未就绪，不能推断品牌缺口。"}</p></div>
             <div className="citation-inline-actions">
               {samples[0] && <button onClick={() => onOpenAnswer(samples[0].id)}>查看原始回答 →</button>}
-              <button onClick={() => onView("evidence")}>查看原文证据 →</button>
+              <button onClick={() => onView(scope ? 'actions' : "evidence")}>{scope ? '核对当前范围的优化机会 →' : '查看原文证据 →'}</button>
             </div>
           </div>
         </section>;
       })}
     </div>
+    {activePlatform && !platformNames.includes(activePlatform) && <p className="citation-notice">当前问题未取得所选平台的回答，不替换为其他平台或问题。</p>}
     {!!platformNames.length && <p className="citation-notice citation-notice--warning">本页是同题观察。采集条件不完整、回答失败和正文缺失均单列，不能把差异归因为平台固定偏好。</p>}
   </div>;
 }
@@ -161,7 +170,7 @@ export function SourceLibrary(props: SourceLibraryProps & { onSaved?: () => void
       const url = new URL(window.location.href); url.searchParams.set('sourceType', value); window.history.replaceState(window.history.state, '', url);
       window.dispatchEvent(new Event('genilink-source-type-change'));
     }}>{title}</button>)}</div>
-    {tab === 'owned' ? <OwnedMaterials projectId={props.projectId} run={props.run} onSaved={props.onSaved || (() => {})} /> : <ObservedSourceLibrary {...props} />}
+    {tab === 'owned' ? <div className="citation-stack">{props.scope && <p className="citation-notice">我方材料是工作空间资产，列表保留全部材料版本与核实状态。当前比较选择已保留，不会改写材料的品牌归属或批准事实。</p>}<OwnedMaterials projectId={props.projectId} run={props.run} onSaved={props.onSaved || (() => {})} /></div> : <ObservedSourceLibrary {...props} />}
   </div>;
 }
 
@@ -228,22 +237,26 @@ export function EntityComparison({ run, onReview }: { run: EvidenceRun; onReview
   </div>;
 }
 
-export function EvidenceWorkspace({ run, projectId, onSaved, onSourceOpen, onView }: {
+export function EvidenceWorkspace({ run, projectId, onSaved, onSourceOpen, onView, scope, onPlatformChange }: {
+  scope?: TaskScope; onPlatformChange?: (platform: string) => void;
   run: EvidenceRun; projectId: string; onSaved: () => void; onSourceOpen: (id: string) => void;
   onView: (view: CitationViewId) => void;
 }) {
-  const [platform, setPlatform] = useState("");
+  const [localPlatform, setPlatform] = useState("");
+  const platform = scope?.platform ?? localPlatform;
   const items = run.summary.claim_evidence || [];
   const platforms = Array.from(new Set(items.map(item => item.platform)));
-  const visible = items.filter(item => !platform || item.platform === platform);
+  const responseIds = scope ? scopeResponseIds(run, scope) : null;
+  const visible = items.filter(item => (!platform || item.platform === platform) && (!scope || scope.scenario === 'all' || !!item.response_id && responseIds!.has(item.response_id)));
   const selected = visible[0];
   const reviewed = selected ? run.claim_reviews?.[selected.id] : null;
   return <div className="citation-stack">
-    <div className="citation-tabs" role="tablist" aria-label="证据平台">
+    {scope && <p className="citation-notice">按所选平台与场景核对全部观点，不因是否提及目标品牌删去证据；观点主体以原文为准。</p>}
+    {!scope && <div className="citation-tabs" role="tablist" aria-label="证据平台">
       <button type="button" role="tab" aria-selected={!platform} onClick={() => setPlatform("")}>全部平台</button>
       {platforms.map(name => <button type="button" role="tab" aria-selected={platform === name} key={name}
-        onClick={() => setPlatform(name)}><AiPlatformLabel platform={name} iconSize={14} /></button>)}
-    </div>
+        onClick={() => { setPlatform(name); onPlatformChange?.(name); }}><AiPlatformLabel platform={name} iconSize={14} /></button>)}
+    </div>}
     <div className="citation-section-head"><h2>逐个观点核对原文证据</h2>
       <button onClick={() => onView("actions")}>关联优化行动 →</button></div>
     <EvidenceComparisons items={visible} run={run} projectId={projectId} onSaved={onSaved} onSourceOpen={onSourceOpen} />

@@ -116,11 +116,11 @@
         "implemented": [
           "Registered targets frozen in manifest; discovered mapping and three-state observations projected into summary.",
           "All target rows retained with nullable entity IDs, source-only separation, per-platform fixed denominators and target scores.",
-          "Unrelated identity ambiguity no longer blocks other entities; fourteen presence/readiness tests."
+          "Unrelated identity ambiguity no longer blocks other entities; fourteen presence/readiness tests.",
+          "Stable target IDs now consumed throughout A05/E01 and shared portal scope; invalid IDs remain explicit and are never replaced by a default competitor."
         ],
         "remaining": [
-          "Bounded real-input semantic validation after provider balance restoration",
-          "Use stable target IDs throughout downstream opportunities/actions"
+          "Bounded real-input semantic validation after provider balance restoration"
         ]
       }
     },
@@ -611,7 +611,10 @@
         "src/components/visibility/brand-score-workspace.tsx",
         "src/components/visibility/identity-review.tsx",
         "src/app/(dashboard)/intelligence/page.tsx",
-        "src/types/intelligence.ts"
+        "src/types/intelligence.ts",
+        "src/components/visibility/analysis-scope-bar.tsx",
+        "src/components/visibility/analysis-scope.css",
+        "src/lib/visibility/analysis-scope.ts"
       ],
       "acceptance": [
         "缺分说明具体原因，问题审核和身份核实可完成并进入新修订",
@@ -622,11 +625,15 @@
         "implemented": [
           "Approved v3 conclusion and readiness cards wired to backend responses.",
           "Registry/discovered target rows feed existing radar/table; identity management retained.",
-          "Real prompt-review drawer and explicit new-revision switch;390px overflow fixed."
+          "Real prompt-review drawer and explicit new-revision switch;390px overflow fixed.",
+          "Approved v3 common own/comparison/platform/scenario URL strip across views, scoped score/evidence/platform/source consumers, explicit invalid selections, URL-authoritative Run changes, obsolete task clearing, stale-response and repeated-publication protection."
         ],
         "remaining": [
-          "Shared own/comparison/platform/scenario URL context across all views",
-          "Prototype-to-runtime full workflow acceptance"
+          "Formal authenticated live-project identity-to-new-revision and complete prototype-to-runtime workflow acceptance under Q02; shared scope implementation and component regression complete."
+        ],
+        "technical_implementation_complete": true,
+        "evidence": [
+          "docs/reviews/citation-value-shared-scope-20261025.md; focused55 passed, final full release:check passed; actual page-component desktop/390x844 and URL refresh checks with fictional read-only service."
         ]
       }
     },
@@ -651,7 +658,9 @@
         "src/types/intelligence.ts",
         "src/components/visibility/source-observation-workspace.tsx",
         "src/components/visibility/source-observations.css",
-        "src/lib/visibility/source-observation.ts"
+        "src/lib/visibility/source-observation.ts",
+        "src/components/visibility/opportunity-overview.tsx",
+        "src/lib/visibility/opportunity-reader.ts"
       ],
       "acceptance": [
         "文章可展开全部平台/回答/引用类型/版本，入口打开正确原文",
@@ -667,16 +676,19 @@
           "Approved v3 opportunity/task cards and full actionable package details now consume A05: exact original questions, all platform/scenario targets, observations/hypotheses/counterevidence, asset/new deliverable, outlines, acceptance and material requirements.",
           "Task workspace keeps own/comparison/platform/scenario and action/opportunity URL state; filters match the same child observation, reads all bounded pages before filtering, preserves out-of-scope evidence, and removes not-applicable creation.",
           "Frozen versus explicit current-preference read-only ranking, review/preparation queues, exact Unicode saved-text locating, source-kind distinctions and platform icons wired without exposing collection surface.",
-          "A04 source-observations-v2 consumer: all bounded pages, per-observation platform/kind/original Run/body version/anchor fallback, five-dimension evidence and unchecked ranges, source-only brands, human review and copy-family drilldown. Same-observation filters never borrow another platform body or brand mentions; unreadable versions and unknown coverage remain explicit."
+          "A04 source-observations-v2 consumer: all bounded pages, per-observation platform/kind/original Run/body version/anchor fallback, five-dimension evidence and unchecked ranges, source-only brands, human review and copy-family drilldown. Same-observation filters never borrow another platform body or brand mentions; unreadable versions and unknown coverage remain explicit.",
+          "Overview now reads complete A05 frozen/current opportunity rankings and enters exact task or original evidence with all scope preserved; shared reader validates pages before filtering. Opportunity evidence retains diagnostic/counter quotes, original responses, missing-ID and out-of-scope safeguards; all source consumers share global platform/scenario."
         ],
         "remaining": [
-          "Overview-to-full-opportunity deep links and unified own/comparison/platform/scenario context across all views; current full scope controls are implemented in the task workspace only."
+          "Formal live-service opportunity/source/material-to-task workflow acceptance under Q02; frontend wiring complete, E02/E03 content/manual delivery remain separate."
         ],
         "evidence": [
           "docs/reviews/citation-owned-materials-a03-20261025.md",
           "docs/reviews/citation-value-task-workspace-20261025.md; task component/BFF focused18 passed; complete release:check passed; actual component desktop and390x844 browser checks.",
-          "docs/reviews/citation-value-source-observations-20261025.md; source focused12 plus existing task/bridge/prototype24 passed; final full release:check passed after mobile fix; default and390x844 actual viewport verified and reset."
-        ]
+          "docs/reviews/citation-value-source-observations-20261025.md; source focused12 plus existing task/bridge/prototype24 passed; final full release:check passed after mobile fix; default and390x844 actual viewport verified and reset.",
+          "docs/reviews/citation-value-shared-scope-20261025.md; focused55 passed, final full release:check passed; actual page-component desktop/390x844 and URL refresh checks with fictional read-only service."
+        ],
+        "technical_implementation_complete": true
       }
     },
     {

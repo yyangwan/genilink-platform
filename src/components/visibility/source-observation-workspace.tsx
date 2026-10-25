@@ -6,21 +6,24 @@ import { AiPlatformLabel } from '@/components/ui/ai-platform-label';
 import { ReadingDrawer } from '@/components/ui/reading-drawer';
 import { completeness, groupSources, loadSourceObservations, readableSnapshot, sourceKind, type ArticleGroup, type SourceObservation, type SourcePage } from '@/lib/visibility/source-observation';
 import type { EvidenceRun } from '@/types/intelligence';
+import type { TaskScope } from '@/lib/visibility/task-view';
+import { scopeResponseIds } from '@/lib/visibility/analysis-scope';
 import { EvidenceReading, type EvidenceReadTarget } from './task-details';
 import './source-observations.css';
 
 export type SourceLibraryProps = {
   run: EvidenceRun; projectId?: string;
+  scope?: TaskScope;
   onOpenAnswer: (id: string, runId?: string) => void;
   onOpenSource: (id: string, title: string, runId?: string) => void;
   onRetry: (documentId: string) => void; retrying: string | null;
 };
 
 export function ObservedSourceLibrary(props: SourceLibraryProps) {
-  return <SourceObservations key={props.projectId + ':' + props.run.id + ':' + props.run.status} {...props} />;
+  return <SourceObservations key={[props.projectId, props.run.id, props.run.status, props.scope?.platform, props.scope?.scenario].join(':')} {...props} />;
 }
 
-function SourceObservations({ run, projectId, onOpenAnswer, onOpenSource, onRetry, retrying }: SourceLibraryProps) {
+function SourceObservations({ run, projectId, onOpenAnswer, onOpenSource, onRetry, retrying, scope }: SourceLibraryProps) {
   const [page, setPage] = useState<SourcePage | null>(null), [error, setError] = useState(''), [reload, setReload] = useState(0);
   const [filter, setFilter] = useState({ query: '', status: 'all', platform: '' }), [limit, setLimit] = useState(20);
   const [selected, setSelected] = useState<string | null>(null), [reading, setReading] = useState<EvidenceReadTarget | null>(null);
@@ -31,7 +34,10 @@ function SourceObservations({ run, projectId, onOpenAnswer, onOpenSource, onRetr
       .catch(e => { if (!abort.signal.aborted) setError(e.message); });
     return () => abort.abort();
   }, [projectId, run.id, reload]);
-  const rows = page?.items || [];
+  const rows = useMemo(() => {
+    const ids = scope ? scopeResponseIds(run, scope) : null;
+    return (page?.items || []).filter(row => !scope || (!scope.platform || row.platform === scope.platform) && (scope.scenario === 'all' || ids!.has(row.response_id)));
+  }, [page, run, scope]);
   const groups = useMemo(() => groupSources(rows, filter), [rows, filter]);
   const all = useMemo(() => groupSources(rows, { query: '', status: 'all', platform: '' }), [rows]);
   const platforms = [...new Set(rows.map(row => row.platform))];
@@ -43,6 +49,7 @@ function SourceObservations({ run, projectId, onOpenAnswer, onOpenSource, onRetr
   if (!page) return <p className="citation-notice" role="status">正在读取完整来源观察，完成前不显示汇总数量…</p>;
   if (page.status === 'pending') return <div className="citation-notice" role="status">本次分析尚未发布来源观察，不能据此判断没有引用。<button type="button" onClick={retryRead}>重新读取 →</button></div>;
   return <div className="citation-stack source-observation-workspace">
+    {scope && <p className="citation-notice">本页保留所选平台与场景的全部来源，不按品牌是否出现筛掉材料；正文发现与回答表现分开核对。另有 {page.items.length - rows.length} 条来源不在当前平台或场景范围内。</p>}
     <div className="citation-stat-grid">
       <SourceStat title="归并文章" value={all.length} detail="按文章标识归并，无标识时分别保留" />
       <SourceStat title="回答实际引用" value={rows.filter(row => row.actual_reference).length} detail="逐次观察计数，候选与文本链接不计入" />
@@ -53,13 +60,13 @@ function SourceObservations({ run, projectId, onOpenAnswer, onOpenSource, onRetr
       <div className="citation-section-head"><div><h2>按文章归并，按观察追溯</h2><p className="citation-muted">同一文章的每个平台、回答、引用类型与正文版本各自保留。</p></div><span className="citation-tag">正文完整性单列</span></div>
       <div className="citation-filter-row">
         <input aria-label="搜索来源文章" value={filter.query} onChange={event => changeFilter('query', event.target.value)} placeholder="搜索文章标题或地址" />
-        <select aria-label="筛选来源平台" value={filter.platform} onChange={event => changeFilter('platform', event.target.value)}><option value="">全部平台</option>{platforms.map(name => <option key={name} value={name}>{getAiPlatformLabel(name)}</option>)}</select>
+        {!scope && <select aria-label="筛选来源平台" value={filter.platform} onChange={event => changeFilter('platform', event.target.value)}><option value="">全部平台</option>{platforms.map(name => <option key={name} value={name}>{getAiPlatformLabel(name)}</option>)}</select>}
         <select aria-label="筛选来源状态或类型" value={filter.status} onChange={event => changeFilter('status', event.target.value)}>
           <option value="all">全部状态与类型</option><option value="saved">该次正文可回查</option><option value="unavailable">该次正文未就绪</option><option value="actual">回答实际引用</option><option value="candidate">候选 / 其他链接</option>
         </select><span className="citation-muted">{groups.length} 篇文章 · {groups.reduce((sum, row) => sum + row.entries.length, 0)} 条观察</span>
       </div>
       <div className="overflow-x-auto"><table className="citation-table citation-source-table"><thead><tr><th>文章 / 来源</th><th>各平台观察</th><th>正文状态</th><th>正文发现主体</th><th>关联证据</th></tr></thead><tbody>{groups.slice(0, limit).map(article => <ArticleRow key={article.key} run={run} article={article} onOpen={() => setSelected(article.key)} />)}</tbody></table></div>
-      {!groups.length && <p className="citation-empty">{rows.length ? '当前筛选没有匹配的观察，请调整条件。' : '本次已发布结果没有来源观察；不能据此判断平台或品牌没有相关信息。'}</p>}
+      {!groups.length && <p className="citation-empty">{page.items.length ? '当前筛选没有匹配的观察，请调整条件。' : '本次已发布结果没有来源观察；不能据此判断平台或品牌没有相关信息。'}</p>}
       {limit < groups.length && <button type="button" className="citation-link" onClick={() => setLimit(value => value + 20)}>展开后续文章 · 剩余 {groups.length - limit} 篇 →</button>}
       <p className="citation-inspect">筛选条件作用于同一条观察；不借用其他平台的引用类型或正文。正文缺失与未核验段落保持未知。</p>
     </section>

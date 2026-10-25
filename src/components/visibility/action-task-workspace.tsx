@@ -8,6 +8,8 @@ import { SCENARIOS } from '@/lib/visibility/scenarios';
 import type { EvidenceRun } from '@/types/intelligence';
 import type { EvidenceReference, OpportunityPage, TaskOpportunity, TaskPack, TaskPlan, TaskRevision } from '@/lib/visibility/task-contract';
 import { taskPackSchema } from '@/lib/visibility/task-contract';
+import { loadOpportunities } from '@/lib/visibility/opportunity-reader';
+import { originalOpportunityScope, readPriority } from '@/lib/visibility/analysis-scope';
 import { apiError, emptyTaskScope, matchesOpportunity, planPlatforms, readTaskScope, setTaskScope, subscribeTaskScope, taskStates } from '@/lib/visibility/task-view';
 import { DependencyDifferences, EvidenceReading, OpportunityEvidence, RevisionDifferences, TaskDelivery } from './task-details';
 import './task-workspace.css';
@@ -22,10 +24,11 @@ async function read<T>(url: string, signal?: AbortSignal): Promise<T> {
 }
 type Edit = { plan: TaskPlan; seed: TaskPack | null; diagnosisId?: string; title: string; deliverable: string; outline: string; acceptance: string; factIds: string[]; reason: string; conflict: boolean };
 
-export function TaskWorkspace({ run, projectId, readOnly = false }: { run: Pick<EvidenceRun, 'id' | 'summary'>; projectId: string; readOnly?: boolean; platform?: string }) {
+export function TaskWorkspace({ run, projectId, readOnly = false, scopeControls = true }: { run: Pick<EvidenceRun, 'id' | 'summary'>; projectId: string; readOnly?: boolean; platform?: string; scopeControls?: boolean }) {
   const location = useSyncExternalStore(subscribeTaskScope, () => window.location.search, () => '');
   const scope = useMemo(() => location ? readTaskScope(projectId, location) : emptyTaskScope, [location, projectId]);
-  const [priority, setPriority] = useState<'frozen' | 'current'>('frozen'), [queue, setQueue] = useState('all'), [visible, setVisible] = useState(20);
+  const priority = readPriority(projectId, location);
+  const [queue, setQueue] = useState('all'), [visible, setVisible] = useState(20);
   const [collection, setCollection] = useState<{ key: string; page: OpportunityPage; plans: TaskPlan[]; writable: boolean } | null>(null);
   const [detail, setDetail] = useState<{ key: string; plan: TaskPlan } | null>(null), [refresh, setRefresh] = useState(0);
   const [error, setError] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [uncertain, setUncertain] = useState(false);
@@ -40,30 +43,21 @@ export function TaskWorkspace({ run, projectId, readOnly = false }: { run: Pick<
   const rows = data?.page.items || [];
   const selected = rows.find(row => row.id === scope.opportunity);
   const current = scope.action ? (detail?.key === `${projectId}:${scope.action}:${refresh}` ? detail.plan : null) : null;
-  const locked = readOnly || data?.writable === false || busy || uncertain;
   const targets = run.summary.brand_presence?.targets || [];
   const name = (id: string) => targets.find(row => row.target_id === id)?.name || '历史品牌目标';
-  const filtered = rows.filter(row => matchesOpportunity(row, scope) && (queue === 'all' || (queue === 'review' ? row.actionability === 'ready_for_review' : row.actionability !== 'ready_for_review')));
   const invalidScope = !!scope.own && !targets.some(row => row.target_id === scope.own && row.role === 'own') || !!scope.comparison && !targets.some(row => row.target_id === scope.comparison);
+  const locked = readOnly || data?.writable === false || busy || uncertain || invalidScope;
+  const filtered = invalidScope ? [] : rows.filter(row => matchesOpportunity(row, scope) && (queue === 'all' || (queue === 'review' ? row.actionability === 'ready_for_review' : row.actionability !== 'ready_for_review')));
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
     const abort = new AbortController();
     (async () => {
-      const first = await read<OpportunityPage & { can_write?: boolean }>(address({ op: 'opportunities', runId: run.id, priority, limit: '100' }), abort.signal);
-      const items = [...first.items], seen = new Set<number>();
-      let offset = first.next_offset;
-      while (offset !== null) {
-        if (seen.has(offset)) throw Error('机会分页版本异常，请刷新重试。');
-        seen.add(offset);
-        const page = await read<OpportunityPage>(address({ op: 'opportunities', runId: run.id, priority, offset: String(offset), limit: '100' }), abort.signal);
-        if (JSON.stringify(page.policy) !== JSON.stringify(first.policy) || page.total !== first.total) throw Error('排序或机会版本已变化，请刷新后重新核对。');
-        items.push(...page.items); offset = page.next_offset;
-      }
+      const page = await loadOpportunities(projectId, run.id, priority, abort.signal);
       const plans = await read<{ actions: TaskPlan[] }>(address({ op: 'plans', runId: run.id }), abort.signal);
-      if (!abort.signal.aborted) setCollection({ key: collectionKey, page: { ...first, items }, plans: plans.actions, writable: first.can_write !== false });
+      if (!abort.signal.aborted) setCollection({ key: collectionKey, page, plans: plans.actions, writable: page.can_write });
     })().catch(err => { if (!abort.signal.aborted) setError(err.message); });
     return () => abort.abort();
-  }, [address, run.id, priority, collectionKey]);
+  }, [address, projectId, run.id, priority, collectionKey]);
   useEffect(() => {
     if (!scope.action) return;
     const abort = new AbortController(), key = `${projectId}:${scope.action}:${refresh}`;
@@ -80,6 +74,7 @@ export function TaskWorkspace({ run, projectId, readOnly = false }: { run: Pick<
   }, [scope.opportunity, scope.action, data]);
   const send = async (payload?: Record<string, unknown>) => {
     if (writing.current || readOnly || data?.writable === false) return;
+    if (payload && invalidScope) { setError('原比较范围已失效，请重新核对后操作。'); return; }
     if (payload && !pending.current) pending.current = JSON.stringify({ projectId, ...payload, idempotencyKey: crypto.randomUUID() });
     if (!pending.current) return;
     const request = JSON.parse(pending.current) as { op: string };
@@ -128,19 +123,19 @@ export function TaskWorkspace({ run, projectId, readOnly = false }: { run: Pick<
   };
   const sameTask = !current || !selected || current.task_key === selected.task_key;
   const scopeRow = current?.target.task_pack ? current.target as TaskOpportunity : selected;
-  const selectedInScope = !scopeRow || matchesOpportunity(scopeRow, scope);
+  const selectedInScope = !invalidScope && (!scopeRow || matchesOpportunity(scopeRow, scope));
   const selectedPack = scope.action ? current?.target.task_pack : selected?.task_pack;
   const editChanged = !!edit && (edit.title.trim() !== edit.plan.title || !!edit.diagnosisId || !!edit.plan.dependency_changes.length || !!edit.seed && (
     edit.deliverable.trim() !== edit.seed.deliverable || edit.outline !== edit.seed.delivery.outline.join('\n') || edit.acceptance !== edit.seed.acceptance.join('\n') || JSON.stringify(edit.factIds) !== JSON.stringify(edit.seed.own_fact_ids)));
   return <section className="citation-stack task-workspace" aria-label="优化行动与具体任务">
     <div className="citation-panel citation-pad"><div className="citation-section-head"><div><h2>找到值得执行的改进</h2><p className="citation-muted">每项任务保留原问题、平台子目标、证据与验收；核实、批准和内容发布各自记录。</p></div><button type="button" className="dashboard-button dashboard-button--secondary" disabled={busy} onClick={() => { setError(''); setRefresh(value => value + 1); }}>刷新任务</button></div>
-      <div className="task-scope-grid">
+      {scopeControls && <div className="task-scope-grid">
         <label>自有品牌<select aria-label="行动自有品牌" value={scope.own} onChange={e => setTaskScope(projectId, { own: e.target.value })}><option value="">全部自有品牌</option>{targets.filter(row => row.role === 'own').map(row => <option key={row.target_id} value={row.target_id}>{row.name}</option>)}{scope.own && !targets.some(row => row.target_id === scope.own) && <option value={scope.own}>原选择已不在此版本</option>}</select></label>
         <label>对比对象<select aria-label="行动对比品牌" value={scope.comparison} onChange={e => setTaskScope(projectId, { comparison: e.target.value })}><option value="">全部对比对象</option>{targets.filter(row => row.role !== 'own' && row.role !== 'comparison').map(row => <option key={row.target_id} value={row.target_id}>{row.name}{row.identity_status === 'confirmed' ? '' : ' · 身份待核实'}</option>)}{scope.comparison && !targets.some(row => row.target_id === scope.comparison) && <option value={scope.comparison}>原选择已不在此版本</option>}</select></label>
         <label>目标平台<select aria-label="行动目标平台" value={scope.platform} onChange={e => setTaskScope(projectId, { platform: e.target.value })}><option value="">全部平台</option>{[...new Set(rows.flatMap(row => row.platforms))].map(value => <option key={value} value={value}>{getAiPlatformLabel(value)}</option>)}</select></label>
         <label>需求场景<select aria-label="行动需求场景" value={scope.scenario} onChange={e => setTaskScope(projectId, { scenario: e.target.value })}><option value="all">全部场景</option>{Object.entries(SCENARIOS).map(([value, text]) => <option key={value} value={value}>{text}</option>)}<option value="unreviewed">场景待审核</option></select></label>
-      </div>
-      <div className="task-priority-choice"><label>任务排序<select aria-label="任务排序" value={priority} disabled={busy} onChange={e => setPriority(e.target.value as 'frozen' | 'current')}><option value="frozen">本次审计冻结排序</option><option value="current">按当前业务偏好预览</option></select></label><p className="citation-muted">{priority === 'current' ? '只读排序预览，不重采、不重分析，不改旧任务或批准。' : '按纠错紧迫性、场景重要性、证据准备、覆盖和可控性排序；不代表收益或成功概率。'}</p></div>
+      </div>}
+      <div className="task-priority-choice"><label>任务排序<select aria-label="任务排序" value={priority} disabled={busy} onChange={e => setTaskScope(projectId, {}, { priority: e.target.value })}><option value="frozen">本次审计冻结排序</option><option value="current">按当前业务偏好预览</option></select></label><p className="citation-muted">{priority === 'current' ? '只读排序预览，不重采、不重分析，不改旧任务或批准。' : '按纠错紧迫性、场景重要性、证据准备、覆盖和可控性排序；不代表收益或成功概率。'}</p></div>
     </div>
     {error && <p role="alert" className="citation-notice citation-notice--warning">{error}</p>}{message && <p role="status" className="citation-notice">{message}</p>}
     {uncertain && <div className="citation-notice citation-notice--warning"><p>结果暂未确认。重试会使用原请求和原操作编号，不会另建一份任务修订。</p><button type="button" className="dashboard-button dashboard-button--secondary" disabled={busy} onClick={() => void send()}>重试同一操作</button></div>}
@@ -159,7 +154,7 @@ export function TaskWorkspace({ run, projectId, readOnly = false }: { run: Pick<
       {!filtered.length && <div className="citation-panel citation-pad"><h3>当前范围没有具备依据的机会</h3><p className="citation-muted">仅表示本次已处理材料中没有匹配项；不会把分析失败、未知或没有资料解释为品牌没有能力。</p></div>}
       {filtered.length > visible && <button type="button" className="dashboard-button dashboard-button--secondary" onClick={() => setVisible(value => value + 20)}>继续展示任务 · 已显示 {visible} / {filtered.length}</button>}
       {(selected || scope.action) && <section ref={currentPanel} tabIndex={-1} className="citation-panel citation-pad task-current" aria-label="当前具体任务"><div className="citation-section-head"><div><small>行动任务{current ? ` · 修订 ${current.revision}` : ''}</small><h2>{current?.title || selected?.task_pack?.deliverable || selected?.finding || '正在读取行动…'}</h2></div><span className="citation-tag">{current?.status === 'stale' ? '相关依据需重核' : current?.approval_valid ? '计划批准有效' : current ? '计划待批准' : '尚未创建计划'}</span></div>
-        {!selectedInScope && <div className="citation-notice citation-notice--warning"><p>这项任务不属于当前筛选范围，原任务与证据仍保留。</p><button type="button" onClick={() => setTaskScope(projectId, { own: scopeRow!.own_target_id, comparison: '', platform: '', scenario: 'all' })}>返回任务原范围 →</button></div>}
+        {!selectedInScope && <div className="citation-notice citation-notice--warning"><p>这项任务不属于当前筛选范围，原任务与证据仍保留。</p><button type="button" onClick={() => setTaskScope(projectId, originalOpportunityScope(scopeRow!))}>返回任务原范围 →</button></div>}
         {!sameTask && <p className="citation-notice citation-notice--warning">所选机会与当前行动不是同一任务，原证据与交付保持各自归属。请重新选择对应行动，不能把另一条机会套入本计划。</p>}
         {scope.opportunity && !selected && <p className="citation-notice citation-notice--warning">此分析版本中没有原选择的机会，请核对分析版本或重新选择。</p>}
         {current && current.run_id !== run.id && <p className="citation-notice citation-notice--warning">行动当前依据属于另一分析版本。查看旧原文时仍使用原版本；采用本次机会须显式创建修订并重新批准。<a className="citation-link" href={'/intelligence?' + new URLSearchParams({ project: projectId, runId: current.run_id, view: 'actions', actionId: current.id })}>查看行动分析版本 →</a></p>}
