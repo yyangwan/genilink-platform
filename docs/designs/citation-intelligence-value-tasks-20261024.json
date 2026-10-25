@@ -424,7 +424,7 @@
           "Dedicated real local MySQL Pipeline-to-opportunity-to-exact-plan, absent own target without entity, and priority-only immutable preview:1 passed."
         ],
         "notes": [
-          "Technical backend completion only. U02 full task/evidence/scoped priority UI, E01 related-dependency immutable action revisions and E02 formal Briefv3/ContentOS remain pending.",
+          "Technical backend completion only. U02 full task/evidence/scoped priority UI and E02 formal Briefv3/ContentOS remain pending. E01 backend immutable action revisions are now implemented; see its own evidence.",
           "Own approved facts are literal-topic review candidates, not proof of requirement satisfaction. Missing material is unknown, not product incapability; actual semantic/task value acceptance remains Q01.",
           "Current channel tasks prepare controlled own materials/content experiments; no third-party publication rights, publisher affinity, automated outreach or capture/release changes are inferred.",
           "No actual model/production/real-cloud-object calls/writes or deployment this stage."
@@ -435,7 +435,7 @@
       "id": "E01",
       "milestone": "M3",
       "owner": "审计后端",
-      "status": "planned",
+      "status": "completed",
       "dependsOn": [
         "R00",
         "A05"
@@ -443,16 +443,39 @@
       "prototypeGate": false,
       "title": "行动不可变修订及相关依赖重批",
       "modules": [
-        "backend/app/intelligence/models.py",
+        "backend/app/intelligence/action_revisions.py",
+        "backend/app/intelligence/action_dependencies.py",
         "backend/app/intelligence/actions.py",
         "backend/app/intelligence/drafts.py",
+        "backend/app/intelligence/models.py (reserved structure reused without schema changes)",
         "backend/app/api/intelligence.py"
       ],
       "acceptance": [
         "ActionPlanRevision只追加，审批绑定具体修订与依赖签名",
         "相关事实/证据变化阻断并可修订重批，无关事实或较新Run不导致全部失效",
         "并发旧版本拒绝，历史批准、Brief与产物按原版本可回查"
-      ]
+      ],
+      "progress": {
+        "implemented": [
+          "Every initial plan and edit creates an immutable ActionPlanRevision; ActionPlan revision pointer/title/target are checked against that row. Named HMAC approvals bind the exact revision, payload and dependency signature.",
+          "Relevant dependencies cover actual questions/scenarios, exact Unicode evidence and counterevidence, related registry/alias/mention identity, source versions/quality/storage fingerprint and human reviews, selected own facts/materials and interpretation version.",
+          "Unrelated facts, registry entries, preferences, question reviews and newer Runs do not automatically revoke plan approval; relevant changes return before/after reasons. Same-task explicit published-diagnosis rebase keeps old Run history.",
+          "CAS, strict revision integers, exact idempotency, current locking reads and ordered project/audit/action locking prevent stale approvals and duplicate concurrent revisions under real MySQL REPEATABLE READ.",
+          "Project-scoped detail and paginated revision history expose signed old payloads, historical approval and draft bindings plus field/dependency changes_from_previous. GET creates no state or queue work.",
+          "New TaskPack v2 remains blocked from Brief v2; existing draft authorization carries a private signed action-revision binding and cannot revive after a different revision is approved."
+        ],
+        "remaining": [],
+        "evidence": [
+          "Backend commit 2c0f424; docs/citation-value-action-revisions-20261025.md",
+          "Final full backend with real local MySQL: 925 passed / 2 skipped. Ruff, compileall and offline source API/worker/storage/PDF acceptance passed.",
+          "Revisions plus evidence-review focused tests: 30 passed. Dedicated real MySQL revisions/concurrent revocation/A05 pipeline/model-budget proof: 5 passed."
+        ],
+        "notes": [
+          "Backend technical completion only; U02/U03 detail/diff/reapproval UI and E02 shared FactSource/EvidenceBrief v3/ContentOS remain pending.",
+          "Selected fact validity/own identity is not semantic entailment. Old report, citation-fact approval and Brief v2 global stamp remain distinct; complete shared qualification and delivery in E02.",
+          "No production access/write, real model requests or real cloud-object writes. No push, PR or deployment. Independent Q01 semantic/task-value and Q02 real execution acceptance remain unaccepted."
+        ]
+      }
     },
     {
       "id": "E02",
