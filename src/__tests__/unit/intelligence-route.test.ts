@@ -6,6 +6,8 @@ vi.mock('@/lib/db', () => ({ prisma: { projectBrandReviewEvent: { findUnique: vi
 vi.mock('@/lib/auth/service-jwt', () => ({ issueContentProjectJWT: vi.fn().mockResolvedValue('test-content-token') }));
 vi.mock('@/lib/billing/guard', () => ({ requireBilling: vi.fn() }));
 vi.mock('@/lib/content/contentos-internal-client', () => ({ lookupWorkflowByOperation: vi.fn() }));
+vi.mock('@/lib/content/evidence-capabilities', () => ({ evidenceDraftReady: vi.fn() }));
+import { evidenceDraftReady } from '@/lib/content/evidence-capabilities';
 vi.mock('@/lib/visibility/project-brand-bindings', () => ({ saveBrandBinding: vi.fn(), brandBindingHash: vi.fn().mockReturnValue('receipt-hash') }));
 import { saveBrandBinding, brandBindingHash } from '@/lib/visibility/project-brand-bindings';
 import { lookupWorkflowByOperation } from '@/lib/content/contentos-internal-client';
@@ -19,6 +21,7 @@ import { GET, POST } from '@/app/api/integration/intelligence/route';
 describe('project-scoped intelligence proxy', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(evidenceDraftReady).mockResolvedValue(true);
     vi.mocked(brandBindingHash).mockReturnValue('receipt-hash');
     vi.mocked(prisma.projectBrandReviewEvent.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.projectContextOutbox.count).mockResolvedValue(0);
@@ -191,14 +194,19 @@ describe('project-scoped intelligence proxy', () => {
     expect(fetchUpstream).not.toHaveBeenCalled();
   });
   const generate = () => new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({ action: 'generateDraft', approvalId: 'a'.repeat(32), brief: { fake: true } }) });
-  const authority = { projectId: 'trusted-project', approval: { id: 'a'.repeat(32) }, execution: { mode: 'generate_draft', channel: 'wechat' } };
+  const authority = { schemaVersion: 3, projectId: 'trusted-project', approval: { id: 'a'.repeat(32) }, execution: { mode: 'generate_draft', channel: 'wechat' } };
+  it('does not reserve usage when the receiver cannot consume the exact Brief version and channel', async () => {
+    vi.stubEnv('BILLING_DISABLED', 'false'); vi.mocked(fetchUpstream).mockResolvedValue({ data: authority });
+    vi.mocked(evidenceDraftReady).mockResolvedValue(false);
+    expect((await POST(generate())).status).toBe(503); expect(reserveContentGeneration).not.toHaveBeenCalled();
+  });
   it('binds duplicate requests to the same quota operation and sends only IDs', async () => {
     vi.stubEnv('BILLING_DISABLED', 'false'); vi.mocked(fetchUpstream).mockResolvedValue({ data: authority });
     vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify({ data: { id: 'wf-1' } }), { status: 202 })));
     expect((await POST(generate())).status).toBe(202); expect((await POST(generate())).status).toBe(202);
     const [first, second] = vi.mocked(reserveContentGeneration).mock.calls;
     expect(first[0].operationId).toBe(second[0].operationId);
-    expect(first[0].metadata).toEqual({ source: 'evidence_v2', projectId: 'trusted-project', approvalId: 'a'.repeat(32) });
+    expect(first[0].metadata).toEqual({ source: 'evidence_v3', projectId: 'trusted-project', approvalId: 'a'.repeat(32) });
     expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string)).toEqual({ approvalId: 'a'.repeat(32), usageOperationId: first[0].operationId });
     expect(commitUsageOperation).not.toHaveBeenCalled();
   });

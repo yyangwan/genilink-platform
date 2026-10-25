@@ -23,12 +23,17 @@ export async function GET(req: NextRequest) {
   const guard = await resolveGuard(req, { capability: 'contentInsights', minimumCapabilityLevel: 'full' });
   if (!guard.ok) return guard.response;
   const p = req.nextUrl.searchParams, op = p.get('op') || 'opportunities';
-  if ([...p.keys()].some(name => !['projectId', 'op', 'runId', 'actionId', 'offset', 'limit', 'priority', 'ownTarget', 'platform', 'documentId'].includes(name))) return invalid();
+  if ([...p.keys()].some(name => !['projectId', 'op', 'runId', 'actionId', 'offset', 'limit', 'priority', 'ownTarget', 'platform', 'documentId', 'expectedRevision'].includes(name))) return invalid();
   const offset = p.get('offset') || '0', limit = p.get('limit') || '50';
   if (!/^\d{1,8}$/.test(offset) || !/^\d{1,3}$/.test(limit) || Number(limit) < 1 || Number(limit) > 100) return invalid();
   const query = new URLSearchParams({ offset, limit });
   let path: string;
-  if (op === 'detail' || op === 'revisions') {
+  if (op === 'eligibleFacts' || op === 'draftApprovals') {
+    const revision = p.get('expectedRevision');
+    if (!id.safeParse(p.get('actionId')).success || !revision || !/^[1-9][0-9]{0,8}$/.test(revision)) return invalid();
+    query.set('expected_revision', revision);
+    path = `/api/intelligence/actions/${p.get('actionId')}/${op === 'eligibleFacts' ? 'eligible-facts' : 'draft-approvals'}?${query}`;
+  } else if (op === 'detail' || op === 'revisions') {
     if (!id.safeParse(p.get('actionId')).success) return invalid();
     path = `/api/intelligence/actions/${p.get('actionId')}${op === 'revisions' ? `/revisions?${query}` : ''}`;
   } else {

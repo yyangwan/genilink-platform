@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 3,
+  "projectId": "p1",
+  "runId": "32d9a289afe34e688990c624bca3d821",
+  "actionId": "257ee6e720de4192907b17298433f408",
+  "title": "云衡专业版实施范围说明",
+  "actionRevision": {
+    "id": "20129489f849416d964431b14714f43a",
+    "revision": 2,
+    "signature": "507940759551e7ee22493166ecedf13d2825f1e588dc53220cafb58bf58692ef",
+    "dependencySignature": "a29b47edbc3cc03031851405d2ba083052ac38eae0325ad787aa1db4d29ec723",
+    "taskKey": "3987a246134bfcf7f938e31be0cb6a163391c7e9a2028304df37f9cb544ffe90",
+    "taskSignature": "ad3baa7700bf4f7a259b4be64d9f13288da39d58e100bab3f4b46743301af8c6"
+  },
+  "taskPack": {
+    "version": "task-pack-v2",
+    "project_id": "p1",
+    "own_target_id": "registry:own",
+    "asset_key": "new:implementation-guide",
+    "fact_change_key": "implementation-preconditions",
+    "intent": "content_create",
+    "deliverable": "编写服务范围与实施前提说明",
+    "delivery": {
+      "asset_title": "实施前提说明",
+      "asset_kind": "new_deliverable",
+      "material_revision_id": null,
+      "material_version": null,
+      "reference_url": null,
+      "audience": [],
+      "audience_status": "unknown",
+      "outline": [
+        "列出已核实的服务范围及实施条件",
+        "为每项限定提供材料原文与有效日期"
+      ],
+      "channel": "own_website",
+      "channel_reason": "便于客户核查并引用自身材料",
+      "questions": [
+        {
+          "prompt_hash": "e02c8952e0a9ee83f40a4abc2670ba939654a7557b69aaaa59805c727fbac29e",
+          "text": "有哪些方案"
+        }
+      ]
+    },
+    "acceptance": [
+      "限定条件和事实均有明确材料及范围"
+    ],
+    "ai_targets": [
+      {
+        "platform": "qwen",
+        "prompt_hash": "e02c8952e0a9ee83f40a4abc2670ba939654a7557b69aaaa59805c727fbac29e",
+        "scenario_id": "implementation",
+        "dimensions": [
+          "reasons"
+        ]
+      }
+    ],
+    "diagnostic_evidence": [
+      {
+        "project_id": "p1",
+        "run_id": "32d9a289afe34e688990c624bca3d821",
+        "owner_kind": "answer",
+        "owner_id": "1",
+        "segment_id": "7137c22245cb4a3a99368416f511dae7",
+        "text_hash": "fc159e25e06fad2bfedc55b43f106fe53d3a700bea8c8cc1ae3623d9bf09eaa8",
+        "quote": "🧭方案需要列明实施条件和服务范围。",
+        "start": 0,
+        "end": 17
+      }
+    ],
+    "own_fact_ids": [
+      "2efa812292314a93acede4be4c06a062"
+    ],
+    "missing_materials": [
+      "需要核实服务范围"
+    ]
+  },
+  "execution": {
+    "channel": "wechat",
+    "mode": "generate_draft"
+  },
+  "aiTargets": [
+    {
+      "platform": "qwen",
+      "promptHash": "e02c8952e0a9ee83f40a4abc2670ba939654a7557b69aaaa59805c727fbac29e",
+      "prompt": "有哪些方案",
+      "scenarioId": "implementation",
+      "dimensions": [
+        "reasons"
+      ],
+      "observations": [
+        {
+          "responseId": "1",
+          "conditions": {
+            "surface": null,
+            "search_mode": null,
+            "model_version": null,
+            "account_class": null,
+            "location": null
+          }
+        }
+      ]
+    }
+  ],
+  "diagnosticContext": {
+    "observedFacts": [],
+    "hypotheses": [],
+    "unknowns": [],
+    "counterevidence": [],
+    "use": "diagnostic_only"
+  },
+  "ownFacts": [
+    {
+      "id": "2efa812292314a93acede4be4c06a062",
+      "version": 1,
+      "ownTargetId": "registry:own",
+      "entityId": null,
+      "statement": "云衡支持30家门店，仅限专业版。",
+      "scope": "中国大陆专业版产品，按产品规格",
+      "validFrom": "2026-01-01T00:00:00Z",
+      "validUntil": "2099-12-31T00:00:00Z",
+      "source": {
+        "kind": "owned_asset_revision",
+        "asset_id": "5eef1f0a7c0a8dd1c6843459ab2c6205",
+        "asset_revision": 1,
+        "verification_id": "60d3f8d1c6744dddb5d54e8c804ea15c",
+        "evidence": {
+          "project_id": "p1",
+          "run_id": null,
+          "owner_kind": "owned_asset",
+          "owner_id": "5eef1f0a7c0a8dd1c6843459ab2c6205",
+          "segment_id": null,
+          "text_hash": "e03a71724379e22be84429e70fddf2943d58dcbc401b3298dbcb0596354650fe",
+          "quote": "云衡支持30家门店，仅限专业版。",
+          "start": 1,
+          "end": 17
+        }
+      },
+      "referenceUrl": null
+    }
+  ],
+  "approval": {
+    "id": "6580016ef6564c21aa42f1f8bb75f8ac",
+    "version": 1,
+    "scope": "content_draft",
+    "signature": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "expiresAt": "2099-01-01T00:00:00Z"
+  },
+  "publicationAllowed": false
+}

@@ -3,7 +3,7 @@ import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 import { useRef, useState } from 'react';
 import Link from 'next/link';
 
-interface Preview { brief: { schemaVersion: number; projectId: string; title: string; execution: { channel: string; mode: string }; aiTargets: Array<{ platform: string; prompt: string }>; facts: Array<{ id: string; statement: string; scope: string }>; approval: { id: string; expiresAt: string }; publicationAllowed: boolean } }
+interface Preview { brief: { schemaVersion: number; projectId: string; title: string; execution: { channel: string; mode: string }; aiTargets: Array<{ platform: string; prompt: string }>; actionRevision: { revision: number }; ownFacts: Array<{ id: string; statement: string; scope: string }>; approval: { id: string; expiresAt: string }; publicationAllowed: boolean } }
 interface Workflow { id: string; status: string; contentPieceId: string | null; platforms: Array<{ platform: string; status: string; error?: { message: string } }> }
 const cls = 'rounded-lg border border-[var(--border)] bg-[var(--bg-base)] p-2 text-sm';
 const errorLabels: Record<string, string> = { evidence_brief_disabled: '证据内容功能尚未启用', evidence_authorization_unavailable_or_stale: '证据依据已变化或暂不可用，请重新核对材料', evidence_verification_failed: '证据校验暂不可用，请使用本材料重试', project_scope_required: '需要当前项目权限' };
@@ -24,7 +24,7 @@ export function EvidenceDraftExecution({ projectId, approvalId, disabled = false
       if (!response.ok) { if (response.status < 500) pending.current = null; if (response.status === 409) setPreview(null); const message = typeof data.error === 'string' ? errorLabels[data.error] || (/^[a-z0-9_]+$/i.test(data.error) ? '材料操作未完成，请使用本材料重试' : data.error) : data.error?.message; throw new Error(message || '材料操作未完成，请使用本材料重试'); }
       if (action === 'previewDraft') {
         const value = data.data as Preview;
-        if (value?.brief?.schemaVersion !== 2 || value.brief.projectId !== projectId || value.brief.approval?.id !== approvalId || value.brief.publicationAllowed !== false) throw new Error('材料范围不匹配，请重新读取');
+        if (value?.brief?.schemaVersion !== 3 || value.brief.projectId !== projectId || value.brief.approval?.id !== approvalId || value.brief.publicationAllowed !== false || !Number.isSafeInteger(value.brief.actionRevision?.revision) || !Array.isArray(value.brief.ownFacts) || !value.brief.ownFacts.length || !Array.isArray(value.brief.aiTargets) || !value.brief.aiTargets.length) throw new Error('材料范围不匹配，请重新读取');
         setPreview(value);
       } else if (action === 'generateDraft') {
         if (!data.data?.id) throw new Error('任务受理结果尚待确认，请使用本材料重试');
@@ -48,7 +48,7 @@ export function EvidenceDraftExecution({ projectId, approvalId, disabled = false
     {message && <p role="status" className="text-sm">{message}</p>}
     {preview && <div className="space-y-3 rounded-lg border border-[var(--border)] p-4 text-sm"><h3 className="font-semibold">{preview.brief.title}</h3><p>{preview.brief.execution.mode === 'manual_task' ? '已准备人工内容材料' : '材料已验证，等待明确创建草稿任务'}</p>
       {preview.brief.aiTargets.map((target, index) => <p key={index}><AiPlatformLabel platform={target.platform} iconSize={16} /> · {target.prompt}</p>)}
-      <h4 className="font-semibold">获批事实与适用范围</h4>{preview.brief.facts.map(fact => <p key={fact.id}>{fact.statement}<span className="block text-[var(--text-secondary)]">仅适用：{fact.scope}</span></p>)}
+      <h4 className="font-semibold">行动修订 {preview.brief.actionRevision.revision} 的获批我方事实</h4>{preview.brief.ownFacts.map(fact => <p key={fact.id}>{fact.statement}<span className="block text-[var(--text-secondary)]">仅适用：{fact.scope}</span></p>)}
       <p className="text-[var(--text-secondary)]">材料审批截止：{new Date(preview.brief.approval.expiresAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}。草稿与发布分开，成稿仍需审核。</p>
       {preview.brief.execution.mode === 'generate_draft' && <button disabled={disabled || busy || !!workflow} onClick={() => submit('generateDraft')} className={`${cls} disabled:opacity-40`}>创建草稿生成任务（预占1次额度）</button>}
       {preview.brief.execution.mode === 'manual_task' && <button disabled={disabled || busy || manualCreated} onClick={() => submit('createManualTask')} className={`${cls} disabled:opacity-40`}>保存人工内容任务（不扣生成额度）</button>}

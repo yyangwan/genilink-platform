@@ -1,0 +1,1021 @@
+{
+  "$defs": {
+    "AITarget": {
+      "additionalProperties": false,
+      "properties": {
+        "platform": {
+          "enum": [
+            "deepseek",
+            "qwen",
+            "doubao",
+            "kimi",
+            "hunyuan"
+          ],
+          "title": "Platform",
+          "type": "string"
+        },
+        "promptHash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Prompthash",
+          "type": "string"
+        },
+        "prompt": {
+          "maxLength": 400000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "scenarioId": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Scenarioid",
+          "type": "string"
+        },
+        "dimensions": {
+          "items": {
+            "enum": [
+              "presence",
+              "recommendation",
+              "position",
+              "reasons"
+            ],
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Dimensions",
+          "type": "array"
+        },
+        "observations": {
+          "items": {
+            "$ref": "#/$defs/Observation"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Observations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "platform",
+        "promptHash",
+        "prompt",
+        "scenarioId",
+        "dimensions",
+        "observations"
+      ],
+      "title": "AITarget",
+      "type": "object"
+    },
+    "ActionRevisionBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "signature": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Signature",
+          "type": "string"
+        },
+        "dependencySignature": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Dependencysignature",
+          "type": "string"
+        },
+        "taskKey": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Taskkey",
+          "type": "string"
+        },
+        "taskSignature": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Tasksignature",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "signature",
+        "dependencySignature",
+        "taskKey",
+        "taskSignature"
+      ],
+      "title": "ActionRevisionBinding",
+      "type": "object"
+    },
+    "ActionTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "platform": {
+          "enum": [
+            "deepseek",
+            "qwen",
+            "kimi",
+            "doubao",
+            "hunyuan"
+          ],
+          "title": "Platform",
+          "type": "string"
+        },
+        "prompt_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Prompt Hash",
+          "type": "string"
+        },
+        "scenario_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Scenario Id",
+          "type": "string"
+        },
+        "dimensions": {
+          "items": {
+            "enum": [
+              "presence",
+              "recommendation",
+              "position",
+              "reasons"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Dimensions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "platform",
+        "prompt_hash",
+        "scenario_id",
+        "dimensions"
+      ],
+      "title": "ActionTarget",
+      "type": "object"
+    },
+    "Authorization": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "scope": {
+          "const": "content_draft",
+          "enum": [
+            "content_draft"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "signature": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Signature",
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "title": "Expiresat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "scope",
+        "signature",
+        "expiresAt"
+      ],
+      "title": "Authorization",
+      "type": "object"
+    },
+    "CitationReviewSource": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "citation_review",
+          "enum": [
+            "citation_review"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "review_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Review Id",
+          "type": "string"
+        },
+        "evidence_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "citation_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Citation Id",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/EvidenceRef"
+        }
+      },
+      "required": [
+        "kind",
+        "review_id",
+        "evidence_id",
+        "citation_id",
+        "snapshot_id",
+        "evidence"
+      ],
+      "title": "CitationReviewSource",
+      "type": "object"
+    },
+    "DeliverySpec": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Asset Title",
+          "type": "string"
+        },
+        "asset_kind": {
+          "enum": [
+            "existing_material",
+            "new_deliverable"
+          ],
+          "title": "Asset Kind",
+          "type": "string"
+        },
+        "material_revision_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Material Revision Id"
+        },
+        "material_version": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Material Version"
+        },
+        "reference_url": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Url"
+        },
+        "audience": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Audience",
+          "type": "array"
+        },
+        "audience_status": {
+          "enum": [
+            "reviewed_prompt",
+            "unknown"
+          ],
+          "title": "Audience Status",
+          "type": "string"
+        },
+        "outline": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 5,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 2,
+          "title": "Outline",
+          "type": "array"
+        },
+        "channel": {
+          "enum": [
+            "own_website",
+            "material_library",
+            "reference_publisher"
+          ],
+          "title": "Channel",
+          "type": "string"
+        },
+        "channel_reason": {
+          "maxLength": 2000,
+          "minLength": 5,
+          "title": "Channel Reason",
+          "type": "string"
+        },
+        "questions": {
+          "items": {
+            "$ref": "#/$defs/TaskQuestion"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Questions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "asset_title",
+        "asset_kind",
+        "audience_status",
+        "outline",
+        "channel",
+        "channel_reason",
+        "questions"
+      ],
+      "title": "DeliverySpec",
+      "type": "object"
+    },
+    "DiagnosticContext": {
+      "additionalProperties": false,
+      "properties": {
+        "observedFacts": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Observedfacts",
+          "type": "array"
+        },
+        "hypotheses": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Hypotheses",
+          "type": "array"
+        },
+        "unknowns": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Unknowns",
+          "type": "array"
+        },
+        "counterevidence": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "maxItems": 100,
+          "title": "Counterevidence",
+          "type": "array"
+        },
+        "use": {
+          "const": "diagnostic_only",
+          "default": "diagnostic_only",
+          "enum": [
+            "diagnostic_only"
+          ],
+          "title": "Use",
+          "type": "string"
+        }
+      },
+      "title": "DiagnosticContext",
+      "type": "object"
+    },
+    "EvidenceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project Id",
+          "type": "string"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "owner_kind": {
+          "enum": [
+            "answer",
+            "citation",
+            "snapshot",
+            "owned_asset"
+          ],
+          "title": "Owner Kind",
+          "type": "string"
+        },
+        "owner_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Owner Id",
+          "type": "string"
+        },
+        "segment_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Segment Id"
+        },
+        "text_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Text Hash",
+          "type": "string"
+        },
+        "quote": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "title": "End",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project_id",
+        "owner_kind",
+        "owner_id",
+        "text_hash",
+        "quote",
+        "start",
+        "end"
+      ],
+      "title": "EvidenceRef",
+      "type": "object"
+    },
+    "Execution": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "enum": [
+            "wechat",
+            "weibo",
+            "xiaohongshu",
+            "douyin",
+            "website",
+            "zhihu",
+            "toutiao"
+          ],
+          "title": "Channel",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "generate_draft",
+            "manual_task"
+          ],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel",
+        "mode"
+      ],
+      "title": "Execution",
+      "type": "object"
+    },
+    "FrozenConditions": {
+      "additionalProperties": false,
+      "properties": {
+        "surface": {
+          "anyOf": [
+            {
+              "maxLength": 50,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Surface"
+        },
+        "search_mode": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Search Mode"
+        },
+        "model_version": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Version"
+        },
+        "account_class": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Account Class"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location"
+        }
+      },
+      "title": "FrozenConditions",
+      "type": "object"
+    },
+    "Observation": {
+      "additionalProperties": false,
+      "properties": {
+        "responseId": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Responseid",
+          "type": "string"
+        },
+        "conditions": {
+          "$ref": "#/$defs/FrozenConditions"
+        }
+      },
+      "required": [
+        "responseId",
+        "conditions"
+      ],
+      "title": "Observation",
+      "type": "object"
+    },
+    "OwnFact": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "ownTargetId": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Owntargetid",
+          "type": "string"
+        },
+        "entityId": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entityid"
+        },
+        "statement": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "scope": {
+          "maxLength": 1000,
+          "minLength": 5,
+          "title": "Scope",
+          "type": "string"
+        },
+        "validFrom": {
+          "format": "date-time",
+          "title": "Validfrom",
+          "type": "string"
+        },
+        "validUntil": {
+          "format": "date-time",
+          "title": "Validuntil",
+          "type": "string"
+        },
+        "source": {
+          "discriminator": {
+            "mapping": {
+              "citation_review": "#/$defs/CitationReviewSource",
+              "owned_asset_revision": "#/$defs/OwnedAssetSource"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/CitationReviewSource"
+            },
+            {
+              "$ref": "#/$defs/OwnedAssetSource"
+            }
+          ],
+          "title": "Source"
+        },
+        "referenceUrl": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Referenceurl"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "ownTargetId",
+        "statement",
+        "scope",
+        "validFrom",
+        "validUntil",
+        "source"
+      ],
+      "title": "OwnFact",
+      "type": "object"
+    },
+    "OwnedAssetSource": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "owned_asset_revision",
+          "enum": [
+            "owned_asset_revision"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "asset_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "asset_revision": {
+          "minimum": 1,
+          "title": "Asset Revision",
+          "type": "integer"
+        },
+        "verification_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Verification Id",
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/EvidenceRef"
+        }
+      },
+      "required": [
+        "kind",
+        "asset_id",
+        "asset_revision",
+        "verification_id",
+        "evidence"
+      ],
+      "title": "OwnedAssetSource",
+      "type": "object"
+    },
+    "TaskPackV2": {
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": "task-pack-v2",
+          "default": "task-pack-v2",
+          "enum": [
+            "task-pack-v2"
+          ],
+          "title": "Version",
+          "type": "string"
+        },
+        "project_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project Id",
+          "type": "string"
+        },
+        "own_target_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Own Target Id",
+          "type": "string"
+        },
+        "asset_key": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Asset Key",
+          "type": "string"
+        },
+        "fact_change_key": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Fact Change Key",
+          "type": "string"
+        },
+        "intent": {
+          "enum": [
+            "content_create",
+            "content_update",
+            "website_update",
+            "fact_correction",
+            "channel_outreach",
+            "material_verification"
+          ],
+          "title": "Intent",
+          "type": "string"
+        },
+        "deliverable": {
+          "maxLength": 2000,
+          "minLength": 5,
+          "title": "Deliverable",
+          "type": "string"
+        },
+        "delivery": {
+          "$ref": "#/$defs/DeliverySpec"
+        },
+        "acceptance": {
+          "items": {
+            "maxLength": 1000,
+            "minLength": 5,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Acceptance",
+          "type": "array"
+        },
+        "ai_targets": {
+          "items": {
+            "$ref": "#/$defs/ActionTarget"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Ai Targets",
+          "type": "array"
+        },
+        "diagnostic_evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Diagnostic Evidence",
+          "type": "array"
+        },
+        "own_fact_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Own Fact Ids",
+          "type": "array"
+        },
+        "missing_materials": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing Materials",
+          "type": "array"
+        }
+      },
+      "required": [
+        "project_id",
+        "own_target_id",
+        "asset_key",
+        "fact_change_key",
+        "intent",
+        "deliverable",
+        "delivery",
+        "acceptance",
+        "ai_targets",
+        "diagnostic_evidence"
+      ],
+      "title": "TaskPackV2",
+      "type": "object"
+    },
+    "TaskQuestion": {
+      "additionalProperties": false,
+      "properties": {
+        "prompt_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Prompt Hash",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 200000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "prompt_hash",
+        "text"
+      ],
+      "title": "TaskQuestion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 3,
+      "enum": [
+        3
+      ],
+      "title": "Schemaversion",
+      "type": "integer"
+    },
+    "projectId": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Projectid",
+      "type": "string"
+    },
+    "runId": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Runid",
+      "type": "string"
+    },
+    "actionId": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Actionid",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 200,
+      "minLength": 5,
+      "title": "Title",
+      "type": "string"
+    },
+    "actionRevision": {
+      "$ref": "#/$defs/ActionRevisionBinding"
+    },
+    "taskPack": {
+      "$ref": "#/$defs/TaskPackV2"
+    },
+    "execution": {
+      "$ref": "#/$defs/Execution"
+    },
+    "aiTargets": {
+      "items": {
+        "$ref": "#/$defs/AITarget"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "title": "Aitargets",
+      "type": "array"
+    },
+    "diagnosticContext": {
+      "$ref": "#/$defs/DiagnosticContext"
+    },
+    "ownFacts": {
+      "items": {
+        "$ref": "#/$defs/OwnFact"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "title": "Ownfacts",
+      "type": "array"
+    },
+    "approval": {
+      "$ref": "#/$defs/Authorization"
+    },
+    "publicationAllowed": {
+      "const": false,
+      "enum": [
+        false
+      ],
+      "title": "Publicationallowed",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "projectId",
+    "runId",
+    "actionId",
+    "title",
+    "actionRevision",
+    "taskPack",
+    "execution",
+    "aiTargets",
+    "diagnosticContext",
+    "ownFacts",
+    "approval",
+    "publicationAllowed"
+  ],
+  "title": "EvidenceBriefV3",
+  "type": "object"
+}

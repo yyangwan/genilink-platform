@@ -12,6 +12,7 @@ import { loadOpportunities } from '@/lib/visibility/opportunity-reader';
 import { originalOpportunityScope, readPriority } from '@/lib/visibility/analysis-scope';
 import { apiError, emptyTaskScope, matchesOpportunity, planPlatforms, readTaskScope, setTaskScope, subscribeTaskScope, taskStates } from '@/lib/visibility/task-view';
 import { DependencyDifferences, EvidenceReading, OpportunityEvidence, RevisionDifferences, TaskDelivery } from './task-details';
+import { TaskFactSelector } from './task-fact-selector';
 import './task-workspace.css';
 
 const endpoint = '/api/integration/intelligence/tasks';
@@ -34,6 +35,7 @@ export function TaskWorkspace({ run, projectId, readOnly = false, scopeControls 
   const [error, setError] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [uncertain, setUncertain] = useState(false);
   const [approval, setApproval] = useState<TaskPlan | null>(null), [reason, setReason] = useState(''), [edit, setEdit] = useState<Edit | null>(null);
   const [evidence, setEvidence] = useState<EvidenceReference | null>(null), [observation, setObservation] = useState<TaskOpportunity | null>(null);
+  const [factPlan, setFactPlan] = useState<TaskPlan | null>(null), [factConflict, setFactConflict] = useState(false);
   const [history, setHistory] = useState<{ action: string; rows: TaskRevision[]; next: number | null; loading: boolean; error: string } | null>(null);
   const pending = useRef<string | null>(null), writing = useRef(false), alive = useRef(true);
   const currentPanel = useRef<HTMLElement>(null), lastSelection = useRef('');
@@ -85,12 +87,12 @@ export function TaskWorkspace({ run, projectId, readOnly = false, scopeControls 
       if (!response.ok) {
         if (response.status >= 500) throw Error('保存结果暂未确认，请重试同一操作。');
         pending.current = null; setUncertain(false);
-        if (response.status === 409) { setEdit(value => value ? { ...value, conflict: true } : value); setRefresh(value => value + 1); }
+        if (response.status === 409) { setEdit(value => value ? { ...value, conflict: true } : value); setFactConflict(true); setRefresh(value => value + 1); }
         throw new RequestError(response.status, body);
       }
       pending.current = null;
       if (!alive.current) return;
-      setUncertain(false); setEdit(null); setApproval(null); setReason(''); setHistory(null);
+      setUncertain(false); setEdit(null); setApproval(null); setFactPlan(null); setReason(''); setHistory(null);
       const plan = (body.action || body) as TaskPlan;
       if (plan.id) setTaskScope(projectId, { action: plan.id, opportunity: rows.find(row => row.task_key === plan.task_key)?.id || '' });
       setMessage('操作已保存。' + (request.op === 'approve' ? '本修订计划已批准；我方事实、内容交付和发布仍须分别核对。' : request.op === 'revise' ? '新修订需要独立批准，原版本与批准记录仍保留。' : '行动计划已创建，请核对并审核此版本。'));
@@ -166,6 +168,7 @@ export function TaskWorkspace({ run, projectId, readOnly = false, scopeControls 
         <div className="citation-inline-actions">
           {selected && !current && !scope.action && selected.action && selected.task_pack && selected.record_id && selected.actionability !== 'not_applicable' && <button type="button" className="dashboard-button dashboard-button--primary" disabled={locked} onClick={() => void send({ op: 'create', runId: run.id, diagnosisId: selected.record_id })}>创建具体行动计划</button>}
           {current && <><button type="button" className="dashboard-button dashboard-button--secondary" disabled={locked} onClick={() => beginEdit(current)}>修改并创建新修订</button><button type="button" disabled={busy} onClick={() => void loadHistory(current)}>查看修订与批准历史 →</button>
+            {current.target.task_pack && <button type="button" className="dashboard-button dashboard-button--secondary" disabled={locked} onClick={() => { setError(''); setFactConflict(false); setFactPlan(current); }}>选择 / 核对我方事实</button>}
             <button type="button" className="dashboard-button dashboard-button--primary" disabled={locked || current.status !== 'proposed'} onClick={() => { setReason(''); setApproval(current); }}>审核并批准计划</button></>}
           <button type="button" className="dashboard-button dashboard-button--secondary" onClick={materials}>补齐并核实我方材料</button>
         </div>
@@ -185,5 +188,6 @@ export function TaskWorkspace({ run, projectId, readOnly = false, scopeControls 
         <label className="task-field">本次修订依据<textarea className="dashboard-input" value={edit.reason} maxLength={2000} onChange={e => setEdit({ ...edit, reason: e.target.value })} /></label><button type="button" className="dashboard-button dashboard-button--primary" disabled={edit.reason.trim().length < 5 || edit.title.trim().length < 5 || !editChanged} onClick={saveEdit}>保存新修订，重新审核</button>
       </fieldset>{!editChanged && <p className="citation-muted">先修改具体交付或核对相关依据变化，再保存新版本。</p>}{edit.conflict && <p role="alert" className="citation-notice citation-notice--warning">原版本或依据已经变化，本次编辑没有自动套用到新版本。请关闭后核对最新差异，再重新编辑。</p>}{uncertain && <button type="button" className="dashboard-button dashboard-button--secondary" disabled={busy} onClick={() => void send()}>重试同一操作</button>}{error && <p role="alert">{error}</p>}</ReadingDrawer>}
     {history && <ReadingDrawer title="行动修订与批准历史" closeLabel="关闭修订历史" onClose={() => setHistory(null)}><p className="citation-muted">历史批准保留原版本，不代表当前任务仍有执行授权。</p>{history.rows.map(row => <article className="task-revision" key={row.id}><h3>修订 {row.revision}{row.is_current ? ' · 当前版本' : ' · 历史版本'}</h3><p>{row.payload.title}</p><p>{row.reason}</p><small>{new Date(row.created_at).toLocaleString('zh-CN')} · {row.approval ? '曾获具名批准' : '未记录批准'}</small>{!row.integrity_valid && <p role="alert">历史载荷校验未通过，请停止使用该版本。</p>}<RevisionDifferences changes={row.changes_from_previous} /><details className="task-history"><summary>查看该版本完整交付与证据</summary>{row.payload.target.task_pack ? <TaskDelivery pack={row.payload.target.task_pack} onEvidence={ref => { setHistory(null); setEvidence(ref); }} /> : <p>{row.payload.target.action?.task || row.payload.title}</p>}{row.approval && <p>原批准依据：{row.approval.reason} · {row.approval.historical_signature_valid ? '原签名校验通过' : '签名校验未通过'}</p>}{!!row.draft_approval_ids.length && <p>{row.draft_approval_ids.length} 份草稿批准记录属于此原版本。</p>}</details></article>)}{history.loading && <p role="status">正在读取修订…</p>}{history.error && <p role="alert">{history.error}</p>}{history.next !== null && current && <button type="button" disabled={history.loading} onClick={() => void loadHistory(current, history.next!)}>继续读取历史版本</button>}</ReadingDrawer>}
+    {factPlan && <TaskFactSelector key={factPlan.revision_id} projectId={projectId} plan={factPlan} locked={locked} conflict={factConflict} error={error} uncertain={uncertain} onClose={() => { if (!busy && !uncertain) setFactPlan(null); }} onRetry={() => void send()} onSave={(ids, selectionReason) => void send({ op: 'revise', actionId: factPlan.id, expectedRevision: factPlan.revision, reason: selectionReason, taskPack: { ...factPlan.target.task_pack!, own_fact_ids: ids } })} />}
   </section>;
 }

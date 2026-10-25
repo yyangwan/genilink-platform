@@ -18,6 +18,14 @@ beforeEach(() => {
   vi.mocked(prisma.projectContextOutbox.count).mockResolvedValue(0);
 });
 describe('task/revision scoped bridge', () => {
+  it('reads eligible facts and authorization versions for the exact action revision without writes', async () => {
+    for (const [op, path] of [['eligibleFacts', 'eligible-facts'], ['draftApprovals', 'draft-approvals']]) {
+      expect((await GET(get(`op=${op}&actionId=${actionId}`))).status).toBe(400);
+      expect((await GET(get(`op=${op}&actionId=${actionId}&expectedRevision=2`))).status).toBe(200);
+      expect(fetchUpstream).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: project }), `/api/intelligence/actions/${actionId}/${path}?offset=0&limit=50&expected_revision=2`, expect.anything());
+    }
+    expect(freezeProjectContext).not.toHaveBeenCalled(); expect(prisma.projectContextOutbox.count).not.toHaveBeenCalled();
+  });
   it('performs read-only frozen and explicit current-ranking requests through the verified project', async () => {
     const response = await GET(get(`op=opportunities&runId=${runId}&priority=current&platform=doubao&ownTarget=registry%3Aown&offset=10&limit=20`));
     expect(response.status).toBe(200);

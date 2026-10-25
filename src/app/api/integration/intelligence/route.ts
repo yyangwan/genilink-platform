@@ -12,6 +12,7 @@ import { requireBilling } from '@/lib/billing/guard';
 import { requestHash as hashRequest } from '@/lib/billing/idempotency';
 import { lookupWorkflowByOperation } from '@/lib/content/contentos-internal-client';
 import { CAPTURE_PLATFORMS } from '@/lib/visibility/capture-policy';
+import { evidenceDraftReady } from '@/lib/content/evidence-capabilities';
 
 const validId = (id: string | null): id is string => !!id && /^[a-f0-9]{32}$/.test(id);
 const badRequest = () => NextResponse.json({ error: '无效的证据查询参数' }, { status: 400 });
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
   if (!['owner', 'admin', 'editor', 'member'].includes(guard.ctx.role)) {
     return NextResponse.json({ error: '需要项目写入权限' }, { status: 403 });
   }
-  let body: { contexts?: unknown; baseHash?: unknown; decisions?: unknown; brandId?: unknown; analysisRole?: unknown; newEntityName?: unknown; mentionId?: unknown; sourceEntityId?: unknown; targetEntityId?: unknown; taskId?: unknown; taskAction?: unknown; deliveryUrl?: unknown; cohortId?: unknown; baselineRunId?: unknown; followupRunId?: unknown; entityIds?: unknown; url?: unknown; contentHash?: unknown; publishedAt?: unknown; auditId?: unknown; documentId?: unknown; runId?: unknown; approvalId?: unknown; factIds?: unknown; channel?: unknown; title?: unknown; expiresAt?: unknown; evidenceId?: unknown; reviewId?: unknown; factId?: unknown; relation?: unknown; sourceQuote?: unknown; scope?: unknown; validFrom?: unknown; validUntil?: unknown; actionId?: unknown; diagnosisId?: unknown; expectedRevision?: unknown; entityId?: unknown; decision?: unknown; canonicalName?: unknown; reason?: unknown; expectedVersion?: unknown; action?: unknown; promptIds?: unknown; platforms?: unknown; rounds?: unknown; surface?: unknown; idempotencyKey?: unknown };
+  let body: { contexts?: unknown; baseHash?: unknown; decisions?: unknown; brandId?: unknown; analysisRole?: unknown; newEntityName?: unknown; mentionId?: unknown; sourceEntityId?: unknown; targetEntityId?: unknown; taskId?: unknown; taskAction?: unknown; deliveryUrl?: unknown; cohortId?: unknown; baselineRunId?: unknown; followupRunId?: unknown; entityIds?: unknown; url?: unknown; contentHash?: unknown; publishedAt?: unknown; auditId?: unknown; documentId?: unknown; runId?: unknown; approvalId?: unknown; factIds?: unknown; factsScopeReviewed?: unknown; channel?: unknown; title?: unknown; expiresAt?: unknown; evidenceId?: unknown; reviewId?: unknown; factId?: unknown; relation?: unknown; sourceQuote?: unknown; scope?: unknown; validFrom?: unknown; validUntil?: unknown; actionId?: unknown; diagnosisId?: unknown; expectedRevision?: unknown; entityId?: unknown; decision?: unknown; canonicalName?: unknown; reason?: unknown; expectedVersion?: unknown; action?: unknown; promptIds?: unknown; platforms?: unknown; rounds?: unknown; surface?: unknown; idempotencyKey?: unknown };
   try { body = await req.json(); } catch { return badRequest(); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return badRequest();
   const requiresCurrentContext = ['generateDraft', 'approveDraft', 'previewDraft', 'approveFact', 'createAction', 'approveAction', 'createCohort', 'compareCohort', 'startRetest', 'capture', 'analyze', 'createManualTask'].includes(String(body.action)) || body.action === undefined || body.action === 'updateManualTask' && body.taskAction !== 'cancel';
@@ -243,18 +244,19 @@ export async function POST(req: NextRequest) {
     // Validate the channel before quota reservation; authoritative facts are reread by ContentOS.
     const authority = await fetchUpstream(guard.ctx, `/api/intelligence/draft-approvals/${body.approvalId}/brief`, { errorMessage: '草稿授权已失效或暂不可用' });
     if ('response' in authority) return authority.response;
-    const brief = authority.data as { projectId?: string; approval?: { id?: string }; execution?: { mode?: string; channel?: string } };
-    if (!brief || brief.projectId !== guard.ctx.projectId || brief.approval?.id !== body.approvalId) return NextResponse.json({ error: '证据授权范围不匹配' }, { status: 409 });
+    const brief = authority.data as { schemaVersion?: number; projectId?: string; approval?: { id?: string }; execution?: { mode?: string; channel?: string } };
+    if (!brief || brief.schemaVersion !== 3 || brief.projectId !== guard.ctx.projectId || brief.approval?.id !== body.approvalId) return NextResponse.json({ error: '证据授权范围不匹配' }, { status: 409 });
     if (brief.execution?.mode !== 'generate_draft' || !['wechat', 'weibo', 'xiaohongshu', 'douyin'].includes(brief.execution.channel || '')) return NextResponse.json({ error: '该渠道需要人工内容任务，无自动生成额度消耗' }, { status: 422 });
+    const evidenceToken = await issueContentProjectJWT({ userId: guard.ctx.session.user.id, workspaceId: guard.ctx.workspaceId, projectId: guard.ctx.projectId, role: guard.ctx.role });
+    if (!await evidenceDraftReady(evidenceToken, brief.execution.channel!)) return NextResponse.json({ error: '当前渠道的新版内容服务尚未就绪，未预占生成额度' }, { status: 503 });
     const reservation = await reserveContentGeneration({ userId: guard.ctx.session.user.id, workspaceId: guard.ctx.workspaceId, operationId,
-      requestHash: hashRequest(serviceBody), metadata: { source: 'evidence_v2', projectId: guard.ctx.projectId, approvalId: body.approvalId } });
+      requestHash: hashRequest(serviceBody), metadata: { source: 'evidence_v3', projectId: guard.ctx.projectId, approvalId: body.approvalId } });
     if (reservation.type === 'limit') return planLimitResponse(reservation.error);
     if (reservation.type === 'conflict' || (reservation.type === 'replay' && reservation.status === 'released')) return NextResponse.json({ error: '原生成操作已结束或存在冲突，请重新审批材料' }, { status: 409 });
     if (reservation.type === 'disabled') return NextResponse.json({ error: '额度账本未启用' }, { status: 503 });
     try {
-      const token = await issueContentProjectJWT({ userId: guard.ctx.session.user.id, workspaceId: guard.ctx.workspaceId, projectId: guard.ctx.projectId, role: guard.ctx.role });
       const response = await fetch(`${process.env.CONTENT_SERVICE_URL || 'http://127.0.0.1:4003'}/api/evidence-briefs/workflows`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(serviceBody), signal: AbortSignal.timeout(25000), cache: 'no-store',
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${evidenceToken}` }, body: JSON.stringify(serviceBody), signal: AbortSignal.timeout(25000), cache: 'no-store',
       });
       const data = await response.json();
       if (response.ok && data?.data?.id) return NextResponse.json(data, { status: response.status });
@@ -271,14 +273,15 @@ export async function POST(req: NextRequest) {
   }
   if (body.action === 'approveDraft') {
     if (!['owner', 'admin', 'editor'].includes(guard.ctx.role)) return NextResponse.json({ error: '需要内容审批权限' }, { status: 403 });
-    if (typeof body.actionId !== 'string' || !validId(body.actionId) || !Array.isArray(body.factIds) || body.factIds.length < 1 || body.factIds.length > 20 ||
+    if (typeof body.actionId !== 'string' || !validId(body.actionId) || !Array.isArray(body.factIds) || body.factIds.length < 1 || body.factIds.length > 100 ||
         !body.factIds.every(id => typeof id === 'string' && validId(id)) || new Set(body.factIds).size !== body.factIds.length ||
         !['wechat', 'weibo', 'xiaohongshu', 'douyin', 'website', 'zhihu', 'toutiao'].includes(String(body.channel)) ||
         typeof body.title !== 'string' || body.title.trim().length < 5 || body.title.length > 200 || typeof body.reason !== 'string' || body.reason.trim().length < 5 || body.reason.length > 2000 ||
+        !Number.isSafeInteger(body.expectedRevision) || Number(body.expectedRevision) < 1 || body.factsScopeReviewed !== true ||
         !Number.isSafeInteger(body.expectedVersion) || Number(body.expectedVersion) < 0 || typeof body.expiresAt !== 'string' || !/(?:Z|[+-]\d{2}:\d{2})$/.test(body.expiresAt) || !Number.isFinite(Date.parse(body.expiresAt)) ||
         typeof body.idempotencyKey !== 'string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(body.idempotencyKey)) return badRequest();
     const result = await fetchUpstream(guard.ctx, `/api/intelligence/actions/${body.actionId}/draft-approvals`, { method: 'POST',
-      body: { factIds: body.factIds, channel: body.channel, title: body.title, reason: body.reason, expiresAt: body.expiresAt, expectedVersion: body.expectedVersion, idempotencyKey: body.idempotencyKey }, errorMessage: '草稿审批失败，请检查当前计划和事实' });
+      body: { factIds: body.factIds, channel: body.channel, title: body.title, reason: body.reason, expiresAt: body.expiresAt, expectedVersion: body.expectedVersion, expectedRevision: body.expectedRevision, factsScopeReviewed: body.factsScopeReviewed, idempotencyKey: body.idempotencyKey }, errorMessage: '草稿审批失败，请检查当前计划和事实' });
     if ('response' in result) return result.response;
     return NextResponse.json(result.data, { status: 202 });
   }

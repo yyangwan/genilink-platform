@@ -1,4 +1,13 @@
 .task-workspace { min-width: 0; }
+.task-fact-list { min-width: 0; border: 0; padding: 0; margin: 20px 0 0; }
+.task-fact-list legend { margin-bottom: 14px; color: var(--text-secondary); font-size: 12px; }
+.task-fact-option { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 14px; padding: 18px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; background: var(--bg-card); }
+.task-fact-option:has(input:checked) { border-color: var(--color-primary); background: var(--bg-base); }
+.task-fact-option input, .task-fact-choice input { align-self: start; margin-top: 3px; cursor: pointer; }
+.task-fact-body { display: grid; gap: 10px; min-width: 0; line-height: 1.7; }
+.task-fact-body strong { font-size: 14px; font-weight: 600; }.task-fact-body small { color: var(--text-secondary); font-size: 11px; overflow-wrap: anywhere; }
+.task-fact-scope { font-size: 12px; padding: 8px 10px; background: var(--bg-base); border-radius: 6px; }.task-fact-option--blocked { border-style: dashed; }
+.task-fact-option input:disabled { cursor: not-allowed; }
 .task-scope-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
 .task-scope-grid label, .task-priority-choice label, .task-field { display: grid; gap: 8px; color: var(--text-secondary); font-size: 12px; }
 .task-scope-grid select, .task-priority-choice select { width: 100%; min-width: 0; background: var(--bg-base); border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; color: var(--text-primary); cursor: pointer; }

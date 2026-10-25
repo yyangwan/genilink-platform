@@ -21,7 +21,8 @@
     "uiImplementationRequiresApprovedPrototype": true,
     "approvedPrototypeVersion": "citation-intelligence-v3",
     "implementationStarted": true,
-    "approvedA01Controls": true
+    "approvedA01Controls": true,
+    "approvedFactSelectionPrototype": "citation-facts-v3"
   },
   "tasks": [
     {
@@ -482,12 +483,12 @@
       "id": "E02",
       "milestone": "M3",
       "owner": "智见/门户/ContentOS",
-      "status": "planned",
+      "status": "in_progress",
       "dependsOn": [
         "E01",
         "A03"
       ],
-      "prototypeGate": false,
+      "prototypeGate": true,
       "title": "竞争任务的合资格材料和EvidenceBrief v3",
       "modules": [
         "backend/app/intelligence/drafts.py",
@@ -499,7 +500,27 @@
         "诊断证据与我方批准事实分离，竞品事实不能当作我方主张",
         "多问题/平台保留各自目标，不拼接promptHash；缺材料明确阻断正式创作",
         "接收端能力就绪后才发起额度预占；四渠道草稿与官网等人工任务保持边界，无自动发布"
-      ]
+      ],
+      "technical_implementation_complete": true,
+      "progress": {
+        "implemented": [
+          "One task-local current fact qualification is shared by fact lists, action dependencies, the eligible-facts reader and content authorization; diagnostic sources and own approved facts remain separate.",
+          "Approved fact selection drawer reads complete consistent pages, shows source/version/validity/scope, never defaults new candidates, permits removing stale selected facts, and saves a new immutable action revision with rationale and explicit scope review.",
+          "Single EvidenceBrief v3 preserves exact action revision, full TaskPack, every original question/platform/scenario/observation, diagnostic context and selected own facts. Authorization uses revision/version CAS, named review, current material bytes and HMAC; unrelated context/new Runs do not revoke it.",
+          "Portal automatically reads authorization versions and checks the receiver v3/channel before quota reservation. ContentOS validates shared schema/hashes and consumes only ownFacts, rechecks live authority at quota/model boundaries and retains four draft/manual channel separation without publishing.",
+          "Content workbench and action history use v3 ownFacts/actionRevision and retain exact historical revision association. Three repositories share identical schema and structural golden fixture."
+        ],
+        "remaining": [
+          "Q02 real customer opportunity-to-fact-review-to-creation/manual-delivery acceptance; local synthetic UI and automatic test success are not business-effect acceptance.",
+          "Coordinated PR/CI and deployment when requested: ContentOS receiver first, audit API/worker next, Portal last; no gateway release."
+        ],
+        "evidence": [
+          "User approved docs/prototypes/citation-facts-v3/index.html: 认可，按此实现.",
+          "docs/reviews/citation-value-brief-v3-20261026.md; backend932 passed/2 skipped with real local MySQL; CI-scoped Ruff/compileall passed.",
+          "Portal final release:check passed; ContentOS dependencies/Prisma/types/lint/579 tests passed and production build passed after supplying documented CI-only build environment.",
+          "Actual formal components checked with synthetic in-memory data on desktop/390x844; exact uncertain retry, projection changes and reapproval boundaries covered."
+        ]
+      }
     },
     {
       "id": "E03",
@@ -720,15 +741,16 @@
         "implemented": [
           "Project-scoped create/approve/revise/detail/history bridge consumes exact E01 revision IDs/CAS and all TaskPack fields, fixes review scope, preserves dependency differences and old approvals.",
           "Task proposal/readiness, concrete delivery edits, exact uncertain-request retry, conflict lockout, original Unicode evidence reader and immutable revision-history differences follow the approved v3 components.",
-          "Materials entry and return keep project/Run/action identity; old suggestions view points to one full action workspace instead of a separate write surface."
+          "Materials entry and return keep project/Run/action identity; old suggestions view points to one full action workspace instead of a separate write surface.",
+          "Approved E02 fact selector and exact v3 content authorizer are integrated; automatic version read, immutable selection revisions, live receiver readiness before quota and separate own facts/diagnostics are implemented."
         ],
         "remaining": [
-          "E02 shared fact qualification, selecting new eligible own facts and formal EvidenceBrief v3/ContentOS/manual-task delivery.",
           "E03 execution ownership/deadlines/delivery/acceptance state and exact revision-to-artifact association.",
           "Full real customer opportunity-to-material-review-to-creation/delivery journey and independent task-value acceptance."
         ],
         "evidence": [
-          "docs/reviews/citation-value-task-workspace-20261025.md; focused18 passed and full portal release:check passed; actual components checked with inert synthetic data."
+          "docs/reviews/citation-value-task-workspace-20261025.md; focused18 passed and full portal release:check passed; actual components checked with inert synthetic data.",
+          "docs/reviews/citation-value-brief-v3-20261026.md; final Portal gates passed and desktop/mobile component checks completed."
         ]
       }
     },

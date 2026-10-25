@@ -2,25 +2,29 @@ import { z } from 'zod';
 
 const id = z.string().min(1).max(200);
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
+const text = (minimum: number, maximum: number) => z.string().refine(value => {
+  const length = Array.from(value).length;
+  return length >= minimum && length <= maximum;
+}, '文本长度超出任务合同范围');
 export const platformSchema = z.enum(['qwen', 'deepseek', 'doubao', 'kimi', 'hunyuan']);
 const span = z.object({
   project_id: id, run_id: id.nullable(), owner_kind: z.enum(['answer', 'citation', 'snapshot', 'owned_asset']),
-  owner_id: id, segment_id: id.nullable(), text_hash: hash, quote: z.string().min(1).max(4000),
+  owner_id: id, segment_id: id.nullable(), text_hash: hash, quote: text(1, 2000),
   start: z.number().int().nonnegative(), end: z.number().int().positive(),
 }).strict().refine(row => row.end - row.start === Array.from(row.quote).length, '原文引用必须使用精确字符范围');
 export const taskPackSchema = z.object({
   version: z.literal('task-pack-v2'), project_id: id, own_target_id: id, asset_key: id, fact_change_key: id,
   intent: z.enum(['content_create', 'content_update', 'website_update', 'fact_correction', 'channel_outreach', 'material_verification']),
-  deliverable: z.string().min(5).max(4000),
+  deliverable: text(5, 2000),
   delivery: z.object({
-    asset_title: z.string().min(1).max(1000), asset_kind: z.enum(['existing_material', 'new_deliverable']),
+    asset_title: text(1, 500), asset_kind: z.enum(['existing_material', 'new_deliverable']),
     material_revision_id: id.nullable(), material_version: z.number().int().positive().nullable(), reference_url: z.string().max(4096).nullable(),
     audience: z.array(z.string()).max(20), audience_status: z.enum(['reviewed_prompt', 'unknown']),
-    outline: z.array(z.string().min(5).max(4000)).min(2).max(20),
-    channel: z.enum(['own_website', 'material_library', 'reference_publisher']), channel_reason: z.string().min(5).max(4000),
-    questions: z.array(z.object({ prompt_hash: hash, text: z.string().min(1).max(400000) }).strict()).min(1).max(100),
+    outline: z.array(text(5, 2000)).min(2).max(20),
+    channel: z.enum(['own_website', 'material_library', 'reference_publisher']), channel_reason: text(5, 2000),
+    questions: z.array(z.object({ prompt_hash: hash, text: text(1, 200000) }).strict()).min(1).max(100),
   }).strict(),
-  acceptance: z.array(z.string().min(5).max(2000)).min(1).max(30),
+  acceptance: z.array(text(5, 1000)).min(1).max(30),
   ai_targets: z.array(z.object({ platform: platformSchema, prompt_hash: hash, scenario_id: id,
     dimensions: z.array(z.enum(['presence', 'recommendation', 'position', 'reasons'])).min(1),
   }).strict()).min(1).max(100),
