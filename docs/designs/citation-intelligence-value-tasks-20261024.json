@@ -332,7 +332,7 @@
       "id": "A04",
       "milestone": "M2",
       "owner": "分析/后端",
-      "status": "planned",
+      "status": "completed",
       "dependsOn": [
         "A02",
         "B03"
@@ -340,16 +340,44 @@
       "prototypeGate": false,
       "title": "锚点核验与逐次来源观察",
       "modules": [
+        "backend/app/intelligence/citation_context.py",
         "backend/app/intelligence/ingestion.py",
         "backend/app/intelligence/evidence.py",
-        "backend/app/intelligence/source_metrics.py",
-        "backend/app/intelligence/workspace.py"
+        "backend/app/intelligence/evidence_alignment.py",
+        "backend/app/intelligence/source_observations.py",
+        "backend/app/intelligence/reviews.py",
+        "backend/app/intelligence/pipeline.py",
+        "backend/app/api/intelligence.py"
       ],
       "acceptance": [
         "锚点冻结并优先关联对应观点/引用，无锚点回退方式可见",
         "候选覆盖和未检查范围明确，数字/时间/条件冲突与部分支持可区分",
         "同文章各平台的实际引用/候选来源及正文版本分别可回查，转载不重复增加独立证据权重"
-      ]
+      ],
+      "progress": {
+        "implemented": [
+          "Freeze actual answer anchor state/Unicode range/quote/hash, citation ordinal and source snapshot version; exclude nonselected capture attempts from Run sources.",
+          "Prioritize overlapping valid anchors; reject mismatched frozen anchors, preserve explicit same-answer fallback when not captured/invalid, and restrict verification to same-platform same-answer actual exact references.",
+          "Twelve candidate pairs per claim with observation-first selection, phase budget and explicit selected/deferred/invalid/excluded/unchecked ranges; source text hash and frozen-version guards.",
+          "Persist grounded subject/scope/time/number/condition checks and exact answer/source spans in ClaimEvidence.verification; contradictions/partial checks cannot be hidden by overall supports.",
+          "Same-Run exact-text result reuse with separate citation rows and fenced atomic usage/result writes; named review validates anchor and frozen source version.",
+          "Article groups retain every platform/answer/type/body-version observation; exact/near-copy candidate content families, bounded comparison coverage, no duplicate votes or majority vote over conflicting interpretations.",
+          "Read-only scoped paginated source-observations API and report projection; content-family count distinct from unknown independent-publisher provenance.",
+          "Latest fresh baseline includes verification JSON; static baseline column parity and real isolated MySQL publication/fencing verified without changing old databases."
+        ],
+        "remaining": [],
+        "evidence": [
+          "Backend commit 3b33372; docs/citation-value-anchors-observations-20261025.md",
+          "Final full backend with real MySQL enabled: 883 passed / 2 skipped; Ruff, compileall and offline source API/worker/storage/PDF entrypoint passed.",
+          "Focused anchor/observation tests 14 passed; dedicated fresh-MySQL pipeline JSON/reuse/fencing proof 1 passed."
+        ],
+        "notes": [
+          "Existing gateway currently emits null answerAnchor; this stage provides truthful same-answer fallback and does not claim new gateway capture capabilities.",
+          "U02 portal drilldown remains to consume these backend contracts; no page styling or gateway release in this stage.",
+          "No actual model/production/real-OSS writes. Real five-dimension semantic accuracy and representative independent acceptance remain Q01.",
+          "Near copies are candidates, not proof of authorship/editorial independence. Independent publisher count remains unknown; content deduplication does not modify the fixed visibility score."
+        ]
+      }
     },
     {
       "id": "A05",
@@ -581,10 +609,11 @@
         "implemented": [
           "Approved v3 platform-source versus owned-material tabs and URL state.",
           "Material registration, acquisition status/retry, immutable version reading, named verification and exact fact approval/withdrawal with validity and audit trail.",
-          "Scoped write proxy synchronizes current server-owned brand registry; uncertain writes retain the exact idempotent request; async drawer results keyed to selected material."
+          "Scoped write proxy synchronizes current server-owned brand registry; uncertain writes retain the exact idempotent request; async drawer results keyed to selected material.",
+          "A04 backend contracts for per-observation anchors, snapshot versions, checked/unchecked coverage and copy families are ready; portal consumer not yet connected."
         ],
         "remaining": [
-          "All per-platform citation observations and corresponding body versions/anchors/conflicts (A04).",
+          "Portal per-platform source observations, exact body versions, anchor/conflict and checked/unchecked drilldown using A04 contracts.",
           "Opportunity/action evidence deep links and complete comparison scope (A05/U01)."
         ],
         "evidence": [
@@ -712,8 +741,8 @@
     "backendBranch": "codex/citation-value-foundation",
     "portalBranch": "codex/citation-value-v3",
     "verification": {
-      "backendTestsPassed": 859,
-      "backendTestsSkipped": 11,
+      "backendTestsPassed": 883,
+      "backendTestsSkipped": 2,
       "backendRuff": "passed",
       "prototypeViews": 9,
       "prototypeChecks": 13,
@@ -761,7 +790,14 @@
       "ownedMaterialRealCloudWrites": 0,
       "ownedMaterialDesktopWidth": 927,
       "ownedMaterialNarrowCheck": "390px_iframe_visual_not_native_viewport",
-      "ownedMaterialBriefV3Integrated": false
+      "ownedMaterialBriefV3Integrated": false,
+      "anchorFocusedTestsPassed": 14,
+      "anchorMysqlProofPassed": 1,
+      "anchorFullRegressionMysqlEnabled": true,
+      "anchorModelCalls": 0,
+      "anchorGatewayCaptureImplemented": false,
+      "anchorFrontendDrilldownIntegrated": false,
+      "anchorIndependentSemanticAcceptance": false
     },
     "productionUiChangeLocation": "local_worktree_only",
     "backendCommits": [
@@ -772,14 +808,16 @@
       "180ea11",
       "816f669",
       "9685bcd",
-      "9635e37"
+      "9635e37",
+      "3b33372"
     ],
     "providerStatus": "restored_http_200_verified",
     "portalCommits": [
       "a7e5160",
       "4f3d650",
       "1d310d2",
-      "7db162b"
+      "7db162b",
+      "1e35c13"
     ]
   }
 }
