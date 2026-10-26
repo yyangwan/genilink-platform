@@ -6,6 +6,7 @@ import {
   issueContentWorkspaceJWT,
   issueVisibilityProjectJWT,
   issueVisibilityWorkspaceJWT,
+  issueVisibilityExecutionJWT,
 } from '@/lib/auth/service-jwt';
 
 const identity = {
@@ -24,6 +25,16 @@ async function verify(token: string, audience: string) {
 }
 
 describe('service JWT issuance', () => {
+  it('binds short-lived execution authority to the project audience and exact request', async () => {
+    const executionAuthority = { action_id: 'action', revision: 2, request_hash: 'a'.repeat(64), owner: { id: 'member', name: '内容负责人', role: 'editor' } };
+    const token = await issueVisibilityExecutionJWT({ ...identity, projectId: 'project-123', executionAuthority });
+    const { payload } = await verify(token, 'visibility.genilink.cn');
+    expect(payload.execution_authority).toEqual(executionAuthority);
+    expect(payload.exp! - payload.iat!).toBe(60);
+    await expect(verify(token, 'content.genilink.cn')).rejects.toThrow();
+    const normal = await verify(await issueVisibilityProjectJWT({ ...identity, projectId: 'project-123' }), 'visibility.genilink.cn');
+    expect(normal.payload).not.toHaveProperty('execution_authority');
+  });
   it('issues a ContentOS workspace token without a project claim', async () => {
     const token = await issueContentWorkspaceJWT(identity);
     const { payload } = await verify(token, 'content.genilink.cn');
