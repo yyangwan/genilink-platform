@@ -12,8 +12,7 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { useProject } from "@/components/project/project-context";
 import { PageHeader } from "@/components/ui/page-header";
 import type { EvidenceRun, EvidenceRunListItem } from "@/types/intelligence";
-import { MeasurementCohorts } from '@/components/visibility/measurement-cohorts';
-import { PublishedAssets } from '@/components/visibility/published-assets';
+import { ObservationWorkspace } from '@/components/visibility/observation-workspace';
 import { DraftBriefs } from "@/components/visibility/draft-briefs";
 import { ApprovedFacts } from "@/components/visibility/approved-facts";
 import { ActionPlans } from "@/components/visibility/action-plans";
@@ -26,7 +25,7 @@ import { AnalysisScopeBar } from '@/components/visibility/analysis-scope-bar';
 import { OpportunityOverview, SelectedOpportunityEvidence } from '@/components/visibility/opportunity-overview';
 import { analysisTargets, intelligenceUrl, scopeIssues } from '@/lib/visibility/analysis-scope';
 import { readTaskScope, setTaskScope } from '@/lib/visibility/task-view';
-import { CitationViewNav, citationViews, DraftEvidenceSummary, EntityComparison, EvidenceWorkspace, MeasurementBaseline, PlatformComparison, SourceLibrary, WorkflowIntro } from "@/components/visibility/citation-prototype-views";
+import { CitationViewNav, citationViews, DraftEvidenceSummary, EntityComparison, EvidenceWorkspace, PlatformComparison, SourceLibrary, WorkflowIntro } from "@/components/visibility/citation-prototype-views";
 
 const labels: Record<string, string> = {
   queued: "排队中", running: "分析中", ready: "已完成", partial: "部分完成", failed: "失败",
@@ -74,6 +73,7 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [observationLock, setObservationLock] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const [reviewRunId, setReviewRunId] = useState<string | null>(null);
   const [awaitingRevision, setAwaitingRevision] = useState<number | null>(null);
@@ -90,10 +90,10 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
   const alive = useRef(true), initializedScopes = useRef(new Set<string>()), publications = useRef(new Set<string>());
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const selectRun = useCallback((id: string, audit?: string) => {
-    if (!alive.current) return;
+    if (!alive.current || observationLock) return;
     setDocument(null); setRunId(id); setReviewRunId(null); setAwaitingRevision(null);
     router.replace(intelligenceUrl(serializedSearch, currentProjectId, { runId: id, auditId: audit || null, view: tab }, true), { scroll: false });
-  }, [router, serializedSearch, currentProjectId, tab]);
+  }, [router, serializedSearch, currentProjectId, tab, observationLock]);
   const published = useCallback((id: string) => {
     if (!alive.current || publications.current.has(id)) return;
     publications.current.add(id);
@@ -105,6 +105,7 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
     setRefresh(value => value + 1);
   }, [currentProjectId, router, captureId]);
   const changeTab = (id: string) => {
+    if (observationLock) return;
     const params = new URLSearchParams(search.get('project') === currentProjectId ? search.toString() : '');
     params.set('project', currentProjectId); params.set('view', id);
     if (captureId || run?.audit_id) params.set('auditId', captureId || run!.audit_id);
@@ -213,7 +214,7 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
     {error && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm">{error}</div>}
     <div className="citation-context-bar">
       <label>当前审计与分析版本
-        <select aria-label="分析版本" value={runId} onChange={event => {
+        <select aria-label="分析版本" disabled={observationLock} value={runId} onChange={event => {
           setCaptureId("");
           const selected = runs.find(item => item.id === event.target.value);
           if (selected) selectRun(selected.id, selected.audit_id);
@@ -298,12 +299,8 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
       </>}
       {tab === "measurements" && <>
         <p className="citation-notice">比较选择已保留；复测记录按各自冻结的行动与基线展示，不用其他范围的结果替代。</p>
-        <WorkflowIntro kind="measurements" projectId={currentProjectId} />
-        <MeasurementBaseline run={run} />
-        <MeasurementCohorts key={run.id} run={run} runs={runs} projectId={currentProjectId}
-          onOpenEvidence={(id, kind, ownerId) => open(kind, ownerId, "复测来源证据", id)}
-          onCaptureStarted={id => router.push(`/visibility?${new URLSearchParams({ project: currentProjectId, auditId: id })}`)} />
-        <PublishedAssets key={"assets-" + run.id} run={run} projectId={currentProjectId} />
+        <ObservationWorkspace key={run.id} run={run} projectId={currentProjectId} onWriteLock={setObservationLock}
+          onOpenEvidence={(id, kind, ownerId) => open(kind, ownerId, "复测原文与来源依据", id)} />
       </>}
       <p className="citation-method-note">当前为固定修订 {run.revision} · {label(run.status)}。未分析与未知内容不计为品牌缺席；后续补采会产生新修订。</p>
     </div>}

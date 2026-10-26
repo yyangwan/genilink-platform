@@ -264,12 +264,28 @@ describe('project-scoped intelligence proxy', () => {
     expect(markPendingReconcile).toHaveBeenCalledOnce(); expect(releaseUsageOperation).not.toHaveBeenCalled();
   });
   it('records human publication metadata without publish authorization and rejects unsafe links', async () => {
-    const value = { action: 'recordAsset', actionId: 'a'.repeat(32), url: 'https://example.com/article', channel: 'website', contentHash: 'b'.repeat(64), publishedAt: '2026-10-14T00:00:00Z', reason: '负责人核对已发布正文', idempotencyKey: 'asset-key-123', publicationAuthorized: true };
+    const value = { action: 'recordAsset', actionId: 'a'.repeat(32), expectedRevision: 3, deliveryEventId: 'c'.repeat(32), artifactIndex: 0, versionConfirmed: true, url: 'https://example.com/article', channel: 'website', contentHash: 'b'.repeat(64), publishedAt: '2026-10-14T00:00:00Z', reason: '负责人核对已发布正文', idempotencyKey: 'asset-key-123', publicationAuthorized: true };
     const req = (body: unknown) => new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify(body) });
     expect((await POST(req(value))).status).toBe(202);
     const call = vi.mocked(fetchUpstream).mock.calls[0][2];
-    expect(call?.body).not.toHaveProperty('publicationAuthorized'); expect(reserveContentGeneration).not.toHaveBeenCalled();
+    expect(call?.body).not.toHaveProperty('publicationAuthorized'); expect(call?.body).not.toHaveProperty('contentHash'); expect(reserveContentGeneration).not.toHaveBeenCalled();
     expect((await POST(req({ ...value, url: 'javascript:alert(1)' }))).status).toBe(400);
+  });
+  it('repairs only an existing retest without charging another audit and strips caller authority', async () => {
+    const body = { action: 'retryRetest', cohortId: 'a'.repeat(32), retestId: 'b'.repeat(32), expectedRetryStamp: 'c'.repeat(64), idempotencyKey: 'retry-existing-123', actorId: 'spoofed', rounds: 10 };
+    const send = (value: unknown) => POST(new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify(value) }));
+    expect((await send(body)).status).toBe(202);
+    expect(fetchUpstream).toHaveBeenCalledWith(expect.anything(), `/api/intelligence/cohorts/${body.cohortId}/retests/${body.retestId}/retry`, expect.objectContaining({ body: { expectedRetryStamp: body.expectedRetryStamp, idempotencyKey: body.idempotencyKey } }));
+    expect(reserveContentGeneration).not.toHaveBeenCalled();
+    expect((await send({ ...body, retestId: '../escape' })).status).toBe(400);
+  });
+  it('forwards scoped publication pages and exposes only the trusted write role', async () => {
+    vi.mocked(fetchUpstream).mockResolvedValue({ data: { assets: [], next_before: null, can_write: true } });
+    vi.mocked(resolveGuard).mockResolvedValue({ ok: true, ctx: { projectId: 'trusted-project', role: 'viewer' } } as Awaited<ReturnType<typeof resolveGuard>>);
+    const value = await GET(new NextRequest(`http://localhost/api/integration/intelligence?view=assets&actionId=${'a'.repeat(32)}&revision=2&before=${'b'.repeat(32)}&projectId=spoof`));
+    expect(fetchUpstream).toHaveBeenLastCalledWith(expect.anything(), `/api/intelligence/projects/trusted-project/assets?before=${'b'.repeat(32)}&actionId=${'a'.repeat(32)}&revision=2`, expect.anything());
+    expect((await value.json()).can_write).toBe(false);
+    expect((await GET(new NextRequest('http://localhost/api/integration/intelligence?view=assets&revision=2'))).status).toBe(400);
   });
   it('creates a manual task with separate service audiences and no quota reservation', async () => {
     vi.mocked(issueContentProjectJWT).mockResolvedValue('fake-content-token');

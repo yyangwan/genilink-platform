@@ -1,5 +1,5 @@
 import { validQuestionContexts } from '@/lib/visibility/question-context';
-import { cohortRequestSchema } from '@/lib/visibility/measurement-request';
+import { cohortRequestSchema, publicationRequestSchema, retryRetestSchema } from '@/lib/visibility/measurement-request';
 import { saveBrandBinding, brandBindingHash, type BrandBindingInput } from '@/lib/visibility/project-brand-bindings';
 import { ContextConflict, freezeProjectContext, deliverProjectContext } from '@/lib/visibility/project-context';
 import { NextRequest, NextResponse } from 'next/server';
@@ -47,8 +47,26 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ context, pending, retry });
   }
   let path: string;
-  if (view === 'cohorts' || view === 'assets' || view === 'aliases' || view === 'mention-bindings') {
+  if (view === 'publicationOptions') {
+    const actionId = params.get('actionId'), revision = params.get('revision');
+    if (!validId(actionId) || revision && !/^[1-9][0-9]{0,7}$/.test(revision)) return badRequest();
+    path = `/api/intelligence/actions/${actionId}/publication-options${revision ? `?revision=${revision}` : ''}`;
+  } else if (view === 'cohort') {
+    const cohortId = params.get('cohortId'); if (!validId(cohortId)) return badRequest();
+    path = `/api/intelligence/cohorts/${cohortId}`;
+  } else if (view === 'publicationActions' || view === 'cohorts' || view === 'assets' || view === 'aliases' || view === 'mention-bindings') {
     path = `/api/intelligence/projects/${encodeURIComponent(guard.ctx.projectId)}/${view}`;
+    if (view === 'publicationActions') path = path.replace(/publicationActions$/, 'publication-actions');
+    if (['publicationActions', 'cohorts', 'assets'].includes(view)) {
+      const query = new URLSearchParams(), before = params.get('before');
+      if (before && !validId(before)) return badRequest(); if (before) query.set('before', before);
+      if (view === 'assets') {
+        const actionId = params.get('actionId'), revision = params.get('revision');
+        if (actionId && !validId(actionId) || revision && (!actionId || !/^[1-9][0-9]{0,7}$/.test(revision))) return badRequest();
+        if (actionId) query.set('actionId', actionId); if (revision) query.set('revision', revision);
+      }
+      if (query.size) path += `?${query}`;
+    }
   } else if (view === 'retests' || view === 'measurementResults') {
     const cohortId = params.get('cohortId');
     if (!validId(cohortId)) return badRequest();
@@ -86,7 +104,8 @@ export async function GET(req: NextRequest) {
   }
   const result = await fetchUpstream(guard.ctx, path, { errorMessage: '证据分析服务暂不可用' });
   if ('response' in result) return result.response;
-  return NextResponse.json(result.data);
+  const measurement = ['cohort', 'cohorts', 'assets', 'publicationActions', 'publicationOptions', 'retests', 'measurementResults'].includes(view);
+  return NextResponse.json(measurement ? { ...result.data as object, can_write: ['owner', 'admin', 'editor', 'member'].includes(guard.ctx.role) } : result.data, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(req: NextRequest) {
@@ -195,6 +214,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(await response.json(), { status: response.status });
     } catch { return NextResponse.json({ error: '人工任务受理结果尚待确认，请刷新列表或沿用原审批和操作编号重试' }, { status: 503 }); }
   }
+  if (body.action === 'retryRetest') {
+    const parsed = retryRetestSchema.safeParse(body); if (!parsed.success) return badRequest();
+    if (await prisma.projectContextOutbox.count({ where: { projectId: guard.ctx.projectId, deliveredAt: null } })) return NextResponse.json({ error: '品牌配置尚未同步，请先完成同步' }, { status: 409 });
+    const { cohortId, retestId, ...payload } = parsed.data;
+    const result = await fetchUpstream(guard.ctx, `/api/intelligence/cohorts/${cohortId}/retests/${retestId}/retry`, { method: 'POST', body: payload, errorMessage: '补齐受理尚待确认，请沿用相同操作重试' });
+    if ('response' in result) return result.response;
+    return NextResponse.json(result.data, { status: 202 });
+  }
   if (body.action === 'createCohort' || body.action === 'compareCohort' || body.action === 'recordAsset' || body.action === 'startRetest') {
     let path: string;
     let payload: object;
@@ -209,13 +236,9 @@ export async function POST(req: NextRequest) {
         path = `/api/intelligence/projects/${encodeURIComponent(guard.ctx.projectId)}/cohorts`;
         payload = frozen.data;
       } else if (body.action === 'recordAsset') {
-        if (typeof body.actionId !== 'string' || !validId(body.actionId) || typeof body.url !== 'string' || body.url.length > 4096 ||
-            !['wechat', 'weibo', 'xiaohongshu', 'douyin', 'website', 'zhihu', 'toutiao'].includes(String(body.channel)) ||
-            typeof body.contentHash !== 'string' || !/^[a-f0-9]{64}$/.test(body.contentHash) || typeof body.publishedAt !== 'string' || !/(?:Z|[+-]\d{2}:\d{2})$/.test(body.publishedAt) || !Number.isFinite(Date.parse(body.publishedAt)) ||
-            typeof body.reason !== 'string' || body.reason.trim().length < 5 || body.reason.length > 2000) return badRequest();
-        try { const url = new URL(body.url); if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return badRequest(); } catch { return badRequest(); }
+        const frozen = publicationRequestSchema.safeParse(body); if (!frozen.success) return badRequest();
         path = `/api/intelligence/projects/${encodeURIComponent(guard.ctx.projectId)}/assets`;
-        payload = { actionId: body.actionId, url: body.url, channel: body.channel, contentHash: body.contentHash, publishedAt: body.publishedAt, reason: body.reason, idempotencyKey: body.idempotencyKey };
+        payload = frozen.data;
       } else {
         if (typeof body.cohortId !== 'string' || !validId(body.cohortId)) return badRequest();
         const operationId = 'visibility-retest-' + createHash('sha256').update(JSON.stringify([guard.ctx.workspaceId, guard.ctx.projectId, body.cohortId, body.idempotencyKey])).digest('hex');

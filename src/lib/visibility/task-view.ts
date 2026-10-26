@@ -36,10 +36,10 @@ export function matchesOpportunity(row: TaskOpportunity, scope: TaskScope) {
 export function planPlatforms(plan: TaskPlan) { return [...new Set(plan.target.task_pack?.ai_targets.map(row => row.platform) || [plan.target.platform])]; }
 export function apiError(data: unknown, fallback: string): string {
   if (!data || typeof data !== 'object') return fallback;
-  const row = data as { error?: string; detail?: unknown; code?: string };
+  const row = data as { error?: unknown; detail?: unknown; code?: string };
   if (row.code === 'action_dependencies_changed') return '相关证据、身份或事实已变化，请核对差异后创建新修订。';
   if (row.detail) return apiError(row.detail, fallback);
-  return row.error && !row.error.startsWith('Upstream error:') ? row.error : fallback;
+  return typeof row.error === 'string' && !row.error.startsWith('Upstream error:') ? row.error : fallback;
 }
 export function safeHttp(value: string | null | undefined) { return value && /^https?:\/\//i.test(value) ? value : null; }
 

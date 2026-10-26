@@ -21,7 +21,7 @@ function ProjectHistory({ projectId, cohortId }: { projectId: string; cohortId: 
   const selectCohort = (value: string) => { const params = new URLSearchParams(search.toString()); params.set('project', projectId); if (value === 'latest') params.delete('cohortId'); else params.set('cohortId', value); router.replace(`${pathname}?${params}`, { scroll: false }); };
   return <div className="space-y-5"><PageHeader title="趋势与复测" subtitle="同一冻结样本方案下的分平台观测变化" />
     <div className="flex flex-wrap gap-4 text-sm"><button onClick={response.refetch}>刷新复测记录</button><Link href={`/intelligence?project=${encodeURIComponent(projectId)}`}>管理固定样本复测</Link></div>
-    <p className="dashboard-surface p-5 text-sm">按方案逐次比较基线与复测，不拼接不同提示词、平台或轮次的综合分折线。至少20个共同问题、每题3轮且采集条件一致才支持有效观测比较；各指标使用独立有效样本。区间为探索性单项95%区间，未做多重比较校正，不证明内容行动造成了变化，也不代表点击、转化或收益。</p>
+    <p className="dashboard-surface p-5 text-sm">默认按固定的品牌、原问题和平台进行一次采集，逐项核对前后事实；条件未知、数据缺失与不可比状态分别保留。单轮观察不生成稳定效果区间或改善总分，不证明内容行动造成了变化。历史多轮方案按其原规则回查。</p>
     {response.loading && !data ? <p>正在读取复测记录…</p> : response.locked ? <SubscriptionRequiredState feature="固定样本复测分析" /> : response.error || !data ? <p role="alert">复测记录暂不可用，请核对项目和方案后重试。</p> : !data.enabled ? <p>证据分析尚未启用。</p> : <>
       <p className="text-xs">当前订阅历史范围：{data.history_days} 天。方案列表和结果记录各自受此时间范围约束；固定基线保留用于核对。</p>
       <label className="block text-sm">固定样本方案 <select aria-label="选择趋势方案" className="dashboard-input ml-2 p-2" value={cohortId === null ? 'latest' : data.selected_cohort_id || cohortId} onChange={event => selectCohort(event.target.value)}><option value="latest">跟随最新方案</option>{data.cohorts.map(item => <option key={item.id} value={item.id}>{item.title} · {item.expected_samples} 轮 · {item.created_at}</option>)}</select></label>

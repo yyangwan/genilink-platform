@@ -612,8 +612,7 @@
           "Portal whitelist contract forwards descriptive mode/stable targets/platform/question filters while discarding browser actor/sampling overrides. No production page style changes."
         ],
         "remaining": [
-          "U04 formal descriptive observation page, reviewed against approved prototype before new visual changes; old inferential controls do not present the new result cells.",
-          "M02 publication asset/revision/time-chain association, and Q01/Q02 actual semantic quality/authenticated customer value acceptance."
+          "Q01/Q02 real semantic quality, authenticated customer journey and value acceptance; M02/U04 technical integration completed separately."
         ],
         "evidence": [
           "docs/reviews/citation-value-descriptive-measurement-20261026.md; focused56 baseline/new comparison tests plus real MySQL three-phase replay test passed.",
@@ -626,7 +625,7 @@
       "id": "M02",
       "milestone": "M4",
       "owner": "审计后端/门户契约",
-      "status": "planned",
+      "status": "in_progress",
       "dependsOn": [
         "E02",
         "E03",
@@ -638,13 +637,35 @@
         "backend/app/intelligence/measurement.py",
         "backend/app/intelligence/models.py",
         "backend/app/intelligence/measurement_history.py",
-        "backend/app/api/intelligence.py"
+        "backend/app/api/intelligence.py",
+        "backend/app/intelligence/publication.py",
+        "backend/app/intelligence/retest_retry.py",
+        "backend/app/intelligence/action_revisions.py",
+        "src/lib/visibility/observation-contract.ts",
+        "src/lib/visibility/measurement-request.ts",
+        "src/app/api/integration/intelligence/route.ts"
       ],
       "acceptance": [
         "资产、行动修订、Brief/交付、cohort和结果均有明确关联",
         "核对基线/发布/复测采样时间，未知或顺序不合格不声称发布前后验收",
         "交付验收与逐平台可见性观察分开，单平台退化不被均分隐藏"
-      ]
+      ],
+      "technical_implementation_complete": true,
+      "progress": {
+        "implemented": [
+          "Signed append-only human publication reports bind exact action revision, delivered execution event and artifact index, with original ContentOS receipt retained where applicable. Server derives the delivery-record fingerprint; published bytes are explicitly unverified and publication is not authorized.",
+          "Frozen descriptive cohorts bind exact task scope and publication records; each result cell separately checks actual baseline time < reported publication time < actual followup time. Late delivery recording is not treated as content-completion time. Invalid/unknown ordering never becomes action-effect acceptance.",
+          "Missing-answer repair keeps the same audit, original sample and independent round; complete answers remain unchanged. Failed/partial answers get new attempts with signed idempotent receipts, stale-stamp checks and a five-batch cap. Repair does not reserve another audit quota.",
+          "Project-scoped publication choices, stable action/cohort/asset pagination, retest progress and explicit bounded result lists support the formal page. Historical task revisions are read-only for new publication writes.",
+          "Real capture-v2 task questions now validate raw UTF-8 digest and frozen original text, rather than being rejected by the legacy response JSON-hash convention."
+        ],
+        "remaining": [
+          "Q01/Q02 actual authenticated customer task-to-publication-to-device-observation journey and semantic/value acceptance."
+        ],
+        "evidence": [
+          "docs/reviews/citation-value-publication-observation-20261026.md; final backend996 passed/2 skipped, CI-scoped Ruff/compileall passed, including real isolated MySQL publication and repair replay concurrency. No DDL/model/OSS/production/gateway changes."
+        ]
+      }
     },
     {
       "id": "U00",
@@ -825,8 +846,13 @@
       "prototypeGate": true,
       "title": "一次观察预检与逐平台变化界面",
       "modules": [
-        "src/components/visibility/measurement-cohorts.tsx",
-        "src/components/visibility/published-assets.tsx",
+        "src/components/visibility/observation-workspace.tsx",
+        "src/components/visibility/publication-drawer.tsx",
+        "src/components/visibility/observation-results.tsx",
+        "src/components/visibility/observation-workspace.css",
+        "src/lib/visibility/observation-contract.ts",
+        "src/components/visibility/measurement-results.tsx",
+        "src/components/visibility/measurement-history-page.tsx",
         "src/app/(dashboard)/intelligence/page.tsx"
       ],
       "acceptance": [
@@ -834,17 +860,21 @@
         "默认选中该cohort关联复测，按平台/问题/行动维度查看前后证据",
         "观察变化、数据不足、不可比和统计判断不可用分别呈现"
       ],
-      "technical_implementation_complete": false,
+      "technical_implementation_complete": true,
       "progress": {
         "implemented": [
-          "Local citation-measurement-v3 prototype preserves approved v3 styling and shows publication/version/time-chain, one-round initiation/progress, selected stable brands/platforms, per-cell facts/unknowns/incomparability and narrow cards/drawers."
+          "Local citation-measurement-v3 prototype preserves approved v3 styling and shows publication/version/time-chain, one-round initiation/progress, selected stable brands/platforms, per-cell facts/unknowns/incomparability and narrow cards/drawers.",
+          "Approved dark/teal formal observation workspace replaces the old runtime collection/publication forms: exact delivered-version drawer, Beijing-time report, frozen brands including unregistered targets, original task questions/platforms, one-button single capture, in-page progress and missing-answer repair.",
+          "Per-brand/platform descriptive reader displays separate known facts, unknown/missing/incompatible states, action/publication/sample timeline, original response/source evidence and stale-result handling; trend/report reader accepts the same descriptive contract.",
+          "Uncertain two-stage scope/capture writes replay the same pending request/key, freeze scope edits and parent analysis-version switching. Publication updates open a new draft; historical observation links remain immutable. Trusted viewer metadata disables writes.",
+          "Actual formal components checked with inert data on desktop and390x844: publication save to new draft, single initiation to partial completion, result save, brand/platform switching, evidence drawer; page384px/drawer390px, viewport reset, no error/warn logs. Platform icons/cursor/focus and primary-button specificity verified."
         ],
         "remaining": [
-          "M02 publication provenance/time-chain contract, actual missing-item retry path and U04 formal component integration with scoped uncertainty handling.",
-          "Real authenticated customer workflow and Q01/Q02 quality/value acceptance."
+          "Q01/Q02 real authenticated customer workflow, prototype-to-live journey and independent quality/value acceptance."
         ],
         "evidence": [
-          "docs/prototypes/citation-measurement-v3/README.md and verification.json; inert local desktop/390x844 browser checks. No real service or model calls."
+          "docs/prototypes/citation-measurement-v3/README.md and verification.json; inert local desktop/390x844 browser checks. No real service or model calls.",
+          "docs/reviews/citation-value-publication-observation-20261026.md; focused55 passed; all local Portal source gates passed with isolated retry of an undiagnosed premature production-build exit. No push/PR/deployment."
         ],
         "approval": "用户已确认 citation-measurement-v3：认可，按此实现（2026-10-26）"
       }
