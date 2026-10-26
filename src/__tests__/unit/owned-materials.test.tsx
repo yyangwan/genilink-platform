@@ -37,6 +37,8 @@ it('separates material verification from fact approval and sends exact Unicode e
   fireEvent.change(screen.getByLabelText('适用范围与核实依据'), { target: { value: '专业版产品，负责人核对规格版本' } });
   fireEvent.click(screen.getByRole('button', { name: '核实此材料版本' }));
   await screen.findByRole('button', { name: '批准本条事实' });
+  // Verification refresh can render the next form before its mutation lock clears.
+  await waitFor(() => expect(screen.getByLabelText('拟批准事实（逐字原文）')).toBeEnabled());
   fireEvent.change(screen.getByLabelText('拟批准事实（逐字原文）'), { target: { value: text.slice(2) } });
   fireEvent.click(screen.getByRole('button', { name: '批准本条事实' }));
   await waitFor(() => expect(posts).toHaveLength(2));

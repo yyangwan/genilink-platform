@@ -8,6 +8,7 @@ import { matchesOpportunity } from '@/lib/visibility/task-view';
 import { taskPackSchema } from '@/lib/visibility/task-contract';
 import type { TaskOpportunity, TaskPlan } from '@/lib/visibility/task-contract';
 import { actionId, fullText, opportunity, plan, project, question, run, runId, taskPack } from '../fixtures/task-workspace';
+import { execution } from '../fixtures/execution';
 
 let rows: TaskOpportunity[], plans: TaskPlan[], posts: string[], uncertain: boolean, conflict: boolean, readFails: boolean, canWrite: boolean;
 const response = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -29,6 +30,12 @@ beforeEach(() => {
       return response(body.op === 'revise' ? { action: plans[0], created_revision: plans[0].revision } : plans[0], 202);
     }
     if (readFails) return response({ error: '读取暂不可用' }, 503);
+    if (input.includes('/intelligence/execution?')) {
+      const item = plans.find(row => row.id === p.get('actionId')) || plan();
+      if (op === 'members') return response({ members: [{ id: 'user', name: '内容负责人', role: 'owner' }] });
+      if (op === 'events') return response({ action_id: item.id, revision: item.revision, revision_id: item.revision_id, events: [], next_before: null });
+      return response(execution({ revision: item.revision, revision_id: item.revision_id, plan_approval_valid: item.approval_valid, can_write: canWrite }));
+    }
     if (op === 'plans') return response({ actions: plans });
     if (op === 'detail') return response(plans.find(row => row.id === p.get('actionId')) || plan());
     if (op === 'revisions') return response({ revisions: [{ id: '8'.repeat(32), revision: 1, run_id: runId, reason: '按原文形成具体交付', actor_id: 'reviewer', created_at: '2026-10-25T08:00:00Z', is_current: false, integrity_valid: true,

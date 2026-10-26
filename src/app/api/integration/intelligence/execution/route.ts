@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     if (before) params.set('before', before); params.set('limit', limit);
   }
   const result = await fetchUpstream(guard.ctx, `/api/intelligence/actions/${q.get('actionId')}/execution${op === 'events' ? '/events' : ''}?${params}`, { errorMessage: '执行记录暂不可读，请稍后重试。' });
-  return 'response' in result ? result.response : NextResponse.json({ ...(result.data as object), can_write: writers.includes(guard.ctx.role), can_review: ['owner', 'admin', 'editor'].includes(guard.ctx.role) }, { headers });
+  return 'response' in result ? result.response : NextResponse.json({ ...(result.data as object), can_write: writers.includes(guard.ctx.role), can_review: ['owner', 'admin', 'editor'].includes(guard.ctx.role), can_manage: ['owner', 'admin', 'editor'].includes(guard.ctx.role), actor_id: guard.ctx.session.user.id }, { headers });
 }
 
 export async function POST(req: NextRequest) {

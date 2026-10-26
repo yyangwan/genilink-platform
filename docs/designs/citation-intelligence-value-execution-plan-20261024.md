@@ -229,7 +229,7 @@ PublishedAsset 增加行动修订、Brief/草稿/人工任务编号及资产版�
 | GET /runs/{id}/opportunities | 从现有诊断投影筛选和分页，返回具体任务包、材料缺口和排序理由 |
 | POST /actions/{id}/revisions | CAS + 幂等创建新修订，返回依赖变化；批准仍走现有审批机制 |
 | GET /actions/{id}/brief-readiness | 返回合资格事实、排除理由、缺失材料、可执行模式与当前版本 |
-| PATCH /actions/{id}/execution | 更新负责人/期限/交付状态，不允许以执行接口修改事实证据 |
+| POST /actions/{id}/execution | 更新负责人/期限/交付状态，不允许以执行接口修改事实证据 |
 | 已有 draft-approvals/brief | 支持经审核的竞争任务与 EvidenceBrief v3，能力不足时不发起额度预占 |
 | 已有 cohort/results | cohort 冻结模式、指标版本、brandTargetIds 和比较范围；结果按规范签名去重，保存 action/asset/provenance，旧推断规则独立 |
 
@@ -448,3 +448,14 @@ E02按技术实现完成记录、状态保持进行中等待Q02真实客户路�
 按无历史兼容要求更新空库基线为citation_execution_20261026、60张业务表。新隔离本地空库验证复合外键、API/worker及MySQL并发当前读；旧数据库保留未改。后端全量948 passed/2 skipped，CI范围Ruff/compileall通过。门户及ContentOS完整release:check通过。详见docs/reviews/citation-value-execution-20261026.md。
 
 新增局部原型docs/prototypes/citation-execution-v3/index.html（本地9886），延续v3视觉，加入执行面板、交付和逐项验收抽屉及历史修订只读。已请求用户确认，当前未收到答复，正式执行页面尚未改动；不把原型演示或服务门禁当作页面/业务闭环完成。E03/U03保持进行中，M01/M02/U04与Q01/Q02继续未验收。无真实模型/OSS写入、生产访问、push/PR/部署或网关变更。
+
+
+### 2026-10-26 E03/U03：确认原型后的正式执行页面
+
+用户明确回复“认可，按此实现”，已将负责人/截止时间、执行状态、交付登记、按冻结标准逐项验收/退回及历史修订只读接入正式任务工作台。沿用已确认v3的深色卡片、青色主按钮与侧边抽屉；修复通用文字按钮样式覆盖执行主按钮的问题，不重做其他页面。
+
+执行读取即时复核当前计划批准和相关依据，历史记录不改写。普通成员只能安排自己或推进自己负责的任务，审核权限由当前可信成员角色决定。保存结果不确定时冻结原请求和幂等键，版本/权限变化后需刷新核对；执行写入会锁住同时修改原计划的操作。状态与记录版本不一致、跨修订数据或缺失历史页均明确阻断，不静默拼接或截断。
+
+最终门户完整release:check六项通过；后端全量949 passed/2 skipped（真实本地MySQL并发），CI范围Ruff和compileall通过。正式组件以虚构内存数据检查桌面、390×844、交付→退回→再交付→验收、历史修订只读和指针/焦点；窄屏页面与抽屉无横向溢出，视口已恢复。详见docs/reviews/citation-value-execution-20261026.md。
+
+E03/U03按技术实现完成记录，状态保持进行中等待真实鉴权与跨服务客户路径验收。后续M01/M02/U04继续完成发布资产及单轮观察，Q01独立质量与Q02真实价值尚未验收。本轮没有生产访问、真实模型/OSS写入、push/PR/部署或网关改动；ContentOS源代码未变，复用上一轮完整门禁结果。不能把本地组件样例当成真实客户效果。

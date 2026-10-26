@@ -23,8 +23,9 @@
     "implementationStarted": true,
     "approvedA01Controls": true,
     "approvedFactSelectionPrototype": "citation-facts-v3",
-    "pendingExecutionPrototype": "citation-execution-v3",
-    "executionPrototypeApproved": false
+    "executionPrototypeApproved": true,
+    "approvedExecutionPrototype": "citation-execution-v3",
+    "executionPrototypeApproval": "2026-10-26 用户回复：认可，按此实现"
   },
   "tasks": [
     {
@@ -527,7 +528,7 @@
     {
       "id": "E03",
       "milestone": "M3",
-      "owner": "审计后端/门户契约",
+      "owner": "审计后端/门户/ContentOS",
       "status": "in_progress",
       "dependsOn": [
         "E01"
@@ -538,14 +539,17 @@
         "backend/app/intelligence/actions.py",
         "backend/app/intelligence/content_workbench.py",
         "backend/app/intelligence/models.py",
-        "backend/app/api/intelligence.py"
+        "backend/app/api/intelligence.py",
+        "src/components/visibility/task-execution.tsx",
+        "src/lib/visibility/execution-contract.ts",
+        "src/app/api/integration/intelligence/execution/route.ts"
       ],
       "acceptance": [
         "同资产/事实/意图合并任务并保留多个平台子目标，冲突事实分开",
         "负责人、期限、准备/执行/交付/验收/取消状态及产物可追踪，审批状态独立",
         "旧修订产物不自动归给新任务，生成成功不算发布或可见性改善"
       ],
-      "technical_implementation_complete": false,
+      "technical_implementation_complete": true,
       "progress": {
         "implemented": [
           "Revision-scoped execution projection and append-only HMAC events store owner/deadline, preparation/start/delivery/return/acceptance/cancellation separately from TaskPack and approvals.",
@@ -553,17 +557,19 @@
           "Current valid plan/related evidence required for start/deliver/accept; every frozen criterion is reviewed for acceptance. New revisions do not inherit owner, delivery, approvals or accepted state; historical execution remains read-only.",
           "ContentOS scoped completed-artifact receipt validates exact frozen v3 origin/hash; backend additionally checks original grant HMAC and exact action revision. External references remain explicitly manual registrations.",
           "Fresh schema citation_execution_20261026 has60 business tables and composite revision/project foreign keys; isolated database/API/worker startup and concurrency validated. No historical database alteration.",
-          "Local execution prototype extends the approved v3 visual language; browser checked delivery/review/history and390x844. User confirmation requested before formal page changes."
+          "User explicitly approved citation-execution-v3 on2026-10-26. Formal execution panel and drawers now preserve the approved dark/teal design, hierarchy, named owner/deadline, progress, delivery, criterion review and revision history.",
+          "Current plan approval is rechecked on read, so dependency changes disable start/deliver/accept without changing old execution records. Control visibility derives from trusted current role/actor metadata.",
+          "UI reads exact action/revision IDs and a consistent execution/event version pair; full contiguous history pagination rejects missing/truncated pages. Uncertain saves lock the form and replay the exact request/key;403/409 require an explicit refresh.",
+          "Execution writes lock simultaneous parent plan edits without locking their own retry. Historical revision panels are lazy, read-only and cannot inherit current artifacts; new revisions remount independently."
         ],
         "remaining": [
-          "User approval of docs/prototypes/citation-execution-v3/index.html; no authorization inferred from elapsed time.",
-          "Integrate the confirmed execution panel/drawers into formal task and revision-history pages, including disabled/stale/uncertain states and actual workflow selection.",
-          "Real customer cross-service task→delivery→acceptance journey and Q01/Q02 independent quality/value acceptance."
+          "Real customer cross-service task→ContentOS completed-artifact receipt→delivery→acceptance journey and Q01/Q02 independent quality/value acceptance."
         ],
         "evidence": [
           "docs/reviews/citation-value-execution-20261026.md; backend948 passed/2 skipped, CI-scoped Ruff/compileall and real local MySQL CAS passed.",
           "Portal and ContentOS full release:check passed; Portal JWT/proxy10 and ContentOS receipt5 focused checks passed.",
-          "Fresh isolated intelligence_ci_execution_20261026 schema/API/worker proof and composite execution foreign keys passed; no model requests."
+          "Fresh isolated intelligence_ci_execution_20261026 schema/API/worker proof and composite execution foreign keys passed; no model requests.",
+          "2026-10-26 formal UI: Portal full release:check passed; backend949 passed/2 skipped with real local MySQL, CI-scoped Ruff and compileall passed. Browser checked formal components with inert synthetic data on desktop/390x844, delivery→return→redelivery→acceptance and exact historical scope. See docs/reviews/citation-value-execution-20261026.md."
         ]
       }
     },
@@ -753,7 +759,8 @@
         "src/components/visibility/approved-facts.tsx",
         "src/components/visibility/draft-briefs.tsx",
         "src/components/visibility/evidence-draft-execution.tsx",
-        "src/components/visibility/manual-content-tasks.tsx"
+        "src/components/visibility/manual-content-tasks.tsx",
+        "src/components/visibility/task-execution.tsx"
       ],
       "acceptance": [
         "由机会带入行动修订及合资格事实，不要求客户手填版本或反复重选",
@@ -766,18 +773,18 @@
           "Task proposal/readiness, concrete delivery edits, exact uncertain-request retry, conflict lockout, original Unicode evidence reader and immutable revision-history differences follow the approved v3 components.",
           "Materials entry and return keep project/Run/action identity; old suggestions view points to one full action workspace instead of a separate write surface.",
           "Approved E02 fact selector and exact v3 content authorizer are integrated; automatic version read, immutable selection revisions, live receiver readiness before quota and separate own facts/diagnostics are implemented.",
-          "E03 execution/read/history/membership and signed mutation bridge is ready, with a local prototype pending user approval; formal execution components are deliberately not claimed complete."
+          "Approved E03 formal execution panel/drawers are integrated into the current action and immutable revision history: owner/deadline, preparation/start, delivery provenance, criterion acceptance/return/cancel, disabled/stale/uncertain handling and complete history pagination."
         ],
         "remaining": [
-          "E03 formal execution ownership/deadlines/delivery/acceptance UI after prototype confirmation, with exact revision-to-artifact association and actual service journey.",
-          "Full real customer opportunity-to-material-review-to-creation/delivery journey and independent task-value acceptance."
+          "Full real customer opportunity-to-material-review-to-creation/delivery/acceptance journey with actual ContentOS origin receipts and independent task-value acceptance."
         ],
         "evidence": [
           "docs/reviews/citation-value-task-workspace-20261025.md; focused18 passed and full portal release:check passed; actual components checked with inert synthetic data.",
           "docs/reviews/citation-value-brief-v3-20261026.md; final Portal gates passed and desktop/mobile component checks completed.",
-          "docs/reviews/citation-value-execution-20261026.md; backend/service interfaces and local prototype only, UI approval remains pending."
+          "docs/reviews/citation-value-execution-20261026.md; formal UI full source gates and desktop/mobile component checks passed after explicit user prototype approval. Real authenticated cross-service journey remains pending."
         ]
-      }
+      },
+      "technical_implementation_complete": true
     },
     {
       "id": "U04",

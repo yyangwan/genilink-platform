@@ -52,3 +52,11 @@ it('lists only current workspace execution members without leaking contact detai
   expect(await response.json()).toEqual({members:[{id:'owner',name:'内容负责人',role:'editor'}]});
   expect(prisma.workspaceMember.findMany).toHaveBeenCalledWith(expect.objectContaining({where:expect.objectContaining({workspaceId:ctx.workspaceId})}));
 });
+it.each([
+  ['owner',true,true],['admin',true,true],['editor',true,true],['member',true,false],['viewer',false,false],
+])('derives %s execution controls from current membership rather than upstream flags',async(role,canWrite,canManage)=>{
+  vi.mocked(resolveGuard).mockResolvedValue({ok:true,ctx:{...ctx,role}} as never);
+  vi.mocked(fetchUpstream).mockResolvedValue({data:{...state,can_write:true,can_review:true,can_manage:true,actor_id:'untrusted'}});
+  const response=await GET(new NextRequest(`http://localhost/api/integration/intelligence/execution?actionId=${actionId}&revision=2`));
+  expect(await response.json()).toMatchObject({can_write:canWrite,can_review:canManage,can_manage:canManage,actor_id:'actor'});
+});
