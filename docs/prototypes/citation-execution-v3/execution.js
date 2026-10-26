@@ -33,7 +33,7 @@ function redraw() {
   archive.hidden = !historical;
 }
 function artifactFields() {
-  const service = $('artifactKind').selectedIndex === 1;
+  const service = [1,2].includes($('artifactKind').selectedIndex);
   $('urlField').hidden = service; $('referenceField').hidden = !service;
   $('url').required = $('artifactKind').selectedIndex === 0; $('reference').required = service;
 }
@@ -69,7 +69,7 @@ $('form').onsubmit = event => {
     currentOwner = $('owner').value || '待安排'; currentDue = $('due').value.replace('T',' ') || '未设置'; record('调整负责人和截止时间');
   } else if (mode === 'deliver') {
     if ($('title').value.trim().length < 5) return;
-    state = 'delivered'; delivery = {title:$('title').value, url:$('artifactKind').selectedIndex === 1 ? 'ContentOS 任务：' + $('reference').value : $('url').value,
+    state = 'delivered'; delivery = {title:$('title').value, url:[1,2].includes($('artifactKind').selectedIndex) ? 'ContentOS 任务：' + $('reference').value : $('url').value,
       notes:$('reason').value, kind:$('artifactKind').value}; record('提交交付');
   } else if (mode === 'review') { state = 'accepted'; record('具名验收通过'); }
   else { state = 'cancelled'; record('取消执行'); }
