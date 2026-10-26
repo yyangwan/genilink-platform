@@ -25,7 +25,10 @@
     "approvedFactSelectionPrototype": "citation-facts-v3",
     "executionPrototypeApproved": true,
     "approvedExecutionPrototype": "citation-execution-v3",
-    "executionPrototypeApproval": "2026-10-26 用户回复：认可，按此实现"
+    "executionPrototypeApproval": "2026-10-26 用户回复：认可，按此实现",
+    "measurementPrototypeApproved": true,
+    "approvedMeasurementPrototype": "citation-measurement-v3",
+    "measurementPrototypeApproval": "2026-10-26 用户回复：认可，按此实现"
   },
   "tasks": [
     {
@@ -577,7 +580,7 @@
       "id": "M01",
       "milestone": "M4",
       "owner": "审计后端",
-      "status": "planned",
+      "status": "in_progress",
       "dependsOn": [
         "B01",
         "B02"
@@ -587,14 +590,37 @@
       "modules": [
         "backend/app/intelligence/measurement.py",
         "backend/app/intelligence/measurement_history.py",
-        "backend/app/api/intelligence.py"
+        "backend/app/api/intelligence.py",
+        "backend/app/intelligence/descriptive_measurement.py",
+        "src/lib/visibility/measurement-request.ts",
+        "src/app/api/integration/intelligence/route.ts"
       ],
       "acceptance": [
         "模式、指标版本、brandTargetIds和比较范围冻结进cohort规范/hash，结果去重不混用描述与推断模式",
         "descriptive_v1支持一题一次，基线完全未出现且entityId为空的目标品牌也能与首次出现结果配对",
         "仅可比且双方已知的维度产生observed_delta，未知或条件变化不汇总改善分数",
         "原推断模式20题3轮门槛不变，单轮不输出统计区间、显著性或因果声明"
-      ]
+      ],
+      "technical_implementation_complete": true,
+      "progress": {
+        "implemented": [
+          "descriptive_v1 freezes stable registry/entity brand targets, selected platform/question slots, metric/rule/identity/condition policy versions and original baseline observations in the cohort hash. Existing inferential_v1 thresholds remain20 prompts×3 rounds.",
+          "First-round-only retests create exactly one sample for each frozen question/platform. An absent registered brand with no baseline entity can pair with its first confirmed appearance; unregistered brands remain selected and explicit alias equivalence retains original/followup IDs.",
+          "Per-cell presence/recommendation/verified-position/reasons and three separate source-presence metrics retain original response/mention/source references. Missing evidence/identity, unknown conditions and observed changed conditions have distinct states; no missing-to-zero conversion, inference fields or improvement total.",
+          "Read-only saved-result/report/API projections remove stale observed deltas without mutating original results. A frozen absent baseline can remain compatible with a current first-appearance followup only if baseline revision, original names/questions and attribution remain valid.",
+          "Mode-specific immutable cohort IDs/spec hashes prevent cache/result mixing. Current reads and fixed cohort locks serialize exact cohort/retest/result replays under real MySQL repeatable-read snapshots.",
+          "Portal whitelist contract forwards descriptive mode/stable targets/platform/question filters while discarding browser actor/sampling overrides. No production page style changes."
+        ],
+        "remaining": [
+          "U04 formal descriptive observation page, reviewed against approved prototype before new visual changes; old inferential controls do not present the new result cells.",
+          "M02 publication asset/revision/time-chain association, and Q01/Q02 actual semantic quality/authenticated customer value acceptance."
+        ],
+        "evidence": [
+          "docs/reviews/citation-value-descriptive-measurement-20261026.md; focused56 baseline/new comparison tests plus real MySQL three-phase replay test passed.",
+          "Portal full release:check passed; final backend full regression and CI-scoped Ruff/compileall passed. See final review document for exact counts.",
+          "No database DDL changes, migration/backfill, real model/OSS/production calls, gateway changes, push/PR or deployment."
+        ]
+      }
     },
     {
       "id": "M02",
@@ -790,7 +816,7 @@
       "id": "U04",
       "milestone": "M4",
       "owner": "门户",
-      "status": "planned",
+      "status": "in_progress",
       "dependsOn": [
         "U00",
         "M02",
@@ -807,7 +833,21 @@
         "发起前显示样本/条件/发布时序及可得到的描述结果，仍一次采集",
         "默认选中该cohort关联复测，按平台/问题/行动维度查看前后证据",
         "观察变化、数据不足、不可比和统计判断不可用分别呈现"
-      ]
+      ],
+      "technical_implementation_complete": false,
+      "progress": {
+        "implemented": [
+          "Local citation-measurement-v3 prototype preserves approved v3 styling and shows publication/version/time-chain, one-round initiation/progress, selected stable brands/platforms, per-cell facts/unknowns/incomparability and narrow cards/drawers."
+        ],
+        "remaining": [
+          "M02 publication provenance/time-chain contract, actual missing-item retry path and U04 formal component integration with scoped uncertainty handling.",
+          "Real authenticated customer workflow and Q01/Q02 quality/value acceptance."
+        ],
+        "evidence": [
+          "docs/prototypes/citation-measurement-v3/README.md and verification.json; inert local desktop/390x844 browser checks. No real service or model calls."
+        ],
+        "approval": "用户已确认 citation-measurement-v3：认可，按此实现（2026-10-26）"
+      }
     },
     {
       "id": "Q01",

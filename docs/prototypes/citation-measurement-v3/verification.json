@@ -1,0 +1,21 @@
+{
+  "prototype": "citation-measurement-v3",
+  "status": "approved_for_implementation",
+  "data": "synthetic_in_memory_only",
+  "service_calls": 0,
+  "checks": [
+    "Initial frozen-scope, publication timeline and per-platform facts render with existing v3 styling and platform icons.",
+    "New observation enables scope and one-round initiation; start freezes controls, disables repeated initiation and displays received/capturing/analyzing/results progress.",
+    "Pending capture does not predeclare a valid publication-before-followup timeline.",
+    "Partial missing answer keeps the other platform, offers missing-only retry as a prototype and does not fill missing with zero.",
+    "Publication drawer requires a delivery version, valid URL/time, rationale and explicit confirmation; save enters a new draft without rewriting prior observation.",
+    "Platform controls switch result rows; unknown conditions, unknown position/archive and a decrease stay visible.",
+    "390x844 page scrollWidth375; publication drawer width390 and page scrollWidth390; default viewport restored."
+  ],
+  "limitations": [
+    "M02 real publication/revision/provenance/time-chain and missing-only retry have not been implemented by this prototype.",
+    "Formal U04 components await explicit user confirmation and backend contracts.",
+    "No authentication, model quality, real service journey or customer visibility improvement acceptance is implied."
+  ],
+  "approval": "2026-10-26 用户：认可，按此实现"
+}

@@ -1,4 +1,5 @@
 import { validQuestionContexts } from '@/lib/visibility/question-context';
+import { cohortRequestSchema } from '@/lib/visibility/measurement-request';
 import { saveBrandBinding, brandBindingHash, type BrandBindingInput } from '@/lib/visibility/project-brand-bindings';
 import { ContextConflict, freezeProjectContext, deliverProjectContext } from '@/lib/visibility/project-context';
 import { NextRequest, NextResponse } from 'next/server';
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
   if (!['owner', 'admin', 'editor', 'member'].includes(guard.ctx.role)) {
     return NextResponse.json({ error: '需要项目写入权限' }, { status: 403 });
   }
-  let body: { contexts?: unknown; baseHash?: unknown; decisions?: unknown; brandId?: unknown; analysisRole?: unknown; newEntityName?: unknown; mentionId?: unknown; sourceEntityId?: unknown; targetEntityId?: unknown; taskId?: unknown; taskAction?: unknown; deliveryUrl?: unknown; cohortId?: unknown; baselineRunId?: unknown; followupRunId?: unknown; entityIds?: unknown; url?: unknown; contentHash?: unknown; publishedAt?: unknown; auditId?: unknown; documentId?: unknown; runId?: unknown; approvalId?: unknown; factIds?: unknown; factsScopeReviewed?: unknown; channel?: unknown; title?: unknown; expiresAt?: unknown; evidenceId?: unknown; reviewId?: unknown; factId?: unknown; relation?: unknown; sourceQuote?: unknown; scope?: unknown; validFrom?: unknown; validUntil?: unknown; actionId?: unknown; diagnosisId?: unknown; expectedRevision?: unknown; entityId?: unknown; decision?: unknown; canonicalName?: unknown; reason?: unknown; expectedVersion?: unknown; action?: unknown; promptIds?: unknown; platforms?: unknown; rounds?: unknown; surface?: unknown; idempotencyKey?: unknown };
+  let body: { contexts?: unknown; baseHash?: unknown; decisions?: unknown; brandId?: unknown; analysisRole?: unknown; newEntityName?: unknown; mentionId?: unknown; sourceEntityId?: unknown; targetEntityId?: unknown; taskId?: unknown; taskAction?: unknown; deliveryUrl?: unknown; cohortId?: unknown; comparisonMode?: unknown; brandTargetIds?: unknown; promptHashes?: unknown; baselineRunId?: unknown; followupRunId?: unknown; entityIds?: unknown; url?: unknown; contentHash?: unknown; publishedAt?: unknown; auditId?: unknown; documentId?: unknown; runId?: unknown; approvalId?: unknown; factIds?: unknown; factsScopeReviewed?: unknown; channel?: unknown; title?: unknown; expiresAt?: unknown; evidenceId?: unknown; reviewId?: unknown; factId?: unknown; relation?: unknown; sourceQuote?: unknown; scope?: unknown; validFrom?: unknown; validUntil?: unknown; actionId?: unknown; diagnosisId?: unknown; expectedRevision?: unknown; entityId?: unknown; decision?: unknown; canonicalName?: unknown; reason?: unknown; expectedVersion?: unknown; action?: unknown; promptIds?: unknown; platforms?: unknown; rounds?: unknown; surface?: unknown; idempotencyKey?: unknown };
   try { body = await req.json(); } catch { return badRequest(); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return badRequest();
   const requiresCurrentContext = ['generateDraft', 'approveDraft', 'previewDraft', 'approveFact', 'createAction', 'approveAction', 'createCohort', 'compareCohort', 'startRetest', 'capture', 'analyze', 'createManualTask'].includes(String(body.action)) || body.action === undefined || body.action === 'updateManualTask' && body.taskAction !== 'cancel';
@@ -203,10 +204,10 @@ export async function POST(req: NextRequest) {
     } else {
       if (typeof body.idempotencyKey !== 'string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(body.idempotencyKey)) return badRequest();
       if (body.action === 'createCohort') {
-        if (typeof body.baselineRunId !== 'string' || !validId(body.baselineRunId) || typeof body.title !== 'string' || body.title.trim().length < 5 || body.title.length > 200 ||
-            !Array.isArray(body.entityIds) || body.entityIds.length < 1 || body.entityIds.length > 20 || !body.entityIds.every(id => typeof id === 'string' && validId(id)) || new Set(body.entityIds).size !== body.entityIds.length) return badRequest();
+        const frozen = cohortRequestSchema.safeParse({ ...body, comparisonMode: body.comparisonMode === undefined ? 'inferential_v1' : body.comparisonMode });
+        if (!frozen.success) return badRequest();
         path = `/api/intelligence/projects/${encodeURIComponent(guard.ctx.projectId)}/cohorts`;
-        payload = { baselineRunId: body.baselineRunId, title: body.title, entityIds: body.entityIds, idempotencyKey: body.idempotencyKey };
+        payload = frozen.data;
       } else if (body.action === 'recordAsset') {
         if (typeof body.actionId !== 'string' || !validId(body.actionId) || typeof body.url !== 'string' || body.url.length > 4096 ||
             !['wechat', 'weibo', 'xiaohongshu', 'douyin', 'website', 'zhihu', 'toutiao'].includes(String(body.channel)) ||

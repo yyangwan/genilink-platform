@@ -235,8 +235,22 @@ describe('project-scoped intelligence proxy', () => {
   it('freezes a cohort without browser-supplied sampling or actor overrides', async () => {
     const response = await POST(new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({ action: 'createCohort', baselineRunId: 'a'.repeat(32), entityIds: ['b'.repeat(32)], title: '品牌固定复测方案', idempotencyKey: 'cohort-key-123', actorId: 'attacker', slots: [] }) }));
     expect(response.status).toBe(202);
-    expect(fetchUpstream).toHaveBeenCalledWith(expect.anything(), '/api/intelligence/projects/trusted-project/cohorts', expect.objectContaining({ body: { baselineRunId: 'a'.repeat(32), entityIds: ['b'.repeat(32)], title: '品牌固定复测方案', idempotencyKey: 'cohort-key-123' } }));
+    expect(fetchUpstream).toHaveBeenCalledWith(expect.anything(), '/api/intelligence/projects/trusted-project/cohorts', expect.objectContaining({ body: { baselineRunId: 'a'.repeat(32), comparisonMode: 'inferential_v1', entityIds: ['b'.repeat(32)], title: '品牌固定复测方案', idempotencyKey: 'cohort-key-123' } }));
     expect(reserveContentGeneration).not.toHaveBeenCalled();
+  });
+  it('freezes stable brand targets and selected question/platform scope for descriptive mode', async () => {
+    const scope = { baselineRunId: 'a'.repeat(32), comparisonMode: 'descriptive_v1', brandTargetIds: ['registry:own', 'entity:' + 'b'.repeat(32)], platforms: ['qwen'], promptHashes: ['c'.repeat(64)], title: '单轮品牌观察方案', idempotencyKey: 'single-cohort-123' };
+    const response = await POST(new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({ ...scope, action: 'createCohort', projectId: 'untrusted', actorId: 'attacker', slots: [{ sample_index: 9 }] }) }));
+    expect(response.status).toBe(202);
+    expect(fetchUpstream).toHaveBeenCalledWith(expect.anything(), '/api/intelligence/projects/trusted-project/cohorts', expect.objectContaining({ body: scope }));
+    expect(reserveContentGeneration).not.toHaveBeenCalled();
+  });
+  it.each([
+    { comparisonMode: 'another-mode' }, { brandTargetIds: [] }, { brandTargetIds: ['registry:own', 'registry:own'] },
+    { entityIds: ['b'.repeat(32)] }, { promptHashes: ['not-a-hash'] },
+  ])('rejects invalid descriptive mode/scope before upstream or quota work: %j', async extra => {
+    const response = await POST(new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({ action: 'createCohort', baselineRunId: 'a'.repeat(32), title: '单轮观察方案', idempotencyKey: 'invalid-cohort-123', comparisonMode: 'descriptive_v1', brandTargetIds: ['registry:own'], ...extra }) }));
+    expect(response.status).toBe(400); expect(fetchUpstream).not.toHaveBeenCalled(); expect(reserveContentGeneration).not.toHaveBeenCalled();
   });
   const retestRequest = () => new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST', body: JSON.stringify({ action: 'startRetest', cohortId: 'a'.repeat(32), idempotencyKey: 'retest-key-123' }) });
   it('reserves one audit operation for frozen retest and preserves uncertainty', async () => {
