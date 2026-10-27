@@ -488,3 +488,12 @@ U04局部原型docs/prototypes/citation-measurement-v3（本地9887）已打开�
 技术验证：后端996 passed/2 skipped，含真实MySQL旧快照发布/补齐并发重试；CI范围Ruff/compileall通过。门户专项55项及依赖/Prisma/types/lint/完整tests通过；生产构建首次提前退出无诊断，同源码同设置单项重跑退出0，复用前五项门禁。正式组件在虚构内存资料下检查桌面与390×844、发布→新草稿、一次发起→进度/部分完成→保存观察、品牌/平台切换与原文；页面384px、抽屉390px，无error/warn，视口已恢复。
 
 M02/U04按技术实现完成、状态仍进行中，Q01/Q02真实鉴权跨服务和设备客户路径、独立语义质量与实际建议价值待验收。仍为citation_execution_20261026、60表，无DDL或历史迁移；ContentOS源码未变。本轮无真实模型/OSS/设备/生产调用、push/PR/部署或网关变更。详见docs/reviews/citation-value-publication-observation-20261026.md。
+
+
+### 2026-10-27 Q02：真实本地服务联调与采集条件授权修复
+
+在独立空PostgreSQL/MySQL启动实际门户、ContentOS、审计API及worker，使用正常账号密码认证、真实RS256/JWKS和订阅/额度账本，串通事实内容授权、人工内容任务、完成回执、行动交付验收、发布登记、单次观察发起、失败补齐、capture-v2封存、worker处理与保存结果。业务材料及网关输入是合成验收资料，未操作手机或调用模型。合计66次断言、63个不同检查点通过；重放/补齐后实际账本只记一次审计额度，未知/失效的七类指标不输出改善差值。
+
+联调发现新版采集条件camelCase直接进入严格Brief v3的snake_case合同，导致内容授权HTTP422。后端增加明确条件适配，只保留已观察字段及unknown/null，不用请求条件填补未知，不改冻结材料或放宽接收合同。新增capture-v2原任务完整授权/导出回归和实际/请求条件冲突用例；专项15项、全量998 passed/2 skipped、CI范围Ruff/compileall通过。门户和ContentOS源码未变，复用上轮门禁。
+
+Q02从planned进入in_progress，仅记录本地技术链路证据，technical_implementation_complete及release_eligible仍为false。浏览器仅核对真实登录保护，正常HTTP登录不能冒充浏览器内完整客户路径；协议回放不能冒充真实设备采集，合成资料不能冒充独立语义标注或实际建议价值。当前本机ADB没有设备、无运行中的Appium/本地网关；已异步请求测试机连接信息。Q01独立标注/留出集、真实机会价值验收、真实设备/浏览器路径及按需发布仍待完成。无页面样式变更、历史迁移、生产/OSS/模型调用、push/PR/部署或网关程序更新。详见docs/reviews/citation-value-service-journey-20261027.md及去敏JSON。
