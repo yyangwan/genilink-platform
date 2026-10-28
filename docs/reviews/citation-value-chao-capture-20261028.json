@@ -1,0 +1,17 @@
+{
+  "kind": "real_installed_chao_handler_attempt",
+  "date": "2026-10-28",
+  "sampling": { "prompt_count": 1, "platform_count": 5, "rounds": 1 },
+  "samples": [
+    { "platform": "doubao", "surface": "app", "status": "failed", "reason": "native_app_start_stalled", "observed_stall_seconds": 626 },
+    { "platform": "deepseek", "surface": "app", "status": "failed", "reason": "android_locked", "human_intervention_required": true },
+    { "platform": "hunyuan", "surface": "app", "status": "failed", "reason": "conversation_drawer_not_found", "root_cause_verified": false },
+    { "platform": "kimi", "surface": "app", "status": "failed", "reason": "conversation_input_not_found", "root_cause_verified": false },
+    { "platform": "qwen", "surface": "web", "status": "failed", "reason": "human_security_challenge", "human_intervention_required": true }
+  ],
+  "persisted": { "audit_status": "failed", "expected_samples": 5, "failed_samples": 5, "sealed_responses": 0, "article_snapshots": 0, "brand_score": null, "brand_scores": [], "answer_scores": [] },
+  "gateway_fix": { "commit": "67bde272687ee62f780252bea076133db6ac2124", "app_start_timeout_seconds": 30, "locked_device_auto_replay": false, "native_timeout_auto_replay": false, "deployed": false, "all_native_operations_bounded": false },
+  "verification": { "windows_powershell_release_checks": "passed", "powershell7_release_checks": "passed", "browser_node_tests": { "passed": 10, "failed": 0 }, "git_diff_check": "passed", "new_regression_failed_before_fix": true },
+  "operations": { "agent_restored": true, "private_config_hash_unchanged": true, "gateway_runtime_source_unchanged": true, "cloud_deployed": false, "gateway_deployed": false, "analysis_model_requests": 0, "oss_writes": 0 },
+  "acceptance": { "real_handler_attempted": true, "real_capture_passed": false, "source_completeness_passed": false, "article_persistence_passed": false, "semantic_quality_passed": false, "business_value_passed": false, "release_eligible": false }
+}

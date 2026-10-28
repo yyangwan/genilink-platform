@@ -949,16 +949,18 @@
           "Qualified facts/content authorization -> actual manual content task start/complete -> verified delivery receipt -> named execution acceptance -> publication record -> frozen single-round retest -> missing-answer repair -> capture-v2 sealing -> actual zero-model-budget worker -> saved unknown/stale result exercised.",
           "Cross-audience/expired/forged-header/workspace-vs-project/viewer/other-project requests rejected. Repeated retest/repair requests preserve scope and actual PostgreSQL ledger has one committed audit usage.",
           "Capture-v2 camelCase observed conditions were rejected by strict Brief v3 snake_case fields; fixed with explicit observed-only adapter. Unknowns remain unknown, requested conditions never substitute. New full authorization/export regression added.",
-          "Local read-only device availability check found adb available but zero devices, no running Appium/local gateway task. Test-machine location/connection requested asynchronously; no production gateway changes made."
+          "Local read-only device availability check found adb available but zero devices, no running Appium/local gateway task. Test-machine location/connection requested asynchronously; no production gateway changes made.",
+          "2026-10-28 CHAO connection resolved and installed handlers attempted for one prompt across five platforms. All five failed explicitly; original Agent/config restored, zero sealed responses/articles, no missing-to-zero brand scores. Scoped local gateway startup/locked-device fix committed with both PowerShell release checks and 10 browser tests passing; not deployed."
         ],
         "remaining": [
-          "Obtain the test gateway/device connection information and run real platform capture/source completeness/article persistence checks in an explicitly scoped test environment.",
+          "CHAO connection is available. Human device unlock and Qwen security challenge resolution, Yuanbao/Kimi page-state diagnosis, landed gateway fix release and real five-platform capture/source completeness/article persistence verification remain pending.",
           "Authenticated browser customer journey and at least one independently evaluated real opportunity through actual delivery/publication/single observation; synthetic transport replay is not this acceptance.",
           "Q01 independent representative gold/holdout labels and practical recommendation value acceptance.",
           "Only on explicit release request: per-repository PR/CI, fresh configuration/database release, exact health/resource/rollback checks; release_eligible remains false."
         ],
         "evidence": [
-          "docs/reviews/citation-value-service-journey-20261027.md and .json;66 assertions/63 distinct check names, all passed; backend998 passed/2 skipped, CI-scoped Ruff/compileall passed. No Portal/ContentOS application source changes, no real model/device/production calls."
+          "docs/reviews/citation-value-service-journey-20261027.md and .json;66 assertions/63 distinct check names, all passed; backend998 passed/2 skipped, CI-scoped Ruff/compileall passed. No Portal/ContentOS application source changes, no real model/device/production calls.",
+          "docs/reviews/citation-value-chao-capture-20261028.md and .json: real installed-handler failure matrix, persisted failed5/sealed0/article0/score-null, gateway fix67bde272687ee62f780252bea076133db6ac2124 and local gate results. Not successful real capture, semantic quality or business acceptance."
         ]
       }
     }

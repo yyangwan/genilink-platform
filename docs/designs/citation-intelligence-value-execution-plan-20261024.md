@@ -497,3 +497,12 @@ M02/U04按技术实现完成、状态仍进行中，Q01/Q02真实鉴权跨服务
 联调发现新版采集条件camelCase直接进入严格Brief v3的snake_case合同，导致内容授权HTTP422。后端增加明确条件适配，只保留已观察字段及unknown/null，不用请求条件填补未知，不改冻结材料或放宽接收合同。新增capture-v2原任务完整授权/导出回归和实际/请求条件冲突用例；专项15项、全量998 passed/2 skipped、CI范围Ruff/compileall通过。门户和ContentOS源码未变，复用上轮门禁。
 
 Q02从planned进入in_progress，仅记录本地技术链路证据，technical_implementation_complete及release_eligible仍为false。浏览器仅核对真实登录保护，正常HTTP登录不能冒充浏览器内完整客户路径；协议回放不能冒充真实设备采集，合成资料不能冒充独立语义标注或实际建议价值。当前本机ADB没有设备、无运行中的Appium/本地网关；已异步请求测试机连接信息。Q01独立标注/留出集、真实机会价值验收、真实设备/浏览器路径及按需发布仍待完成。无页面样式变更、历史迁移、生产/OSS/模型调用、push/PR/部署或网关程序更新。详见docs/reviews/citation-value-service-journey-20261027.md及去敏JSON。
+
+
+### 2026-10-28 Q02：CHAO真实采集尝试与启动超时修复
+
+已从部署说明找到CHAO并连接，现有五台手机ADB在线、Appium正常。在有界的空闲测试窗口运行已安装处理器，同一问题五平台各一次、千问Web补偿；实际五项均失败，没有可封存回答或文章快照。豆包启动命令等待约626秒，DeepSeek手机锁定，元宝未找到侧栏，Kimi未到输入页，千问要求人工安全验证。原Agent和私有配置恢复并核对，不能把在线当成可采集。
+
+独立网关分支本地提交67bde272687ee62f780252bea076133db6ac2124，为豆包/DeepSeek启动增加30秒原生命令期限，异步排空输出，锁定/超时停止自动重放；不以旧LASTEXITCODE判断新进程。Windows PowerShell5.1和7完整网关检查、Node浏览器解析10项及diff检查通过。仅本地提交，未push/PR/发布，未更新CHAO的处理器；启动命令保护不代表所有阶段已有总期限。
+
+本地实际worker对五个失败样本保留部分投影，score=null且无品牌或回答分数，未把缺失算零。已请求用户解锁手机并完成千问人工验证；元宝/Kimi页面状态仍需定位。Q02保持进行中；正文持久化、五平台完整采集、独立语义/客户价值和正式发布验收均未完成，release_eligible=false。详见docs/reviews/citation-value-chao-capture-20261028.md及去敏JSON。
