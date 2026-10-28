@@ -950,17 +950,19 @@
           "Cross-audience/expired/forged-header/workspace-vs-project/viewer/other-project requests rejected. Repeated retest/repair requests preserve scope and actual PostgreSQL ledger has one committed audit usage.",
           "Capture-v2 camelCase observed conditions were rejected by strict Brief v3 snake_case fields; fixed with explicit observed-only adapter. Unknowns remain unknown, requested conditions never substitute. New full authorization/export regression added.",
           "Local read-only device availability check found adb available but zero devices, no running Appium/local gateway task. Test-machine location/connection requested asynchronously; no production gateway changes made.",
-          "2026-10-28 CHAO connection resolved and installed handlers attempted for one prompt across five platforms. All five failed explicitly; original Agent/config restored, zero sealed responses/articles, no missing-to-zero brand scores. Scoped local gateway startup/locked-device fix committed with both PowerShell release checks and 10 browser tests passing; not deployed."
+          "2026-10-28 CHAO connection resolved and installed handlers attempted for one prompt across five platforms. All five failed explicitly; original Agent/config restored, zero sealed responses/articles, no missing-to-zero brand scores. Scoped local gateway startup/locked-device fix committed with both PowerShell release checks and 10 browser tests passing; not deployed.",
+          "2026-10-28 after user unlock/challenge intervention: real installed-handler retest sealed Qwen1729 characters/10 URL observations; 9 actual source snapshots/76463 saved-text characters/96 exact segments persisted and checksum-verified. Actual bounded official DeepSeek analysis published partial candidates, normal authenticated Portal readers9 checks passed. Gateway observed-state/partial-interruption fixes and MySQL large-run-list fix committed locally; not deployed."
         ],
         "remaining": [
-          "CHAO connection is available. Human device unlock and Qwen security challenge resolution, Yuanbao/Kimi page-state diagnosis, landed gateway fix release and real five-platform capture/source completeness/article persistence verification remain pending.",
-          "Authenticated browser customer journey and at least one independently evaluated real opportunity through actual delivery/publication/single observation; synthetic transport replay is not this acceptance.",
-          "Q01 independent representative gold/holdout labels and practical recommendation value acceptance.",
-          "Only on explicit release request: per-repository PR/CI, fresh configuration/database release, exact health/resource/rollback checks; release_eligible remains false."
+          "Publish landed gateway fixes through independent PR/CI and idle SYSTEM mutex protocol, then new five-platform capture. Four platforms still failed; source kind/panel unknown in old Qwen capture stays unchanged.",
+          "Verify real OSS and article completeness separately from local body persistence; resolve semantic rejected spans, failed/deferred segments and source alignment with independently labeled real samples.",
+          "Authenticated browser customer journey and one independently evaluated real opportunity through delivery/publication/single observation; synthetic transport and candidate output do not count.",
+          "Q01 independent gold/holdout and practical recommendation value acceptance; release_eligible remains false. Per-system release only after explicit scope authorization."
         ],
         "evidence": [
           "docs/reviews/citation-value-service-journey-20261027.md and .json;66 assertions/63 distinct check names, all passed; backend998 passed/2 skipped, CI-scoped Ruff/compileall passed. No Portal/ContentOS application source changes, no real model/device/production calls.",
-          "docs/reviews/citation-value-chao-capture-20261028.md and .json: real installed-handler failure matrix, persisted failed5/sealed0/article0/score-null, gateway fix67bde272687ee62f780252bea076133db6ac2124 and local gate results. Not successful real capture, semantic quality or business acceptance."
+          "docs/reviews/citation-value-chao-capture-20261028.md and .json: real installed-handler failure matrix, persisted failed5/sealed0/article0/score-null, gateway fix67bde272687ee62f780252bea076133db6ac2124 and local gate results. Not successful real capture, semantic quality or business acceptance.",
+          "docs/reviews/citation-value-chao-retest-20261028.md/.json: real1-of5 capture; local9 raw/text snapshots/96 verified spans; model26 requests/88018 charged tokens (unknown reservations included),50/87/3 candidates; source alignment unchecked. GatewayPS5+7 andNode16 passed; backend1000 passed/2 skipped and actual authenticated readers9 passed. No OSS write, source deployment or independent quality/value acceptance."
         ]
       }
     }
@@ -975,7 +977,7 @@
     "backendBranch": "codex/citation-value-foundation",
     "portalBranch": "codex/citation-value-v3",
     "verification": {
-      "backendTestsPassed": 904,
+      "backendTestsPassed": 1000,
       "backendTestsSkipped": 2,
       "backendRuff": "passed",
       "prototypeViews": 9,
@@ -1040,7 +1042,21 @@
       "opportunityProductionWrites": 0,
       "opportunityFrontendDrilldownIntegrated": false,
       "opportunityBriefV3Integrated": false,
-      "opportunityIndependentValueAcceptance": false
+      "opportunityIndependentValueAcceptance": false,
+      "chaoRetest": {
+        "sealedPlatforms": 1,
+        "expectedPlatforms": 5,
+        "articleSnapshots": 9,
+        "savedArticleSegments": 96,
+        "localStorageOnly": true,
+        "ossVerified": false,
+        "authenticatedReaderChecksPassed": 9,
+        "gatewayNodeTestsPassed": 16,
+        "semanticIndependentAcceptance": false,
+        "fivePlatformAcceptance": false,
+        "deployed": false,
+        "evidence": "docs/reviews/citation-value-chao-retest-20261028.json"
+      }
     },
     "productionUiChangeLocation": "local_worktree_only",
     "backendCommits": [
@@ -1053,7 +1069,8 @@
       "9685bcd",
       "9635e37",
       "3b33372",
-      "3ce5350"
+      "3ce5350",
+      "3d32c616af37cbd633800344ff38aea651d40c13"
     ],
     "providerStatus": "restored_http_200_verified",
     "portalCommits": [

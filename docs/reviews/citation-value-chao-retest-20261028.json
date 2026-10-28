@@ -1,0 +1,214 @@
+{
+  "kind": "real_chao_retest_after_human_device_intervention",
+  "date": "2026-10-28",
+  "sampling": {
+    "prompt_count": 1,
+    "platform_count": 5,
+    "rounds": 1
+  },
+  "persisted": {
+    "audit_status": "partial",
+    "sample_states": {
+      "failed": 4,
+      "sealed": 1
+    },
+    "sealed_responses": 1,
+    "answer_characters": 1729,
+    "source_observations": 10,
+    "answer_status": "partial",
+    "source_panel_status": "unknown",
+    "source_kinds": {
+      "unknown": 10
+    },
+    "article_snapshots": 9,
+    "saved_text_characters": 76463,
+    "article_segments": 96,
+    "raw_and_text_checksums_verified": 9,
+    "all_segment_spans_verified": true,
+    "article_completeness": "unknown",
+    "fetch_history_states": {
+      "captured": 9,
+      "blocked": 10,
+      "empty_content": 1
+    },
+    "storage_backend": "local",
+    "oss_verified": false
+  },
+  "platform_failures": [
+    {
+      "platform": "doubao",
+      "reason": "PDF_download_confirmation",
+      "verified_screenshot": true
+    },
+    {
+      "platform": "deepseek",
+      "reason": "foreground_not_reached_huawei_dockbar",
+      "root_cause_verified": false
+    },
+    {
+      "platform": "kimi",
+      "reason": "conversation_input_not_found",
+      "root_cause_verified": false
+    },
+    {
+      "platform": "hunyuan",
+      "reason": "unreadable_hierarchy",
+      "root_cause_verified": false
+    }
+  ],
+  "quarantined_interruption_replay": {
+    "platform": "doubao",
+    "answer_characters": 2266,
+    "sources": 5,
+    "answer_status": "partial",
+    "source_panel_status": "partial",
+    "expected_sources": null,
+    "original_artifact_sha256": "3adc677db1566bfe0803f2e3f8dda15c632e1c55c215dae4d46409587735a046",
+    "normal_queue_acknowledged": false,
+    "original_audit_rewritten": false
+  },
+  "source_network": {
+    "initial_fake_ip_dns_blocked": 10,
+    "http_requests_before_block": 0,
+    "test_process_public_dns_adapter": true,
+    "ssrf_policy_unchanged": true,
+    "private_mixed_and_benchmark_ips_rejected": true,
+    "os_dns_changed": false,
+    "production_config_changed": false
+  },
+  "model": {
+    "provider_host": "api.deepseek.com",
+    "model": "deepseek-v4-flash",
+    "higress_used": false,
+    "job_status": "succeeded",
+    "run_status": "partial",
+    "reserved_requests": 26,
+    "charged_tokens": 88018,
+    "charged_tokens_include_unknown_usage_reservations": true,
+    "entity_candidates": 50,
+    "claim_candidates": 87,
+    "diagnoses": 3,
+    "coverage": {
+      "total_segments": 108,
+      "processed_segments": 17,
+      "segment_states": {
+        "failed": 1,
+        "partial": 10,
+        "deferred": 90,
+        "completed": 7
+      },
+      "rejected_spans": 111,
+      "semantic_error_count": 1
+    },
+    "source_alignment_checked_pairs": 0,
+    "independent_quality_accepted": false
+  },
+  "fixes": {
+    "gateway_commits": [
+      "67bde272687ee62f780252bea076133db6ac2124",
+      "2ecca98c34fc81ed73b8ddbeb797949c02d1b466",
+      "185c074c22739aa432dfd84126a3f10dee38afbf"
+    ],
+    "backend_commit": "3d32c616af37cbd633800344ff38aea651d40c13",
+    "backend_root_cause": "large_immutable_JSON_in_MySQL_filesort",
+    "schema_changed": false,
+    "gateway_deployed": false,
+    "backend_deployed": false
+  },
+  "verification": {
+    "windows_powershell_release_checks": "passed",
+    "powershell7_release_checks": "passed",
+    "browser_node_tests_passed": 16,
+    "backend_mysql_list_regressions": {
+      "failed_before": 2,
+      "passed_after": 2,
+      "session_sort_buffer_bytes": 32768
+    },
+    "backend_full": {
+      "passed": 1000,
+      "skipped": 2,
+      "seconds": 382.47
+    },
+    "backend_ci_ruff": "passed",
+    "backend_compileall": "passed",
+    "git_diff_check": "passed",
+    "authenticated_reader_checks": [
+      {
+        "check": "authenticated_real_capture_status",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "check": "authenticated_real_run_list",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "check": "authenticated_published_material_run",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "check": "published_model_revision_present_in_run_list",
+        "passed": true
+      },
+      {
+        "check": "published_model_candidates_match_persisted_result",
+        "passed": true,
+        "entity_candidates": 50,
+        "claim_candidates": 87,
+        "diagnoses": 3
+      },
+      {
+        "check": "authenticated_saved_article_segments",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "check": "saved_article_reader_returns_nonempty_literal_segments",
+        "passed": true,
+        "returned_segments": 10
+      },
+      {
+        "check": "cross_project_snapshot_rejected",
+        "status": 404,
+        "expected": 404,
+        "passed": true
+      },
+      {
+        "check": "completed_model_revision_readable",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      }
+    ],
+    "normal_credential_auth": true,
+    "real_service_jwt": true,
+    "browser_customer_journey": false
+  },
+  "operations": {
+    "agent_restored": true,
+    "agent_count": 1,
+    "capture_workers": 0,
+    "configured_devices_online": 5,
+    "appium_ready": true,
+    "private_config_preserved": true,
+    "gateway_runtime_source_unchanged": true,
+    "cloud_deployed": false,
+    "gateway_deployed": false,
+    "oss_writes": 0,
+    "external_content_published": false
+  },
+  "acceptance": {
+    "real_one_platform_pipeline_passed": true,
+    "five_platform_capture_passed": false,
+    "source_completeness_passed": false,
+    "semantic_quality_passed": false,
+    "business_value_passed": false,
+    "release_eligible": false
+  }
+}

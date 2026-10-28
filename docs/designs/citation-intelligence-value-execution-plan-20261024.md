@@ -506,3 +506,16 @@ Q02从planned进入in_progress，仅记录本地技术链路证据，technical_i
 独立网关分支本地提交67bde272687ee62f780252bea076133db6ac2124，为豆包/DeepSeek启动增加30秒原生命令期限，异步排空输出，锁定/超时停止自动重放；不以旧LASTEXITCODE判断新进程。Windows PowerShell5.1和7完整网关检查、Node浏览器解析10项及diff检查通过。仅本地提交，未push/PR/发布，未更新CHAO的处理器；启动命令保护不代表所有阶段已有总期限。
 
 本地实际worker对五个失败样本保留部分投影，score=null且无品牌或回答分数，未把缺失算零。已请求用户解锁手机并完成千问人工验证；元宝/Kimi页面状态仍需定位。Q02保持进行中；正文持久化、五平台完整采集、独立语义/客户价值和正式发布验收均未完成，release_eligible=false。详见docs/reviews/citation-value-chao-capture-20261028.md及去敏JSON。
+
+
+### 2026-10-28 Q02：用户解锁后真实采集、正文与鉴权读取
+
+接续用户“已处理，可以复测”，同一问题五平台各一次，已安装处理器实际封存千问1,729字及10条URL；其他四项失败，豆包截图确认PDF下载框，DeepSeek未到前台（Huawei dockbar）、Kimi未找到输入页、元宝层级不可读仍需定位。原千问生产者缺失状态/来源种类，保存为partial/unknown，不能事后补成完整。原Agent和配置恢复，新鲜心跳及运行文件哈希已核对。
+
+本机假IP DNS触发原SSRF拒绝，十条blocked保留；仅隔离worker用实际公网DNS适配重试，原安全检查、TLS和固定地址不变，未改系统/生产配置。真实保存九份原始HTML及正文、76,463字符与96个逐字证据分段，哈希及范围复验通过，一个来源empty_content；本轮是本地不可变存储，真实OSS及文章全文完整性未验收。
+
+官方DeepSeek有界分析最终job成功、Run部分；预算26次预占/88,018charged tokens（含未知用量预占），保存50实体/87声明候选及3诊断。仍有111个拒绝范围、90个deferred分段、1个failed、来源支持对齐未检查；不能据候选数量声称建议质量通过。网关本地追加千问观察元数据和活动租约中断事实保留修复，真实豆包附件2266字/5来源仅隔离回放，不改原失败审计。
+
+后端修复大manifest/summary参与列表排序导致MySQL1038：先排序ID，再按项目无排序读取列表字段。真实MySQL两项先失败后通过，最终全量1000 passed/2 skipped，CI范围Ruff/compileall通过；实际正常认证与服务JWT读取九项检查通过，包括列表包含完成修订、候选数一致、正文和跨项目拒绝。
+
+Q02继续in_progress，release_eligible=false。下一步按独立发布流程先更新网关，再做新五平台采集、真实OSS、独立语义/建议价值和浏览器客户闭环验收。网关及后端只有本地提交，无push/PR/源码部署、外部内容发布或OSS写入；正式页面样式未改。详见docs/reviews/citation-value-chao-retest-20261028.md/.json。
