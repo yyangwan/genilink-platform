@@ -1,5 +1,54 @@
 $ErrorActionPreference = "Stop"
 
+function Invoke-CaptureNativeCommand {
+    param(
+        [Parameter(Mandatory)][string]$FilePath,
+        [Parameter(Mandatory)][string]$Arguments,
+        [Parameter(Mandatory)][string]$Operation,
+        [ValidateRange(1, 120)][int]$TimeoutSeconds = 30
+    )
+
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $FilePath
+    $startInfo.Arguments = $Arguments
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.StandardOutputEncoding = [Text.UTF8Encoding]::new($false)
+    $startInfo.StandardErrorEncoding = [Text.UTF8Encoding]::new($false)
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    $started = $false
+    try {
+        $started = $process.Start()
+        if (-not $started) { throw "CAPTURE_NATIVE_FAILED: $Operation could not start" }
+        # Drain both pipes while waiting; a full stdout/stderr buffer must not
+        # prevent the process from reaching the deadline or exiting normally.
+        $outputTask = $process.StandardOutput.ReadToEndAsync()
+        $errorTask = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+            $process.Kill()
+            $null = $process.WaitForExit(5000)
+            throw "CAPTURE_NATIVE_TIMEOUT: $Operation exceeded $TimeoutSeconds seconds"
+        }
+        if (-not $outputTask.Wait(1000) -or -not $errorTask.Wait(1000)) {
+            throw "CAPTURE_NATIVE_OUTPUT_TIMEOUT: $Operation output did not close"
+        }
+        if ($process.ExitCode -ne 0) {
+            throw "CAPTURE_NATIVE_FAILED: $Operation exited with code $($process.ExitCode)"
+        }
+        return $outputTask.Result
+    } finally {
+        # This is only the client started above; never kill the shared ADB server.
+        if ($started -and -not $process.HasExited) {
+            $process.Kill()
+            $null = $process.WaitForExit(5000)
+        }
+        $process.Dispose()
+    }
+}
+
 function Convert-CaptureResult {
     param([object[]]$Output)
 

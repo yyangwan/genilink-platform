@@ -61,12 +61,10 @@ function Write-GatewayTrace {
 function Start-DeepSeekApp {
     param([Parameter(Mandatory)][string]$Serial)
 
-    # adb's monkey command writes normal diagnostics to stderr, which
-    # PowerShell promotes to a terminating error under ErrorActionPreference.
-    & cmd.exe /d /c "adb -s $Serial shell am start -W -S -n com.deepseek.chat/.MainActivity >nul 2>&1"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Could not start DeepSeek app (adb exit code $LASTEXITCODE)"
-    }
+    # Drain native diagnostics separately and bound ActivityManager startup.
+    Invoke-CaptureNativeCommand -FilePath 'adb' `
+        -Arguments "-s $Serial shell am start -W -S -n com.deepseek.chat/.MainActivity" `
+        -Operation 'start DeepSeek' -TimeoutSeconds 30 | Out-Null
     Start-Sleep -Milliseconds 700
     $resumedPackage = $null
     foreach ($line in @(& adb -s $Serial shell dumpsys activity activities)) {
@@ -83,10 +81,9 @@ function Start-DeepSeekApp {
 function Resume-DeepSeekApp {
     param([Parameter(Mandatory)][string]$Serial)
 
-    & cmd.exe /d /c "adb -s $Serial shell am start -W -n com.deepseek.chat/.MainActivity >nul 2>&1"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Could not resume DeepSeek app (adb exit code $LASTEXITCODE)"
-    }
+    Invoke-CaptureNativeCommand -FilePath 'adb' `
+        -Arguments "-s $Serial shell am start -W -n com.deepseek.chat/.MainActivity" `
+        -Operation 'reopen DeepSeek' -TimeoutSeconds 30 | Out-Null
     Start-Sleep -Milliseconds 700
     $resumedPackage = $null
     foreach ($line in @(& adb -s $Serial shell dumpsys activity activities)) {

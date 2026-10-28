@@ -1658,13 +1658,9 @@ try {
         }
     }
     $script:appiumCapabilities = $capabilities
-    & cmd.exe /d /c (
-        "adb -s $serial shell am start -W -n " +
-        "$packageName/com.larus.home.impl.alias.AliasActivity1 >nul 2>&1"
-    )
-    if ($LASTEXITCODE -ne 0) {
-        throw "Could not start Doubao"
-    }
+    Invoke-CaptureNativeCommand -FilePath 'adb' `
+        -Arguments "-s $serial shell am start -W -n $packageName/com.larus.home.impl.alias.AliasActivity1" `
+        -Operation 'start Doubao' -TimeoutSeconds 30 | Out-Null
     Start-Sleep -Seconds 2
 
     if ($newConversation) {

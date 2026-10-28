@@ -346,6 +346,12 @@ function Send-TaskFailure {
     if ($Message -match '\bCAPTURE_POPUP_[A-Z_]+') {
         $Code = "gateway_intervention_required"
     }
+    if ($Message -match '^Android device [^\r\n]+ is locked; configure it for') {
+        $Code = "gateway_intervention_required"
+    }
+    if ($Message -match '\bCAPTURE_NATIVE_(TIMEOUT|OUTPUT_TIMEOUT)\b') {
+        $Code = "gateway_capture_timeout"
+    }
     if ($Message -match 'No capture-ready Android device is currently available') {
         $Code = "gateway_device_unavailable"
     }
@@ -354,7 +360,7 @@ function Send-TaskFailure {
             lease_token = $LeaseToken
             error_code = $Code
             error_message = $Message
-            retryable = $Code -notin @("handler_not_installed", "gateway_auth_required", "gateway_intervention_required")
+            retryable = $Code -notin @("handler_not_installed", "gateway_auth_required", "gateway_intervention_required", "gateway_capture_timeout")
             retry_after_seconds = 30
         } | Out-Null
     } catch {
