@@ -402,18 +402,37 @@ function Complete-ActiveTask {
         } | Out-Null
         Write-AgentLog "completed task=$($task.id) device=$($active.DeviceSerial)"
     } catch {
+        $failureMessage = $_.Exception.Message
         if ($active.DeviceSerial -and -not $handlerCompleted) {
             $script:deviceFailures = @($script:deviceFailures | Where-Object {
                 ([datetimeoffset]$_.Until).UtcDateTime -gt [datetime]::UtcNow -or
                     ([datetimeoffset]$_.TaskUntil).UtcDateTime -gt [datetime]::UtcNow
             }) + @(New-CaptureDeviceFailure -Serial $active.DeviceSerial `
-                -Platform $task.platform -TaskId $task.id -Message $_.Exception.Message)
+                -Platform $task.platform -TaskId $task.id -Message $failureMessage)
             try {
                 Save-CaptureDeviceFailures -Path $deviceFailurePath -Failures $script:deviceFailures
                 Write-AgentLog "device cooldown device=$($active.DeviceSerial) platform=$($task.platform) task=$($task.id)"
             } catch { Write-AgentLog "device cooldown persistence failed: $($_.Exception.Message)" }
         }
-        Send-TaskFailure -Task $task -LeaseToken $active.LeaseToken -Message $_.Exception.Message
+        if (-not $handlerCompleted -and $task.payload.capture_contract_version -eq 2 -and
+            $job.PSBeginTime -and $failureMessage -match '\bCAPTURE_POPUP_[A-Z_]+') {
+            try {
+                . (Join-Path $PSScriptRoot 'gateway-capture-verifier.ps1')
+                $retained = Read-InterruptedCapture -ResultRoot (Join-Path $root 'results') `
+                    -TaskId $task.id -StartedAt $job.PSBeginTime
+                if ($retained) {
+                    . (Join-Path $PSScriptRoot 'capture-v2.ps1')
+                    $partial = ConvertTo-CaptureV2 -Task $task -Result $retained
+                    Invoke-GatewayApi -Method Post -Path "/api/device-gateway/tasks/$($task.id)/complete" -Body @{
+                        lease_token = $active.LeaseToken
+                        result = $partial
+                    } | Out-Null
+                    Write-AgentLog "interrupted task=$($task.id) retained partial facts; device cooldown preserved"
+                    return
+                }
+            } catch { Write-AgentLog "partial delivery failed task=$($task.id) class=$($_.Exception.GetType().Name)" }
+        }
+        Send-TaskFailure -Task $task -LeaseToken $active.LeaseToken -Message $failureMessage
     } finally {
         Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
         $script:activeTasks.Remove($TaskId) | Out-Null

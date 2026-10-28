@@ -65,6 +65,43 @@ function Convert-CaptureResult {
     return $result
 }
 
+function Read-InterruptedCapture {
+    param(
+        [Parameter(Mandatory)][string]$ResultRoot,
+        [Parameter(Mandatory)][string]$TaskId,
+        [Parameter(Mandatory)][datetime]$StartedAt
+    )
+    if ($TaskId -notmatch '^[a-zA-Z0-9_-]{1,100}$') { return $null }
+    $directory = Join-Path (Join-Path $ResultRoot $TaskId) 'interruptions'
+    if (-not (Test-Path -LiteralPath $directory)) { return $null }
+    $files = @(Get-ChildItem -LiteralPath $directory -Filter '*-partial.json' -File |
+        Where-Object { $_.Length -le 2097152 -and $_.LastWriteTimeUtc -ge $StartedAt.ToUniversalTime() } |
+        Sort-Object LastWriteTimeUtc -Descending)
+    foreach ($file in $files) {
+        try {
+            $saved = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($saved.task_id -cne $TaskId -or $saved.status -ne 'interrupted' -or
+                $saved.reason -notin @('protected_dialog','unknown_dialog','upgrade_without_safe_action','retry_exhausted','resume_mismatch','refresh_failed','unreadable_hierarchy') -or
+                [string]::IsNullOrWhiteSpace([string]$saved.answer) -or ([string]$saved.answer).Length -gt 200000) { continue }
+            $sources = @($saved.sources | Where-Object { $null -ne $_ })
+            if ($sources.Count -gt 200) { continue }
+            $expected = if (($saved.reference_count -is [int] -or $saved.reference_count -is [long]) -and
+                $saved.reference_count -ge $sources.Count -and $saved.reference_count -le 10000) { [int]$saved.reference_count } else { $null }
+            $answerStatus = if ($saved.answer_status -eq 'complete') { 'complete' } else { 'partial' }
+            return [pscustomobject]@{
+                answer = [string]$saved.answer
+                answer_status = $answerStatus
+                sources = $sources
+                reference_count = $expected
+                source_panel_expected_count = $expected
+                source_panel_status = 'partial'
+                capture_status = 'partial'
+            }
+        } catch { continue }
+    }
+    return $null
+}
+
 function Test-CaptureResult {
     param([object]$Result)
 

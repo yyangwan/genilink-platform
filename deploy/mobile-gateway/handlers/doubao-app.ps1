@@ -1876,6 +1876,7 @@ try {
     }
     $answerCompletedAt = Get-Date
     $script:capturePopupState.CapturedAnswer = $message.answer
+    $script:capturePopupState.CapturedAnswerStatus = if ($message.completed) { 'complete' } else { 'partial' }
     $script:capturePopupState.ReferenceCount = (Get-ReferenceSummary -Source $finalSource).reference_count
 
     $sessionId = $null
