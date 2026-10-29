@@ -44,15 +44,15 @@ not process standard streams. This avoids both a known TLS interoperability
 problem and Windows PowerShell 5.1 console-code-page corruption for Chinese
 prompts and answers.
 
-Qwen audit prompts use a separate `browser.prompt` queue and a dedicated
-headless Edge profile under `C:\ProgramData\MobileGateway\browser-runtime`.
+Qwen audit prompts use a separate `browser.prompt` queue and a persistent
+profile under `C:\ProgramData\MobileGateway\browser-runtime\profile`.
 The installer pins `playwright-core` and installs it with `npm ci` on the
-gateway. Edge must be installed on that machine; the worker never uses an
-Android device. Browser capacity is one task, independent of the configured
-Android pool. The Web profile is persistent but runs as the scheduled task's
-`SYSTEM` account, so any required Qwen login must be established in that
-profile before production use. A login challenge or changed Web UI causes a
-task failure rather than a fabricated source list.
+gateway. Qwen runs visible Chrome as the configured `browserInteractiveUser`,
+while the agent remains under `SYSTEM`; see [Qwen Browser Identity](#qwen-browser-identity).
+It never uses an Android device. Browser capacity is one task, independent of
+the configured Android pool. Keep the profile and its interactive login when
+updating gateway scripts. A login challenge fails explicitly rather than
+producing a fabricated source list.
 
 Set `deviceSerials` in `config\gateway-agent.json` to the authorized devices
 that may run capture tasks. The agent maintains a bounded worker pool, assigns
@@ -74,10 +74,12 @@ The gateway currently supports:
 - `doubao` + `app`: starts an isolated Doubao conversation, submits
   `payload.prompt`, waits for the completed response, expands every cited
   reference, and collects each source title and real URL through Doubao's
-  Copy Link action. It also stores a screenshot and final Appium page source
+  Copy Link action. It also stores a screenshot and final page source
   under `C:\ProgramData\MobileGateway\results`.
-- `deepseek` + `app`: collects every search-result record and resolves the
-  exact destination URL through Android's outbound browser intent.
+- `deepseek` + `app`: enters the question through the already installed
+  Appium Settings `UnicodeIME`, verifies the full focused draft, and restores
+  the original keyboard. It avoids a UiAutomator2 clipboard session, collects
+  search-result records, and resolves URLs through outbound browser intents.
 - `yuanbao` + `app`: collects every source name and title from the reference
   panel, opens each source, uses the detail page's Copy Link action, and reads
   the exact source URL from the Android clipboard. URLs printed in the answer
@@ -85,14 +87,17 @@ The gateway currently supports:
 - `qwen` or `qianwen` + `app`: collects every source name, title, and exposed
   domain. Its generated URL is explicitly labeled `site_root`, not an exact
   article path.
-- `qwen` + `web`: opens a fresh Web conversation in Edge, sends the prompt,
+- `qwen` + `web`: opens a fresh Web conversation in Chrome, sends the prompt,
   expands `查看全部`, and returns exact article URLs from the displayed search
-  reference cards. These are search references, not necessarily inline-cited
-  references in the answer. The audit adapter routes Qwen to this handler;
+  reference cards scoped to that answer's request. Verified matching cards
+  carry `answer_reference`; links read only from the answer carry `text_link`.
+  Unknown kinds and unknown source-panel denominators stay unknown. The audit
+  adapter routes Qwen to this handler;
   the legacy app handler remains installed but is not selected by that adapter.
-- `kimi` + `app`: scrolls through lazy-loaded answer segments, opens the
-  searched-web-pages panel, catalogs every paged result card, and extracts each
-  exact original URL through the in-app article share sheet.
+- `kimi` + `app`: locates the unique enabled native editor without relying
+  on placeholder wording, scrolls through lazy-loaded answer segments, inventories
+  inline citation cards, and attempts to resolve their URLs through the in-app
+  article share sheet. Search candidates remain distinct from answer citations.
 
 Task results include `reference_count`, `source_count`, `answer_urls`, and a
 `sources` array. Every expected reference keeps its list index. A source that
@@ -104,13 +109,11 @@ destinations.
 Before reporting completion, the agent independently checks that an answer
 exists and at least 90% of the reported references have collected HTTP(S)
 URLs. Zero-reference results are treated as unverified, not automatically
-complete. An unverified result gets one fresh capture on the same device if
-the task is less than 10 minutes old. The retry writes to a separate evidence
-directory; the agent reports whichever attempt has more valid sources, using
-completeness as the tie-breaker. When the retry fails or time budget is gone,
-the first result is preserved. Verification outcomes are logged in
-`logs\gateway-agent.log`; they do not change the audit result schema. This
-check is a per-result target, not a measured 90% production success rate.
+complete. The verifier preserves an unverified answer and does not submit the
+question again. Collectors may retry source retrieval within that same answer,
+reusing verified index/title matches. Verification outcomes are logged in
+`logs\gateway-agent.log`; the 90% threshold is a per-result target, not a
+measured production success rate.
 
 ### Citation share fallback (device-pool opt-in)
 
@@ -142,8 +145,8 @@ Kimi citations are inventoried from the final answer's inline clickable cards,
 not the `搜索网页` candidate list. Multiple card occurrences are retained even
 when they share a canonical article URL. Qwen site roots do not count as exact
 article URLs. The verifier counts only `exact` URLs toward completeness; an
-unresolved source remains a failed record. Per-source retries occur in the
-same answer before the existing whole-task retry.
+unresolved source remains a failed record. Source retries stay within the
+same answer and do not trigger a whole-question replay.
 
 Doubao counts multiple visible search-reference cards and does not collapse
 items merely because their displayed ordinal repeats. It walks the opened
@@ -206,8 +209,24 @@ manual mapping after public DNS resolves the domain to the production server.
   confused with permanent removal from the configured pool.
 - A partial citation result remains partial in its existing source status and
   completeness fields; source indices or counts are never reduced to hide gaps.
+- Doubao and DeepSeek native startup commands have a 30-second deadline.
+  Locked devices and native timeout failures stop automatic task replay;
+  this does not establish an overall deadline for every collection stage.
+- DeepSeek's Unicode input requires an installed `io.appium.settings/.UnicodeIME`.
+  Missing input support or an unverified draft stops before sending. The
+  gateway does not install a keyboard as part of a script-only update, and
+  an unavailable installed app version is not replaced with a configured value.
 
-Run the local recovery tests before deployment:
+Run the gateway-only release gates locally before deployment:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\test-release.ps1
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\test-release.ps1
+npm ci --prefix browser-runtime --ignore-scripts
+npm --prefix browser-runtime test
+```
+
+Additional recovery probes:
 
 ```powershell
 .\test-source-only-retry.ps1
@@ -245,39 +264,57 @@ The installer grants that user Modify access only to `browser-runtime/profile`
 and `browser-runtime/work`, including existing SYSTEM-owned Chrome files.
 Gateway configuration and script permissions are not broadened.
 Qwen sources are collected from the current answer's full source panel, including
-card metadata URLs. The panel's source count, not the analysis tool's aggregate
-search-material count, is the expected reference count. Missing rows or URLs fail
-collection rather than silently returning a complete result.
+card metadata URLs. The panel's observed source count is the expected reference
+count; an aggregate analysis count does not establish a complete panel. Missing
+rows or URLs are retained with partial/unknown panel state, and a completed
+answer is preserved even when source collection reaches its deadline. A change
+to a different answer's panel stops collection rather than mixing references.
 
 Run `pwsh -NoProfile -File .\test-browser-task.ps1` before gateway deployment.
 
 ### Android Popup Interruptions
 
 Both Android collectors guard hierarchy reads with a shared, task-scoped policy.
-Only an explicit upgrade title and one enabled decline button within the same
-verified app-owned dialog allow a tap. The task has a total budget of two such
-taps; package and visible prompt anchors are checked again after dismissal.
+Only an explicit upgrade title and one enabled decline control within the same
+verified app-owned dialog allow a tap. Yuanbao's observed native update panel
+also permits its explicit `id/skip` control after checking its title, version,
+upgrade control and bounds. The task has a total budget of two dismissal taps;
+package and visible prompt anchors are checked again after upgrade dismissal.
 Ordinary answer text, source panels, and global Cancel buttons are not dismissal
 targets. Login, consent, payment, permissions, forced upgrades, and unknown native
 dialogs require manual intervention. Custom layouts without a recognized modal
 boundary are not automatically dismissed; source-read failures still surface as
 hierarchy errors rather than being guessed to be popups.
 
-Blocked tasks stop source retries and UI restoration, report
-`gateway_intervention_required`, and place the device in a one-hour quarantine.
-This is not a permanent device disablement. Evidence is stored under
+Only while resolving a Doubao source may the guard cancel a verified native
+Huawei browser PDF-download confirmation. It never accepts the download. The
+collector returns to the reference list, preserves an observed URL if present,
+otherwise marks it unavailable, and continues later sources. It does not reopen
+the same cancelled item during source retries. A collected PDF URL does not
+prove that PDF body text was extracted. All other unknown source dialogs stop.
+
+Blocked UI stops source retries and UI restoration and places the device in a
+one-hour quarantine. Without usable retained capture-v2 facts, the task reports
+`gateway_intervention_required`. This is not a permanent device disablement.
+Evidence is stored under
 `results/<task>/interruptions`: static reason, UI fingerprint, a best-effort
 screenshot for non-sensitive dialogs, and an interrupted partial-data checkpoint
-when answers or exact source URLs were already collected. Sensitive/input dialogs
-are not screenshotted. These checkpoints are not published as successful captures.
-The guard does not resend prompts, restart apps, or automatically resume old tasks.
+when answers or source records were already collected. Sensitive/input dialogs
+are not screenshotted. For capture-v2 only, the agent may submit retained facts
+under the original active lease after checking the exact task, reason, file age
+and size. The source panel remains partial and device cooldown is preserved;
+this does not certify a complete capture or resume an old failed audit. Legacy,
+empty or invalid checkpoints follow the failure path. The guard never resends
+the question or automatically resumes old tasks.
 
 Install both `gateway-popup-guard.ps1` and `gateway-popup-evidence.ps1` with the
 updated collectors and verifier. Run `test-popup-guard.ps1` and
 `test-popup-integration.ps1` on PowerShell 5.1 and 7 before release. Native hierarchy
 guards cannot protect blind coordinate operations before a readable hierarchy is
-available; notably DeepSeek's pre-capture Compose input remains a separate
-reliability concern. Do not claim end-to-end popup coverage without live validation.
+available. Local fixture checks and saved-UI replays do not establish real
+post-release input, PDF-modal or complete-capture success. Validate those on the
+gateway after deploying its landed exact-SHA archive; keep the receipt and
+runtime-file backup for rollback without replacing private configuration.
 
 1. Enable Android developer options and USB debugging.
 2. Connect the phone by USB and keep it unlocked.
