@@ -519,3 +519,10 @@ Q02从planned进入in_progress，仅记录本地技术链路证据，technical_i
 后端修复大manifest/summary参与列表排序导致MySQL1038：先排序ID，再按项目无排序读取列表字段。真实MySQL两项先失败后通过，最终全量1000 passed/2 skipped，CI范围Ruff/compileall通过；实际正常认证与服务JWT读取九项检查通过，包括列表包含完成修订、候选数一致、正文和跨项目拒绝。
 
 Q02继续in_progress，release_eligible=false。下一步按独立发布流程先更新网关，再做新五平台采集、真实OSS、独立语义/建议价值和浏览器客户闭环验收。网关及后端只有本地提交，无push/PR/源码部署、外部内容发布或OSS写入；正式页面样式未改。详见docs/reviews/citation-value-chao-retest-20261028.md/.json。
+
+
+### 2026-10-29 Q02：手动清理后的四 App 复测与适配定位
+
+用户手动清理后，新审计同题四 App 各一次，四项均失败、封存0，昨天千问样本保留。豆包再次打开PDF下载确认框，中断留1850字/1来源（未当成成功）；元宝截图确认新版更新提示，目标v2.90.10不是安装版本；Kimi正常输入页提示已变化，而运行脚本仍找“尽管问，带图也行”。DeepSeek本次已进会话，实际卡在mobile:setClipboard，客户端约30秒/后端代理240秒超时，问题未发送。详见docs/reviews/citation-value-four-app-retry-20261029.md/.json。
+
+下一步修正四项采集适配并按独立网关流程验收，不能靠继续清理页面或运行目录临时覆盖修复。原Agent/配置已恢复，一个SYSTEMAgent、零worker、五设备在线，Appium状态可用不等于每条自动化命令成功。仅启动原有本地Docker与验收库，没有重建；产品源码、应用版本未改，无新模型/OSS/正文抓取、push/PR/部署。Q02继续in_progress，release_eligible=false。

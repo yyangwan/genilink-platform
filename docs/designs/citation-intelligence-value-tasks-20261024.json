@@ -951,10 +951,11 @@
           "Capture-v2 camelCase observed conditions were rejected by strict Brief v3 snake_case fields; fixed with explicit observed-only adapter. Unknowns remain unknown, requested conditions never substitute. New full authorization/export regression added.",
           "Local read-only device availability check found adb available but zero devices, no running Appium/local gateway task. Test-machine location/connection requested asynchronously; no production gateway changes made.",
           "2026-10-28 CHAO connection resolved and installed handlers attempted for one prompt across five platforms. All five failed explicitly; original Agent/config restored, zero sealed responses/articles, no missing-to-zero brand scores. Scoped local gateway startup/locked-device fix committed with both PowerShell release checks and 10 browser tests passing; not deployed.",
-          "2026-10-28 after user unlock/challenge intervention: real installed-handler retest sealed Qwen1729 characters/10 URL observations; 9 actual source snapshots/76463 saved-text characters/96 exact segments persisted and checksum-verified. Actual bounded official DeepSeek analysis published partial candidates, normal authenticated Portal readers9 checks passed. Gateway observed-state/partial-interruption fixes and MySQL large-run-list fix committed locally; not deployed."
+          "2026-10-28 after user unlock/challenge intervention: real installed-handler retest sealed Qwen1729 characters/10 URL observations; 9 actual source snapshots/76463 saved-text characters/96 exact segments persisted and checksum-verified. Actual bounded official DeepSeek analysis published partial candidates, normal authenticated Portal readers9 checks passed. Gateway observed-state/partial-interruption fixes and MySQL large-run-list fix committed locally; not deployed.",
+          "2026-10-29 user-cleaned-device retest: new four-App/single-round audit failed4/sealed0, prior Qwen sample preserved. Screenshots and installed scripts pinpoint Kimi stale placeholder, Yuanbao optional update, Doubao PDF download; actual Appium log pinpoints DeepSeek clipboard timeout before send. No product code changes/deploy or analysis-model calls."
         ],
         "remaining": [
-          "Publish landed gateway fixes through independent PR/CI and idle SYSTEM mutex protocol, then new five-platform capture. Four platforms still failed; source kind/panel unknown in old Qwen capture stays unchanged.",
+          "Apply source fixes for Kimi changed input locator, Yuanbao scoped update dismissal, DeepSeek clipboard/session timeouts and Doubao PDF source handling. Validate independently; release landed gateway changes through PR/CI and idle SYSTEM mutex before new capture. Four Apps failed again on2026-10-29; old Qwen facts remain unchanged.",
           "Verify real OSS and article completeness separately from local body persistence; resolve semantic rejected spans, failed/deferred segments and source alignment with independently labeled real samples.",
           "Authenticated browser customer journey and one independently evaluated real opportunity through delivery/publication/single observation; synthetic transport and candidate output do not count.",
           "Q01 independent gold/holdout and practical recommendation value acceptance; release_eligible remains false. Per-system release only after explicit scope authorization."
@@ -962,7 +963,8 @@
         "evidence": [
           "docs/reviews/citation-value-service-journey-20261027.md and .json;66 assertions/63 distinct check names, all passed; backend998 passed/2 skipped, CI-scoped Ruff/compileall passed. No Portal/ContentOS application source changes, no real model/device/production calls.",
           "docs/reviews/citation-value-chao-capture-20261028.md and .json: real installed-handler failure matrix, persisted failed5/sealed0/article0/score-null, gateway fix67bde272687ee62f780252bea076133db6ac2124 and local gate results. Not successful real capture, semantic quality or business acceptance.",
-          "docs/reviews/citation-value-chao-retest-20261028.md/.json: real1-of5 capture; local9 raw/text snapshots/96 verified spans; model26 requests/88018 charged tokens (unknown reservations included),50/87/3 candidates; source alignment unchecked. GatewayPS5+7 andNode16 passed; backend1000 passed/2 skipped and actual authenticated readers9 passed. No OSS write, source deployment or independent quality/value acceptance."
+          "docs/reviews/citation-value-chao-retest-20261028.md/.json: real1-of5 capture; local9 raw/text snapshots/96 verified spans; model26 requests/88018 charged tokens (unknown reservations included),50/87/3 candidates; source alignment unchecked. GatewayPS5+7 andNode16 passed; backend1000 passed/2 skipped and actual authenticated readers9 passed. No OSS write, source deployment or independent quality/value acceptance.",
+          "docs/reviews/citation-value-four-app-retry-20261029.md/.json: actual four-App retry after manual cleaning; failed4/sealed0, archived Doubao1850characters/1source only. Exact screenshots, old Kimi locator, installed versions and setClipboard timeout checked; normal Agent/config restored. No new source-gate or deployment claims."
         ]
       }
     }
@@ -1056,6 +1058,15 @@
         "fivePlatformAcceptance": false,
         "deployed": false,
         "evidence": "docs/reviews/citation-value-chao-retest-20261028.json"
+      },
+      "chaoFourAppRetry20261029": {
+        "expected": 4,
+        "failed": 4,
+        "sealed": 0,
+        "previousQwenPreserved": true,
+        "productSourceChanged": false,
+        "deployed": false,
+        "evidence": "docs/reviews/citation-value-four-app-retry-20261029.json"
       }
     },
     "productionUiChangeLocation": "local_worktree_only",
