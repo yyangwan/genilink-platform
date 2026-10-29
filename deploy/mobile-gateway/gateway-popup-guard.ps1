@@ -7,10 +7,34 @@ function Get-CaptureGuardBounds {
     return ,$b
 }
 
+function Get-CaptureDownloadCancellation {
+    param($Dialog, [object[]]$Nodes)
+    if ($Dialog.GetAttribute('package') -cne 'com.huawei.browser' -or
+        $Dialog.SelectSingleNode("ancestor::*[@class='android.webkit.WebView']") -or
+        $Dialog.SelectSingleNode(".//*[@class='android.webkit.WebView' or @password='true' or @class='android.widget.EditText']")) { return $null }
+    $labels = @($Nodes | ForEach-Object { $_.GetAttribute('text').Trim() })
+    if (@($Nodes | Where-Object { $_.GetAttribute('package') -cne 'com.huawei.browser' }).Count -or
+        @($labels | Where-Object { $_ -match '^文件名\s*[:：]' }).Count -ne 1 -or
+        @($labels | Where-Object { $_ -match '^大小\s*[:：]' }).Count -ne 1 -or
+        @($labels | Where-Object { $_ -match '(?i)\.pdf$' }).Count -ne 1) { return $null }
+    $title = @($Nodes | Where-Object { $_.GetAttribute('text') -ceq '下载' -and $_.GetAttribute('clickable') -ne 'true' -and $_.GetAttribute('class') -eq 'android.widget.TextView' })
+    $cancel = @($Nodes | Where-Object { $_.GetAttribute('text') -ceq '取消' -and $_.GetAttribute('class') -eq 'android.widget.Button' -and $_.GetAttribute('clickable') -eq 'true' -and $_.GetAttribute('enabled') -eq 'true' })
+    $confirm = @($Nodes | Where-Object { $_.GetAttribute('text') -ceq '下载' -and $_.GetAttribute('class') -eq 'android.widget.Button' -and $_.GetAttribute('clickable') -eq 'true' -and $_.GetAttribute('enabled') -eq 'true' })
+    if ($title.Count -ne 1 -or $cancel.Count -ne 1 -or $confirm.Count -ne 1) { return $null }
+    $panel = Get-CaptureGuardBounds $Dialog.GetAttribute('bounds')
+    $bounds = Get-CaptureGuardBounds $cancel[0].GetAttribute('bounds')
+    $positive = Get-CaptureGuardBounds $confirm[0].GetAttribute('bounds')
+    if (-not $panel -or -not $bounds -or -not $positive -or
+        $bounds[0] -lt $panel[0] -or $bounds[1] -lt $panel[1] -or $bounds[2] -gt $panel[2] -or $bounds[3] -gt $panel[3] -or
+        $positive[0] -lt $panel[0] -or $positive[1] -lt $panel[1] -or $positive[2] -gt $panel[2] -or $positive[3] -gt $panel[3]) { return $null }
+    [pscustomobject]@{Kind='source_download';Reason='';X=[int][math]::Floor(($bounds[0]+$bounds[2])/2);Y=[int][math]::Floor(($bounds[1]+$bounds[3])/2)}
+}
+
 function Get-CaptureInterruption {
     param(
         [Parameter(Mandatory)][AllowEmptyString()][string]$Source,
-        [Parameter(Mandatory)][string]$ExpectedPackage
+        [Parameter(Mandatory)][string]$ExpectedPackage,
+        [switch]$AllowSourceDownload
     )
     $result = @{ Kind = 'none'; Reason = ''; X = $null; Y = $null }
     $reader = $null
@@ -40,7 +64,10 @@ function Get-CaptureInterruption {
     foreach ($node in $document.SelectNodes('//*')) {
         $class = $node.GetAttribute('class')
         $id = $node.GetAttribute('resource-id')
-        if ($class -in @('android.app.Dialog', 'android.widget.Dialog', 'androidwidgetDialog') -or
+        $yuanbaoBoundary = $ExpectedPackage -ceq 'com.tencent.hunyuan.app.chat' -and
+            $node.GetAttribute('package') -ceq $ExpectedPackage -and $class -eq 'android.widget.FrameLayout' -and
+            $null -ne $node.SelectSingleNode("./*[@resource-id='com.tencent.hunyuan.app.chat:id/title' and @text='元宝新版本']")
+        if ($yuanbaoBoundary -or $class -in @('android.app.Dialog', 'android.widget.Dialog', 'androidwidgetDialog') -or
             $id -eq 'android:id/parentPanel' -or
             $id -match '^[^:]+:id/(?:[a-z0-9_]*(?:update|upgrade)[a-z0-9_]*dialog[a-z0-9_]*|[a-z0-9_]*dialog[a-z0-9_]*(?:update|upgrade)[a-z0-9_]*)$') {
             $boundaries += $node
@@ -82,6 +109,15 @@ function Get-CaptureInterruption {
         }
         if ($hasInner) { continue }
         $nodes = @($dialog) + @($dialog.SelectNodes('.//*'))
+        if ($AllowSourceDownload -and $ExpectedPackage -ceq 'com.larus.nova') {
+            $download = Get-CaptureDownloadCancellation -Dialog $dialog -Nodes $nodes
+            if ($download) { $candidates += $download; continue }
+        }
+        $yuanbaoPanel = $ExpectedPackage -ceq 'com.tencent.hunyuan.app.chat' -and
+            $dialog.GetAttribute('package') -ceq $ExpectedPackage -and
+            @($dialog.SelectNodes("./*[@resource-id='com.tencent.hunyuan.app.chat:id/title' and @text='元宝新版本']")).Count -eq 1 -and
+            @($dialog.SelectNodes("./*[@resource-id='com.tencent.hunyuan.app.chat:id/version']") | Where-Object { $_.GetAttribute('text') -match '^新版本\s+v\d+(?:\.\d+)+$' }).Count -eq 1 -and
+            @($dialog.SelectNodes("./*[@resource-id='com.tencent.hunyuan.app.chat:id/upgrade' and @text='立即更新' and @clickable='true' and @enabled='true']")).Count -eq 1
         $labels = @()
         $titles = @()
         $upgradeText = $false
@@ -90,7 +126,8 @@ function Get-CaptureInterruption {
                 $label = $node.GetAttribute($attribute).Trim()
                 if ($label) { $labels += $label }
                 if ($node.GetAttribute('clickable') -ne 'true' -and $node.GetAttribute('class') -notmatch '(?:EditText|Button)$' -and
-                    $label -match '^(?:发现新版本|检测到新版本|新版本更新|版本更新|软件更新|应用更新|升级提醒|更新提醒|New version available|Update available|App update|Software update)$') {
+                    ($label -match '^(?:发现新版本|检测到新版本|新版本更新|版本更新|软件更新|应用更新|升级提醒|更新提醒|New version available|Update available|App update|Software update)$' -or
+                        ($yuanbaoPanel -and $node.GetAttribute('resource-id') -ceq 'com.tencent.hunyuan.app.chat:id/title' -and $label -ceq '元宝新版本'))) {
                     $upgradeText = $true
                     if ($node.GetAttribute('resource-id') -match ':id/(?:title|alertTitle|dialog_title|update_title|upgrade_title|updateTitle|upgradeTitle)$') {
                         $titles += $node
@@ -127,10 +164,12 @@ function Get-CaptureInterruption {
         }
         foreach ($node in $nodes) {
             $decline = $node.GetAttribute('text') -cmatch '^(?:暂不升级|暂不更新|稍后提示|稍后提醒|稍后再说|以后再说|取消|关闭)$'
+            $yuanbaoSkip = $yuanbaoPanel -and $node.GetAttribute('resource-id') -ceq 'com.tencent.hunyuan.app.chat:id/skip' -and
+                $node.GetAttribute('class') -ceq 'android.widget.ImageView' -and $node.GetAttribute('text') -ceq ''
             $button = $node.GetAttribute('class') -in @('android.widget.Button', 'android.widget.ImageButton') -or
                 $node.GetAttribute('resource-id') -match ':id/(?:button2|cancel|close|decline|later|negative_button|btn_cancel|btn_close|update_cancel|upgrade_cancel)$'
             $bounds = Get-CaptureGuardBounds $node.GetAttribute('bounds')
-            if ($decline -and $button -and $packageOK -and $node.GetAttribute('package') -ceq $ExpectedPackage -and
+            if ((($decline -and $button) -or $yuanbaoSkip) -and $packageOK -and $node.GetAttribute('package') -ceq $ExpectedPackage -and
                 $node.GetAttribute('enabled') -ceq 'true' -and $node.GetAttribute('clickable') -ceq 'true' -and
                 $null -ne $bounds -and $null -ne $dialogBounds -and
                 $bounds[0] -ge $dialogBounds[0] -and $bounds[1] -ge $dialogBounds[1] -and
@@ -187,8 +226,9 @@ function Resolve-CaptureInterruptions {
         Stop-CaptureInterruption $Source 'retry_exhausted' 'CAPTURE_POPUP_RETRY_EXHAUSTED' $OnBlocked $State
     }
     $current = $Source
+    $allowDownload = $State['SourceDownloadContext'] -is [bool] -and $State['SourceDownloadContext']
     while ($true) {
-        $popup = Get-CaptureInterruption -Source $current -ExpectedPackage $ExpectedPackage
+        $popup = Get-CaptureInterruption -Source $current -ExpectedPackage $ExpectedPackage -AllowSourceDownload:$allowDownload
         if ($popup.Kind -eq 'none') { return $current }
         if ($popup.Kind -eq 'manual') {
             Stop-CaptureInterruption $current $popup.Reason 'CAPTURE_POPUP_MANUAL_REQUIRED' $OnBlocked $State
@@ -209,9 +249,17 @@ function Resolve-CaptureInterruptions {
         } catch {
             Stop-CaptureInterruption $current 'refresh_failed' 'CAPTURE_POPUP_MANUAL_REQUIRED' $OnBlocked $State
         }
-        $afterPopup = Get-CaptureInterruption -Source $current -ExpectedPackage $ExpectedPackage
+        $afterPopup = Get-CaptureInterruption -Source $current -ExpectedPackage $ExpectedPackage -AllowSourceDownload:$allowDownload
         if ($afterPopup.Kind -eq 'manual') {
             Stop-CaptureInterruption $current $afterPopup.Reason 'CAPTURE_POPUP_MANUAL_REQUIRED' $OnBlocked $State
+        }
+        if ($popup.Kind -eq 'source_download') {
+            if ($afterPopup.Kind -ne 'none') {
+                Stop-CaptureInterruption $current 'refresh_failed' 'CAPTURE_POPUP_MANUAL_REQUIRED' $OnBlocked $State
+            }
+            # The source collector owns the return to its answer/reference
+            # panel. A browser screen is never resumed as answer content.
+            throw 'CAPTURE_SOURCE_DOWNLOAD'
         }
         if ($null -ne $ResumeCheck) {
             $same = $false

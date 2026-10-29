@@ -36,6 +36,12 @@ function ConvertTo-CaptureV2 {
     if ($observations.Count -gt 200) { throw 'Capture source count exceeds v2 limits' }
     $expected = Get-CaptureField $Result 'reference_count' $null
     if ($null -ne $expected) { $expected = [math]::Max([int]$expected, $observations.Count) }
+    if ($null -ne $Result.PSObject.Properties['source_panel_expected_count'] -or
+        ($Result -is [Collections.IDictionary] -and $Result.Contains('source_panel_expected_count'))) {
+        # An explicit unknown denominator must not become the observed row count.
+        $expected = Get-CaptureField $Result 'source_panel_expected_count' $null
+        if ($null -ne $expected -and [int]$expected -lt $observations.Count) { throw 'Declared source count is below observed records' }
+    }
     $panelStatus = [string](Get-CaptureField $Result 'source_panel_status' 'unknown')
     if ($panelStatus -notin @('complete','partial','unknown','unavailable')) { $panelStatus = 'unknown' }
     # Only actual observed settings are facts; requested Task.payload.conditions are not copied.
@@ -49,5 +55,5 @@ function ConvertTo-CaptureV2 {
         conditions = @{ searchMode = $mode; modelVersion = (Get-CaptureField $actual 'modelVersion');
             accountClass = (Get-CaptureField $actual 'accountClass'); location = (Get-CaptureField $actual 'location') };
         sources = @($observations); sourcePanel = @{ status = $panelStatus; expectedCount = $expected; capturedCount = $observations.Count };
-        adapter = @{ name = "$($Task.platform)-$($Task.surface)"; version = 'capture-v2-1' } }
+        adapter = @{ name = "$($Task.platform)-$($Task.surface)"; version = 'capture-v2-2' } }
 }

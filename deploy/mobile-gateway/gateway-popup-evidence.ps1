@@ -29,7 +29,7 @@ function Remember-CaptureSource {
     if (-not $State -or -not $Record.url -or $Record.url_resolution -ne 'exact') { return }
     if (-not $State.ContainsKey('CapturedSources')) { $State.CapturedSources = @{} }
     $copy = @{}
-    foreach ($name in @('index','title','site_name','domain','url','raw_url','url_resolution','status','page_title','error_message')) {
+    foreach ($name in @('index','kind','title','snippet','site_name','domain','url','raw_url','url_resolution','status','page_title','error_message')) {
         $copy[$name] = $Record.$name
     }
     $State.CapturedSources[[string]$Record.index] = $copy
@@ -83,7 +83,7 @@ function Save-CapturePopupEvidence {
     if ($State.CapturedAnswer -or $State.CapturedSources.Count -gt 0) {
         $savedSources = @()
         if ($State.CapturedSources) { $savedSources = @($State.CapturedSources.Values | Sort-Object { [int]$_.index }) }
-        $partial = @{status='interrupted'; answer=$State.CapturedAnswer;
+        $partial = @{status='interrupted'; answer=$State.CapturedAnswer; answer_status=$State.CapturedAnswerStatus;
             reference_count=$State.ReferenceCount; sources=$savedSources;
             reason=$Reason; task_id=$TaskKey}
         [IO.File]::WriteAllText((Join-Path $directory "$id-partial.json"),
