@@ -1,4 +1,5 @@
-﻿$ErrorActionPreference = 'Stop'
+﻿param([ValidateSet('all','yuanbao','download')][string]$AdapterCase = 'all')
+$ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'gateway-popup-guard.ps1')
 
 $script:checks = 0
@@ -183,4 +184,41 @@ foreach ($file in @('gateway-popup-guard.ps1', 'test-popup-guard.ps1')) {
     $bytes = [System.IO.File]::ReadAllBytes((Join-Path $PSScriptRoot $file))
     Assert-Guard ($bytes[0] -eq 239 -and $bytes[1] -eq 187 -and $bytes[2] -eq 191) 'UTF-8 BOM for Windows PowerShell'
 }
+
+if ($AdapterCase -in @('all','yuanbao')) {
+    # Derived from the observed native update hierarchy, with no account data.
+    $yb='<hierarchy><node class="android.widget.FrameLayout" package="com.tencent.hunyuan.app.chat" bounds="[0,436][1080,1904]"><node text="元宝新版本" class="android.widget.TextView" resource-id="com.tencent.hunyuan.app.chat:id/title" package="com.tencent.hunyuan.app.chat"/><node text="新版本 v2.90.10" resource-id="com.tencent.hunyuan.app.chat:id/version" package="com.tencent.hunyuan.app.chat"/><node text="立即更新" class="android.widget.TextView" resource-id="com.tencent.hunyuan.app.chat:id/upgrade" package="com.tencent.hunyuan.app.chat" clickable="true" enabled="true" bounds="[243,1268][837,1388]"/><node text="" class="android.widget.ImageView" resource-id="com.tencent.hunyuan.app.chat:id/skip" package="com.tencent.hunyuan.app.chat" clickable="true" enabled="true" bounds="[486,1496][594,1604]"/></node></hierarchy>'
+    $p=Get-CaptureInterruption -Source $yb -ExpectedPackage 'com.tencent.hunyuan.app.chat'
+    Assert-Guard ($p.Kind -eq 'upgrade' -and $p.X -eq 540 -and $p.Y -eq 1550) 'observed Yuanbao native update closes the explicit skip control'
+    foreach($bad in @(
+        $yb.Replace(':id/skip',':id/unknown'),
+        $yb.Replace('元宝新版本','更新说明'),
+        $yb.Replace('立即更新','必须更新'),
+        $yb.Replace('com.tencent.hunyuan.app.chat','untrusted.app'),
+        $yb.Replace('新版本 v2.90.10','用户协议')
+    )) { Assert-Guard ((Get-CaptureInterruption -Source $bad -ExpectedPackage 'com.tencent.hunyuan.app.chat').Kind -ne 'upgrade') 'unverified Yuanbao update cannot be dismissed' }
+    $web=$yb.Replace('<hierarchy>','<hierarchy><node class="android.webkit.WebView">').Replace('</hierarchy>','</node></hierarchy>')
+    Assert-Guard ((Get-CaptureInterruption -Source $web -ExpectedPackage 'com.tencent.hunyuan.app.chat').Kind -ne 'upgrade') 'Yuanbao HTML cannot impersonate update'
+}
+if ($AdapterCase -in @('all','download')) {
+    $pdf='<hierarchy><node class="android.app.Dialog" package="com.huawei.browser" bounds="[0,1200][1080,2300]"><node text="下载" class="android.widget.TextView" package="com.huawei.browser"/><node text="文件名：" package="com.huawei.browser"/><node text="example.pdf" class="android.widget.TextView" package="com.huawei.browser"/><node text="大小：" package="com.huawei.browser"/><node text="977.06 KB" package="com.huawei.browser"/><node text="取消" class="android.widget.Button" package="com.huawei.browser" clickable="true" enabled="true" bounds="[100,2100][400,2200]"/><node text="下载" class="android.widget.Button" package="com.huawei.browser" clickable="true" enabled="true" bounds="[600,2100][900,2200]"/></node></hierarchy>'
+    $p=Get-CaptureInterruption -Source $pdf -ExpectedPackage 'com.larus.nova' -AllowSourceDownload
+    Assert-Guard ($p.Kind -eq 'source_download' -and $p.X -eq 250 -and $p.Y -eq 2150) 'PDF download action is cancel, never download'
+    Assert-Guard ((Get-CaptureInterruption -Source $pdf -ExpectedPackage 'com.larus.nova').Kind -eq 'manual') 'download cancellation requires explicit source context'
+    foreach($bad in @($pdf.Replace('example.pdf','example.apk'),$pdf.Replace('com.huawei.browser','other.browser'),$pdf.Replace('文件名：','验证码'),$pdf.Replace('取消','继续'))) {
+        Assert-Guard ((Get-CaptureInterruption -Source $bad -ExpectedPackage 'com.larus.nova' -AllowSourceDownload).Kind -eq 'manual') 'unverified download stays blocked'
+    }
+    $web=$pdf.Replace('<hierarchy>','<hierarchy><node class="android.webkit.WebView">').Replace('</hierarchy>','</node></hierarchy>')
+    Assert-Guard ((Get-CaptureInterruption -Source $web -ExpectedPackage 'com.larus.nova' -AllowSourceDownload).Kind -eq 'manual') 'HTML cannot impersonate PDF download confirmation'
+    $badState=@{SourceDownloadContext='true'};$marker=''
+    try { Resolve-CaptureInterruptions -Source $pdf -ExpectedPackage 'com.larus.nova' -State $badState -Refresh { throw 'Must not refresh' } -Tap { throw 'Must not tap' }|Out-Null }
+    catch {$marker=$_.Exception.Message}
+    Assert-Guard ($marker -ceq 'CAPTURE_POPUP_MANUAL_REQUIRED' -and $badState.CapturePopupDismissals -eq 0) 'source context must be an actual boolean from the collector'
+    $state=@{SourceDownloadContext=$true};$script:pdfTaps=0;$marker=''
+    try {
+        Resolve-CaptureInterruptions -Source $pdf -ExpectedPackage 'com.larus.nova' -State $state -Refresh { '<hierarchy><node package="com.huawei.browser" text="下载列表"/></hierarchy>' } -Tap {param($x,$y) if($x -ne 250){throw 'Clicked download'};$script:pdfTaps++} -ResumeCheck { throw 'External browser must not resume normal answer capture' }|Out-Null
+    } catch {$marker=$_.Exception.Message}
+    Assert-Guard ($marker -ceq 'CAPTURE_SOURCE_DOWNLOAD' -and $script:pdfTaps -eq 1 -and -not $state.CapturePopupBlocked) 'cancel produces a source-only outcome without blocking the whole answer'
+}
+
 Write-Output "PASS: $script:checks offline popup guard checks (PowerShell $($PSVersionTable.PSVersion))"

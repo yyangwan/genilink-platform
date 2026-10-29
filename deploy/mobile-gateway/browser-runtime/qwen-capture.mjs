@@ -58,12 +58,12 @@ try {
   }
   const snapshot = await collectQwenSources(page);
   snapshot.sourceCollectionDurationMs = Date.now() - sourcesStarted;
-  const result = extractQwenResult(snapshot);
+  if (String(snapshot.answer || '').trim() !== progress.answer.trim()) {
+    throw new Error('QWEN_SOURCE_ANSWER_CHANGED: source panel no longer belongs to the completed answer');
+  }
+  const result = extractQwenResult(snapshot, {answerCompleted: progress.complete});
   result.duration_ms = Date.now() - started;
   if (!result.answer) throw new Error('Qwen answer was not visible');
-  if (result.reference_count > 0 && result.sources.length < result.reference_count) {
-    throw new Error(`Qwen references incomplete: ${result.sources.length}/${result.reference_count}`);
-  }
   await fs.writeFile(resultPath, JSON.stringify(result), 'utf8');
 } catch (error) {
   let state;

@@ -1,5 +1,54 @@
 $ErrorActionPreference = "Stop"
 
+function Invoke-CaptureNativeCommand {
+    param(
+        [Parameter(Mandatory)][string]$FilePath,
+        [Parameter(Mandatory)][string]$Arguments,
+        [Parameter(Mandatory)][string]$Operation,
+        [ValidateRange(1, 120)][int]$TimeoutSeconds = 30
+    )
+
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $FilePath
+    $startInfo.Arguments = $Arguments
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.StandardOutputEncoding = [Text.UTF8Encoding]::new($false)
+    $startInfo.StandardErrorEncoding = [Text.UTF8Encoding]::new($false)
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    $started = $false
+    try {
+        $started = $process.Start()
+        if (-not $started) { throw "CAPTURE_NATIVE_FAILED: $Operation could not start" }
+        # Drain both pipes while waiting; a full stdout/stderr buffer must not
+        # prevent the process from reaching the deadline or exiting normally.
+        $outputTask = $process.StandardOutput.ReadToEndAsync()
+        $errorTask = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+            $process.Kill()
+            $null = $process.WaitForExit(5000)
+            throw "CAPTURE_NATIVE_TIMEOUT: $Operation exceeded $TimeoutSeconds seconds"
+        }
+        if (-not $outputTask.Wait(1000) -or -not $errorTask.Wait(1000)) {
+            throw "CAPTURE_NATIVE_OUTPUT_TIMEOUT: $Operation output did not close"
+        }
+        if ($process.ExitCode -ne 0) {
+            throw "CAPTURE_NATIVE_FAILED: $Operation exited with code $($process.ExitCode)"
+        }
+        return $outputTask.Result
+    } finally {
+        # This is only the client started above; never kill the shared ADB server.
+        if ($started -and -not $process.HasExited) {
+            $process.Kill()
+            $null = $process.WaitForExit(5000)
+        }
+        $process.Dispose()
+    }
+}
+
 function Convert-CaptureResult {
     param([object[]]$Output)
 
@@ -14,6 +63,43 @@ function Convert-CaptureResult {
         throw "Capture handler did not return an answer field"
     }
     return $result
+}
+
+function Read-InterruptedCapture {
+    param(
+        [Parameter(Mandatory)][string]$ResultRoot,
+        [Parameter(Mandatory)][string]$TaskId,
+        [Parameter(Mandatory)][datetime]$StartedAt
+    )
+    if ($TaskId -notmatch '^[a-zA-Z0-9_-]{1,100}$') { return $null }
+    $directory = Join-Path (Join-Path $ResultRoot $TaskId) 'interruptions'
+    if (-not (Test-Path -LiteralPath $directory)) { return $null }
+    $files = @(Get-ChildItem -LiteralPath $directory -Filter '*-partial.json' -File |
+        Where-Object { $_.Length -le 2097152 -and $_.LastWriteTimeUtc -ge $StartedAt.ToUniversalTime() } |
+        Sort-Object LastWriteTimeUtc -Descending)
+    foreach ($file in $files) {
+        try {
+            $saved = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($saved.task_id -cne $TaskId -or $saved.status -ne 'interrupted' -or
+                $saved.reason -notin @('protected_dialog','unknown_dialog','upgrade_without_safe_action','retry_exhausted','resume_mismatch','refresh_failed','unreadable_hierarchy') -or
+                [string]::IsNullOrWhiteSpace([string]$saved.answer) -or ([string]$saved.answer).Length -gt 200000) { continue }
+            $sources = @($saved.sources | Where-Object { $null -ne $_ })
+            if ($sources.Count -gt 200) { continue }
+            $expected = if (($saved.reference_count -is [int] -or $saved.reference_count -is [long]) -and
+                $saved.reference_count -ge $sources.Count -and $saved.reference_count -le 10000) { [int]$saved.reference_count } else { $null }
+            $answerStatus = if ($saved.answer_status -eq 'complete') { 'complete' } else { 'partial' }
+            return [pscustomobject]@{
+                answer = [string]$saved.answer
+                answer_status = $answerStatus
+                sources = $sources
+                reference_count = $expected
+                source_panel_expected_count = $expected
+                source_panel_status = 'partial'
+                capture_status = 'partial'
+            }
+        } catch { continue }
+    }
+    return $null
 }
 
 function Test-CaptureResult {

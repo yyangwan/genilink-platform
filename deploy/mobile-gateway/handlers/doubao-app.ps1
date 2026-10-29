@@ -1152,6 +1152,23 @@ function Get-DoubaoSources {
         Invoke-DoubaoReferenceSwipe -Document $topDocument -Direction down
     }
     $catalog = @(Get-DoubaoSourceCatalog -ReferenceCount $summary.reference_count)
+    # Retain the observed panel before opening external pages. If any later
+    # source interrupts the task, catalog titles and known URLs remain usable.
+    $script:capturePopupState.ReferenceCount = [int]$summary.reference_count
+    if (-not $script:capturePopupState.CapturedSources) { $script:capturePopupState.CapturedSources = @{} }
+    foreach ($catalogItem in $catalog) {
+        $catalogIndex = [int]$catalogItem.index
+        $known = Find-KnownSourceRecord -Records $KnownSources -Index $catalogIndex -Title ([string]$catalogItem.title)
+        if ($known) {
+            $script:capturePopupState.CapturedSources[[string]$catalogIndex] = $known
+        } elseif (-not $script:capturePopupState.CapturedSources.ContainsKey([string]$catalogIndex)) {
+            $script:capturePopupState.CapturedSources[[string]$catalogIndex] = [pscustomobject]@{
+                index=$catalogIndex; kind='answer_reference'; title=[string]$catalogItem.title
+                url=$null; raw_url=$null; url_resolution='unavailable'; status='failed'
+                error_message='Reference observed; source URL has not been resolved'
+            }
+        }
+    }
     $catalogByIndex = @{}
     foreach ($catalogItem in $catalog) {
         $catalogByIndex[[int]$catalogItem.index] = [string]$catalogItem.title
@@ -1159,6 +1176,7 @@ function Get-DoubaoSources {
     $collected = @{}
     $collectedOrder = [Collections.Generic.List[string]]::new()
     $failureAttempts = @{}
+    if (-not $script:capturePopupState.DownloadSources) { $script:capturePopupState.DownloadSources = @{} }
     $catalogCursor = 1
     $collectionFailure = $null
     try {
@@ -1168,6 +1186,14 @@ function Get-DoubaoSources {
                 $catalogByIndex[$catalogCursor]
             } else { $null }
             $key = "$catalogCursor|$catalogTitle"
+            if ($script:capturePopupState.DownloadSources.ContainsKey($key)) {
+                # A cancelled download without a URL will not improve by
+                # reopening the same source during source-only retries.
+                $collected[$key] = $script:capturePopupState.DownloadSources[$key]
+                $collectedOrder.Add($key)
+                $catalogCursor++
+                continue
+            }
             $known = if ($KnownSources.Count) {
                 Find-KnownSourceRecord -Records $KnownSources -Index $catalogCursor -Title $catalogTitle
             } else { $null }
@@ -1189,6 +1215,7 @@ function Get-DoubaoSources {
             if ($item) {
                 $sourceResult = [ordered]@{
                     index = $catalogCursor
+                    kind = 'answer_reference'
                     title = [string]$item.title
                     page_title = $null
                     domain = $null
@@ -1200,6 +1227,7 @@ function Get-DoubaoSources {
                 }
                 $clipboardBefore = $null
                 $recentBefore = $null
+                $script:capturePopupState.SourceDownloadContext = $true
                 try {
                     try { $clipboardBefore = Get-DirectClipboardText } catch {
                         if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
@@ -1230,6 +1258,15 @@ function Get-DoubaoSources {
                         if ($previousSource) { $intentUrl = $null }
                     }
                     $rawUrl = $intentUrl
+                    if ($foregroundPackage -eq 'com.huawei.browser') {
+                        try { Get-NativePageSource | Out-Null } catch {
+                            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+                            # A verified native PDF confirmation is cancelled
+                            # by the source guard. Keep an observed intent URL,
+                            # otherwise mark just this source unavailable.
+                            if ($_.Exception.Message -cne 'CAPTURE_SOURCE_DOWNLOAD' -or -not $rawUrl) { throw }
+                        }
+                    }
                     if (-not $rawUrl -and
                         $foregroundPackage -eq "com.ss.android.ugc.aweme") {
                         $rawUrl = Get-DouyinSourceShareUrl `
@@ -1371,7 +1408,11 @@ function Get-DoubaoSources {
                 } catch {
                     if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
                     $sourceResult.error_message = $_.Exception.Message
+                    if ($_.Exception.Message -ceq 'CAPTURE_SOURCE_DOWNLOAD') {
+                        $script:capturePopupState.DownloadSources[$key] = [pscustomobject]$sourceResult
+                    }
                 } finally {
+                    $script:capturePopupState.SourceDownloadContext = $false
                     if (-not $script:capturePopupState.CapturePopupBlocked) {
                         try {
                             Return-ToDoubaoChat -SessionId "adb" | Out-Null
@@ -1658,13 +1699,9 @@ try {
         }
     }
     $script:appiumCapabilities = $capabilities
-    & cmd.exe /d /c (
-        "adb -s $serial shell am start -W -n " +
-        "$packageName/com.larus.home.impl.alias.AliasActivity1 >nul 2>&1"
-    )
-    if ($LASTEXITCODE -ne 0) {
-        throw "Could not start Doubao"
-    }
+    Invoke-CaptureNativeCommand -FilePath 'adb' `
+        -Arguments "-s $serial shell am start -W -n $packageName/com.larus.home.impl.alias.AliasActivity1" `
+        -Operation 'start Doubao' -TimeoutSeconds 30 | Out-Null
     Start-Sleep -Seconds 2
 
     if ($newConversation) {
@@ -1880,6 +1917,7 @@ try {
     }
     $answerCompletedAt = Get-Date
     $script:capturePopupState.CapturedAnswer = $message.answer
+    $script:capturePopupState.CapturedAnswerStatus = if ($message.completed) { 'complete' } else { 'partial' }
     $script:capturePopupState.ReferenceCount = (Get-ReferenceSummary -Source $finalSource).reference_count
 
     $sessionId = $null
