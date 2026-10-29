@@ -526,3 +526,12 @@ Q02继续in_progress，release_eligible=false。下一步按独立发布流程�
 用户手动清理后，新审计同题四 App 各一次，四项均失败、封存0，昨天千问样本保留。豆包再次打开PDF下载确认框，中断留1850字/1来源（未当成成功）；元宝截图确认新版更新提示，目标v2.90.10不是安装版本；Kimi正常输入页提示已变化，而运行脚本仍找“尽管问，带图也行”。DeepSeek本次已进会话，实际卡在mobile:setClipboard，客户端约30秒/后端代理240秒超时，问题未发送。详见docs/reviews/citation-value-four-app-retry-20261029.md/.json。
 
 下一步修正四项采集适配并按独立网关流程验收，不能靠继续清理页面或运行目录临时覆盖修复。原Agent/配置已恢复，一个SYSTEMAgent、零worker、五设备在线，Appium状态可用不等于每条自动化命令成功。仅启动原有本地Docker与验收库，没有重建；产品源码、应用版本未改，无新模型/OSS/正文抓取、push/PR/部署。Q02继续in_progress，release_eligible=false。
+
+
+### 2026-10-29 Q02：四 App 本地适配修复与完整门禁
+
+网关本地提交8a660dadf0ccdf35ade60007a99a8cd33132587b：Kimi改为唯一原生编辑框定位；元宝限定实测原生更新面板的skip；DeepSeek移除该平台的UiAutomator2/剪贴板输入链路，以已安装UnicodeIME有界输入、恢复原输入法并逐字核对聚焦草稿后发送；豆包限定来源上下文取消已确认PDF下载窗口、继续其他来源，同任务不重复打开已取消下载项，并先保存引用目录/分母/已有链接。其他未知/受保护弹窗仍停止，未观察到的链接不猜测，运行时版本缺失保持未知。
+
+最终PS5.1和PS7完整网关门禁通过（含230项弹窗保护断言）、Node16项通过，diff/BOM检查通过；保存的真实Kimi/元宝层级回放通过。PDF窗口为截图导出的合成控件夹具，Unicode输入为原生命令mock，不能冒充发布后真实路径。本轮未部署网关/云端、未改正式页面或后端源码，无新采集、模型或OSS写入。
+
+后续按独立网关PR/CI和精确归档更新后，验证真实输入、PDF窗口及四平台/千问完整采集。Q02继续in_progress、release_eligible=false。详见docs/reviews/citation-value-four-app-adapter-fixes-20261029.md/.json。
