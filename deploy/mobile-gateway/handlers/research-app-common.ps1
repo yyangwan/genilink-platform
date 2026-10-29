@@ -583,6 +583,73 @@ function Set-ClipboardText {
     }
 }
 
+function Set-DeepSeekPromptText {
+    param([Parameter(Mandatory)][string]$Text)
+
+    if ($script:deviceSerial -notmatch '^[a-zA-Z0-9._:-]+$' -or
+        [string]::IsNullOrWhiteSpace($Text) -or $Text.Length -gt 20000) {
+        throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: invalid DeepSeek input scope or length'
+    }
+    # Appium's UnicodeIME consumes modified UTF-7 (IMAP), not ordinary UTF-7.
+    # Encode every character, including shell metacharacters, inside a quoted
+    # shift sequence; never interpolate the original question into a shell.
+    $encoding = [Text.UnicodeEncoding]::new($true, $false, $true)
+    $null = $encoding.GetByteCount($Text)
+    $prefix = "-s $script:deviceSerial shell"
+    $ime = 'io.appium.settings/.UnicodeIME'
+    $previous = (Invoke-CaptureNativeCommand -FilePath adb -Arguments "$prefix settings get secure default_input_method" -Operation 'read original keyboard' -TimeoutSeconds 10).Trim()
+    if ($previous -notmatch '^[a-zA-Z0-9._$]+/[a-zA-Z0-9._$]+$') {
+        throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: original keyboard is unknown'
+    }
+    $available = (Invoke-CaptureNativeCommand -FilePath adb -Arguments "$prefix ime list -a -s" -Operation 'inspect installed keyboards' -TimeoutSeconds 10) -split '\r?\n'
+    if ($ime -cnotin @($available | ForEach-Object { $_.Trim() })) {
+        throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: installed Unicode keyboard is unavailable'
+    }
+    $enabled = (Invoke-CaptureNativeCommand -FilePath adb -Arguments "$prefix ime list -s" -Operation 'inspect enabled keyboards' -TimeoutSeconds 10) -split '\r?\n'
+    $wasEnabled = $ime -cin @($enabled | ForEach-Object { $_.Trim() })
+    try {
+        if (-not $wasEnabled) {
+            Invoke-CaptureNativeCommand -FilePath adb -Arguments "$prefix ime enable $ime" -Operation 'enable installed Unicode keyboard' -TimeoutSeconds 10 | Out-Null
+        }
+        Invoke-CaptureNativeCommand -FilePath adb -Arguments "$prefix ime set $ime" -Operation 'select Unicode keyboard' -TimeoutSeconds 10 | Out-Null
+        $selected = (Invoke-CaptureNativeCommand -FilePath adb -Arguments "$prefix settings get secure default_input_method" -Operation 'verify Unicode keyboard' -TimeoutSeconds 10).Trim()
+        if ($selected -cne $ime) { throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: Unicode keyboard was not selected' }
+        $timer = [Diagnostics.Stopwatch]::StartNew()
+        for ($offset = 0; $offset -lt $Text.Length;) {
+            if ($timer.Elapsed.TotalSeconds -ge 45) { throw 'CAPTURE_NATIVE_TIMEOUT: Unicode input exceeded its deadline' }
+            $length = [math]::Min(256, $Text.Length - $offset)
+            if ([char]::IsHighSurrogate($Text[$offset + $length - 1])) { $length-- }
+            $encoded = '&' + [Convert]::ToBase64String($encoding.GetBytes($Text.Substring($offset, $length))).TrimEnd('=').Replace('/', ',') + '-'
+            Invoke-CaptureNativeCommand -FilePath adb -Arguments "$prefix input text '$encoded'" -Operation 'type DeepSeek question' -TimeoutSeconds 15 | Out-Null
+            $offset += $length
+        }
+    } finally {
+        try {
+            Invoke-CaptureNativeCommand -FilePath adb -Arguments "$prefix ime set '$previous'" -Operation 'restore original keyboard' -TimeoutSeconds 10 | Out-Null
+            $restored = (Invoke-CaptureNativeCommand -FilePath adb -Arguments "$prefix settings get secure default_input_method" -Operation 'verify restored keyboard' -TimeoutSeconds 10).Trim()
+            if ($restored -cne $previous) { throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: original keyboard restoration is unverified' }
+        } finally {
+            if (-not $wasEnabled) {
+                Invoke-CaptureNativeCommand -FilePath adb -Arguments "$prefix ime disable $ime" -Operation 'restore enabled keyboard set' -TimeoutSeconds 10 | Out-Null
+            }
+        }
+    }
+    # A successful native command does not prove that the intended editor got
+    # the complete question. Stop before send if the literal draft is unknown.
+    for ($attempt = 0; $attempt -lt 3; $attempt++) {
+        $document = ConvertTo-Xml -Source (Get-PageSource -SessionId adb)
+        $editors = @(if ($document) {
+            $document.SelectNodes("//*[@class='android.widget.EditText' and @package='com.deepseek.chat']") |
+                Where-Object { -not $_.SelectSingleNode("ancestor::*[@class='android.webkit.WebView']") }
+        })
+        if ($editors.Count -eq 1 -and $editors[0].GetAttribute('password') -ne 'true' -and
+            $editors[0].GetAttribute('enabled') -eq 'true' -and $editors[0].GetAttribute('focused') -eq 'true' -and
+            $editors[0].GetAttribute('text') -ceq $Text -and (Get-Bounds -Node $editors[0])) { return }
+        Start-Sleep -Milliseconds 300
+    }
+    throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: DeepSeek draft could not be verified before send'
+}
+
 function Get-DeepSeekAnswerSnapshot {
     param([Parameter(Mandatory)][string]$SessionId)
 
@@ -760,7 +827,13 @@ function Get-PromptInputBounds {
             )
         }
         "kimi" {
-            $document.SelectSingleNode("//*[@text='尽管问，带图也行']")
+            # The prompt placeholder changes across releases and disappears
+            # when a draft exists. Match the unique editable control instead.
+            $editors = @($document.SelectNodes(
+                "//*[@package='com.moonshot.kimichat' and @class='android.widget.EditText' and " +
+                "@enabled='true' and @clickable='true' and not(@password='true')]"
+            ) | Where-Object { (Get-Bounds -Node $_) -and -not $_.SelectSingleNode("ancestor::*[@class='android.webkit.WebView']") })
+            if ($editors.Count -eq 1) { $editors[0] }
         }
     }
     if ($node) {
@@ -1103,7 +1176,8 @@ function Get-AppVersion {
             return $Matches[1].Trim()
         }
     }
-    [string]$platformConfig[$Platform].version
+    # A configured version is not an observation of the installed application.
+    $null
 }
 
 function Start-NewConversation {
@@ -1371,7 +1445,9 @@ function Submit-Prompt {
             -Path "/session/$SessionId/element/$input/clear" `
             -Body @{} | Out-Null
     }
-    if ($input -eq "adb") {
+    if ($Platform -eq 'deepseek') {
+        Set-DeepSeekPromptText -Text $Prompt
+    } elseif ($input -eq "adb") {
         if ($Platform -in @("yuanbao", "qwen", "kimi")) {
             $inputBounds = Get-PromptInputBounds `
                 -SessionId $SessionId `
@@ -1701,7 +1777,9 @@ function Get-AnswerInfo {
                 "思考已完成",
                 "搜索网页",
                 "内容由 AI 生成",
-                "尽管问，带图也行"
+                "尽管问，带图也行",
+                "尽管问，或做个任务...",
+                "尽管问，或做个任务…"
             )
             # Search query lists can look like a long answer, even while the
             # voice-input control is visible. Exclude only labelled, query-like
@@ -3899,39 +3977,25 @@ try {
     $script:mjpegServerPort = $mjpegServerPort
 
     $startedAt = Get-Date
-    if ($Platform -in @("yuanbao", "qwen", "kimi")) {
-        $sessionId = "adb"
-        # Rebuild the activity stack on every attempt. Source browsers and
-        # share sheets from a failed attempt otherwise poison all retries.
+    # All four Android paths use native hierarchy and input commands. In
+    # particular DeepSeek must not create a UiAutomator2 session whose
+    # clipboard request can outlive the client and block accessibility.
+    $sessionId = "adb"
+    if ($Platform -eq 'deepseek') {
+        # This device is held by our capture mutex. Release leftover test
+        # instrumentation before native UI reads, without stopping Appium or
+        # touching another device or the application's data/login state.
+        foreach ($instrumentation in @('io.appium.uiautomator2.server.test','io.appium.uiautomator2.server')) {
+            Invoke-CaptureNativeCommand -FilePath adb -Arguments "-s $serial shell am force-stop $instrumentation" -Operation 'release device instrumentation' -TimeoutSeconds 10 | Out-Null
+        }
+        Start-DeepSeekApp -Serial $serial
+    } else {
         & adb -s $serial shell am force-stop $packageName | Out-Null
         & cmd.exe /d /c (
             "adb -s $serial shell monkey -p $packageName " +
             "-c android.intent.category.LAUNCHER 1 >nul 2>&1"
         )
-        if ($LASTEXITCODE -ne 0) {
-            throw "Could not activate $Platform"
-        }
-    } else {
-        $sessionId = New-AppiumSession `
-            -Serial $serial `
-            -SystemPort $systemPort `
-            -MjpegServerPort $mjpegServerPort `
-            -CommandTimeoutSeconds ($timeoutSeconds + 180)
-        Invoke-AppiumRequest `
-            -Method Post `
-            -Path "/session/$sessionId/execute/sync" `
-            -Body @{
-                script = "mobile: activateApp"
-                args = @(@{ appId = $packageName })
-            } | Out-Null
-        if ($Platform -eq "deepseek") {
-            # DeepSeek may restore its embedded source-browser activity from
-            # the previous task. Rebuild only the activity stack; no app data
-            # or authenticated state is cleared.
-            & adb -s $serial shell am force-stop $packageName | Out-Null
-            Start-DeepSeekApp -Serial $serial
-            Start-Sleep -Seconds 1
-        }
+        if ($LASTEXITCODE -ne 0) { throw "Could not activate $Platform" }
     }
     Start-Sleep -Seconds 2
     if ($sessionId -eq "adb") {
@@ -3951,27 +4015,7 @@ try {
     Write-GatewayTrace "prompt submitted"
     $sentAt = Get-Date
     if ($Platform -eq "deepseek") {
-        # Native hierarchy dumps conflict with UiAutomator2's accessibility
-        # instrumentation on DeepSeek Compose views. Appium is only needed to
-        # enter the conversation and is released before capture begins.
-        $deepSeekAppiumSession = $sessionId
-        & adb -s $serial shell am force-stop `
-            io.appium.uiautomator2.server.test | Out-Null
-        & adb -s $serial shell am force-stop `
-            io.appium.uiautomator2.server | Out-Null
-        try {
-            Invoke-AppiumRequest `
-                -Method Delete `
-                -Path "/session/$deepSeekAppiumSession" `
-                -Body $null `
-                -TimeoutSeconds 8 | Out-Null
-        } catch {
-            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
-            Write-GatewayTrace "Appium session cleanup skipped: $($_.Exception.Message)"
-        }
-        $appiumSessionClosed = $true
-        $sessionId = "adb"
-        Resume-DeepSeekApp -Serial $serial
+        # Unicode input did not create a remote instrumentation session.
         Start-Sleep -Seconds 20
     } elseif ($Platform -eq "yuanbao") {
         # Yuanbao pauses while loading product cards. Accessibility dumps
