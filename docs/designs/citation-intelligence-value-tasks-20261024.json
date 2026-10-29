@@ -953,10 +953,11 @@
           "2026-10-28 CHAO connection resolved and installed handlers attempted for one prompt across five platforms. All five failed explicitly; original Agent/config restored, zero sealed responses/articles, no missing-to-zero brand scores. Scoped local gateway startup/locked-device fix committed with both PowerShell release checks and 10 browser tests passing; not deployed.",
           "2026-10-28 after user unlock/challenge intervention: real installed-handler retest sealed Qwen1729 characters/10 URL observations; 9 actual source snapshots/76463 saved-text characters/96 exact segments persisted and checksum-verified. Actual bounded official DeepSeek analysis published partial candidates, normal authenticated Portal readers9 checks passed. Gateway observed-state/partial-interruption fixes and MySQL large-run-list fix committed locally; not deployed.",
           "2026-10-29 user-cleaned-device retest: new four-App/single-round audit failed4/sealed0, prior Qwen sample preserved. Screenshots and installed scripts pinpoint Kimi stale placeholder, Yuanbao optional update, Doubao PDF download; actual Appium log pinpoints DeepSeek clipboard timeout before send. No product code changes/deploy or analysis-model calls.",
-          "2026-10-29 local gateway8a660dad fixes Kimi native editor, Yuanbao observed update skip, DeepSeek native Unicode input with focused full-draft verification/keyboard restoration, and Doubao scoped PDF cancellation/source continuation/catalog retention. PS5.1+PS7 full release checks and browser16 passed; saved actual Kimi/Yuanbao hierarchies matched. Not deployed or a new live capture."
+          "2026-10-29 local gateway8a660dad fixes Kimi native editor, Yuanbao observed update skip, DeepSeek native Unicode input with focused full-draft verification/keyboard restoration, and Doubao scoped PDF cancellation/source continuation/catalog retention. PS5.1+PS7 full release checks and browser16 passed; saved actual Kimi/Yuanbao hierarchies matched. Not deployed or a new live capture.",
+          "2026-10-30 user-authorized gateway-only release: PR62 landed4e54e0c89e60d963a7bb65dc702e89554ba956b5, PR/main gatewayCI passed with cloud jobs skipped. Exact git archive10 runtime files and10 backups hash-verified under idle SYSTEM mutex. Config/profile/pool preserved, Agent1/configured phones5/Appium/browser ready and new server heartbeat verified. One transient fetch error recovered; no new real capture."
         ],
         "remaining": [
-          "Release landed gateway fixes through independent PR/CI/exact archive and idle SYSTEM mutex/config guard, then fresh four-App and Qwen metadata capture. Verify real Unicode input and actual PDF modal hierarchy after release; local fixtures do not replace real capture. Existing old failed/partial audits remain unchanged.",
+          "Gateway fixes are deployed to CHAO at4e54e0c89e60d963a7bb65dc702e89554ba956b5. Next create NEW real four-App and Qwen-metadata capture; verify actual Unicode input, PDF dialog and source continuation. Release health is not capture acceptance; old failed/partial audits remain unchanged.",
           "Verify real OSS and article completeness separately from local body persistence; resolve semantic rejected spans, failed/deferred segments and source alignment with independently labeled real samples.",
           "Authenticated browser customer journey and one independently evaluated real opportunity through delivery/publication/single observation; synthetic transport and candidate output do not count.",
           "Q01 independent gold/holdout and practical recommendation value acceptance; release_eligible remains false. Per-system release only after explicit scope authorization."
@@ -966,7 +967,8 @@
           "docs/reviews/citation-value-chao-capture-20261028.md and .json: real installed-handler failure matrix, persisted failed5/sealed0/article0/score-null, gateway fix67bde272687ee62f780252bea076133db6ac2124 and local gate results. Not successful real capture, semantic quality or business acceptance.",
           "docs/reviews/citation-value-chao-retest-20261028.md/.json: real1-of5 capture; local9 raw/text snapshots/96 verified spans; model26 requests/88018 charged tokens (unknown reservations included),50/87/3 candidates; source alignment unchecked. GatewayPS5+7 andNode16 passed; backend1000 passed/2 skipped and actual authenticated readers9 passed. No OSS write, source deployment or independent quality/value acceptance.",
           "docs/reviews/citation-value-four-app-retry-20261029.md/.json: actual four-App retry after manual cleaning; failed4/sealed0, archived Doubao1850characters/1source only. Exact screenshots, old Kimi locator, installed versions and setClipboard timeout checked; normal Agent/config restored. No new source-gate or deployment claims.",
-          "docs/reviews/citation-value-four-app-adapter-fixes-20261029.md/.json: gateway8a660dad, changed5PowerShellfiles, fullPS5.1+PS7 checks including230guard assertions, Node16, diff/BOM passed. Saved actual Kimi/Yuanbao UI verified; PDF native-window and input commands injected, no post-fix live capture or deployment."
+          "docs/reviews/citation-value-four-app-adapter-fixes-20261029.md/.json: gateway8a660dad, changed5PowerShellfiles, fullPS5.1+PS7 checks including230guard assertions, Node16, diff/BOM passed. Saved actual Kimi/Yuanbao UI verified; PDF native-window and input commands injected, no post-fix live capture or deployment.",
+          "docs/reviews/citation-value-gateway-release-20261030.md/.json: PR62, exact landed SHA/mainCI,10 runtime+backup hashes, preserved config, fresh backend heartbeat and rollback readiness. Cloud services not deployed, no post-release capture or semantic/value acceptance."
         ]
       }
     }
@@ -1078,8 +1080,25 @@
         "browserTestsPassed": 16,
         "savedActualUiReplaysPassed": 2,
         "freshLiveCapture": false,
-        "deployed": false,
-        "evidence": "docs/reviews/citation-value-four-app-adapter-fixes-20261029.json"
+        "deployed": true,
+        "evidence": "docs/reviews/citation-value-four-app-adapter-fixes-20261029.json",
+        "landedCommit": "4e54e0c89e60d963a7bb65dc702e89554ba956b5",
+        "pullRequest": "https://github.com/yyangwan/genilink-platform/pull/62",
+        "runtimeFileHashes": "passed",
+        "serverHeartbeat": "passed",
+        "deploymentEvidence": "docs/reviews/citation-value-gateway-release-20261030.json"
+      },
+      "gatewayDeployment20261030": {
+        "commit": "4e54e0c89e60d963a7bb65dc702e89554ba956b5",
+        "runtimeFilesVerified": 10,
+        "backupsVerified": 10,
+        "configuredPhonesOnline": 5,
+        "serverHeartbeat": "passed",
+        "browserReady": true,
+        "transientFetchRecovered": true,
+        "rollbackReady": true,
+        "cloudDeployed": false,
+        "realCaptureAfterRelease": false
       }
     },
     "productionUiChangeLocation": "local_worktree_only",

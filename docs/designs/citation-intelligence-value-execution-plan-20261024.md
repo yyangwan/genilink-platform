@@ -535,3 +535,12 @@ Q02继续in_progress，release_eligible=false。下一步按独立发布流程�
 最终PS5.1和PS7完整网关门禁通过（含230项弹窗保护断言）、Node16项通过，diff/BOM检查通过；保存的真实Kimi/元宝层级回放通过。PDF窗口为截图导出的合成控件夹具，Unicode输入为原生命令mock，不能冒充发布后真实路径。本轮未部署网关/云端、未改正式页面或后端源码，无新采集、模型或OSS写入。
 
 后续按独立网关PR/CI和精确归档更新后，验证真实输入、PDF窗口及四平台/千问完整采集。Q02继续in_progress、release_eligible=false。详见docs/reviews/citation-value-four-app-adapter-fixes-20261029.md/.json。
+
+
+### 2026-10-30 Q02：独立网关发布完成
+
+用户授权部署。PR62合并落地4e54e0c89e60d963a7bb65dc702e89554ba956b5，PR及main的网关CI通过，云构建/镜像/部署按范围跳过。以落地SHA精确归档10个运行文件，在CHAO空闲SYSTEM互斥窗口备份、替换和哈希核验；10份原文件备份哈希通过，私有配置/设备池顺序/接收器允许列表和浏览器profile保留，未重跑安装器。
+
+Agent单实例、配置内五手机在线、Appium未重启且可用、浏览器ready，服务端新心跳晚于重启。一次fetch failed已由后续新心跳确认恢复；磁盘约382.8GB、内存约21.77GB可用，回滚材料保留。门户/审计后端/ContentOS未发布，门户共享版本未调整。详见docs/reviews/citation-value-gateway-release-20261030.md/.json。
+
+本轮未新发起采集：四App实际输入/PDF窗口与继续采集、千问元数据仍需新样本核验。Q02及语义/业务价值验收继续in_progress，不能把代码发布与健康检查当成完整采集成功，旧审计事实不变。
