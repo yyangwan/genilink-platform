@@ -1,6 +1,6 @@
 {
   "content-creation-brief-v1.schema.json": "db6a39ff2c4044da5116ae5cd79566f3e795595af42b87aa0cf45849c5e39003",
-  "content-evidence-brief-v3.schema.json": "457b0b021ff8d900f8fff1521618b972e5e356243fee9c1447c3352195ba669f",
+  "content-evidence-brief-v3.schema.json": "d8feb349da8d98c1889cec637aa1d92e36e4d8c56a10cc156fc7e68b8290db16",
   "content-platform-capabilities-v1.schema.json": "6b1b3f2afdcb332b7963b371ec9fd76c25f3b4826880f5e079d94dbc5b778ad1",
   "content-workflow-v1.schema.json": "2097d45452b157fabe4fda7aefbd7eb7f961403434652509c32a6184ca15801a",
   "fixtures/brief-baseline-valid.json": "6c689d45946a2a6e83d4a9808348a02f75300f478a56706ff3d47d5f7e13066d",
@@ -8,7 +8,7 @@
   "fixtures/capabilities-valid.json": "c59d65f0db9c1ceb34a6226588a892636851c145bd123aa902903707d3722170",
   "fixtures/create-brief-request-valid.json": "bb469c4ca64cb175dfb45b1ca8f8a24cb9fa353ff0c574aed32c4af110614a48",
   "fixtures/create-workflow-request-valid.json": "d6318c4993a84d293695d1239726668c08c35ea8cfdb60dabb006a0dfa84f30a",
-  "fixtures/evidence-brief-v3-valid.json": "55f000e4576001c5dcec3950ea6239e88f9b43959de9806792c871c79b59a9f2",
+  "fixtures/evidence-brief-v3-valid.json": "d8c7cffa35481c1b679a4c0a8fc1e0f741577de9faf04e7329792ad136509d9d",
   "fixtures/workflow-view-partial.json": "d32a7407915eba2a70ca61dd7c74136830cf564d3a1b8f1d3350336864f107a5",
   "visibility-capture-v2.schema.json": "4f395a8e2bdfc6d91343aa9e494fce3d138f289d368e8e7bff85c1464b4ba931"
 }
