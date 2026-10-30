@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-30",
+  "scope": "gateway_only",
+  "pr": "https://github.com/yyangwan/genilink-platform/pull/62",
+  "commit": "4e54e0c89e60d963a7bb65dc702e89554ba956b5",
+  "source_head": "cbfcb662355f6cbad9db501a30bf52d5c8c285b7",
+  "pr_ci": "https://github.com/yyangwan/genilink-platform/actions/runs/40973938737",
+  "landed_ci": "https://github.com/yyangwan/genilink-platform/actions/runs/40974400097",
+  "ci": {
+    "classification": "passed",
+    "windows_powershell": "passed",
+    "powershell7": "passed",
+    "browser_node_tests": "passed",
+    "cloud_build": "skipped",
+    "cloud_image": "skipped",
+    "cloud_deploy": "skipped"
+  },
+  "artifact": {
+    "runtime_files": 10,
+    "archive_sha256": "84d6ab071788175b37b418d79acb785afe64672e41f9aac464d73bb3b3885d9d",
+    "exact_git_archive": true,
+    "all_runtime_hashes_verified": true,
+    "all_backup_hashes_verified": true
+  },
+  "deployment": {
+    "state": "deployed_and_verified",
+    "system_mutex": true,
+    "idle_before_update": true,
+    "agent_count": 1,
+    "configured_devices_online": 5,
+    "appium_ready": true,
+    "appium_restarted": false,
+    "browser_ready": true,
+    "server_status": "online",
+    "server_heartbeat_utc": "2026-10-29T23:43:56",
+    "configuration_preserved": true,
+    "browser_profile_and_device_pool_preserved": true,
+    "transient_fetch_errors": 1,
+    "fetch_recovered_by_newer_heartbeat": true,
+    "free_disk_gb": 382.8,
+    "rollback_ready": true,
+    "backup_path": "C:\\ProgramData\\MobileGateway\\releases\\4e54e0c89e60d963a7bb65dc702e89554ba956b5-20261030\\backup",
+    "receipt_path": "C:/ProgramData/MobileGateway/releases/4e54e0c89e60d963a7bb65dc702e89554ba956b5-20261030/receipt.json",
+    "active_record": "C:/ProgramData/MobileGateway/releases/active.json",
+    "free_memory_gb": 21.77,
+    "resource_health_at": "2026-10-30T07:46:29.9323232+08:00"
+  },
+  "cloud_services_deployed": false,
+  "fresh_capture_acceptance_performed": false,
+  "real_four_platform_success_established": false,
+  "overall_citation_value_acceptance_complete": false
+}

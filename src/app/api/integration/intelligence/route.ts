@@ -1,3 +1,5 @@
+import { validQuestionContexts } from '@/lib/visibility/question-context';
+import { cohortRequestSchema, publicationRequestSchema, retryRetestSchema } from '@/lib/visibility/measurement-request';
 import { saveBrandBinding, brandBindingHash, type BrandBindingInput } from '@/lib/visibility/project-brand-bindings';
 import { ContextConflict, freezeProjectContext, deliverProjectContext } from '@/lib/visibility/project-context';
 import { NextRequest, NextResponse } from 'next/server';
@@ -11,6 +13,7 @@ import { requireBilling } from '@/lib/billing/guard';
 import { requestHash as hashRequest } from '@/lib/billing/idempotency';
 import { lookupWorkflowByOperation } from '@/lib/content/contentos-internal-client';
 import { CAPTURE_PLATFORMS } from '@/lib/visibility/capture-policy';
+import { evidenceDraftReady } from '@/lib/content/evidence-capabilities';
 
 const validId = (id: string | null): id is string => !!id && /^[a-f0-9]{32}$/.test(id);
 const badRequest = () => NextResponse.json({ error: '无效的证据查询参数' }, { status: 400 });
@@ -44,8 +47,26 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ context, pending, retry });
   }
   let path: string;
-  if (view === 'cohorts' || view === 'assets' || view === 'aliases' || view === 'mention-bindings') {
+  if (view === 'publicationOptions') {
+    const actionId = params.get('actionId'), revision = params.get('revision');
+    if (!validId(actionId) || revision && !/^[1-9][0-9]{0,7}$/.test(revision)) return badRequest();
+    path = `/api/intelligence/actions/${actionId}/publication-options${revision ? `?revision=${revision}` : ''}`;
+  } else if (view === 'cohort') {
+    const cohortId = params.get('cohortId'); if (!validId(cohortId)) return badRequest();
+    path = `/api/intelligence/cohorts/${cohortId}`;
+  } else if (view === 'publicationActions' || view === 'cohorts' || view === 'assets' || view === 'aliases' || view === 'mention-bindings') {
     path = `/api/intelligence/projects/${encodeURIComponent(guard.ctx.projectId)}/${view}`;
+    if (view === 'publicationActions') path = path.replace(/publicationActions$/, 'publication-actions');
+    if (['publicationActions', 'cohorts', 'assets'].includes(view)) {
+      const query = new URLSearchParams(), before = params.get('before');
+      if (before && !validId(before)) return badRequest(); if (before) query.set('before', before);
+      if (view === 'assets') {
+        const actionId = params.get('actionId'), revision = params.get('revision');
+        if (actionId && !validId(actionId) || revision && (!actionId || !/^[1-9][0-9]{0,7}$/.test(revision))) return badRequest();
+        if (actionId) query.set('actionId', actionId); if (revision) query.set('revision', revision);
+      }
+      if (query.size) path += `?${query}`;
+    }
   } else if (view === 'retests' || view === 'measurementResults') {
     const cohortId = params.get('cohortId');
     if (!validId(cohortId)) return badRequest();
@@ -78,11 +99,13 @@ export async function GET(req: NextRequest) {
       path += `/content?${new URLSearchParams({ owner_kind: kind, owner_id: ownerId, offset })}`;
     } else if (view === 'actions') path += '/actions';
     else if (view === 'evaluationCohort') path += '/evaluation-cohort';
+    else if (view === 'scenarios') path += '/scenarios';
     else if (view !== 'detail') return badRequest();
   }
   const result = await fetchUpstream(guard.ctx, path, { errorMessage: '证据分析服务暂不可用' });
   if ('response' in result) return result.response;
-  return NextResponse.json(result.data);
+  const measurement = ['cohort', 'cohorts', 'assets', 'publicationActions', 'publicationOptions', 'retests', 'measurementResults'].includes(view);
+  return NextResponse.json(measurement ? { ...result.data as object, can_write: ['owner', 'admin', 'editor', 'member'].includes(guard.ctx.role) } : result.data, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(req: NextRequest) {
@@ -91,22 +114,23 @@ export async function POST(req: NextRequest) {
   if (!['owner', 'admin', 'editor', 'member'].includes(guard.ctx.role)) {
     return NextResponse.json({ error: '需要项目写入权限' }, { status: 403 });
   }
-  let body: { baseHash?: unknown; decisions?: unknown; brandId?: unknown; analysisRole?: unknown; newEntityName?: unknown; mentionId?: unknown; sourceEntityId?: unknown; targetEntityId?: unknown; taskId?: unknown; taskAction?: unknown; deliveryUrl?: unknown; cohortId?: unknown; baselineRunId?: unknown; followupRunId?: unknown; entityIds?: unknown; url?: unknown; contentHash?: unknown; publishedAt?: unknown; auditId?: unknown; documentId?: unknown; runId?: unknown; approvalId?: unknown; factIds?: unknown; channel?: unknown; title?: unknown; expiresAt?: unknown; evidenceId?: unknown; reviewId?: unknown; factId?: unknown; relation?: unknown; sourceQuote?: unknown; scope?: unknown; validFrom?: unknown; validUntil?: unknown; actionId?: unknown; diagnosisId?: unknown; expectedRevision?: unknown; entityId?: unknown; decision?: unknown; canonicalName?: unknown; reason?: unknown; expectedVersion?: unknown; action?: unknown; promptIds?: unknown; platforms?: unknown; rounds?: unknown; surface?: unknown; idempotencyKey?: unknown };
+  let body: { contexts?: unknown; baseHash?: unknown; decisions?: unknown; brandId?: unknown; analysisRole?: unknown; newEntityName?: unknown; mentionId?: unknown; sourceEntityId?: unknown; targetEntityId?: unknown; taskId?: unknown; taskAction?: unknown; deliveryUrl?: unknown; cohortId?: unknown; comparisonMode?: unknown; brandTargetIds?: unknown; promptHashes?: unknown; baselineRunId?: unknown; followupRunId?: unknown; entityIds?: unknown; url?: unknown; contentHash?: unknown; publishedAt?: unknown; auditId?: unknown; documentId?: unknown; runId?: unknown; approvalId?: unknown; factIds?: unknown; factsScopeReviewed?: unknown; channel?: unknown; title?: unknown; expiresAt?: unknown; evidenceId?: unknown; reviewId?: unknown; factId?: unknown; relation?: unknown; sourceQuote?: unknown; scope?: unknown; validFrom?: unknown; validUntil?: unknown; actionId?: unknown; diagnosisId?: unknown; expectedRevision?: unknown; entityId?: unknown; decision?: unknown; canonicalName?: unknown; reason?: unknown; expectedVersion?: unknown; action?: unknown; promptIds?: unknown; platforms?: unknown; rounds?: unknown; surface?: unknown; idempotencyKey?: unknown };
   try { body = await req.json(); } catch { return badRequest(); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return badRequest();
   const requiresCurrentContext = ['generateDraft', 'approveDraft', 'previewDraft', 'approveFact', 'createAction', 'approveAction', 'createCohort', 'compareCohort', 'startRetest', 'capture', 'analyze', 'createManualTask'].includes(String(body.action)) || body.action === undefined || body.action === 'updateManualTask' && body.taskAction !== 'cancel';
   if (requiresCurrentContext && await prisma.projectContextOutbox.count({ where: { projectId: guard.ctx.projectId, deliveredAt: null } })) return NextResponse.json({ error: '品牌配置尚未同步，请先完成同步后再分析或使用材料' }, { status: 409 });
   if (body.action === 'reviewEvaluationCohort') {
+    if (body.contexts !== undefined && !validQuestionContexts(body.contexts)) return badRequest();
     if (typeof body.runId !== 'string' || !validId(body.runId) ||
         typeof body.baseHash !== 'string' || !/^[a-f0-9]{64}$/.test(body.baseHash) ||
         !body.decisions || typeof body.decisions !== 'object' || Array.isArray(body.decisions) ||
         Object.keys(body.decisions).length < 1 || Object.keys(body.decisions).length > 100 ||
-        !Object.entries(body.decisions).every(([key, value]) => /^[a-f0-9]{64}$/.test(key) && ['eligible', 'excluded'].includes(String(value))) ||
+        !Object.entries(body.decisions).every(([key, value]) => /^[a-f0-9]{64}$/.test(key) && ['eligible', 'excluded', 'needs_review'].includes(String(value))) ||
         typeof body.reason !== 'string' || body.reason.trim().length < 5 || body.reason.length > 2000 ||
         !Number.isSafeInteger(body.expectedVersion) || Number(body.expectedVersion) < 0 ||
         typeof body.idempotencyKey !== 'string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(body.idempotencyKey)) return badRequest();
     const result = await fetchUpstream(guard.ctx, `/api/intelligence/runs/${body.runId}/evaluation-cohort/review`, {
-      method: 'POST', body: { baseHash: body.baseHash, decisions: body.decisions, reason: body.reason,
+      method: 'POST', body: { baseHash: body.baseHash, decisions: body.decisions, ...(body.contexts !== undefined ? { contexts: body.contexts } : {}), reason: body.reason,
         expectedVersion: body.expectedVersion, idempotencyKey: body.idempotencyKey },
       errorMessage: '评分范围审核尚未确认，请使用相同请求编号重试',
     });
@@ -190,6 +214,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(await response.json(), { status: response.status });
     } catch { return NextResponse.json({ error: '人工任务受理结果尚待确认，请刷新列表或沿用原审批和操作编号重试' }, { status: 503 }); }
   }
+  if (body.action === 'retryRetest') {
+    const parsed = retryRetestSchema.safeParse(body); if (!parsed.success) return badRequest();
+    if (await prisma.projectContextOutbox.count({ where: { projectId: guard.ctx.projectId, deliveredAt: null } })) return NextResponse.json({ error: '品牌配置尚未同步，请先完成同步' }, { status: 409 });
+    const { cohortId, retestId, ...payload } = parsed.data;
+    const result = await fetchUpstream(guard.ctx, `/api/intelligence/cohorts/${cohortId}/retests/${retestId}/retry`, { method: 'POST', body: payload, errorMessage: '补齐受理尚待确认，请沿用相同操作重试' });
+    if ('response' in result) return result.response;
+    return NextResponse.json(result.data, { status: 202 });
+  }
   if (body.action === 'createCohort' || body.action === 'compareCohort' || body.action === 'recordAsset' || body.action === 'startRetest') {
     let path: string;
     let payload: object;
@@ -199,18 +231,14 @@ export async function POST(req: NextRequest) {
     } else {
       if (typeof body.idempotencyKey !== 'string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(body.idempotencyKey)) return badRequest();
       if (body.action === 'createCohort') {
-        if (typeof body.baselineRunId !== 'string' || !validId(body.baselineRunId) || typeof body.title !== 'string' || body.title.trim().length < 5 || body.title.length > 200 ||
-            !Array.isArray(body.entityIds) || body.entityIds.length < 1 || body.entityIds.length > 20 || !body.entityIds.every(id => typeof id === 'string' && validId(id)) || new Set(body.entityIds).size !== body.entityIds.length) return badRequest();
+        const frozen = cohortRequestSchema.safeParse({ ...body, comparisonMode: body.comparisonMode === undefined ? 'inferential_v1' : body.comparisonMode });
+        if (!frozen.success) return badRequest();
         path = `/api/intelligence/projects/${encodeURIComponent(guard.ctx.projectId)}/cohorts`;
-        payload = { baselineRunId: body.baselineRunId, title: body.title, entityIds: body.entityIds, idempotencyKey: body.idempotencyKey };
+        payload = frozen.data;
       } else if (body.action === 'recordAsset') {
-        if (typeof body.actionId !== 'string' || !validId(body.actionId) || typeof body.url !== 'string' || body.url.length > 4096 ||
-            !['wechat', 'weibo', 'xiaohongshu', 'douyin', 'website', 'zhihu', 'toutiao'].includes(String(body.channel)) ||
-            typeof body.contentHash !== 'string' || !/^[a-f0-9]{64}$/.test(body.contentHash) || typeof body.publishedAt !== 'string' || !/(?:Z|[+-]\d{2}:\d{2})$/.test(body.publishedAt) || !Number.isFinite(Date.parse(body.publishedAt)) ||
-            typeof body.reason !== 'string' || body.reason.trim().length < 5 || body.reason.length > 2000) return badRequest();
-        try { const url = new URL(body.url); if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return badRequest(); } catch { return badRequest(); }
+        const frozen = publicationRequestSchema.safeParse(body); if (!frozen.success) return badRequest();
         path = `/api/intelligence/projects/${encodeURIComponent(guard.ctx.projectId)}/assets`;
-        payload = { actionId: body.actionId, url: body.url, channel: body.channel, contentHash: body.contentHash, publishedAt: body.publishedAt, reason: body.reason, idempotencyKey: body.idempotencyKey };
+        payload = frozen.data;
       } else {
         if (typeof body.cohortId !== 'string' || !validId(body.cohortId)) return badRequest();
         const operationId = 'visibility-retest-' + createHash('sha256').update(JSON.stringify([guard.ctx.workspaceId, guard.ctx.projectId, body.cohortId, body.idempotencyKey])).digest('hex');
@@ -240,18 +268,19 @@ export async function POST(req: NextRequest) {
     // Validate the channel before quota reservation; authoritative facts are reread by ContentOS.
     const authority = await fetchUpstream(guard.ctx, `/api/intelligence/draft-approvals/${body.approvalId}/brief`, { errorMessage: '草稿授权已失效或暂不可用' });
     if ('response' in authority) return authority.response;
-    const brief = authority.data as { projectId?: string; approval?: { id?: string }; execution?: { mode?: string; channel?: string } };
-    if (!brief || brief.projectId !== guard.ctx.projectId || brief.approval?.id !== body.approvalId) return NextResponse.json({ error: '证据授权范围不匹配' }, { status: 409 });
+    const brief = authority.data as { schemaVersion?: number; projectId?: string; approval?: { id?: string }; execution?: { mode?: string; channel?: string } };
+    if (!brief || brief.schemaVersion !== 3 || brief.projectId !== guard.ctx.projectId || brief.approval?.id !== body.approvalId) return NextResponse.json({ error: '证据授权范围不匹配' }, { status: 409 });
     if (brief.execution?.mode !== 'generate_draft' || !['wechat', 'weibo', 'xiaohongshu', 'douyin'].includes(brief.execution.channel || '')) return NextResponse.json({ error: '该渠道需要人工内容任务，无自动生成额度消耗' }, { status: 422 });
+    const evidenceToken = await issueContentProjectJWT({ userId: guard.ctx.session.user.id, workspaceId: guard.ctx.workspaceId, projectId: guard.ctx.projectId, role: guard.ctx.role });
+    if (!await evidenceDraftReady(evidenceToken, brief.execution.channel!)) return NextResponse.json({ error: '当前渠道的新版内容服务尚未就绪，未预占生成额度' }, { status: 503 });
     const reservation = await reserveContentGeneration({ userId: guard.ctx.session.user.id, workspaceId: guard.ctx.workspaceId, operationId,
-      requestHash: hashRequest(serviceBody), metadata: { source: 'evidence_v2', projectId: guard.ctx.projectId, approvalId: body.approvalId } });
+      requestHash: hashRequest(serviceBody), metadata: { source: 'evidence_v3', projectId: guard.ctx.projectId, approvalId: body.approvalId } });
     if (reservation.type === 'limit') return planLimitResponse(reservation.error);
     if (reservation.type === 'conflict' || (reservation.type === 'replay' && reservation.status === 'released')) return NextResponse.json({ error: '原生成操作已结束或存在冲突，请重新审批材料' }, { status: 409 });
     if (reservation.type === 'disabled') return NextResponse.json({ error: '额度账本未启用' }, { status: 503 });
     try {
-      const token = await issueContentProjectJWT({ userId: guard.ctx.session.user.id, workspaceId: guard.ctx.workspaceId, projectId: guard.ctx.projectId, role: guard.ctx.role });
       const response = await fetch(`${process.env.CONTENT_SERVICE_URL || 'http://127.0.0.1:4003'}/api/evidence-briefs/workflows`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(serviceBody), signal: AbortSignal.timeout(25000), cache: 'no-store',
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${evidenceToken}` }, body: JSON.stringify(serviceBody), signal: AbortSignal.timeout(25000), cache: 'no-store',
       });
       const data = await response.json();
       if (response.ok && data?.data?.id) return NextResponse.json(data, { status: response.status });
@@ -268,14 +297,15 @@ export async function POST(req: NextRequest) {
   }
   if (body.action === 'approveDraft') {
     if (!['owner', 'admin', 'editor'].includes(guard.ctx.role)) return NextResponse.json({ error: '需要内容审批权限' }, { status: 403 });
-    if (typeof body.actionId !== 'string' || !validId(body.actionId) || !Array.isArray(body.factIds) || body.factIds.length < 1 || body.factIds.length > 20 ||
+    if (typeof body.actionId !== 'string' || !validId(body.actionId) || !Array.isArray(body.factIds) || body.factIds.length < 1 || body.factIds.length > 100 ||
         !body.factIds.every(id => typeof id === 'string' && validId(id)) || new Set(body.factIds).size !== body.factIds.length ||
         !['wechat', 'weibo', 'xiaohongshu', 'douyin', 'website', 'zhihu', 'toutiao'].includes(String(body.channel)) ||
         typeof body.title !== 'string' || body.title.trim().length < 5 || body.title.length > 200 || typeof body.reason !== 'string' || body.reason.trim().length < 5 || body.reason.length > 2000 ||
+        !Number.isSafeInteger(body.expectedRevision) || Number(body.expectedRevision) < 1 || body.factsScopeReviewed !== true ||
         !Number.isSafeInteger(body.expectedVersion) || Number(body.expectedVersion) < 0 || typeof body.expiresAt !== 'string' || !/(?:Z|[+-]\d{2}:\d{2})$/.test(body.expiresAt) || !Number.isFinite(Date.parse(body.expiresAt)) ||
         typeof body.idempotencyKey !== 'string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(body.idempotencyKey)) return badRequest();
     const result = await fetchUpstream(guard.ctx, `/api/intelligence/actions/${body.actionId}/draft-approvals`, { method: 'POST',
-      body: { factIds: body.factIds, channel: body.channel, title: body.title, reason: body.reason, expiresAt: body.expiresAt, expectedVersion: body.expectedVersion, idempotencyKey: body.idempotencyKey }, errorMessage: '草稿审批失败，请检查当前计划和事实' });
+      body: { factIds: body.factIds, channel: body.channel, title: body.title, reason: body.reason, expiresAt: body.expiresAt, expectedVersion: body.expectedVersion, expectedRevision: body.expectedRevision, factsScopeReviewed: body.factsScopeReviewed, idempotencyKey: body.idempotencyKey }, errorMessage: '草稿审批失败，请检查当前计划和事实' });
     if ('response' in result) return result.response;
     return NextResponse.json(result.data, { status: 202 });
   }

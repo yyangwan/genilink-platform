@@ -1,0 +1,1128 @@
+{
+  "version": "citation-value-plan-v1.1",
+  "date": "2026-10-24",
+  "status": "in_progress",
+  "plan": "citation-intelligence-value-execution-plan-20261024.md",
+  "constraints": {
+    "captureRounds": 1,
+    "scoreRule": "brand-visibility-v1",
+    "weights": {
+      "presence": 30,
+      "recommendation": 30,
+      "position": 20,
+      "reasons": 20
+    },
+    "historicalBackfill": false,
+    "databaseStrategy": "fresh_schema_initialization",
+    "legacyDatabaseCompatibility": false,
+    "migrationPrerelease": false,
+    "automaticPublishing": false,
+    "gatewayReleaseIncluded": false,
+    "uiImplementationRequiresApprovedPrototype": true,
+    "approvedPrototypeVersion": "citation-intelligence-v3",
+    "implementationStarted": true,
+    "approvedA01Controls": true,
+    "approvedFactSelectionPrototype": "citation-facts-v3",
+    "executionPrototypeApproved": true,
+    "approvedExecutionPrototype": "citation-execution-v3",
+    "executionPrototypeApproval": "2026-10-26 用户回复：认可，按此实现",
+    "measurementPrototypeApproved": true,
+    "approvedMeasurementPrototype": "citation-measurement-v3",
+    "measurementPrototypeApproval": "2026-10-26 用户回复：认可，按此实现"
+  },
+  "tasks": [
+    {
+      "id": "R00",
+      "milestone": "M1",
+      "owner": "审计后端/数据契约",
+      "status": "completed",
+      "dependsOn": [],
+      "prototypeGate": false,
+      "title": "冻结最新结构和契约并提供空库初始化",
+      "modules": [
+        "backend/app/intelligence/models.py",
+        "backend/alembic/value_schema",
+        "backend/scripts/check_intelligence_image.py",
+        "prisma/schema.prisma",
+        "数据库初始化入口",
+        "新契约定义"
+      ],
+      "acceptance": [
+        "直接定义三张后端表、配置偏好JSON、BrandFact两种来源分支、TaskPack v2及修订载荷/稳定键合同",
+        "在空MySQL/PostgreSQL验证最新结构初始化、约束及API/worker读写启动",
+        "不实施历史数据搬迁、旧库升级适配、旧镜像数据库兼容或兼容前置发布"
+      ],
+      "progress": {
+        "implemented": [
+          "Latest 58-table fresh MySQL baseline and explicit empty-target initializer; no history or old-schema upgrades.",
+          "Three versioned tables, project/version/idempotency constraints, two valid BrandFact source branches, owned-object backup coverage.",
+          "Portal businessPreferences JSON included in canonical signed context/outbox; real PostgreSQL-to-MySQL receipt and replay verification.",
+          "Fresh MySQL API startup, health and worker heartbeat verified with zero model calls; PostgreSQL transaction rollback and workspace isolation verified."
+        ],
+        "remaining": [],
+        "evidence": [
+          "Backend docs/citation-value-fresh-database-20261024.md",
+          "Isolated real MySQL concurrency/backup/retry/deployment tests: 7 passed",
+          "Portal real PostgreSQL context/outbox test: 1 passed"
+        ]
+      }
+    },
+    {
+      "id": "V01",
+      "milestone": "M1",
+      "owner": "后端/质量",
+      "status": "in_progress",
+      "dependsOn": [],
+      "prototypeGate": false,
+      "title": "冻结近期真实材料并回放结构失败",
+      "modules": [
+        "backend/app/intelligence/semantics.py",
+        "backend/app/intelligence/evaluation_export.py",
+        "backend/tests"
+      ],
+      "acceptance": [
+        "冻结最近一至两次材料的hash、完整文字、owner和offset，不重采或改写旧Run",
+        "attributes等结构错误能定位并按明确规则无损处理或失败，不能补空冒充成功",
+        "新流水线验收记录包括实际语义结果、覆盖和预算，不能仅凭JSON通过放行"
+      ],
+      "progress": {
+        "implemented": [
+          "Read-only recent-two-audit freeze and 186-case integrity replay; unique input 384229 characters.",
+          "Strict extraction arrays; audited singleton attribute repair; no empty-success fallback.",
+          "Restored provider tested locally on frozen inputs; citation-intelligence-21 calibration: 3 platform answers and 5 saved source texts, 8 requests / 27584 tokens.",
+          "Validated accepted Unicode spans; retained rejected candidates and unique-span repair receipts; truncated completion cannot pass.",
+          "Processed-input coverage separated from local defects; unrelated defects do not block other registered brands."
+        ],
+        "remaining": [
+          "Expand representative semantic review and independent holdout acceptance; current calibration is not release eligible."
+        ]
+      }
+    },
+    {
+      "id": "B01",
+      "milestone": "M1",
+      "owner": "审计后端",
+      "status": "in_progress",
+      "dependsOn": [
+        "V01"
+      ],
+      "prototypeGate": false,
+      "title": "冻结目标品牌基表和三态出现结果",
+      "modules": [
+        "backend/app/intelligence/project_context.py",
+        "backend/app/intelligence/ingestion.py",
+        "backend/app/intelligence/pipeline.py",
+        "backend/app/intelligence/brand_evaluation.py"
+      ],
+      "acceptance": [
+        "自有品牌完全未出现仍有目标行，不伪造提及",
+        "完整回答、完整分析及身份可判断才允许observed_absent；失败或歧义为unknown",
+        "来源发现不污染回答指标，未登记品牌可核实后比较，无关歧义不阻断其他品牌"
+      ],
+      "progress": {
+        "implemented": [
+          "Registered targets frozen in manifest; discovered mapping and three-state observations projected into summary.",
+          "All target rows retained with nullable entity IDs, source-only separation, per-platform fixed denominators and target scores.",
+          "Unrelated identity ambiguity no longer blocks other entities; fourteen presence/readiness tests.",
+          "Stable target IDs now consumed throughout A05/E01 and shared portal scope; invalid IDs remain explicit and are never replaced by a default competitor."
+        ],
+        "remaining": [
+          "Bounded real-input semantic validation after provider balance restoration"
+        ]
+      }
+    },
+    {
+      "id": "B02",
+      "milestone": "M1",
+      "owner": "审计后端/门户契约",
+      "status": "in_progress",
+      "dependsOn": [
+        "B01"
+      ],
+      "prototypeGate": false,
+      "title": "分层就绪度与问题审核新修订契约",
+      "modules": [
+        "backend/app/intelligence/evaluation_reviews.py",
+        "backend/app/intelligence/brand_evaluation.py",
+        "backend/app/intelligence/workspace.py",
+        "backend/app/api/intelligence.py",
+        "src/types/intelligence.ts",
+        "src/app/api/integration/intelligence/route.ts"
+      ],
+      "acceptance": [
+        "返回采集、语义、身份、问题范围、来源、评分和洞察各自状态及原因/补救动作",
+        "审核沿用实名、权限、CAS和幂等，形成新修订且旧分母不改写",
+        "缺总分不禁止有证据的单维结果，无适用竞争问题有明确状态"
+      ],
+      "progress": {
+        "implemented": [
+          "Seven independent readiness axes exposed by run detail, including provider blocker and remediation.",
+          "Prompt-review unknown decision preserves weight and blocks total; latest decision/CAS version loaded.",
+          "New revision notification, unchanged old denominator, exact-payload idempotent retry in portal.",
+          "A01 supplies versioned per-question scenario/brand-scope review and verbatim requirements; suggested and human-confirmed context are separate."
+        ],
+        "remaining": [
+          "Real API/worker/model integration acceptance on fresh database"
+        ]
+      }
+    },
+    {
+      "id": "B03",
+      "milestone": "M1",
+      "owner": "审计后端",
+      "status": "in_progress",
+      "dependsOn": [
+        "R00",
+        "V01"
+      ],
+      "prototypeGate": false,
+      "title": "来源质量证据与分阶段预算恢复",
+      "modules": [
+        "backend/app/intelligence/sources.py",
+        "backend/app/intelligence/pipeline.py",
+        "backend/app/intelligence/source_metrics.py",
+        "backend/app/config.py",
+        "backend/app/intelligence/model_budget.py"
+      ],
+      "acceptance": [
+        "正文取得、保存文字分析覆盖和原文章完整性独立返回，HTTP200不等于全文",
+        "通用抽取、上下文、核验在总预算内分别预留和记账，延后范围可追溯",
+        "缓存、重试及断点恢复不重复计样本或消耗，受限来源不封锁独立成立的回答结论"
+      ],
+      "progress": {
+        "implemented": [
+          "Permanent provider account/config errors stop automatic retry and retain safe reason codes; transient errors keep bounded retry.",
+          "Versioned source quality retained in snapshots and manifests; known challenge/empty/suspected navigation bodies excluded from article analysis, evidence and denominators.",
+          "Original-article completeness remains unknown; advertising disclosures retained without assigning independent authority.",
+          "Fixed source metrics to compare decompressed text against body_hash and verify compressed objects separately.",
+          "Official DeepSeek bounded structured non-thinking request policy shared by extraction and evidence verification; request policy included in cache signature.",
+          "Frozen per-run request/token phase ledger; extraction/context/verification reserves, with answer workload planned first and remaining extraction capacity available to sources.",
+          "Fenced pre-call reservation, idempotent actual-usage settlement, conservative unknown-usage accounting and old-lease recovery; per-subject deferral reasons exposed in coverage/readiness.",
+          "Budget config changes create a new immutable revision; cached extraction reuse does not add provider requests or tokens.",
+          "Real MySQL concurrency and stale-settlement checks passed; one real-input pipeline call settled 4441 tokens, then a second revision reused cache with zero new calls.",
+          "A02 now consumes the reserved context phase, persists fenced result/usage together, and exposes per-context failed/deferred status and scoped zero-call cache reuse."
+        ],
+        "remaining": [
+          "Expand extractor/boundary/long-source quality distribution checks; flags do not prove whole-article completeness."
+        ]
+      }
+    },
+    {
+      "id": "A01",
+      "milestone": "M2",
+      "owner": "分析/后端",
+      "status": "completed",
+      "dependsOn": [
+        "R00",
+        "B02"
+      ],
+      "prototypeGate": false,
+      "title": "业务场景分类、审核和固定聚合",
+      "modules": [
+        "backend/app/intelligence/contextual_analysis.py",
+        "backend/app/intelligence/evaluation_reviews.py",
+        "backend/app/intelligence/brand_evaluation.py"
+      ],
+      "acceptance": [
+        "问题意图、目标客户、需求、约束和主场景有版本，建议与人工决定分开",
+        "多标签不重复计入主分母，品牌预设问题与中性问题分开",
+        "场景重要性有项目配置版本及中性默认值，修改不改变评分权重或触发模型调用",
+        "未登记品牌定向问题和歧义名称有审核路径"
+      ],
+      "progress": {
+        "implemented": [
+          "Fixed eight-scenario taxonomy, literal suggestions with verbatim offsets and explicit unreviewed state.",
+          "Named context/eligibility review, primary and secondary labels, directed/unregistered/ambiguous name handling, prompt evidence validation, CAS and idempotent new revisions.",
+          "Reviewed-primary scenario/platform/target score projections; secondary tags do not duplicate counts and missing scopes never fall back to whole-audit scores.",
+          "Portal durable preference API/UI with project lock, version/conflict handling, safe replay, outbox pending status and auditable neutral reset; no model or capture calls.",
+          "Approved A01 local prototype forms implemented as centered dialogs; scenario URL survives supported analysis tab changes."
+        ],
+        "remaining": [],
+        "notes": [
+          "Context interpretation quality and semantic suggestions remain A02/Q01. Opportunity ordering consumes preferences in A05; this task does not claim existing actions are already reprioritized.",
+          "Other global brand/platform scope unification remains U01."
+        ]
+      }
+    },
+    {
+      "id": "A02",
+      "milestone": "M2",
+      "owner": "分析/后端",
+      "status": "completed",
+      "dependsOn": [
+        "R00",
+        "A01",
+        "B03"
+      ],
+      "prototypeGate": false,
+      "title": "全量信息单元和上下文第二遍分析",
+      "modules": [
+        "backend/app/intelligence/semantics.py",
+        "backend/app/intelligence/pipeline.py",
+        "backend/app/intelligence/information_units.py",
+        "backend/app/intelligence/contextual_analysis.py"
+      ],
+      "acceptance": [
+        "第一遍不限品牌抽取功能、参数、案例、条件、风险等，保留主体与逐字证据",
+        "ContextAnalysis按问题/条件/材料/模型版本隔离，纯文本缓存不混入业务owner",
+        "需求匹配能定位原问题要求，模型不把我方材料补写成回答中的内容"
+      ],
+      "progress": {
+        "implemented": [
+          "Twelve owner-free information-unit classes with literal subject/value/conditions/time spans, stable IDs and explicit unknown conditions; no empty-success fallback.",
+          "Durable ContextAnalysis per frozen question/platform/conditions/reviewed needs/material version/model; separate pure-text cache signature and project-scoped reuse.",
+          "Distinguish evaluated solutions, monitored platforms, sources and feature/category concepts without granting registry identities or fact approval.",
+          "Need-matched reasons require the current answer unit plus reviewed question evidence; non-solution subjects remain in all-information views without entering solution comparison.",
+          "Context requests use fenced phase reservations and atomic result/usage checkpoints; failures, budget deferral and extraction defects remain visible.",
+          "Full-text non-overlap 900-character segmentation addresses observed output truncation while preserving original offsets and the tail.",
+          "Project-scoped bounded read-only unit/context APIs, same-name mention and cross-platform role isolation, source multi-observation regression checks.",
+          "Final local real-MySQL calibration: two frozen answers / one prompt / 2982 characters, 48 accepted units, four context interpretations, eight requests and 42798 actual tokens; partial defects retained.",
+          "New local budget revision reused four real context results and all extraction caches with zero new requests/tokens and an unchanged old manifest."
+        ],
+        "remaining": [],
+        "evidence": [
+          "Backend commit 9685bcd; docs/citation-value-context-analysis-20261024.md",
+          "Final full backend regression: 845 passed / 10 skipped; Ruff, compileall and local offline entrypoint passed",
+          "Independent semantic quality, representative source-body coverage and holdout acceptance remain Q01; this technical completion does not grant release approval."
+        ]
+      }
+    },
+    {
+      "id": "A03",
+      "milestone": "M2",
+      "owner": "审计后端/门户契约",
+      "status": "completed",
+      "dependsOn": [
+        "R00",
+        "B01"
+      ],
+      "prototypeGate": false,
+      "title": "我方材料资产版本与事实来源",
+      "modules": [
+        "backend/app/intelligence/owned_assets.py",
+        "backend/app/intelligence/owned_facts.py",
+        "backend/app/intelligence/reviews.py",
+        "backend/app/intelligence/value_contracts.py",
+        "backend/app/api/intelligence_owned.py",
+        "src/app/api/integration/intelligence/materials/route.ts",
+        "src/components/visibility/owned-materials.tsx"
+      ],
+      "acceptance": [
+        "有限URL/资料登记有归属、用途、版本、快照与核实状态，Run冻结实际使用版本",
+        "BrandFact来源恰好一种citation_review或owned_asset_revision，授权导出与Brief共用该联合类型",
+        "没有CitationObservation的自有材料也能独立批准事实，不伪造引用或ClaimReview",
+        "批准事实能追溯材料范围与有效期，未知资料不等于产品能力缺失"
+      ],
+      "progress": {
+        "implemented": [
+          "Own-brand public URL/plain-text registration, audit_reference purpose, immutable material revisions and integrity-checked raw/text snapshots; URL with supplied text preserves the text and retains URL as reference.",
+          "Fenced public acquisition, bounded failure/retry states, named material verification, exact-payload idempotency and locking current-read CAS on real MySQL.",
+          "Verbatim owned facts with actual material revision, verification event, Unicode offsets, scope and explicit validity; no fabricated CitationObservation, ClaimReview, entity, Run or answer mentions.",
+          "Shared citation_review/owned_asset_revision FactSource union for authorized exports and downstream Brief contract; old Brief v2 explicitly rejects owned facts pending E02.",
+          "Material verification/brand-role/revision changes and fact withdrawal/expiry invalidate current use while preserving history; new Run freezes materials and fact provenance without rewriting old manifests.",
+          "Approved v3 material registration/version drawer, verification, fact approval/history/withdrawal and limited retry flow connected through scoped portal proxy; sourceType preserved in URL."
+        ],
+        "remaining": [],
+        "evidence": [
+          "Backend commit 9635e37; docs/citation-value-owned-materials-20261025.md",
+          "Final backend full regression 859 passed / 11 skipped; Ruff and offline source entrypoint passed.",
+          "Real local MySQL concurrent stale-snapshot verification, exact replay, auditless fact and current ownership proof: 1 passed.",
+          "Portal new proxy/component tests 10 passed; final full release:check passed; fictional actual-component desktop and 390px iframe checks documented."
+        ],
+        "notes": [
+          "Technical completion only. Formal Brief v3/ContentOS fact selection remains E02; no automatic content publishing or production deployment.",
+          "This stage made zero model/production/real-cloud-object writes. Independent semantic and value acceptance remain Q01/Q02."
+        ]
+      }
+    },
+    {
+      "id": "A04",
+      "milestone": "M2",
+      "owner": "分析/后端",
+      "status": "completed",
+      "dependsOn": [
+        "A02",
+        "B03"
+      ],
+      "prototypeGate": false,
+      "title": "锚点核验与逐次来源观察",
+      "modules": [
+        "backend/app/intelligence/citation_context.py",
+        "backend/app/intelligence/ingestion.py",
+        "backend/app/intelligence/evidence.py",
+        "backend/app/intelligence/evidence_alignment.py",
+        "backend/app/intelligence/source_observations.py",
+        "backend/app/intelligence/reviews.py",
+        "backend/app/intelligence/pipeline.py",
+        "backend/app/api/intelligence.py"
+      ],
+      "acceptance": [
+        "锚点冻结并优先关联对应观点/引用，无锚点回退方式可见",
+        "候选覆盖和未检查范围明确，数字/时间/条件冲突与部分支持可区分",
+        "同文章各平台的实际引用/候选来源及正文版本分别可回查，转载不重复增加独立证据权重"
+      ],
+      "progress": {
+        "implemented": [
+          "Freeze actual answer anchor state/Unicode range/quote/hash, citation ordinal and source snapshot version; exclude nonselected capture attempts from Run sources.",
+          "Prioritize overlapping valid anchors; reject mismatched frozen anchors, preserve explicit same-answer fallback when not captured/invalid, and restrict verification to same-platform same-answer actual exact references.",
+          "Twelve candidate pairs per claim with observation-first selection, phase budget and explicit selected/deferred/invalid/excluded/unchecked ranges; source text hash and frozen-version guards.",
+          "Persist grounded subject/scope/time/number/condition checks and exact answer/source spans in ClaimEvidence.verification; contradictions/partial checks cannot be hidden by overall supports.",
+          "Same-Run exact-text result reuse with separate citation rows and fenced atomic usage/result writes; named review validates anchor and frozen source version.",
+          "Article groups retain every platform/answer/type/body-version observation; exact/near-copy candidate content families, bounded comparison coverage, no duplicate votes or majority vote over conflicting interpretations.",
+          "Read-only scoped paginated source-observations API and report projection; content-family count distinct from unknown independent-publisher provenance.",
+          "Latest fresh baseline includes verification JSON; static baseline column parity and real isolated MySQL publication/fencing verified without changing old databases."
+        ],
+        "remaining": [],
+        "evidence": [
+          "Backend commit 3b33372; docs/citation-value-anchors-observations-20261025.md",
+          "Final full backend with real MySQL enabled: 883 passed / 2 skipped; Ruff, compileall and offline source API/worker/storage/PDF entrypoint passed.",
+          "Focused anchor/observation tests 14 passed; dedicated fresh-MySQL pipeline JSON/reuse/fencing proof 1 passed."
+        ],
+        "notes": [
+          "Existing gateway currently emits null answerAnchor; this stage provides truthful same-answer fallback and does not claim new gateway capture capabilities.",
+          "Portal A04 observation drilldown now connected under U02; see docs/reviews/citation-value-source-observations-20261025.md. Overview/global context and independent Q01/Q02 remain unfinished.",
+          "No actual model/production/real-OSS writes. Real five-dimension semantic accuracy and representative independent acceptance remain Q01.",
+          "Near copies are candidates, not proof of authorship/editorial independence. Independent publisher count remains unknown; content deduplication does not modify the fixed visibility score."
+        ]
+      }
+    },
+    {
+      "id": "A05",
+      "milestone": "M2",
+      "owner": "分析/后端",
+      "status": "completed",
+      "dependsOn": [
+        "A02",
+        "A03",
+        "A04"
+      ],
+      "prototypeGate": false,
+      "title": "六类机会、任务包和可解释排序",
+      "modules": [
+        "backend/app/intelligence/opportunities.py",
+        "backend/app/intelligence/opportunity_tasks.py",
+        "backend/app/intelligence/value_contracts.py",
+        "backend/app/intelligence/pipeline.py",
+        "backend/app/intelligence/actions.py",
+        "backend/app/api/intelligence.py"
+      ],
+      "acceptance": [
+        "复用PlatformDiagnosis，正文机会不依赖已有总分或分差",
+        "A05即输出冻结的TaskPack v2，无需到E02重新变形；新增子目标必须创建新修订",
+        "每条机会含本平台问题/场景、证据/反证、事实/假设/未知、我方材料状态和具体交付",
+        "排序绑定priorityPolicyVersion，未设置业务偏好明确披露，设置变化的排序影响可解释，不冒充ROI或成功概率"
+      ],
+      "progress": {
+        "implemented": [
+          "Six opportunity kinds use stable registered/discovered targets, observed absence, independent known score dimensions and literal information/context/source evidence; no total-score or ten-point gap prerequisite.",
+          "Unbranded article/answer units and search candidates retain their actual observation kind; identity, missing material, unknown capability and negative/conflict claims remain separate from approved facts.",
+          "Concrete TaskPack v2 delivery contract freezes actual questions, platform/scenario/dimension targets, exact evidence, asset revision/new deliverable, audience state, content-specific outline, channel rationale, own fact candidates, missing materials and acceptance.",
+          "Same literal asset/fact-change/intent merges targets and all source observations; differing conflict text stays separate. Excluded directed scopes remain visible outside executable targets; contract overflow fails closed without truncating target history.",
+          "Versioned lexicographic priority uses correction urgency, scenario importance (neutral50), readiness, scope, controllability and outline-step scope; bounded high-priority candidate retention discloses deferral, no ROI/success probability.",
+          "Frozen/default versus explicit current-preference read-only priority preview preserves old Run/task signatures and makes no model/capture calls.",
+          "Reuse PlatformDiagnosis and existing action creation; published opportunity is immutable and task integrity is checked before copying the exact package into a plan.",
+          "Brief v2 explicitly rejects new TaskPack packages to avoid flattening multi-question/platform targets before E02."
+        ],
+        "remaining": [],
+        "evidence": [
+          "Backend commit 3ce5350; docs/citation-value-opportunities-20261025.md",
+          "Final full backend with real MySQL:904 passed /2 skipped; Ruff, compileall and local offline source API/worker/storage/PDF passed.",
+          "New opportunity/task/API focused20 passed; joint contract/action preflight39 passed.",
+          "Dedicated real local MySQL Pipeline-to-opportunity-to-exact-plan, absent own target without entity, and priority-only immutable preview:1 passed."
+        ],
+        "notes": [
+          "Technical backend completion only. U02 full task/evidence/scoped priority UI and E02 formal Briefv3/ContentOS remain pending. E01 backend immutable action revisions are now implemented; see its own evidence.",
+          "Own approved facts are literal-topic review candidates, not proof of requirement satisfaction. Missing material is unknown, not product incapability; actual semantic/task value acceptance remains Q01.",
+          "Current channel tasks prepare controlled own materials/content experiments; no third-party publication rights, publisher affinity, automated outreach or capture/release changes are inferred.",
+          "No actual model/production/real-cloud-object calls/writes or deployment this stage."
+        ]
+      }
+    },
+    {
+      "id": "E01",
+      "milestone": "M3",
+      "owner": "审计后端",
+      "status": "completed",
+      "dependsOn": [
+        "R00",
+        "A05"
+      ],
+      "prototypeGate": false,
+      "title": "行动不可变修订及相关依赖重批",
+      "modules": [
+        "backend/app/intelligence/action_revisions.py",
+        "backend/app/intelligence/action_dependencies.py",
+        "backend/app/intelligence/actions.py",
+        "backend/app/intelligence/drafts.py",
+        "backend/app/intelligence/models.py (reserved structure reused without schema changes)",
+        "backend/app/api/intelligence.py"
+      ],
+      "acceptance": [
+        "ActionPlanRevision只追加，审批绑定具体修订与依赖签名",
+        "相关事实/证据变化阻断并可修订重批，无关事实或较新Run不导致全部失效",
+        "并发旧版本拒绝，历史批准、Brief与产物按原版本可回查"
+      ],
+      "progress": {
+        "implemented": [
+          "Every initial plan and edit creates an immutable ActionPlanRevision; ActionPlan revision pointer/title/target are checked against that row. Named HMAC approvals bind the exact revision, payload and dependency signature.",
+          "Relevant dependencies cover actual questions/scenarios, exact Unicode evidence and counterevidence, related registry/alias/mention identity, source versions/quality/storage fingerprint and human reviews, selected own facts/materials and interpretation version.",
+          "Unrelated facts, registry entries, preferences, question reviews and newer Runs do not automatically revoke plan approval; relevant changes return before/after reasons. Same-task explicit published-diagnosis rebase keeps old Run history.",
+          "CAS, strict revision integers, exact idempotency, current locking reads and ordered project/audit/action locking prevent stale approvals and duplicate concurrent revisions under real MySQL REPEATABLE READ.",
+          "Project-scoped detail and paginated revision history expose signed old payloads, historical approval and draft bindings plus field/dependency changes_from_previous. GET creates no state or queue work.",
+          "New TaskPack v2 remains blocked from Brief v2; existing draft authorization carries a private signed action-revision binding and cannot revive after a different revision is approved."
+        ],
+        "remaining": [],
+        "evidence": [
+          "Backend commit 2c0f424; docs/citation-value-action-revisions-20261025.md",
+          "Final full backend with real local MySQL: 925 passed / 2 skipped. Ruff, compileall and offline source API/worker/storage/PDF acceptance passed.",
+          "Revisions plus evidence-review focused tests: 30 passed. Dedicated real MySQL revisions/concurrent revocation/A05 pipeline/model-budget proof: 5 passed."
+        ],
+        "notes": [
+          "Backend technical completion only; U02/U03 detail/diff/reapproval UI and E02 shared FactSource/EvidenceBrief v3/ContentOS remain pending.",
+          "Selected fact validity/own identity is not semantic entailment. Old report, citation-fact approval and Brief v2 global stamp remain distinct; complete shared qualification and delivery in E02.",
+          "No production access/write, real model requests or real cloud-object writes. No push, PR or deployment. Independent Q01 semantic/task-value and Q02 real execution acceptance remain unaccepted.",
+          "Action task/revision/detail/history UI is now partially wired under U02/U03; full delivery, facts-to-Brief v3 and execution remain pending."
+        ]
+      }
+    },
+    {
+      "id": "E02",
+      "milestone": "M3",
+      "owner": "智见/门户/ContentOS",
+      "status": "in_progress",
+      "dependsOn": [
+        "E01",
+        "A03"
+      ],
+      "prototypeGate": true,
+      "title": "竞争任务的合资格材料和EvidenceBrief v3",
+      "modules": [
+        "backend/app/intelligence/drafts.py",
+        "backend/app/intelligence/actions.py",
+        "src/app/api/integration/intelligence/route.ts",
+        "ContentOS evidence-briefs契约/能力声明/工作流"
+      ],
+      "acceptance": [
+        "诊断证据与我方批准事实分离，竞品事实不能当作我方主张",
+        "多问题/平台保留各自目标，不拼接promptHash；缺材料明确阻断正式创作",
+        "接收端能力就绪后才发起额度预占；四渠道草稿与官网等人工任务保持边界，无自动发布"
+      ],
+      "technical_implementation_complete": true,
+      "progress": {
+        "implemented": [
+          "One task-local current fact qualification is shared by fact lists, action dependencies, the eligible-facts reader and content authorization; diagnostic sources and own approved facts remain separate.",
+          "Approved fact selection drawer reads complete consistent pages, shows source/version/validity/scope, never defaults new candidates, permits removing stale selected facts, and saves a new immutable action revision with rationale and explicit scope review.",
+          "Single EvidenceBrief v3 preserves exact action revision, full TaskPack, every original question/platform/scenario/observation, diagnostic context and selected own facts. Authorization uses revision/version CAS, named review, current material bytes and HMAC; unrelated context/new Runs do not revoke it.",
+          "Portal automatically reads authorization versions and checks the receiver v3/channel before quota reservation. ContentOS validates shared schema/hashes and consumes only ownFacts, rechecks live authority at quota/model boundaries and retains four draft/manual channel separation without publishing.",
+          "Content workbench and action history use v3 ownFacts/actionRevision and retain exact historical revision association. Three repositories share identical schema and structural golden fixture."
+        ],
+        "remaining": [
+          "Q02 real customer opportunity-to-fact-review-to-creation/manual-delivery acceptance; local synthetic UI and automatic test success are not business-effect acceptance.",
+          "Coordinated PR/CI and deployment when requested: ContentOS receiver first, audit API/worker next, Portal last; no gateway release."
+        ],
+        "evidence": [
+          "User approved docs/prototypes/citation-facts-v3/index.html: 认可，按此实现.",
+          "docs/reviews/citation-value-brief-v3-20261026.md; backend932 passed/2 skipped with real local MySQL; CI-scoped Ruff/compileall passed.",
+          "Portal final release:check passed; ContentOS dependencies/Prisma/types/lint/579 tests passed and production build passed after supplying documented CI-only build environment.",
+          "Actual formal components checked with synthetic in-memory data on desktop/390x844; exact uncertain retry, projection changes and reapproval boundaries covered.",
+          "2026-10-27 Q02 local actual HTTP/service/worker contract journey passed with synthetic materials; capture-v2 Brief condition adapter fixed. Real device/browser/business-quality acceptance remains separately pending. See citation-value-service-journey-20261027."
+        ]
+      }
+    },
+    {
+      "id": "E03",
+      "milestone": "M3",
+      "owner": "审计后端/门户/ContentOS",
+      "status": "in_progress",
+      "dependsOn": [
+        "E01"
+      ],
+      "prototypeGate": true,
+      "title": "任务归并、责任人及执行交付状态",
+      "modules": [
+        "backend/app/intelligence/actions.py",
+        "backend/app/intelligence/content_workbench.py",
+        "backend/app/intelligence/models.py",
+        "backend/app/api/intelligence.py",
+        "src/components/visibility/task-execution.tsx",
+        "src/lib/visibility/execution-contract.ts",
+        "src/app/api/integration/intelligence/execution/route.ts"
+      ],
+      "acceptance": [
+        "同资产/事实/意图合并任务并保留多个平台子目标，冲突事实分开",
+        "负责人、期限、准备/执行/交付/验收/取消状态及产物可追踪，审批状态独立",
+        "旧修订产物不自动归给新任务，生成成功不算发布或可见性改善"
+      ],
+      "technical_implementation_complete": true,
+      "progress": {
+        "implemented": [
+          "Revision-scoped execution projection and append-only HMAC events store owner/deadline, preparation/start/delivery/return/acceptance/cancellation separately from TaskPack and approvals.",
+          "Named request-bound one-minute Portal authority derives actual workspace membership and completed ContentOS origin receipts; the browser cannot assert actor/member/receipt identity. Exact replay and CAS use current reads and fixed lock order.",
+          "Current valid plan/related evidence required for start/deliver/accept; every frozen criterion is reviewed for acceptance. New revisions do not inherit owner, delivery, approvals or accepted state; historical execution remains read-only.",
+          "ContentOS scoped completed-artifact receipt validates exact frozen v3 origin/hash; backend additionally checks original grant HMAC and exact action revision. External references remain explicitly manual registrations.",
+          "Fresh schema citation_execution_20261026 has60 business tables and composite revision/project foreign keys; isolated database/API/worker startup and concurrency validated. No historical database alteration.",
+          "User explicitly approved citation-execution-v3 on2026-10-26. Formal execution panel and drawers now preserve the approved dark/teal design, hierarchy, named owner/deadline, progress, delivery, criterion review and revision history.",
+          "Current plan approval is rechecked on read, so dependency changes disable start/deliver/accept without changing old execution records. Control visibility derives from trusted current role/actor metadata.",
+          "UI reads exact action/revision IDs and a consistent execution/event version pair; full contiguous history pagination rejects missing/truncated pages. Uncertain saves lock the form and replay the exact request/key;403/409 require an explicit refresh.",
+          "Execution writes lock simultaneous parent plan edits without locking their own retry. Historical revision panels are lazy, read-only and cannot inherit current artifacts; new revisions remount independently."
+        ],
+        "remaining": [
+          "Real customer cross-service task→ContentOS completed-artifact receipt→delivery→acceptance journey and Q01/Q02 independent quality/value acceptance."
+        ],
+        "evidence": [
+          "docs/reviews/citation-value-execution-20261026.md; backend948 passed/2 skipped, CI-scoped Ruff/compileall and real local MySQL CAS passed.",
+          "Portal and ContentOS full release:check passed; Portal JWT/proxy10 and ContentOS receipt5 focused checks passed.",
+          "Fresh isolated intelligence_ci_execution_20261026 schema/API/worker proof and composite execution foreign keys passed; no model requests.",
+          "2026-10-26 formal UI: Portal full release:check passed; backend949 passed/2 skipped with real local MySQL, CI-scoped Ruff and compileall passed. Browser checked formal components with inert synthetic data on desktop/390x844, delivery→return→redelivery→acceptance and exact historical scope. See docs/reviews/citation-value-execution-20261026.md.",
+          "2026-10-27 Q02 local actual HTTP/service/worker contract journey passed with synthetic materials; capture-v2 Brief condition adapter fixed. Real device/browser/business-quality acceptance remains separately pending. See citation-value-service-journey-20261027."
+        ]
+      }
+    },
+    {
+      "id": "M01",
+      "milestone": "M4",
+      "owner": "审计后端",
+      "status": "in_progress",
+      "dependsOn": [
+        "B01",
+        "B02"
+      ],
+      "prototypeGate": false,
+      "title": "单轮描述模式与目标指标配对",
+      "modules": [
+        "backend/app/intelligence/measurement.py",
+        "backend/app/intelligence/measurement_history.py",
+        "backend/app/api/intelligence.py",
+        "backend/app/intelligence/descriptive_measurement.py",
+        "src/lib/visibility/measurement-request.ts",
+        "src/app/api/integration/intelligence/route.ts"
+      ],
+      "acceptance": [
+        "模式、指标版本、brandTargetIds和比较范围冻结进cohort规范/hash，结果去重不混用描述与推断模式",
+        "descriptive_v1支持一题一次，基线完全未出现且entityId为空的目标品牌也能与首次出现结果配对",
+        "仅可比且双方已知的维度产生observed_delta，未知或条件变化不汇总改善分数",
+        "原推断模式20题3轮门槛不变，单轮不输出统计区间、显著性或因果声明"
+      ],
+      "technical_implementation_complete": true,
+      "progress": {
+        "implemented": [
+          "descriptive_v1 freezes stable registry/entity brand targets, selected platform/question slots, metric/rule/identity/condition policy versions and original baseline observations in the cohort hash. Existing inferential_v1 thresholds remain20 prompts×3 rounds.",
+          "First-round-only retests create exactly one sample for each frozen question/platform. An absent registered brand with no baseline entity can pair with its first confirmed appearance; unregistered brands remain selected and explicit alias equivalence retains original/followup IDs.",
+          "Per-cell presence/recommendation/verified-position/reasons and three separate source-presence metrics retain original response/mention/source references. Missing evidence/identity, unknown conditions and observed changed conditions have distinct states; no missing-to-zero conversion, inference fields or improvement total.",
+          "Read-only saved-result/report/API projections remove stale observed deltas without mutating original results. A frozen absent baseline can remain compatible with a current first-appearance followup only if baseline revision, original names/questions and attribution remain valid.",
+          "Mode-specific immutable cohort IDs/spec hashes prevent cache/result mixing. Current reads and fixed cohort locks serialize exact cohort/retest/result replays under real MySQL repeatable-read snapshots.",
+          "Portal whitelist contract forwards descriptive mode/stable targets/platform/question filters while discarding browser actor/sampling overrides. No production page style changes."
+        ],
+        "remaining": [
+          "Q01/Q02 real semantic quality, authenticated customer journey and value acceptance; M02/U04 technical integration completed separately."
+        ],
+        "evidence": [
+          "docs/reviews/citation-value-descriptive-measurement-20261026.md; focused56 baseline/new comparison tests plus real MySQL three-phase replay test passed.",
+          "Portal full release:check passed; final backend full regression and CI-scoped Ruff/compileall passed. See final review document for exact counts.",
+          "No database DDL changes, migration/backfill, real model/OSS/production calls, gateway changes, push/PR or deployment."
+        ]
+      }
+    },
+    {
+      "id": "M02",
+      "milestone": "M4",
+      "owner": "审计后端/门户契约",
+      "status": "in_progress",
+      "dependsOn": [
+        "E02",
+        "E03",
+        "M01"
+      ],
+      "prototypeGate": false,
+      "title": "行动发布资产和观察时间链",
+      "modules": [
+        "backend/app/intelligence/measurement.py",
+        "backend/app/intelligence/models.py",
+        "backend/app/intelligence/measurement_history.py",
+        "backend/app/api/intelligence.py",
+        "backend/app/intelligence/publication.py",
+        "backend/app/intelligence/retest_retry.py",
+        "backend/app/intelligence/action_revisions.py",
+        "src/lib/visibility/observation-contract.ts",
+        "src/lib/visibility/measurement-request.ts",
+        "src/app/api/integration/intelligence/route.ts"
+      ],
+      "acceptance": [
+        "资产、行动修订、Brief/交付、cohort和结果均有明确关联",
+        "核对基线/发布/复测采样时间，未知或顺序不合格不声称发布前后验收",
+        "交付验收与逐平台可见性观察分开，单平台退化不被均分隐藏"
+      ],
+      "technical_implementation_complete": true,
+      "progress": {
+        "implemented": [
+          "Signed append-only human publication reports bind exact action revision, delivered execution event and artifact index, with original ContentOS receipt retained where applicable. Server derives the delivery-record fingerprint; published bytes are explicitly unverified and publication is not authorized.",
+          "Frozen descriptive cohorts bind exact task scope and publication records; each result cell separately checks actual baseline time < reported publication time < actual followup time. Late delivery recording is not treated as content-completion time. Invalid/unknown ordering never becomes action-effect acceptance.",
+          "Missing-answer repair keeps the same audit, original sample and independent round; complete answers remain unchanged. Failed/partial answers get new attempts with signed idempotent receipts, stale-stamp checks and a five-batch cap. Repair does not reserve another audit quota.",
+          "Project-scoped publication choices, stable action/cohort/asset pagination, retest progress and explicit bounded result lists support the formal page. Historical task revisions are read-only for new publication writes.",
+          "Real capture-v2 task questions now validate raw UTF-8 digest and frozen original text, rather than being rejected by the legacy response JSON-hash convention."
+        ],
+        "remaining": [
+          "Q01/Q02 actual authenticated customer task-to-publication-to-device-observation journey and semantic/value acceptance."
+        ],
+        "evidence": [
+          "docs/reviews/citation-value-publication-observation-20261026.md; final backend996 passed/2 skipped, CI-scoped Ruff/compileall passed, including real isolated MySQL publication and repair replay concurrency. No DDL/model/OSS/production/gateway changes.",
+          "2026-10-27 Q02 local actual HTTP/service/worker contract journey passed with synthetic materials; capture-v2 Brief condition adapter fixed. Real device/browser/business-quality acceptance remains separately pending. See citation-value-service-journey-20261027."
+        ]
+      }
+    },
+    {
+      "id": "U00",
+      "milestone": "M1",
+      "owner": "产品/设计",
+      "status": "completed",
+      "dependsOn": [],
+      "prototypeGate": false,
+      "title": "v3交互原型与用户确认",
+      "modules": [
+        "docs/prototypes/citation-intelligence-v3",
+        "原型验收记录"
+      ],
+      "acceptance": [
+        "以已确认v2为视觉基线，保留v1/v2并将新确认稿/交互/截图纳入版本管理",
+        "展示就绪、品牌/来源抽屉、我方材料登记核实与事实批准、场景重要性设置、机会到执行及单次观察状态",
+        "覆盖正常/未知/失败/冲突，用户确认后记录准确原型版本；未确认不实现对应UI"
+      ],
+      "progress": {
+        "implemented": [
+          "Nine-view v3 clickable prototype based on approved v2; 13 critical checks desktop/mobile."
+        ],
+        "remaining": [],
+        "approval": "User: 认可，按 v3 继续实现 (2026-10-24)"
+      }
+    },
+    {
+      "id": "U01",
+      "milestone": "M1",
+      "owner": "门户",
+      "status": "in_progress",
+      "dependsOn": [
+        "U00",
+        "B01",
+        "B02"
+      ],
+      "prototypeGate": true,
+      "title": "评价就绪、品牌核实与一致比较范围",
+      "modules": [
+        "src/components/visibility/brand-score-workspace.tsx",
+        "src/components/visibility/identity-review.tsx",
+        "src/app/(dashboard)/intelligence/page.tsx",
+        "src/types/intelligence.ts",
+        "src/components/visibility/analysis-scope-bar.tsx",
+        "src/components/visibility/analysis-scope.css",
+        "src/lib/visibility/analysis-scope.ts"
+      ],
+      "acceptance": [
+        "缺分说明具体原因，问题审核和身份核实可完成并进入新修订",
+        "每个品牌行能查看证据，身份确认/用于比较/登记品牌库分别操作",
+        "跨Tab及刷新保持自有/对比品牌、平台和场景，失效对象不静默替换"
+      ],
+      "progress": {
+        "implemented": [
+          "Approved v3 conclusion and readiness cards wired to backend responses.",
+          "Registry/discovered target rows feed existing radar/table; identity management retained.",
+          "Real prompt-review drawer and explicit new-revision switch;390px overflow fixed.",
+          "Approved v3 common own/comparison/platform/scenario URL strip across views, scoped score/evidence/platform/source consumers, explicit invalid selections, URL-authoritative Run changes, obsolete task clearing, stale-response and repeated-publication protection."
+        ],
+        "remaining": [
+          "Formal authenticated live-project identity-to-new-revision and complete prototype-to-runtime workflow acceptance under Q02; shared scope implementation and component regression complete."
+        ],
+        "technical_implementation_complete": true,
+        "evidence": [
+          "docs/reviews/citation-value-shared-scope-20261025.md; focused55 passed, final full release:check passed; actual page-component desktop/390x844 and URL refresh checks with fictional read-only service."
+        ]
+      }
+    },
+    {
+      "id": "U02",
+      "milestone": "M2",
+      "owner": "门户",
+      "status": "in_progress",
+      "dependsOn": [
+        "U00",
+        "A03",
+        "A04",
+        "A05",
+        "U01"
+      ],
+      "prototypeGate": true,
+      "title": "场景、材料、来源观察和机会证据下钻",
+      "modules": [
+        "src/components/visibility/citation-prototype-views.tsx",
+        "src/components/visibility/evidence-comparisons.tsx",
+        "src/app/(dashboard)/intelligence/page.tsx",
+        "src/types/intelligence.ts",
+        "src/components/visibility/source-observation-workspace.tsx",
+        "src/components/visibility/source-observations.css",
+        "src/lib/visibility/source-observation.ts",
+        "src/components/visibility/opportunity-overview.tsx",
+        "src/lib/visibility/opportunity-reader.ts"
+      ],
+      "acceptance": [
+        "文章可展开全部平台/回答/引用类型/版本，入口打开正确原文",
+        "我方材料可登记URL/受支持文字、查看取得或受限/失败状态、合规重试、核对版本、提出并批准事实，提示新分析修订",
+        "来源文章与我方材料分类型；可设置场景重要性，未设置的默认排序与当前策略版本可见",
+        "概览可进入全部机会和对应行动/证据，携带完整比较范围"
+      ],
+      "progress": {
+        "implemented": [
+          "Approved v3 platform-source versus owned-material tabs and URL state.",
+          "Material registration, acquisition status/retry, immutable version reading, named verification and exact fact approval/withdrawal with validity and audit trail.",
+          "Scoped write proxy synchronizes current server-owned brand registry; uncertain writes retain the exact idempotent request; async drawer results keyed to selected material.",
+          "Approved v3 opportunity/task cards and full actionable package details now consume A05: exact original questions, all platform/scenario targets, observations/hypotheses/counterevidence, asset/new deliverable, outlines, acceptance and material requirements.",
+          "Task workspace keeps own/comparison/platform/scenario and action/opportunity URL state; filters match the same child observation, reads all bounded pages before filtering, preserves out-of-scope evidence, and removes not-applicable creation.",
+          "Frozen versus explicit current-preference read-only ranking, review/preparation queues, exact Unicode saved-text locating, source-kind distinctions and platform icons wired without exposing collection surface.",
+          "A04 source-observations-v2 consumer: all bounded pages, per-observation platform/kind/original Run/body version/anchor fallback, five-dimension evidence and unchecked ranges, source-only brands, human review and copy-family drilldown. Same-observation filters never borrow another platform body or brand mentions; unreadable versions and unknown coverage remain explicit.",
+          "Overview now reads complete A05 frozen/current opportunity rankings and enters exact task or original evidence with all scope preserved; shared reader validates pages before filtering. Opportunity evidence retains diagnostic/counter quotes, original responses, missing-ID and out-of-scope safeguards; all source consumers share global platform/scenario."
+        ],
+        "remaining": [
+          "Formal live-service opportunity/source/material-to-task workflow acceptance under Q02; frontend wiring complete, E02/E03 content/manual delivery remain separate."
+        ],
+        "evidence": [
+          "docs/reviews/citation-owned-materials-a03-20261025.md",
+          "docs/reviews/citation-value-task-workspace-20261025.md; task component/BFF focused18 passed; complete release:check passed; actual component desktop and390x844 browser checks.",
+          "docs/reviews/citation-value-source-observations-20261025.md; source focused12 plus existing task/bridge/prototype24 passed; final full release:check passed after mobile fix; default and390x844 actual viewport verified and reset.",
+          "docs/reviews/citation-value-shared-scope-20261025.md; focused55 passed, final full release:check passed; actual page-component desktop/390x844 and URL refresh checks with fictional read-only service."
+        ],
+        "technical_implementation_complete": true
+      }
+    },
+    {
+      "id": "U03",
+      "milestone": "M3",
+      "owner": "门户/ContentOS",
+      "status": "in_progress",
+      "dependsOn": [
+        "U00",
+        "E02",
+        "E03",
+        "U02"
+      ],
+      "prototypeGate": true,
+      "title": "行动修订、材料准备和交付用户路径",
+      "modules": [
+        "src/components/visibility/action-plans.tsx",
+        "src/components/visibility/approved-facts.tsx",
+        "src/components/visibility/draft-briefs.tsx",
+        "src/components/visibility/evidence-draft-execution.tsx",
+        "src/components/visibility/manual-content-tasks.tsx",
+        "src/components/visibility/task-execution.tsx"
+      ],
+      "acceptance": [
+        "由机会带入行动修订及合资格事实，不要求客户手填版本或反复重选",
+        "无材料、事实过期、版本冲突及失效审批都有可完成的下一步",
+        "责任人、交付记录、人工任务和待审草稿可追踪，发布仍单独登记"
+      ],
+      "progress": {
+        "implemented": [
+          "Project-scoped create/approve/revise/detail/history bridge consumes exact E01 revision IDs/CAS and all TaskPack fields, fixes review scope, preserves dependency differences and old approvals.",
+          "Task proposal/readiness, concrete delivery edits, exact uncertain-request retry, conflict lockout, original Unicode evidence reader and immutable revision-history differences follow the approved v3 components.",
+          "Materials entry and return keep project/Run/action identity; old suggestions view points to one full action workspace instead of a separate write surface.",
+          "Approved E02 fact selector and exact v3 content authorizer are integrated; automatic version read, immutable selection revisions, live receiver readiness before quota and separate own facts/diagnostics are implemented.",
+          "Approved E03 formal execution panel/drawers are integrated into the current action and immutable revision history: owner/deadline, preparation/start, delivery provenance, criterion acceptance/return/cancel, disabled/stale/uncertain handling and complete history pagination."
+        ],
+        "remaining": [
+          "Full real customer opportunity-to-material-review-to-creation/delivery/acceptance journey with actual ContentOS origin receipts and independent task-value acceptance."
+        ],
+        "evidence": [
+          "docs/reviews/citation-value-task-workspace-20261025.md; focused18 passed and full portal release:check passed; actual components checked with inert synthetic data.",
+          "docs/reviews/citation-value-brief-v3-20261026.md; final Portal gates passed and desktop/mobile component checks completed.",
+          "docs/reviews/citation-value-execution-20261026.md; formal UI full source gates and desktop/mobile component checks passed after explicit user prototype approval. Real authenticated cross-service journey remains pending."
+        ]
+      },
+      "technical_implementation_complete": true
+    },
+    {
+      "id": "U04",
+      "milestone": "M4",
+      "owner": "门户",
+      "status": "in_progress",
+      "dependsOn": [
+        "U00",
+        "M02",
+        "U03"
+      ],
+      "prototypeGate": true,
+      "title": "一次观察预检与逐平台变化界面",
+      "modules": [
+        "src/components/visibility/observation-workspace.tsx",
+        "src/components/visibility/publication-drawer.tsx",
+        "src/components/visibility/observation-results.tsx",
+        "src/components/visibility/observation-workspace.css",
+        "src/lib/visibility/observation-contract.ts",
+        "src/components/visibility/measurement-results.tsx",
+        "src/components/visibility/measurement-history-page.tsx",
+        "src/app/(dashboard)/intelligence/page.tsx"
+      ],
+      "acceptance": [
+        "发起前显示样本/条件/发布时序及可得到的描述结果，仍一次采集",
+        "默认选中该cohort关联复测，按平台/问题/行动维度查看前后证据",
+        "观察变化、数据不足、不可比和统计判断不可用分别呈现"
+      ],
+      "technical_implementation_complete": true,
+      "progress": {
+        "implemented": [
+          "Local citation-measurement-v3 prototype preserves approved v3 styling and shows publication/version/time-chain, one-round initiation/progress, selected stable brands/platforms, per-cell facts/unknowns/incomparability and narrow cards/drawers.",
+          "Approved dark/teal formal observation workspace replaces the old runtime collection/publication forms: exact delivered-version drawer, Beijing-time report, frozen brands including unregistered targets, original task questions/platforms, one-button single capture, in-page progress and missing-answer repair.",
+          "Per-brand/platform descriptive reader displays separate known facts, unknown/missing/incompatible states, action/publication/sample timeline, original response/source evidence and stale-result handling; trend/report reader accepts the same descriptive contract.",
+          "Uncertain two-stage scope/capture writes replay the same pending request/key, freeze scope edits and parent analysis-version switching. Publication updates open a new draft; historical observation links remain immutable. Trusted viewer metadata disables writes.",
+          "Actual formal components checked with inert data on desktop and390x844: publication save to new draft, single initiation to partial completion, result save, brand/platform switching, evidence drawer; page384px/drawer390px, viewport reset, no error/warn logs. Platform icons/cursor/focus and primary-button specificity verified."
+        ],
+        "remaining": [
+          "Q01/Q02 real authenticated customer workflow, prototype-to-live journey and independent quality/value acceptance."
+        ],
+        "evidence": [
+          "docs/prototypes/citation-measurement-v3/README.md and verification.json; inert local desktop/390x844 browser checks. No real service or model calls.",
+          "docs/reviews/citation-value-publication-observation-20261026.md; focused55 passed; all local Portal source gates passed with isolated retry of an undiagnosed premature production-build exit. No push/PR/deployment.",
+          "2026-10-27 Q02 local actual HTTP/service/worker contract journey passed with synthetic materials; capture-v2 Brief condition adapter fixed. Real device/browser/business-quality acceptance remains separately pending. See citation-value-service-journey-20261027."
+        ],
+        "approval": "用户已确认 citation-measurement-v3：认可，按此实现（2026-10-26）"
+      }
+    },
+    {
+      "id": "Q01",
+      "milestone": "cross-cutting",
+      "owner": "质量/产品",
+      "status": "in_progress",
+      "dependsOn": [
+        "V01"
+      ],
+      "prototypeGate": false,
+      "title": "真实标注、分层质量与阶段放行",
+      "modules": [
+        "backend/app/intelligence/evaluation.py",
+        "backend/app/intelligence/evaluation_export.py",
+        "backend/tests",
+        "阶段验收记录"
+      ],
+      "acceptance": [
+        "先校准代表性真实样本，再扩大独立留出集；实体/证据/理由/排名/任务可执行性分别评价",
+        "披露真实分子分母与未知，不把测试通过或样本数量当作语义质量合格",
+        "不虚构事实、不串证据、不越租户；有明确机会却遗漏不能放行，无机会不凑数"
+      ],
+      "progress": {
+        "implemented": [
+          "Provisional implementation-agent review of frozen real samples, actual token/coverage receipts, source challenge/navigation/advertorial cases; no gold labels fabricated.",
+          "Current A02 local real-MySQL calibration retained truncation/condition-type probe failures, final 48-unit/four-context outputs and actual usage; no independent gold labels or release acceptance fabricated."
+        ],
+        "remaining": [
+          "Independent representative gold and holdout labels for entity/role, recommendation, reasons, ranking, support and actionable tasks.",
+          "Separate measured quality denominators from structure/test success; current release acceptance remains false."
+        ]
+      }
+    },
+    {
+      "id": "Q02",
+      "milestone": "M4",
+      "owner": "全链路/发布",
+      "status": "in_progress",
+      "dependsOn": [
+        "R00",
+        "B03",
+        "A05",
+        "U01",
+        "U02",
+        "U03",
+        "U04",
+        "Q01"
+      ],
+      "prototypeGate": false,
+      "title": "真实价值闭环与分系统发布核验",
+      "modules": [
+        "跨系统验收用例",
+        "各仓库PR与CI",
+        "部署运行记录"
+      ],
+      "acceptance": [
+        "至少一条真实机会经过计划/事实批准、内容或人工交付、发布登记和单轮观察",
+        "各系统独立门禁及PR/CI通过；接收端能力先发布，审计API/worker再发布，门户最后发布",
+        "精确提交/健康/资源/回滚及业务结果分别记录，不发布无关网关改动"
+      ],
+      "technical_implementation_complete": false,
+      "progress": {
+        "implemented": [
+          "2026-10-27 isolated local Portal+Visibility+ContentOS+worker HTTP/protocol journey uses normal credential login, actual RS256/JWKS, real databases and subscription/usage ledger; synthetic business inputs are explicitly marked.",
+          "Qualified facts/content authorization -> actual manual content task start/complete -> verified delivery receipt -> named execution acceptance -> publication record -> frozen single-round retest -> missing-answer repair -> capture-v2 sealing -> actual zero-model-budget worker -> saved unknown/stale result exercised.",
+          "Cross-audience/expired/forged-header/workspace-vs-project/viewer/other-project requests rejected. Repeated retest/repair requests preserve scope and actual PostgreSQL ledger has one committed audit usage.",
+          "Capture-v2 camelCase observed conditions were rejected by strict Brief v3 snake_case fields; fixed with explicit observed-only adapter. Unknowns remain unknown, requested conditions never substitute. New full authorization/export regression added.",
+          "Local read-only device availability check found adb available but zero devices, no running Appium/local gateway task. Test-machine location/connection requested asynchronously; no production gateway changes made.",
+          "2026-10-28 CHAO connection resolved and installed handlers attempted for one prompt across five platforms. All five failed explicitly; original Agent/config restored, zero sealed responses/articles, no missing-to-zero brand scores. Scoped local gateway startup/locked-device fix committed with both PowerShell release checks and 10 browser tests passing; not deployed.",
+          "2026-10-28 after user unlock/challenge intervention: real installed-handler retest sealed Qwen1729 characters/10 URL observations; 9 actual source snapshots/76463 saved-text characters/96 exact segments persisted and checksum-verified. Actual bounded official DeepSeek analysis published partial candidates, normal authenticated Portal readers9 checks passed. Gateway observed-state/partial-interruption fixes and MySQL large-run-list fix committed locally; not deployed.",
+          "2026-10-29 user-cleaned-device retest: new four-App/single-round audit failed4/sealed0, prior Qwen sample preserved. Screenshots and installed scripts pinpoint Kimi stale placeholder, Yuanbao optional update, Doubao PDF download; actual Appium log pinpoints DeepSeek clipboard timeout before send. No product code changes/deploy or analysis-model calls.",
+          "2026-10-29 local gateway8a660dad fixes Kimi native editor, Yuanbao observed update skip, DeepSeek native Unicode input with focused full-draft verification/keyboard restoration, and Doubao scoped PDF cancellation/source continuation/catalog retention. PS5.1+PS7 full release checks and browser16 passed; saved actual Kimi/Yuanbao hierarchies matched. Not deployed or a new live capture.",
+          "2026-10-30 user-authorized gateway-only release: PR62 landed4e54e0c89e60d963a7bb65dc702e89554ba956b5, PR/main gatewayCI passed with cloud jobs skipped. Exact git archive10 runtime files and10 backups hash-verified under idle SYSTEM mutex. Config/profile/pool preserved, Agent1/configured phones5/Appium/browser ready and new server heartbeat verified. One transient fetch error recovered; no new real capture."
+        ],
+        "remaining": [
+          "Gateway fixes are deployed to CHAO at4e54e0c89e60d963a7bb65dc702e89554ba956b5. Next create NEW real four-App and Qwen-metadata capture; verify actual Unicode input, PDF dialog and source continuation. Release health is not capture acceptance; old failed/partial audits remain unchanged.",
+          "Verify real OSS and article completeness separately from local body persistence; resolve semantic rejected spans, failed/deferred segments and source alignment with independently labeled real samples.",
+          "Authenticated browser customer journey and one independently evaluated real opportunity through delivery/publication/single observation; synthetic transport and candidate output do not count.",
+          "Q01 independent gold/holdout and practical recommendation value acceptance; release_eligible remains false. Per-system release only after explicit scope authorization."
+        ],
+        "evidence": [
+          "docs/reviews/citation-value-service-journey-20261027.md and .json;66 assertions/63 distinct check names, all passed; backend998 passed/2 skipped, CI-scoped Ruff/compileall passed. No Portal/ContentOS application source changes, no real model/device/production calls.",
+          "docs/reviews/citation-value-chao-capture-20261028.md and .json: real installed-handler failure matrix, persisted failed5/sealed0/article0/score-null, gateway fix67bde272687ee62f780252bea076133db6ac2124 and local gate results. Not successful real capture, semantic quality or business acceptance.",
+          "docs/reviews/citation-value-chao-retest-20261028.md/.json: real1-of5 capture; local9 raw/text snapshots/96 verified spans; model26 requests/88018 charged tokens (unknown reservations included),50/87/3 candidates; source alignment unchecked. GatewayPS5+7 andNode16 passed; backend1000 passed/2 skipped and actual authenticated readers9 passed. No OSS write, source deployment or independent quality/value acceptance.",
+          "docs/reviews/citation-value-four-app-retry-20261029.md/.json: actual four-App retry after manual cleaning; failed4/sealed0, archived Doubao1850characters/1source only. Exact screenshots, old Kimi locator, installed versions and setClipboard timeout checked; normal Agent/config restored. No new source-gate or deployment claims.",
+          "docs/reviews/citation-value-four-app-adapter-fixes-20261029.md/.json: gateway8a660dad, changed5PowerShellfiles, fullPS5.1+PS7 checks including230guard assertions, Node16, diff/BOM passed. Saved actual Kimi/Yuanbao UI verified; PDF native-window and input commands injected, no post-fix live capture or deployment.",
+          "docs/reviews/citation-value-gateway-release-20261030.md/.json: PR62, exact landed SHA/mainCI,10 runtime+backup hashes, preserved config, fresh backend heartbeat and rollback readiness. Cloud services not deployed, no post-release capture or semantic/value acceptance."
+        ]
+      }
+    }
+  ],
+  "progress": {
+    "prototype": "citation-intelligence-v3",
+    "prototypeStatus": "approved_by_user",
+    "productionUiChanged": true,
+    "productionDeployed": false,
+    "realSemanticQuality": "calibrated_not_release_accepted",
+    "providerBlocker": null,
+    "backendBranch": "codex/citation-value-foundation",
+    "portalBranch": "codex/citation-value-v3",
+    "verification": {
+      "backendTestsPassed": 1000,
+      "backendTestsSkipped": 2,
+      "backendRuff": "passed",
+      "prototypeViews": 9,
+      "prototypeChecks": 13,
+      "prototypeMobileWidth": 390,
+      "prototypeDesktopWidth": 1440,
+      "prototypeExternalRequests": 0,
+      "portalReleaseSourceGates": "passed",
+      "actualM1MobileWidth": 390,
+      "actualM1MobileOverflow": false,
+      "freshMysqlTables": 58,
+      "freshMysqlRuntimeChecks": 12,
+      "realMysqlTestsPassed": 7,
+      "realPostgresTestsPassed": 1,
+      "crossServiceContextReceipts": "verified",
+      "calibrationCases": 8,
+      "calibrationTokens": 27584,
+      "independentSemanticAcceptance": false,
+      "backendOfflineImageEntrypoint": "verified_local_source_not_docker_build",
+      "budgetMysqlConcurrency": "passed",
+      "budgetRealPipelineModelCalls": 1,
+      "budgetRealPipelineTokens": 4441,
+      "budgetCachedRevisionNewCalls": 0,
+      "budgetMysqlTestsPassed": 3,
+      "budgetFullRegression": "passed",
+      "budgetCompile": "passed",
+      "scenarioRealPostgresProof": "passed",
+      "scenarioModelCalls": 0,
+      "scenarioFrozenCasesChecked": 186,
+      "scenarioUniqueRealPrompts": 1,
+      "scenarioPrototypeChecks": 13,
+      "contextRuntimeTestsPassed": 27,
+      "contextFinalModelRequests": 8,
+      "contextFinalTokens": 42798,
+      "contextAcceptedUnits": 48,
+      "contextCompletedInterpretations": 4,
+      "contextCalibrationTotalRequests": 18,
+      "contextCalibrationTotalTokens": 98219,
+      "contextMysqlCachedRevisionNewRequests": 0,
+      "contextMysqlCachedRevisionNewTokens": 0,
+      "contextIndependentSemanticAcceptance": false,
+      "ownedMaterialMysqlTestsPassed": 1,
+      "ownedMaterialPortalTestsPassed": 10,
+      "ownedMaterialModelCalls": 0,
+      "ownedMaterialProductionWrites": 0,
+      "ownedMaterialRealCloudWrites": 0,
+      "ownedMaterialDesktopWidth": 927,
+      "ownedMaterialNarrowCheck": "390px_iframe_visual_not_native_viewport",
+      "ownedMaterialBriefV3Integrated": false,
+      "anchorFocusedTestsPassed": 14,
+      "anchorMysqlProofPassed": 1,
+      "anchorFullRegressionMysqlEnabled": true,
+      "anchorModelCalls": 0,
+      "anchorGatewayCaptureImplemented": false,
+      "anchorFrontendDrilldownIntegrated": false,
+      "anchorIndependentSemanticAcceptance": false,
+      "opportunityFocusedTestsPassed": 20,
+      "opportunityMysqlProofPassed": 1,
+      "opportunityFullRegressionMysqlEnabled": true,
+      "opportunityTaskPackV2Generated": true,
+      "opportunityModelCalls": 0,
+      "opportunityProductionWrites": 0,
+      "opportunityFrontendDrilldownIntegrated": false,
+      "opportunityBriefV3Integrated": false,
+      "opportunityIndependentValueAcceptance": false,
+      "chaoRetest": {
+        "sealedPlatforms": 1,
+        "expectedPlatforms": 5,
+        "articleSnapshots": 9,
+        "savedArticleSegments": 96,
+        "localStorageOnly": true,
+        "ossVerified": false,
+        "authenticatedReaderChecksPassed": 9,
+        "gatewayNodeTestsPassed": 16,
+        "semanticIndependentAcceptance": false,
+        "fivePlatformAcceptance": false,
+        "deployed": false,
+        "evidence": "docs/reviews/citation-value-chao-retest-20261028.json"
+      },
+      "chaoFourAppRetry20261029": {
+        "expected": 4,
+        "failed": 4,
+        "sealed": 0,
+        "previousQwenPreserved": true,
+        "productSourceChanged": false,
+        "deployed": false,
+        "evidence": "docs/reviews/citation-value-four-app-retry-20261029.json"
+      },
+      "gatewayFourAppAdapterFixes20261029": {
+        "sourceCommit": "8a660dadf0ccdf35ade60007a99a8cd33132587b",
+        "windowsPowerShell": "passed",
+        "powerShell7": "passed",
+        "guardAssertionsPerEngine": 230,
+        "browserTestsPassed": 16,
+        "savedActualUiReplaysPassed": 2,
+        "freshLiveCapture": false,
+        "deployed": true,
+        "evidence": "docs/reviews/citation-value-four-app-adapter-fixes-20261029.json",
+        "landedCommit": "4e54e0c89e60d963a7bb65dc702e89554ba956b5",
+        "pullRequest": "https://github.com/yyangwan/genilink-platform/pull/62",
+        "runtimeFileHashes": "passed",
+        "serverHeartbeat": "passed",
+        "deploymentEvidence": "docs/reviews/citation-value-gateway-release-20261030.json"
+      },
+      "gatewayDeployment20261030": {
+        "commit": "4e54e0c89e60d963a7bb65dc702e89554ba956b5",
+        "runtimeFilesVerified": 10,
+        "backupsVerified": 10,
+        "configuredPhonesOnline": 5,
+        "serverHeartbeat": "passed",
+        "browserReady": true,
+        "transientFetchRecovered": true,
+        "rollbackReady": true,
+        "cloudDeployed": false,
+        "realCaptureAfterRelease": false
+      }
+    },
+    "productionUiChangeLocation": "local_worktree_only",
+    "backendCommits": [
+      "8571a2b",
+      "3acba4e",
+      "6c0e7dc",
+      "d35de76",
+      "180ea11",
+      "816f669",
+      "9685bcd",
+      "9635e37",
+      "3b33372",
+      "3ce5350",
+      "3d32c616af37cbd633800344ff38aea651d40c13"
+    ],
+    "providerStatus": "restored_http_200_verified",
+    "portalCommits": [
+      "a7e5160",
+      "4f3d650",
+      "1d310d2",
+      "7db162b",
+      "1e35c13",
+      "047263a"
+    ]
+  }
+}

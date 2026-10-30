@@ -1,0 +1,96 @@
+{
+  "date": "2026-10-29",
+  "scope": "one_prompt_four_app_platforms_one_round",
+  "audit_status": "failed",
+  "expected_samples": 4,
+  "failed_samples": 4,
+  "sealed_responses": 0,
+  "gateway_task_failures": 4,
+  "previous_qwen_sample_still_sealed": true,
+  "agent_restored": true,
+  "private_config_unchanged": true,
+  "installed_source_unchanged": true,
+  "operator_containment_events": 0,
+  "analysis_model_calls": 0,
+  "source_deployed": false,
+  "interrupted_materials": [
+    {
+      "sources": 1,
+      "answer_characters": 1850,
+      "reference_count": 0,
+      "reason": "unknown_dialog",
+      "status": "interrupted",
+      "platform": "doubao"
+    }
+  ],
+  "installed_app_versions": [
+    {
+      "version": "versionName=15.1.0",
+      "platform": "doubao"
+    },
+    {
+      "version": "versionName=2.5.3",
+      "platform": "deepseek"
+    },
+    {
+      "version": "versionName=2.85.1",
+      "platform": "yuanbao"
+    },
+    {
+      "version": "versionName=3.1.5",
+      "platform": "kimi"
+    }
+  ],
+  "kimi_obsolete_input_locator_confirmed": true,
+  "previous_foreground_blocker_improved": true,
+  "failures": [
+    {
+      "platform": "doubao",
+      "reason": "PDF_download_confirmation",
+      "screenshot_verified": true,
+      "file_name": "一搜百应GEO白皮书.pdf",
+      "kilobytes": 977.06
+    },
+    {
+      "platform": "deepseek",
+      "reason": "Appium_mobile_setClipboard_timeout_before_prompt_sent",
+      "client_timeout_seconds": 30,
+      "proxy_timeout_seconds": 240,
+      "input_page_verified": true,
+      "root_cause_beyond_request_path_verified": false
+    },
+    {
+      "platform": "yuanbao",
+      "reason": "optional_update_dialog",
+      "upgrade_target_version": "2.90.10",
+      "dismiss_control_visible": true,
+      "app_updated": false,
+      "screenshot_verified": true
+    },
+    {
+      "platform": "kimi",
+      "reason": "obsolete_input_placeholder_locator",
+      "installed_locator": "尽管问，带图也行",
+      "observed_placeholder": "尽管问，或做个任务…",
+      "input_page_verified": true
+    }
+  ],
+  "operations": {
+    "existing_local_databases_started": true,
+    "database_reinitialized": false,
+    "gateway_product_source_modified": false,
+    "cloud_product_source_modified": false,
+    "application_updates_installed": false,
+    "manual_dialog_actions_performed": false,
+    "push_or_pr": false,
+    "deployed": false,
+    "oss_writes": 0
+  },
+  "acceptance": {
+    "four_platforms_passed": false,
+    "five_platforms_passed": false,
+    "semantic_quality_passed": false,
+    "business_value_passed": false,
+    "release_eligible": false
+  }
+}

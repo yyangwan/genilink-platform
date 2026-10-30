@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-29",
+  "scope": "gateway_only_local_adapter_fixes",
+  "commit": "8a660dadf0ccdf35ade60007a99a8cd33132587b",
+  "parent": "185c074c22739aa432dfd84126a3f10dee38afbf",
+  "files": [
+    "deploy/mobile-gateway/gateway-popup-guard.ps1",
+    "deploy/mobile-gateway/handlers/research-app-common.ps1",
+    "deploy/mobile-gateway/handlers/doubao-app.ps1",
+    "deploy/mobile-gateway/test-popup-guard.ps1",
+    "deploy/mobile-gateway/test-popup-integration.ps1"
+  ],
+  "fixes": {
+    "kimi": "unique_scoped_native_editor_not_placeholder",
+    "deepseek": "bounded_modified_utf7_native_input_verified_focused_draft_no_uia2_session",
+    "yuanbao": "observed_native_update_panel_scoped_skip",
+    "doubao": "source_scoped_verified_pdf_cancel_continue_and_retain_catalog"
+  },
+  "verification": {
+    "windows_powershell_release": "passed",
+    "powershell7_release": "passed",
+    "popup_guard_assertions_per_engine": 230,
+    "browser_node_tests": {
+      "passed": 16,
+      "failed": 0
+    },
+    "git_diff_check": "passed",
+    "utf8_bom_preserved": true,
+    "saved_actual_kimi_ui": "passed",
+    "saved_actual_yuanbao_ui": "passed",
+    "pdf_modal_test": "screenshot_derived_injected_native_window",
+    "real_new_unicode_input_tested": false,
+    "live_capture_after_fix": false
+  },
+  "boundaries": {
+    "unknown_dialogs_still_blocked": true,
+    "pdf_url_requires_observation": true,
+    "pdf_body_extraction_added": false,
+    "original_ime_restored_and_verified": true,
+    "missing_ime_is_terminal": true,
+    "runtime_version_fallback_invented": false
+  },
+  "operations": {
+    "gateway_product_source_deployed": false,
+    "cloud_product_source_changed": false,
+    "shared_appium_restarted": false,
+    "application_updates_installed": false,
+    "private_config_modified": false,
+    "model_calls": 0,
+    "oss_writes": 0,
+    "push_or_pr": false
+  },
+  "acceptance": {
+    "local_source_fix_passed": true,
+    "four_platform_live_capture_passed": false,
+    "five_platform_live_capture_passed": false,
+    "semantic_quality_passed": false,
+    "release_eligible": false
+  }
+}

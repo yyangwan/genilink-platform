@@ -58,12 +58,10 @@ describe("confirmed eight-page citation prototype navigation", () => {
     expect(document.querySelectorAll(".citation-platform-card")).toHaveLength(1);
   });
 
-  it("groups only sources sharing a document or exact URL", () => {
+  it("requires a project scope before reading per-observation source data", () => {
     render(<SourceLibrary run={run} onOpenAnswer={vi.fn()} onOpenSource={vi.fn()} onRetry={vi.fn()} retrying={null} />);
-    expect(document.querySelectorAll(".citation-source-entry")).toHaveLength(2);
-    expect(document.querySelector(".citation-source-entry")?.textContent).toContain("2 条观察");
-    fireEvent.change(screen.getByLabelText("搜索来源文章"), { target: { value: "无地址" } });
-    expect(document.querySelectorAll(".citation-source-entry")).toHaveLength(1);
+    expect(screen.getByRole("status").textContent).toContain("请先选择工作空间");
+    expect(document.querySelectorAll(".citation-source-entry")).toHaveLength(0);
   });
 
   it("keeps newly discovered brands visible while their identity is unconfirmed", () => {

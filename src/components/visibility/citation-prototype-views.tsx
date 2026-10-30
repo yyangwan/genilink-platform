@@ -1,17 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { AiPlatformLabel } from "@/components/ui/ai-platform-label";
 import { getAiPlatformLabel } from "@/lib/ai-platforms";
 import { EvidenceComparisons } from "./evidence-comparisons";
 import type { EvidenceRun } from "@/types/intelligence";
+import { OwnedMaterials } from './owned-materials';
+import { scopeResponseIds } from '@/lib/visibility/analysis-scope';
+import type { TaskScope } from '@/lib/visibility/task-view';
+import { ObservedSourceLibrary, type SourceLibraryProps } from './source-observation-workspace';
 
 export const citationViews = [
   { id: "overview", title: "审计洞察", heading: "把可见性结果变成下一步行动", eyebrow: "AUDIT INSIGHT", subtitle: "按真实审计结果定位优先事项，逐平台核对来源与证据。" },
   { id: "platforms", title: "平台差异对照", heading: "同一个问题，分别看清各平台", eyebrow: "PLATFORM COMPARISON", subtitle: "回答、引用来源和建议分别比较，保留每个平台的采集条件。" },
   { id: "entities", title: "品牌发现对比", heading: "从全部内容中发现品牌与机会", eyebrow: "ENTITY DISCOVERY", subtitle: "包括尚未登记的观察主体，身份须经确认。" },
-  { id: "sources", title: "来源文章库", heading: "来源文章库", eyebrow: "SOURCE LIBRARY", subtitle: "按文章回查各平台引用与正文归档状态。" },
+  { id: "sources", title: "来源文章库", heading: "引用来源与我方材料，各自保留证据角色", eyebrow: "SOURCE & MATERIALS", subtitle: "来源证明本次观察，我方核实材料支撑可以写入内容的事实。" },
   { id: "evidence", title: "观点与证据", heading: "逐个观点核对原文证据", eyebrow: "CLAIM EVIDENCE", subtitle: "把回答观点与保存的来源段落放在一起核对。" },
   { id: "actions", title: "优化行动", heading: "每条优化建议，都有证据和验收目标", eyebrow: "ACTION PLAN", subtitle: "从平台诊断形成有证据的执行任务。" },
   { id: "drafts", title: "内容创作方案", heading: "把证据转为可执行的内容方案", eyebrow: "CONTENT BRIEF", subtitle: "用已确认的事实和证据准备内容材料。" },
@@ -103,142 +107,77 @@ export function CitationOverview({ run, onView }: { run: EvidenceRun; onView: (v
   </div>;
 }
 
-export function PlatformComparison({ run, onOpenAnswer, onView, selectedPlatform, onPlatformChange }: {
+export function PlatformComparison({ run, onOpenAnswer, onView, selectedPlatform, onPlatformChange, scope }: {
+  scope?: TaskScope;
   run: EvidenceRun; onOpenAnswer: (id: string) => void; onView: (view: CitationViewId) => void; selectedPlatform?: string; onPlatformChange?: (platform: string) => void;
 }) {
-  const prompts = useMemo(() => Array.from(new Map(run.responses.map(item => [item.prompt_hash || item.prompt, item.prompt])).entries()), [run.responses]);
+  const prompts = useMemo(() => {
+    const ids = scopeResponseIds(run, { platform: '', scenario: scope?.scenario || 'all' });
+    return Array.from(new Map(run.responses.filter(row => ids.has(row.id)).map(item => [item.prompt_hash || item.prompt, item.prompt])).entries());
+  }, [run, scope?.scenario]);
   const [selected, setSelected] = useState(prompts[0]?.[0] || "");
-  const responses = run.responses.filter(item => (item.prompt_hash || item.prompt) === selected);
+  const promptInScope = prompts.some(([hash]) => hash === selected);
+  const responses = run.responses.filter(item => promptInScope && (item.prompt_hash || item.prompt) === selected);
   const platformNames = Array.from(new Set(responses.map(item => item.platform)));
-  const activePlatform = platformNames.includes(selectedPlatform || "") ? selectedPlatform : "";
+  const activePlatform = selectedPlatform || '';
   return <div className="citation-stack">
     <section className="citation-panel citation-pad">
       <div className="citation-section-head"><h2>同一提示词</h2><span className="citation-tag">按真实采样分别呈现</span></div>
       <select aria-label="对照提示词" className="citation-select" value={selected} onChange={event => setSelected(event.target.value)}>
+        {selected && !promptInScope && <option value={selected}>原问题不在当前场景内，请重新选择</option>}
         {prompts.map(([hash, prompt]) => <option key={hash} value={hash}>{prompt}</option>)}
       </select>
       {!prompts.length && <p className="citation-muted">本次审计没有可对照的回答。</p>}
     </section>
-    <div className="citation-tabs" role="tablist" aria-label="平台分析切换"><button role="tab" aria-selected={!activePlatform} onClick={() => onPlatformChange?.("")}>全部平台</button>{platformNames.map(name => <button key={name} role="tab" aria-selected={activePlatform === name} onClick={() => onPlatformChange?.(name)}><AiPlatformLabel platform={name} /></button>)}</div>
+    {!scope && <div className="citation-tabs" role="tablist" aria-label="平台分析切换"><button role="tab" aria-selected={!activePlatform} onClick={() => onPlatformChange?.("")}>全部平台</button>{platformNames.map(name => <button key={name} role="tab" aria-selected={activePlatform === name} onClick={() => onPlatformChange?.(name)}><AiPlatformLabel platform={name} /></button>)}</div>}
     <div className="citation-comparison-grid">
       {platformNames.filter(name => !activePlatform || name === activePlatform).map(platform => {
         const samples = responses.filter(item => item.platform === platform);
         const sources = run.sources.filter(item => samples.some(sample => sample.id === item.response_id));
-        const diagnosis = (run.summary.platforms || []).some(item => item.platform === platform && item.analyzed_responses > 0)
+        const diagnosis = !scope && (run.summary.platforms || []).some(item => item.platform === platform && item.analyzed_responses > 0)
           ? (run.summary.diagnoses || []).find(item => item.platform === platform && (!item.prompt || samples.some(sample => sample.prompt === item.prompt))) : undefined;
-        const claim = (run.summary.claims || []).find(item => samples.some(sample => sample.id === item.owner_id));
+        const claim = (run.summary.claims || []).find(item => item.owner_kind === 'answer' && samples.some(sample => sample.id === item.owner_id));
         return <section className="citation-panel citation-platform-card" key={platform}>
           <div className="citation-platform-card-head"><AiPlatformLabel platform={platform} iconSize={20} />
             <small>{samples.length} 次独立回答</small></div>
           <div className="citation-platform-card-body">
-            <span className="citation-tag">{diagnosis ? "待复核诊断" : "暂无可用诊断"}</span>
+            <span className="citation-tag">{scope ? '同题原始观察' : diagnosis ? "待复核诊断" : "暂无可用诊断"}</span>
             <h3>回答中的观察</h3>
             <p className="citation-answer-snippet">{claim?.quote || "当前没有可核验的回答观点。可打开已采集的原始回答核对。"}</p>
             <h3>平台展示的来源</h3>
             <ul>{sources.slice(0, 3).map(source => <li key={source.id}>{source.title || "未取得标题"}<small> · {source.fetch_status === "captured" ? "正文已存" : "正文未知"}</small></li>)}</ul>
             {!sources.length && <p className="citation-muted">未取得可确认的来源卡片。</p>}
             <div className="citation-hypothesis"><strong>针对该平台的待验证方向</strong>
-              <p>{diagnosis?.action?.task || diagnosis?.finding || "分析或来源证据尚未就绪，不能推断品牌缺口。"}</p></div>
+              <p>{scope ? '下方按当前品牌与场景列出具体机会，请逐项核对原文与材料；不套用其他对象的建议。' : diagnosis?.action?.task || diagnosis?.finding || "分析或来源证据尚未就绪，不能推断品牌缺口。"}</p></div>
             <div className="citation-inline-actions">
               {samples[0] && <button onClick={() => onOpenAnswer(samples[0].id)}>查看原始回答 →</button>}
-              <button onClick={() => onView("evidence")}>查看原文证据 →</button>
+              <button onClick={() => onView(scope ? 'actions' : "evidence")}>{scope ? '核对当前范围的优化机会 →' : '查看原文证据 →'}</button>
             </div>
           </div>
         </section>;
       })}
     </div>
+    {activePlatform && !platformNames.includes(activePlatform) && <p className="citation-notice">当前问题未取得所选平台的回答，不替换为其他平台或问题。</p>}
     {!!platformNames.length && <p className="citation-notice citation-notice--warning">本页是同题观察。采集条件不完整、回答失败和正文缺失均单列，不能把差异归因为平台固定偏好。</p>}
   </div>;
 }
 
-type Source = EvidenceRun["sources"][number];
-type SourceGroup = { key: string; entries: Source[]; representative: Source };
-
-export function SourceLibrary({ run, onOpenAnswer, onOpenSource, onRetry, retrying }: {
-  run: EvidenceRun; onOpenAnswer: (id: string) => void; onOpenSource: (id: string, title: string) => void;
-  onRetry: (id: string) => void; retrying: string | null;
-}) {
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("all");
-  const [platform, setPlatform] = useState("");
-  const groups = useMemo(() => {
-    const map = new Map<string, SourceGroup>();
-    for (const source of run.sources) {
-      const key = source.document_id || source.url || source.id;
-      const group = map.get(key);
-      if (group) group.entries.push(source);
-      else map.set(key, { key, entries: [source], representative: source });
-    }
-    return Array.from(map.values());
-  }, [run.sources]);
-  const filtered = groups.filter(group => {
-    const hasText = (group.representative.title + " " + (group.representative.url || "")).toLowerCase().includes(query.toLowerCase());
-    const statusMatch = status === "all" || (status === "captured"
-      ? group.entries.some(item => item.snapshot_id)
-      : status === "blocked"
-        ? group.entries.some(item => item.fetch_status === "blocked") && !group.entries.some(item => item.snapshot_id)
-        : !group.entries.some(item => item.snapshot_id) && !group.entries.some(item => item.fetch_status === "blocked"));
-    return hasText && statusMatch &&
-      (!platform || group.entries.some(item => item.platform === platform));
-  });
-  const captured = groups.filter(group => group.entries.some(item => item.snapshot_id)).length;
-  const blocked = groups.filter(group => !group.entries.some(item => item.snapshot_id) && group.entries.some(item => item.fetch_status === "blocked")).length;
-  const pending = groups.filter(group => !group.entries.some(item => item.snapshot_id) && !group.entries.some(item => item.fetch_status === "blocked")).length;
-  const statusChoices = [
-    ["all", "全部文章"], ["captured", "正文已保存"], ["blocked", "访问受限"], ["pending", "待处理"],
-  ];
-  return <div className="citation-stack">
-    <section className="citation-panel citation-pad">
-      <div className="citation-section-head"><h2>原文采集覆盖</h2><span className="citation-muted">{groups.length} 篇可辨认文章 · 正文已保存 {captured} 篇</span></div>
-      <div className="citation-coverage-track">
-        <span style={{ width: groups.length ? captured / groups.length * 100 + "%" : "0%" }} />
-        <span style={{ width: groups.length ? blocked / groups.length * 100 + "%" : "0%" }} />
-        <span style={{ width: groups.length ? pending / groups.length * 100 + "%" : "0%" }} />
-      </div>
-      <div className="citation-coverage-legend"><span>● 正文已保存 {captured}</span><span>● 访问受限 {blocked}</span><span>● 待处理 {pending}</span>
-        <small>按文档或精确 URL 归并；正文已保存不代表全文完整。</small></div>
-    </section>
-    <section className="citation-panel citation-pad">
-      <div className="citation-tabs" role="tablist" aria-label="来源正文状态">{statusChoices.map(([value, title]) =>
-        <button key={value} type="button" role="tab" aria-selected={status === value} onClick={() => setStatus(value)}>{title}</button>)}</div>
-      <div className="citation-filter-row">
-        <input aria-label="搜索来源文章" value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索标题或地址" />
-        <select aria-label="来源平台" value={platform} onChange={event => setPlatform(event.target.value)}>
-          <option value="">全部平台</option>
-          {Array.from(new Set(run.sources.map(item => item.platform))).map(name => <option key={name} value={name}>{getAiPlatformLabel(name)}</option>)}
-        </select>
-        <span className="citation-muted">{run.sources.length} 条引用或候选观察</span>
-      </div>
-      <div className="overflow-x-auto"><table className="citation-table citation-source-table"><thead><tr>
-        <th>文章 / 来源</th><th>平台与引用类型</th><th>正文状态</th><th>关联证据</th>
-      </tr></thead><tbody>
-        {filtered.map(group => {
-          const visibleEntries = platform ? group.entries.filter(item => item.platform === platform) : group.entries;
-          const source = visibleEntries[0] || group.representative;
-          const snapshot = group.entries.find(item => item.snapshot_id);
-          const platforms = Array.from(new Set(visibleEntries.map(item => item.platform)));
-          return <tr key={group.key} className="citation-source-entry">
-            <td><strong>{source.title || "未取得来源标题"}</strong><small>{source.url || "未取得精确地址"}</small>
-              <small>{source.snippet || "摘要未取得"}</small></td>
-            <td>{platforms.map(name => <div key={name}><AiPlatformLabel platform={name} iconSize={15} /></div>)}
-              <small>{visibleEntries.some(item => item.kind === "answer_reference") ? "回答实际引用" : "候选或推测来源"} · {visibleEntries.length} 条观察</small></td>
-            <td><span className="citation-tag">{snapshot ? "正文已保存" : source.fetch_status === "blocked" ? "访问受限" : "正文未就绪"}</span></td>
-            <td><div className="citation-source-actions">
-              <button onClick={() => onOpenAnswer(source.response_id)}>关联回答</button>
-              {snapshot && <button onClick={() => onOpenSource(snapshot.snapshot_id!, source.title || "保存正文")}>查看正文</button>}
-              {!snapshot && source.document_id && <button disabled={!!retrying} onClick={() => onRetry(source.document_id!)}>重试采集</button>}
-            </div></td>
-          </tr>;
-        })}</tbody></table></div>
-        {!filtered.length && <p className="citation-empty">当前筛选没有来源。请调整条件；未知正文不能当作文章没有提及品牌。</p>}
-      <p className="citation-muted">回答实际引用、搜索候选与推测来源分别标记；候选不能计入实际引用。</p>
-    </section>
-    <div className="citation-three-up">{[
-      ["文章级版本", "保存正文与抓取时间形成版本；历史回答继续关联当时记录。"],
-      ["转载与独立证据", "相似文章不因标题相近强制合并；同一地址的多次引用保持独立观察。"],
-      ["来源类型区分", "回答引用与检索候选分别呈现，避免把候选计为真实引用。"],
-    ].map(([title, detail]) => <div className="citation-panel citation-pad" key={title}><h3>{title}</h3><p className="citation-muted">{detail}</p></div>)}</div>
+export function SourceLibrary(props: SourceLibraryProps & { onSaved?: () => void }) {
+  const tab = useSyncExternalStore(subscribeSourceType, readSourceType, () => 'observed');
+  if (!props.projectId) return <ObservedSourceLibrary {...props} />;
+  return <div className="citation-stack"><div className="citation-tabs" role="tablist" aria-label="资料类型">
+    {([['observed', '平台引用文章'], ['owned', '我方材料与事实']] as const).map(([value, title]) => <button type="button" key={value} role="tab" aria-selected={tab === value} onClick={() => {
+      const url = new URL(window.location.href); url.searchParams.set('sourceType', value); window.history.replaceState(window.history.state, '', url);
+      window.dispatchEvent(new Event('genilink-source-type-change'));
+    }}>{title}</button>)}</div>
+    {tab === 'owned' ? <div className="citation-stack">{props.scope && <p className="citation-notice">我方材料是工作空间资产，列表保留全部材料版本与核实状态。当前比较选择已保留，不会改写材料的品牌归属或批准事实。</p>}<OwnedMaterials projectId={props.projectId} run={props.run} onSaved={props.onSaved || (() => {})} /></div> : <ObservedSourceLibrary {...props} />}
   </div>;
+}
+
+function readSourceType() { return new URLSearchParams(window.location.search).get('sourceType') === 'owned' ? 'owned' : 'observed'; }
+function subscribeSourceType(callback: () => void) {
+  window.addEventListener('popstate', callback); window.addEventListener('genilink-source-type-change', callback);
+  return () => { window.removeEventListener('popstate', callback); window.removeEventListener('genilink-source-type-change', callback); };
 }
 
 export function EntityComparison({ run, onReview }: { run: EvidenceRun; onReview: () => void }) {
@@ -298,22 +237,26 @@ export function EntityComparison({ run, onReview }: { run: EvidenceRun; onReview
   </div>;
 }
 
-export function EvidenceWorkspace({ run, projectId, onSaved, onSourceOpen, onView }: {
+export function EvidenceWorkspace({ run, projectId, onSaved, onSourceOpen, onView, scope, onPlatformChange }: {
+  scope?: TaskScope; onPlatformChange?: (platform: string) => void;
   run: EvidenceRun; projectId: string; onSaved: () => void; onSourceOpen: (id: string) => void;
   onView: (view: CitationViewId) => void;
 }) {
-  const [platform, setPlatform] = useState("");
+  const [localPlatform, setPlatform] = useState("");
+  const platform = scope?.platform ?? localPlatform;
   const items = run.summary.claim_evidence || [];
   const platforms = Array.from(new Set(items.map(item => item.platform)));
-  const visible = items.filter(item => !platform || item.platform === platform);
+  const responseIds = scope ? scopeResponseIds(run, scope) : null;
+  const visible = items.filter(item => (!platform || item.platform === platform) && (!scope || scope.scenario === 'all' || !!item.response_id && responseIds!.has(item.response_id)));
   const selected = visible[0];
   const reviewed = selected ? run.claim_reviews?.[selected.id] : null;
   return <div className="citation-stack">
-    <div className="citation-tabs" role="tablist" aria-label="证据平台">
+    {scope && <p className="citation-notice">按所选平台与场景核对全部观点，不因是否提及目标品牌删去证据；观点主体以原文为准。</p>}
+    {!scope && <div className="citation-tabs" role="tablist" aria-label="证据平台">
       <button type="button" role="tab" aria-selected={!platform} onClick={() => setPlatform("")}>全部平台</button>
       {platforms.map(name => <button type="button" role="tab" aria-selected={platform === name} key={name}
-        onClick={() => setPlatform(name)}><AiPlatformLabel platform={name} iconSize={14} /></button>)}
-    </div>
+        onClick={() => { setPlatform(name); onPlatformChange?.(name); }}><AiPlatformLabel platform={name} iconSize={14} /></button>)}
+    </div>}
     <div className="citation-section-head"><h2>逐个观点核对原文证据</h2>
       <button onClick={() => onView("actions")}>关联优化行动 →</button></div>
     <EvidenceComparisons items={visible} run={run} projectId={projectId} onSaved={onSaved} onSourceOpen={onSourceOpen} />

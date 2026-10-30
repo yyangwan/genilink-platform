@@ -1,0 +1,22 @@
+{
+  "views": 9,
+  "desktopWidth": 1440,
+  "mobileWidth": 390,
+  "errors": [],
+  "networkRequests": 0,
+  "checks": [
+    "persistent comparison scope",
+    "question eligibility and revision",
+    "unknown is not zero",
+    "identity rationale",
+    "source observation attribution",
+    "owned material to approved fact",
+    "plan to manual delivery and publication",
+    "single-run descriptive comparison",
+    "stale action renewal",
+    "comparison evidence isolation",
+    "new revision publication reset",
+    "capture state and stage completeness",
+    "mobile overflow"
+  ]
+}

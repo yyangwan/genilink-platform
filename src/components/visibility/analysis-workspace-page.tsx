@@ -12,7 +12,6 @@ import { PageHeader } from '@/components/ui/page-header';
 import { SubscriptionRequiredState } from '@/components/billing/subscription-required-state';
 import { getAiPlatformLabel } from '@/lib/ai-platforms';
 import type { AnalysisWorkspace, ObservationContext, WorkspaceView } from '@/types/analysis-workspace';
-import { ActionPlans } from './action-plans';
 import { EvidenceComparisons } from './evidence-comparisons';
 import { PlatformDiagnoses } from './platform-diagnoses';
 import { SavedContent } from './saved-content';
@@ -66,7 +65,7 @@ function WorkspaceBody({ data, projectId, view, refresh }: { data: AnalysisWorks
         <PlatformDiagnoses items={diagnoses} onAnswerOpen={id => open('answer', id)} />
         {diagnoses.map((item, index) => <details key={item.id || index} className="dashboard-surface p-4"><summary className="text-sm"><AiPlatformLabel platform={item.platform} iconSize={16} /> · 回查本组来源证据</summary>{evidence.filter(proof => item.evidence_ids?.includes(proof.id)).map(proof => <div key={proof.id} className="mt-3 text-sm"><blockquote>回答：{proof.answer_quote}</blockquote><blockquote>来源：{proof.source_quote || '暂无可核验片段'}</blockquote><button className="mt-2 text-[var(--color-primary)]" onClick={() => open('snapshot', proof.snapshot_id)}>查看证据正文</button></div>)}{(report.sources || []).filter(source => source.platform === item.platform && item.response_ids?.includes(source.response_id)).map(source => <p className="mt-2 text-sm" key={source.id}>{source.title || '无标题来源'} · {kinds[source.kind] || '类别待核对'} <button className="text-[var(--color-primary)]" onClick={() => open('citation', source.id)}>查看来源卡片</button></p>)}</details>)}
         {!data.can_act && <p className="text-sm">当前仅可查看行动状态。创建或审批需项目写入权限、完整证据分析权限及当前有效快照。</p>}
-        <ActionPlans run={{ id: report.run_id, summary: { diagnoses: report.diagnoses } }} projectId={projectId} readOnly={!data.can_act} platform={platform} />
+        <Link className="dashboard-button dashboard-button--secondary" href={'/intelligence?' + new URLSearchParams({ project: projectId, runId: report.run_id, view: 'actions', ...(platform ? { platform } : {}) })}>查看完整优化行动与修订 →</Link>
       </>}
       <section className="dashboard-surface p-5"><h2 className="font-semibold">分平台来源清单</h2>{(report.sources || []).filter(item => !platform || item.platform === platform).map(item => <article className="mt-3 border-t border-[var(--border)] pt-3 text-sm" key={item.id}><p><AiPlatformLabel platform={item.platform} iconSize={16} /> · {kinds[item.kind] || '类别待核对'} · {item.fetch_status === 'captured' ? '正文已保存，全文完整度仍需核对' : '正文未就绪或无法取得'}</p><p className="mt-2">{item.title || '无标题来源'}</p><p className="mt-2 whitespace-pre-wrap">{item.snippet}</p><button className="mr-4 mt-2 text-[var(--color-primary)]" onClick={() => open('citation', item.id)}>查看来源卡片</button>{item.snapshot_id && <button className="mt-2 text-[var(--color-primary)]" onClick={() => open('snapshot', item.snapshot_id!)}>查看保存正文</button>}</article>)}</section>
       {owner && <SavedContent key={`${report.run_id}-${owner.kind}-${owner.id}`} projectId={projectId} runId={report.run_id} kind={owner.kind} id={owner.id} close={() => setOwner(null)} />}

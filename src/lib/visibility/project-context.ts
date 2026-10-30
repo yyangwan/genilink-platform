@@ -5,6 +5,11 @@ import { fetchUpstream, type GuardContext } from '@/lib/proxy/route-guard';
 
 export class ContextConflict extends Error {}
 type ContextActor = Pick<GuardContext, 'projectId' | 'workspaceId' | 'session'>;
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, item]) => [key, canonical(item)]));
+  return value;
+}
 export async function lockContextProject(tx: Prisma.TransactionClient, ctx: ContextActor) {
   const projects = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`SELECT id FROM "Project" WHERE id = ${ctx.projectId} AND "workspaceId" = ${ctx.workspaceId} FOR UPDATE`);
   if (!projects.length) throw new ContextConflict('项目不存在');
@@ -14,15 +19,16 @@ export async function freezeContextInTransaction(tx: Prisma.TransactionClient, c
   const rows = await tx.projectBrand.findMany({ where: { projectId: ctx.projectId }, include: { brand: true }, orderBy: { brandId: 'asc' } });
   const brands = rows.filter(row => row.brand.workspaceId === ctx.workspaceId && !row.brand.deletedAt).map(row => ({ aliases: row.brand.aliases, analysis_role: row.analysisRole || 'registered', entity_id: row.entityId || null, id: row.brandId, identity_version: row.identityVersion || null, is_competitor: row.brand.isCompetitor, name: row.brand.name }));
   if (brands.length > 200 || brands.some(row => !row.name.trim() || row.name.length > 200 || row.aliases.length > 50 || row.id.length > 50)) throw new ContextConflict('品牌配置超出允许范围');
-  const contentHash = createHash('sha256').update(JSON.stringify(brands)).digest('hex');
+  const business_preferences = current?.businessPreferences || {};
+  const contentHash = createHash('sha256').update(JSON.stringify(canonical({ brands, business_preferences }))).digest('hex');
   if (current?.contentHash === contentHash) return current;
   if (expectedVersion !== undefined && (current?.version || 0) !== expectedVersion) throw new ContextConflict('配置版本已变化，请刷新后重试');
   const version = (current?.version || 0) + 1;
   const context = await tx.projectIntelligenceContext.upsert({ where: { projectId: ctx.projectId }, create: { projectId: ctx.projectId, version, contentHash }, update: { version, contentHash } });
-  await tx.projectContextOutbox.create({ data: { projectId: ctx.projectId, version, contentHash, snapshot: { version, brands }, createdBy: ctx.session.user.id } });
+  await tx.projectContextOutbox.create({ data: { projectId: ctx.projectId, version, contentHash, snapshot: { version, brands, business_preferences }, createdBy: ctx.session.user.id } });
   return context;
 }
-export async function freezeProjectContext(ctx: GuardContext, expectedVersion: number) {
+export async function freezeProjectContext(ctx: GuardContext, expectedVersion?: number) {
   return prisma.$transaction(async tx => { await lockContextProject(tx, ctx); return freezeContextInTransaction(tx, ctx, expectedVersion); });
 }
 export async function deliverProjectContext(ctx: Pick<GuardContext, 'projectId' | 'headers' | 'upstreamUrl'>, limit = 20) {

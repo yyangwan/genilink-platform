@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0.0] - 2026-10-30
+
+### Added
+- Review all discovered brand targets, question context and scenario importance with explicit readiness and unknown states.
+- Compare brands and platforms within one shared scope, trace source observations and evidence, and review versioned own-brand materials and facts.
+- Turn evidence into complete action tasks with immutable revisions, named approval, fact selection, content handoff, delivery and item-by-item acceptance.
+- Register published versions and run one frozen follow-up observation with per-brand/platform results and explicit incomparable states.
+
+### Changed
+- Use the approved v3 workspace and complete content brief contract, preserving question evidence and platform-specific targets across the workflow.
+- Save business preferences with project context and durable synchronization; add its database column without replacing account or project identities.
+- Record capture, semantic and customer-value verification limits separately from deployment health.
+
 ## 0.5.0.1 — 2026-10-23
 
 修复旧审计没有评分字段时隐藏新版分析布局的问题。雷达、四维评分表和平台评分区保留待分析状态，不回退旧版摘要、不将未知数据填零。

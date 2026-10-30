@@ -39,6 +39,10 @@ Runtime configuration remains on the server:
   Nginx upstream and healthy API/worker on its new database before this release.
   `VISIBILITY_SERVICE_URL=http://127.0.0.1:18018` uses its stable local entry;
   the public `/visibility/api/` location switches with the frontend Nginx reload.
+- The v3 coordinated release deploys the ContentOS v3 receiver and the analysis
+  API/worker before the portal. The analysis service uses its independent
+  `intelligence_value_20261030` database and preserves its previous image/env/database
+  for rollback. These are separate releases; a portal release never updates the gateway.
 - Configure an independent strong `VISIBILITY_CONTEXT_SYNC_SECRET` and
   `VISIBILITY_CONTEXT_SYNC_ORIGIN=https://genilink.cn`. The release installs
   `genilink-context-sync.timer` before changing traffic, retries persisted context
@@ -83,6 +87,13 @@ the currently active release. Destructive drops, renames, and incompatible
 constraint changes require a later release after all rollback candidates stop
 depending on the old schema. Container rollback changes application traffic;
 it does not reverse database migrations.
+
+The v3 portal migration `20261030000000_add_business_preferences` adds only
+`ProjectIntelligenceContext.businessPreferences` as non-null JSONB with default
+`{}`. Existing accounts, projects and context identity remain in place. Apply it
+through the image's migration runtime above; do not use production `prisma db push`.
+CI and deployment health checks do not certify real collection, OSS writes,
+independent semantic quality or the customer's complete action/value workflow.
 
 ## GitHub Actions secrets
 

@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   const operation = await prisma.usageEvent.findFirst({ where: { operationId: String(body.operationId), workspaceId: String(body.workspaceId), feature: 'content_generation' } });
   const metadata = operation?.metadata as { source?: string; projectId?: string; approvalId?: string } | null;
   if (!operation?.userId || !['reserved', 'pending_reconcile', 'committed'].includes(operation.status) ||
-      metadata?.source !== 'evidence_v2' || metadata.projectId !== body.projectId || metadata.approvalId !== body.approvalId) {
+      metadata?.source !== 'evidence_v3' || metadata.projectId !== body.projectId || metadata.approvalId !== body.approvalId) {
     return NextResponse.json({ error: 'evidence_operation_mismatch' }, { status: 403 });
   }
   const projectId = String(body.projectId), workspaceId = operation.workspaceId;

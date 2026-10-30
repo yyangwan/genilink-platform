@@ -3,6 +3,8 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 ## Project Documentation
 
 - [智见优化建议到智创内容创建链路技术设计](docs/zhijian-to-zhichuang-content-workflow-design.md)
+- [品牌可见性 v3 实施与验收边界](docs/designs/citation-intelligence-value-execution-plan-20261024.md)
+- [门户正式发布与回退](deploy/CONTAINER_DEPLOYMENT.md)
 
 ## Getting Started
 

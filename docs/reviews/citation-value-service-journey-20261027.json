@@ -1,0 +1,372 @@
+{
+  "schema": "citation-service-journey-proof-1",
+  "date": "2026-10-27",
+  "input_kind": "synthetic_business_fixture",
+  "scope": "isolated_loopback_services_and_protocol_replay",
+  "source_revisions": {
+    "portal": "7d46c5ea84dda785769039aed9c7d482221f1619",
+    "backend": "e1724318674d0a5f3b717de33591df1b37a86c75",
+    "content": "5a37bc417a3eda120eb9f23816db8028de54db49"
+  },
+  "groups": [
+    {
+      "group": "gateway",
+      "assertions": 47,
+      "distinct_check_names": 44,
+      "checks": [
+        {
+          "check": "owner_normal_session",
+          "passed": true
+        },
+        {
+          "check": "anonymous_portal_blocked",
+          "passed": true,
+          "expected": 401
+        },
+        {
+          "check": "project_actions_via_real_jwt",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "exact_task_selected",
+          "passed": true
+        },
+        {
+          "check": "publication_options_before_delivery",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "content_manual_task_real_service_roundtrip",
+          "passed": true
+        },
+        {
+          "check": "manual_task_original_revision",
+          "passed": true,
+          "expected": 2
+        },
+        {
+          "check": "manual_task_completed",
+          "passed": true
+        },
+        {
+          "check": "read_execution",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "service_receipt_verified",
+          "passed": true
+        },
+        {
+          "check": "delivered_version_selectable",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "publication_allowed_for_actual_delivered_version",
+          "passed": true,
+          "expected": true
+        },
+        {
+          "check": "record_exact_delivery_publication",
+          "passed": true,
+          "expected": 202
+        },
+        {
+          "check": "publication_does_not_claim_byte_verification",
+          "passed": true,
+          "expected": false
+        },
+        {
+          "check": "freeze_action_bound_single_observation",
+          "passed": true,
+          "expected": 202
+        },
+        {
+          "check": "start_one_round_with_real_usage_ledger",
+          "passed": true,
+          "expected": 202
+        },
+        {
+          "check": "same_retest_key_replays_same_audit",
+          "passed": true,
+          "expected": 202
+        },
+        {
+          "check": "same_retest_same_audit",
+          "passed": true
+        },
+        {
+          "check": "progress_uses_real_sampling_rows",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "single_round_expected_count",
+          "passed": true,
+          "expected": 1
+        },
+        {
+          "check": "viewer_normal_session",
+          "passed": true
+        },
+        {
+          "check": "viewer_can_read_results",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "viewer_cannot_register",
+          "passed": true,
+          "expected": false
+        },
+        {
+          "check": "viewer_write_forbidden",
+          "passed": true,
+          "expected": 403
+        },
+        {
+          "check": "outsider_normal_session",
+          "passed": true
+        },
+        {
+          "check": "cross_workspace_project_forbidden",
+          "passed": true,
+          "expected": 403
+        },
+        {
+          "check": "cross_workspace_rejected_by_project_scope",
+          "passed": true
+        },
+        {
+          "check": "gateway_bad_token_rejected",
+          "passed": true,
+          "expected": 401
+        },
+        {
+          "check": "gateway_local_protocol_heartbeat",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "gateway_claim_real_lease",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "gateway_terminal_missing_answer",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "missing_answer_progress",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "missing_count_is_not_zero",
+          "passed": true,
+          "expected": 1
+        },
+        {
+          "check": "repair_existing_audit_without_new_round",
+          "passed": true,
+          "expected": 202
+        },
+        {
+          "check": "repair_zero_new_rounds",
+          "passed": true,
+          "expected": 0
+        },
+        {
+          "check": "same_repair_replays_same_batch",
+          "passed": true,
+          "expected": 202
+        },
+        {
+          "check": "repair_exact_receipt_replay",
+          "passed": true
+        },
+        {
+          "check": "gateway_claim_repaired_attempt",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "gateway_claim_repaired_attempt",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "gateway_claim_repaired_attempt",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "gateway_claim_repaired_attempt",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "same_original_sample",
+          "passed": true
+        },
+        {
+          "check": "gateway_seals_actual_capture_v2_record",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "gateway_same_ack_replays",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "sealed_answer_progress",
+          "passed": true,
+          "expected": 200
+        },
+        {
+          "check": "complete_count_after_protocol_replay",
+          "passed": true,
+          "expected": 1
+        },
+        {
+          "check": "no_pending_after_protocol_replay",
+          "passed": true,
+          "expected": 0
+        }
+      ]
+    },
+    {
+      "group": "result",
+      "assertions": 10,
+      "distinct_check_names": 10,
+      "checks": [
+        {
+          "check": "editor_normal_credential_session",
+          "passed": true
+        },
+        {
+          "check": "progress_read",
+          "passed": true
+        },
+        {
+          "check": "real_worker_published_followup",
+          "passed": true
+        },
+        {
+          "check": "capture_remains_one_round",
+          "passed": true
+        },
+        {
+          "check": "real_compare_saved",
+          "passed": true
+        },
+        {
+          "check": "publication_bound_to_same_action",
+          "passed": true
+        },
+        {
+          "check": "no_invented_improvement_total",
+          "passed": true
+        },
+        {
+          "check": "all_unknown_or_stale_deltas_suppressed",
+          "passed": true
+        },
+        {
+          "check": "unprocessed_semantics_remain_unknown",
+          "passed": true
+        },
+        {
+          "check": "same_result_receipt_reused",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "group": "security",
+      "assertions": 9,
+      "distinct_check_names": 9,
+      "checks": [
+        {
+          "check": "content_audience_rejected_by_visibility",
+          "passed": true,
+          "status": 401,
+          "expected": 401
+        },
+        {
+          "check": "visibility_audience_rejected_by_content",
+          "passed": true,
+          "status": 401,
+          "expected": 401
+        },
+        {
+          "check": "expired_token_rejected",
+          "passed": true,
+          "status": 401,
+          "expected": 401
+        },
+        {
+          "check": "raw_spoofed_identity_headers_rejected",
+          "passed": true,
+          "status": 403,
+          "expected": 403
+        },
+        {
+          "check": "workspace_token_not_project_authority",
+          "passed": true,
+          "status": 403,
+          "expected": 403
+        },
+        {
+          "check": "signed_viewer_cannot_write_content",
+          "passed": true,
+          "status": 403,
+          "expected": 403
+        },
+        {
+          "check": "signed_other_project_cannot_read_task",
+          "passed": true,
+          "status": 404,
+          "expected": 404
+        },
+        {
+          "check": "spoofed_headers_cannot_replace_verified_project",
+          "passed": true,
+          "status": 200,
+          "expected": 200
+        },
+        {
+          "check": "one_audit_charge_despite_replays_and_repairs",
+          "passed": true
+        }
+      ]
+    }
+  ],
+  "total_assertions": 66,
+  "distinct_check_names": 63,
+  "backend_regression": {
+    "passed": 998,
+    "skipped": 2,
+    "ruff": "passed",
+    "compileall": "passed"
+  },
+  "boundaries": {
+    "normal_credential_http_login": true,
+    "real_databases": true,
+    "real_worker": true,
+    "real_service_jwks": true,
+    "real_quota_ledger": true,
+    "authenticated_browser_customer_journey": false,
+    "real_device_capture": false,
+    "real_model_calls": 0,
+    "semantic_quality_accepted": false,
+    "business_value_accepted": false,
+    "production_deployed": false,
+    "release_eligible": false
+  }
+}

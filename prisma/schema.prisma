@@ -761,6 +761,7 @@ model ProjectIntelligenceContext {
   project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
   version Int @default(0)
   contentHash String @db.Text
+  businessPreferences Json @default("{}")
   updatedAt DateTime @updatedAt
 }
 

@@ -11,7 +11,7 @@ import { useSectionFetch } from '@/components/dashboard/use-section-fetch';
 import ContentPage from '@/app/(dashboard)/content/page';
 const approvalId = 'a'.repeat(32);
 function material(status = 'ready') { return { id: approvalId, action_id: 'action', version: 1, title: '获批内容材料', status, expires_at: '2030-01-01T00:00:00Z', audit_id: '12', run_id: 'run', ai_targets: [{ platform: 'qwen', prompt: '产品质保范围' }], fact_count: 1, execution: { channel: 'wechat', mode: 'generate_draft' } }; }
-function preview(projectId = 'p1', mode = 'generate_draft') { return { data: { brief: { schemaVersion: 2, projectId, title: '事实草稿主题', execution: { channel: mode === 'manual_task' ? 'website' : 'wechat', mode }, aiTargets: [{ platform: 'qwen', prompt: '产品质保范围' }], facts: [{ id: 'fact', statement: '获批产品事实', scope: '仅适用X系列产品' }], approval: { id: approvalId, expiresAt: '2030-01-01T00:00:00Z' }, publicationAllowed: false } } }; }
+function preview(projectId = 'p1', mode = 'generate_draft') { return { data: { brief: { schemaVersion: 3, actionRevision: { revision: 2 }, projectId, title: '事实草稿主题', execution: { channel: mode === 'manual_task' ? 'website' : 'wechat', mode }, aiTargets: [{ platform: 'qwen', prompt: '产品质保范围' }], ownFacts: [{ id: 'fact', statement: '获批产品事实', scope: '仅适用X系列产品' }], approval: { id: approvalId, expiresAt: '2030-01-01T00:00:00Z' }, publicationAllowed: false } } }; }
 function response(data: unknown, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
 function fetchMock() { return vi.mocked(fetch); }
 beforeEach(() => {

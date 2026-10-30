@@ -1,4 +1,29 @@
+export interface ScenarioComparison {
+  version: string; taxonomy: Record<string, string>; total_questions: number; reviewed_questions: number;
+  questions: Array<{ prompt_hash: string; primary_scenario: string | null }>;
+  scope_scores: Array<{ target_id: string; scenario: string; platform: string; sample_count: number; sample_ids: string[];
+    total: BrandScoreAggregate; dimensions: Record<BrandScoreDimension, BrandScoreAggregate> }>;
+}
 export type BrandScoreDimension = 'presence' | 'recommendation' | 'position' | 'reasons';
+export interface BrandPresence {
+  version: 'brand-presence-v1'; mapping_hash: string;
+  targets: Array<{ target_id: string; registry_brand_id: string | null; entity_id: string | null;
+    name: string; names: string[]; role: string; identity_status: string; reason_codes: string[];
+    candidate_entity_ids?: string[]; presence_counts: Partial<Record<'present' | 'observed_absent' | 'unknown', number>>;
+    source_mentions: number }>;
+  observations: Array<{ target_id: string; entity_id: string | null; sample_id: string;
+    response_id: string | null; platform: string; state: 'present' | 'observed_absent' | 'unknown';
+    reason_codes: string[]; evidence_ids: string[]; coverage_complete: boolean;
+    score: number | null; dimensions: Record<BrandScoreDimension, number | null> }>;
+  scope_scores: Array<{ target_id: string; platform: string; total: BrandScoreAggregate;
+    dimensions: Record<BrandScoreDimension, BrandScoreAggregate> }>;
+}
+export interface ResultReadiness {
+  version: 'result-readiness-v1';
+  items: Array<{ key: string; title: string; state: 'ready' | 'partial' | 'pending' | 'blocked' | 'not_applicable';
+    completed: number; total: number | null; reason_codes: string[]; detail: string;
+    remedy: { view: string; action: string; label: string } }>;
+}
 export interface BrandScoreAggregate {
   rule_version: string; cohort_hash: string; score: number | null;
   covered_weight: number; missing_sample_ids: string[]; status: 'complete' | 'pending';
@@ -22,15 +47,19 @@ export interface EvidenceRunListItem {
   id: string; audit_id: string; revision: number; status: string; created_at: string;
   coverage: { total_segments?: number; segment_states?: Record<string, number>; total_characters?: number;
     analyzed_characters?: number; responses?: number; failed_responses?: number; sources?: number;
-    captured_sources?: number; complete?: boolean; semantic_error_count?: number };
+    captured_sources?: number; complete?: boolean; semantic_error_count?: number;
+    evidence_alignment?: import('@/lib/visibility/source-observation').EvidenceAlignment };
 }
 export interface EvidenceRun extends EvidenceRunListItem {
+  readiness?: ResultReadiness;
   identity_reviews?: Record<string, { event_id: string; version: number; decision: string; canonical_name: string; reason: string }>;
   claim_reviews?: Record<string, { id: string; version: number; relation: string; source_quote: string; reason: string }>;
   sources: Array<{ id: string; response_id: string; platform: string; title: string; url: string | null;
     kind: string; snippet: string; document_id: string | null; snapshot_id: string | null; fetch_status: string }>;
   responses: Array<{ id: string; platform: string; prompt: string; prompt_hash: string; observed_at: string; error: boolean }>;
   summary: {
+    scenario_comparison?: ScenarioComparison;
+    brand_presence?: BrandPresence;
     brand_evaluation?: {
       comparison: CompetitiveComparison;
       version: 'brand-visibility-v1';
@@ -64,7 +93,10 @@ export interface EvidenceRun extends EvidenceRunListItem {
       }>;
     };
     claim_evidence?: Array<{ id: string; answer_quote: string; source_quote: string; relation: string; review_state: string;
-      snapshot_id: string; source_title: string; source_url: string | null; platform: string }>;
+      snapshot_id: string; source_title: string; source_url: string | null; platform: string;
+      citation_id?: string; response_id?: string; claim_hash?: string; method?: string; source_segment_id?: string; answer_segment_id?: string;
+      verification?: import('@/lib/visibility/source-observation').SourceVerification;
+      content_family_id?: string | null; conflicting_interpretations?: boolean; content_family_relations?: string[] }>;
     prompt_platforms?: Array<{ prompt_hash: string; prompt: string; platform: string; sample_count: number; comparable: boolean }>;
     entities?: Array<{ id: string; name: string; kind: string; role: string; identity_status: string; observed_entities?: Array<{ id: string; name: string }>; observed_names?: string[]; role_conflict?: boolean;
       response_count: number; source_mentions: number; platform_response_counts: Record<string, number> }>;

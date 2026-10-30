@@ -24,10 +24,19 @@ type ProjectServiceJWTParams = WorkspaceServiceJWTParams & {
   projectId: string;
 };
 
+export type ExecutionAuthority = {
+  action_id: string; revision: number; request_hash: string;
+  owner?: { id: string; name: string; role: string } | null;
+  current_owner_id?: string;
+  artifacts?: Array<{ kind: string; reference_id: string; project_id: string; action_id: string; revision_id: string;
+    approval_id: string; snapshot_hash: string; status: string; content_id: string | null; observed_at: string }>;
+};
+
 async function issueServiceJWT(params: WorkspaceServiceJWTParams & {
   audience: string;
   scope: 'workspace' | 'project';
   projectId?: string;
+  executionAuthority?: ExecutionAuthority;
 }): Promise<string> {
   const privateKey = await getPrivateKey();
   return new SignJWT({
@@ -38,12 +47,13 @@ async function issueServiceJWT(params: WorkspaceServiceJWTParams & {
     pid: params.projectId,
     role: params.role,
     scope: params.scope,
+    execution_authority: params.executionAuthority,
   })
     .setProtectedHeader({ alg: 'RS256', kid: 'genilink-v1' })
     .setIssuer(ISSUER)
     .setAudience(params.audience)
     .setIssuedAt()
-    .setExpirationTime(TOKEN_TTL)
+    .setExpirationTime(params.executionAuthority ? '1m' : TOKEN_TTL)
     .sign(privateKey);
 }
 
@@ -77,6 +87,11 @@ export function issueVisibilityProjectJWT(
   params: ProjectServiceJWTParams,
 ): Promise<string> {
   return issueProjectServiceJWT(SERVICE_AUDIENCES.visibility, params);
+}
+
+// Only execution routes provide server-verified members/receipts; never accept this claim from a browser.
+export function issueVisibilityExecutionJWT(params: ProjectServiceJWTParams & { executionAuthority: ExecutionAuthority }): Promise<string> {
+  return issueServiceJWT({ ...params, audience: SERVICE_AUDIENCES.visibility, scope: 'project' });
 }
 
 export function issueVisibilityWorkspaceJWT(
