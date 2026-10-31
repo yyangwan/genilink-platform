@@ -52,9 +52,16 @@ function Write-GatewayTrace {
     param([Parameter(Mandatory)][string]$Message)
 
     if ($script:tracePath) {
-        Add-Content -LiteralPath $script:tracePath `
-            -Value "$(Get-Date -Format o) $Message" `
-            -Encoding UTF8
+        try {
+            Add-Content -LiteralPath $script:tracePath `
+                -Value "$(Get-Date -Format o) $Message" `
+                -Encoding UTF8 -ErrorAction Stop
+        } catch [IO.IOException] {
+            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+            # Diagnostic readers/antivirus can briefly hold this file. A missing
+            # trace line must never discard an answer or interrupt source capture.
+            return
+        }
     }
 }
 
