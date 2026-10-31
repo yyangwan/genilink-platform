@@ -639,6 +639,11 @@ function Set-DeepSeekPromptText {
         Invoke-CaptureNativeCommand -FilePath adb -Arguments "$prefix ime set $ime" -Operation 'select Unicode keyboard' -TimeoutSeconds 10 | Out-Null
         $selected = (Invoke-CaptureNativeCommand -FilePath adb -Arguments "$prefix settings get secure default_input_method" -Operation 'verify Unicode keyboard' -TimeoutSeconds 10).Trim()
         if ($selected -cne $ime) { throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: Unicode keyboard was not selected' }
+        # Selecting an IME can rebuild the Huawei input view and drop its focus.
+        $focus = Get-PromptInputBounds -SessionId adb -TargetPlatform deepseek
+        if (-not $focus) { throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: editor disappeared after keyboard selection' }
+        Invoke-CaptureNativeCommand -FilePath adb -Arguments "$prefix input tap $($focus.center_x) $($focus.center_y)" -Operation 'refocus DeepSeek editor after keyboard selection' -TimeoutSeconds 10 | Out-Null
+        Start-Sleep -Milliseconds 500
         $timer = [Diagnostics.Stopwatch]::StartNew()
         for ($offset = 0; $offset -lt $Text.Length;) {
             if ($timer.Elapsed.TotalSeconds -ge 45) { throw 'CAPTURE_NATIVE_TIMEOUT: Unicode input exceeded its deadline' }
@@ -909,6 +914,19 @@ function Get-SendButtonBounds {
         })
         if ($editors.Count -ne 1) { return $null }
         $editor = $editors[0]; $editorBounds = Get-Bounds -Node $editor
+        $named = @($document.SelectNodes("//*[@package='com.tencent.hunyuan.app.chat' and @enabled='true' and (@content-desc='发送消息' or @content-desc='发送' or @text='发送')]") | Where-Object {
+            $b = Get-Bounds -Node $_
+            $b -and $b.left -ge $editorBounds.right -and $b.top -ge $editorBounds.top -and
+            $b.top -le $editorBounds.bottom -and
+            -not $_.SelectSingleNode("ancestor::*[@class='android.webkit.WebView']")
+        })
+        if ($named.Count -gt 1) { return $null }
+        if ($named.Count -eq 1) {
+            $node=$named[0]
+            while($node -and $node.GetAttribute('clickable') -ne 'true'){$node=$node.ParentNode}
+            if($node -and $node.GetAttribute('enabled') -eq 'true'){return Get-Bounds -Node $node}
+            return $null
+        }
         $composer = $editor.ParentNode
         for ($depth = 0; $composer -and $depth -lt 3; $depth++) {
             $candidates = @($composer.SelectNodes(".//*[@package='com.tencent.hunyuan.app.chat' and @class='android.widget.Button' and @clickable='true' and @enabled='true']") | Where-Object {

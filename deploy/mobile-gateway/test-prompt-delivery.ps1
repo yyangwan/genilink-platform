@@ -56,6 +56,11 @@ $send='<node class="android.widget.Button" package="com.tencent.hunyuan.app.chat
 $script:page='<hierarchy><node package="com.tencent.hunyuan.app.chat" bounds="[30,1480][1100,2220]">'+$editor+$send+'</node></hierarchy>'
 $b=Get-SendButtonBounds -SessionId adb -TargetPlatform yuanbao
 Assert ($b.center_y -eq 2110) 'Send must follow the actual multiline composer, not screen percentage'
+$label=-join @([char]0x53d1,[char]0x9001,[char]0x6d88,[char]0x606f)
+$nativeSend=$send.Replace('android.widget.Button','android.widget.FrameLayout').Replace('clickable="true"','content-desc="'+$label+'" clickable="true"')
+$script:page=$script:page.Replace($send,$nativeSend)
+Assert ((Get-SendButtonBounds -SessionId adb -TargetPlatform yuanbao).center_y -eq 2110) 'Named FrameLayout sender was ignored'
+$script:page=$script:page.Replace($nativeSend,$send)
 $script:page=$script:page.Replace($send,$send+$send)
 Assert (-not (Get-SendButtonBounds -SessionId adb -TargetPlatform yuanbao)) 'Ambiguous send controls accepted'
 $script:page='<hierarchy><node class="android.webkit.WebView">'+$editor+$send+'</node></hierarchy>'
