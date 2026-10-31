@@ -124,7 +124,7 @@ try {
         if (Get-PromptInputBounds -SessionId adb -TargetPlatform kimi) { throw 'Web content accepted as native Kimi input' }
     }
     if ($AdapterCase -in @('all','deepseek')) {
-        foreach ($name in @('ConvertTo-Xml','Get-Bounds','ConvertTo-ModifiedUtf7','ConvertTo-AdbTextArgument','Set-DeepSeekPromptText')) { Load-Function $asts[0] $name }
+        foreach ($name in @('ConvertTo-Xml','Get-Bounds','Get-PromptInputBounds','ConvertTo-ModifiedUtf7','ConvertTo-AdbTextArgument','Set-DeepSeekPromptText')) { Load-Function $asts[0] $name }
         $Platform='deepseek';$packageName='com.deepseek.chat';$script:deviceSerial='fixture-device'
         function Get-PageSource { param($SessionId) $script:inputPage }
         $script:originalIme='test.keyboard/.IME';$script:ime=$script:originalIme
@@ -144,6 +144,9 @@ try {
         $script:promptText='中文 & quotes '' " ; $(unsafe) + emoji 🌱'+("长文本"*120)
         $script:inputPage='<hierarchy><node class="android.widget.EditText" package="com.deepseek.chat" enabled="true" focused="true" text="'+[Security.SecurityElement]::Escape($script:promptText)+'" bounds="[10,100][900,400]"/></hierarchy>'
         Set-DeepSeekPromptText -Text $script:promptText
+        $selectIndex=@($script:inputCommands).IndexOf('-s fixture-device shell ime set io.appium.settings/.UnicodeIME')
+        $focusIndex=@($script:inputCommands).IndexOf('-s fixture-device shell input tap 455 250')
+        if($focusIndex -le $selectIndex){throw 'DeepSeek editor was not refocused after changing IME'}
         if ($script:ime -ne $script:originalIme) { throw 'Original keyboard not restored after typing' }
         $expectedCommands=@()
         for($offset=0;$offset -lt $script:promptText.Length;){
