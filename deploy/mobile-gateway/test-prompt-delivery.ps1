@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $path = Join-Path $PSScriptRoot 'handlers\research-app-common.ps1'
 $ast = [Management.Automation.Language.Parser]::ParseFile($path, [ref]$null, [ref]$null)
-$names = @('ConvertTo-Xml','Get-Bounds','ConvertTo-ModifiedUtf7','ConvertTo-AdbTextArgument','Get-PromptInputBounds','Get-SendButtonBounds','Get-PromptEchoCount','Confirm-PromptDelivery','Clear-NativePromptDraft','Open-KimiSearchPanel')
+$names = @('Write-GatewayTrace','ConvertTo-Xml','Get-Bounds','ConvertTo-ModifiedUtf7','ConvertTo-AdbTextArgument','Get-PromptInputBounds','Get-SendButtonBounds','Get-PromptEchoCount','Confirm-PromptDelivery','Clear-NativePromptDraft','Open-KimiSearchPanel')
 foreach ($name in $names) {
     $f = $ast.FindAll({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst]}, $true) | Where-Object Name -EQ $name | Select-Object -First 1
     if (-not $f) { throw "Missing delivery safety function: $name" }
@@ -84,4 +84,8 @@ $script:taps=0
 function adb { $script:taps++;$global:LASTEXITCODE=0 }
 Open-KimiSearchPanel -SessionId adb | Out-Null
 Assert ($script:taps -eq 1) 'New Kimi tool summary was not opened'
+$script:tracePath='fixture-trace.log'
+function Add-Content { param($LiteralPath,$Value,$Encoding,$ErrorAction) throw [IO.IOException]::new('Injected trace sharing violation') }
+Write-GatewayTrace -Message 'source collection continues despite diagnostic file contention'
+Remove-Item Function:\Add-Content
 Write-Output 'Prompt encoding, native send geometry, delivery acknowledgement and Kimi summary tests passed.'
