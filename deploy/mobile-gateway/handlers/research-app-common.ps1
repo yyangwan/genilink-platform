@@ -583,6 +583,32 @@ function Set-ClipboardText {
     }
 }
 
+function ConvertTo-ModifiedUtf7 {
+    param([Parameter(Mandatory)][string]$Text)
+    $encoding = [Text.UnicodeEncoding]::new($true, $false, $true)
+    $null = $encoding.GetByteCount($Text)
+    $result = [Text.StringBuilder]::new()
+    $shift = [Text.StringBuilder]::new()
+    foreach ($c in $Text.ToCharArray()) {
+        if ([int]$c -ge 0x20 -and [int]$c -le 0x7e) {
+            if ($shift.Length) {
+                $null = $result.Append('&').Append([Convert]::ToBase64String($encoding.GetBytes($shift.ToString())).TrimEnd('=').Replace('/', ',')).Append('-')
+                $null = $shift.Clear()
+            }
+            if ($c -eq '&') { $null = $result.Append('&-') } else { $null = $result.Append($c) }
+        } else { $null = $shift.Append($c) }
+    }
+    if ($shift.Length) { $null = $result.Append('&').Append([Convert]::ToBase64String($encoding.GetBytes($shift.ToString())).TrimEnd('=').Replace('/', ',')).Append('-') }
+    $result.ToString()
+}
+
+function ConvertTo-AdbTextArgument {
+    param([Parameter(Mandatory)][string]$Text)
+    # Quote for Android's shell first, then for Windows argv; never evaluate text.
+    $shell = "'" + $Text.Replace("'", "'\''") + "'"
+    '"' + [regex]::Replace($shell, '(\\*)"', '$1$1\"') + '"'
+}
+
 function Set-DeepSeekPromptText {
     param([Parameter(Mandatory)][string]$Text)
 
@@ -590,9 +616,8 @@ function Set-DeepSeekPromptText {
         [string]::IsNullOrWhiteSpace($Text) -or $Text.Length -gt 20000) {
         throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: invalid DeepSeek input scope or length'
     }
-    # Appium's UnicodeIME consumes modified UTF-7 (IMAP), not ordinary UTF-7.
-    # Encode every character, including shell metacharacters, inside a quoted
-    # shift sequence; never interpolate the original question into a shell.
+    # UnicodeIME rejects printable ASCII inside a shifted IMAP UTF-7 segment.
+    # Preserve canonical segment boundaries and quote the resulting shell argument.
     $encoding = [Text.UnicodeEncoding]::new($true, $false, $true)
     $null = $encoding.GetByteCount($Text)
     $prefix = "-s $script:deviceSerial shell"
@@ -619,8 +644,13 @@ function Set-DeepSeekPromptText {
             if ($timer.Elapsed.TotalSeconds -ge 45) { throw 'CAPTURE_NATIVE_TIMEOUT: Unicode input exceeded its deadline' }
             $length = [math]::Min(256, $Text.Length - $offset)
             if ([char]::IsHighSurrogate($Text[$offset + $length - 1])) { $length-- }
-            $encoded = '&' + [Convert]::ToBase64String($encoding.GetBytes($Text.Substring($offset, $length))).TrimEnd('=').Replace('/', ',') + '-'
-            Invoke-CaptureNativeCommand -FilePath adb -Arguments "$prefix input text '$encoded'" -Operation 'type DeepSeek question' -TimeoutSeconds 15 | Out-Null
+            $encoded = ConvertTo-ModifiedUtf7 -Text $Text.Substring($offset, $length)
+            # Android input treats %s as a space. Split the pair across commands.
+            foreach ($piece in [regex]::Split($encoded, '(?<=%)(?=s)')) {
+                if ($timer.Elapsed.TotalSeconds -ge 45) { throw 'CAPTURE_NATIVE_TIMEOUT: Unicode input exceeded its deadline' }
+                $argument = ConvertTo-AdbTextArgument -Text $piece
+                Invoke-CaptureNativeCommand -FilePath adb -Arguments "$prefix input text $argument" -Operation 'type DeepSeek question' -TimeoutSeconds 15 | Out-Null
+            }
             $offset += $length
         }
     } finally {
@@ -814,6 +844,19 @@ function Get-PromptInputBounds {
         return $null
     }
     $node = switch ($TargetPlatform) {
+        "deepseek" {
+            $editors = @($document.SelectNodes("//*[@package='com.deepseek.chat' and @class='android.widget.EditText' and @enabled='true' and not(@password='true')]") | Where-Object {
+                (Get-Bounds -Node $_) -and -not $_.SelectSingleNode("ancestor::*[@class='android.webkit.WebView']")
+            })
+            if ($editors.Count -eq 1) { $editors[0] }
+            elseif ($editors.Count -eq 0) {
+                $hints = @($document.SelectNodes("//*[@package='com.deepseek.chat' and @class='android.widget.TextView' and starts-with(@text,'发消息或按住说话')]") | Where-Object {
+                    (Get-Bounds -Node $_) -and $_.SelectSingleNode("ancestor::*[@class='androidx.compose.ui.viewinterop.ViewFactoryHolder']") -and
+                    -not $_.SelectSingleNode("ancestor::*[@class='android.webkit.WebView']")
+                })
+                if ($hints.Count -eq 1) { $hints[0] }
+            }
+        }
         "yuanbao" {
             $document.SelectSingleNode(
                 "//*[@resource-id='$packageName`:id/edConversationInput' or " +
@@ -848,6 +891,40 @@ function Get-SendButtonBounds {
     )
 
     $document = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+    if (-not $document) { return $null }
+    if ($TargetPlatform -eq 'deepseek') {
+        $candidates = @($document.SelectNodes("//*[@package='com.deepseek.chat' and (@content-desc='发送' or @text='发送')]") | Where-Object {
+            -not $_.SelectSingleNode("ancestor::*[@class='android.webkit.WebView']")
+        })
+        if ($candidates.Count -ne 1) { return $null }
+        $node = $candidates[0]
+        while ($node -and $node.GetAttribute('clickable') -ne 'true') { $node = $node.ParentNode }
+        if ($node -and $node.GetAttribute('enabled') -eq 'true') { return Get-Bounds -Node $node }
+        return $null
+    }
+    if ($TargetPlatform -eq 'yuanbao') {
+        $editors = @($document.SelectNodes("//*[@package='com.tencent.hunyuan.app.chat' and @class='android.widget.EditText' and @enabled='true' and not(@password='true')]") | Where-Object {
+            (Get-Bounds -Node $_) -and $_.GetAttribute('text').Length -gt 0 -and
+            -not $_.SelectSingleNode("ancestor::*[@class='android.webkit.WebView']")
+        })
+        if ($editors.Count -ne 1) { return $null }
+        $editor = $editors[0]; $editorBounds = Get-Bounds -Node $editor
+        $composer = $editor.ParentNode
+        for ($depth = 0; $composer -and $depth -lt 3; $depth++) {
+            $candidates = @($composer.SelectNodes(".//*[@package='com.tencent.hunyuan.app.chat' and @class='android.widget.Button' and @clickable='true' and @enabled='true']") | Where-Object {
+                $b = Get-Bounds -Node $_; $box = Get-Bounds -Node $composer
+                $b -and $box -and $b.left -ge $editorBounds.right -and
+                $b.top -ge $box.top -and $b.bottom -le $box.bottom -and $b.right -le $box.right -and
+                -not $_.SelectSingleNode("ancestor::*[@class='android.webkit.WebView']") -and
+                $_.GetAttribute('content-desc') -notmatch '更多|语音|全屏|上传' -and
+                -not $_.SelectSingleNode(".//*[@content-desc='更多' or @content-desc='全屏输入']")
+            })
+            if ($candidates.Count -gt 1) { return $null }
+            if ($candidates.Count -eq 1) { return Get-Bounds -Node $candidates[0] }
+            $composer = $composer.ParentNode
+        }
+        return $null
+    }
     if (-not $document) {
         return $null
     }
@@ -1402,6 +1479,59 @@ function Start-NewConversation {
     Start-Sleep -Seconds 2
 }
 
+function Clear-NativePromptDraft {
+    param([string]$SessionId)
+    $document = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+    $editors = @(if ($document) { $document.SelectNodes("//*[@package='$packageName' and @class='android.widget.EditText' and @enabled='true' and @focused='true' and not(@password='true')]") | Where-Object {
+        -not $_.SelectSingleNode("ancestor::*[@class='android.webkit.WebView']")
+    } })
+    if ($editors.Count -ne 1) { throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: focused draft is not uniquely identifiable' }
+    $length = $editors[0].GetAttribute('text').Length
+    if ($length -gt 4096) { throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: draft exceeds safe clearing limit' }
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    # MOVE_END is line-relative in a multiline editor. Delete both sides of
+    # the caret instead, so a refocus tap cannot leave an invisible suffix.
+    foreach ($key in @(67,112)) {
+        for ($offset = 0; $offset -lt $length; $offset += 128) {
+            if ($timer.Elapsed.TotalSeconds -ge 20) { throw 'CAPTURE_NATIVE_TIMEOUT: draft clearing exceeded its deadline' }
+            $keys = (@(1..([math]::Min(128,$length-$offset)) | ForEach-Object { [string]$key }) -join ' ')
+            Invoke-CaptureNativeCommand -FilePath adb -Arguments "-s $script:deviceSerial shell input keyevent $keys" -Operation 'clear native draft' -TimeoutSeconds 10 | Out-Null
+        }
+    }
+    $document = ConvertTo-Xml -Source (Get-PageSource -SessionId $SessionId)
+    $remaining = @(if ($document) { $document.SelectNodes("//*[@package='$packageName' and @class='android.widget.EditText']") })
+    if ($remaining.Count -ne 1 -or ($remaining[0].GetAttribute('text') -and
+        -not ($Platform -eq 'deepseek' -and $remaining[0].GetAttribute('text') -eq '发消息'))) {
+        throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: native draft clearing is unconfirmed'
+    }
+}
+
+function Get-PromptEchoCount {
+    param([string]$Source, [string]$Prompt)
+    $document = ConvertTo-Xml -Source $Source
+    if (-not $document) { return 0 }
+    @($document.SelectNodes("//*[@package='$packageName' and @class='android.widget.TextView']") | Where-Object {
+        $_.GetAttribute('text') -ceq $Prompt -and
+        -not $_.SelectSingleNode("ancestor::*[@class='android.widget.EditText' or @class='android.webkit.WebView']")
+    }).Count
+}
+
+function Confirm-PromptDelivery {
+    param([string]$SessionId, [string]$Prompt, [string]$BeforeSource, [int]$Attempts = 8)
+    $before = Get-PromptEchoCount -Source $BeforeSource -Prompt $Prompt
+    for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+        $source = Get-PageSource -SessionId $SessionId
+        $document = ConvertTo-Xml -Source $source
+        if ($document) {
+            $drafts = @($document.SelectNodes("//*[@package='$packageName' and @class='android.widget.EditText']") | Where-Object { $_.GetAttribute('text') -ceq $Prompt })
+            if ($drafts.Count -eq 0 -and (Get-PromptEchoCount -Source $source -Prompt $Prompt) -gt $before) { return }
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    # Native output failures are non-retryable: unknown delivery must not replay a prompt.
+    throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: prompt delivery is unconfirmed; question was not replayed'
+}
+
 function Submit-Prompt {
     param(
         [Parameter(Mandatory)][string]$SessionId,
@@ -1413,7 +1543,9 @@ function Submit-Prompt {
             # DeepSeek's Compose input can leave UiAutomator2 blocked forever
             # while resolving android.widget.EditText. Use ADB for the input
             # path so a stuck lookup cannot poison the next app session.
-            & adb -s $script:deviceSerial shell input tap 550 2100 | Out-Null
+            $focus = Get-PromptInputBounds -SessionId $SessionId -TargetPlatform deepseek
+            if (-not $focus) { throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: DeepSeek prompt editor is not uniquely identifiable' }
+            & adb -s $script:deviceSerial shell input tap $focus.center_x $focus.center_y | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 throw "ADB failed to focus the DeepSeek prompt input"
             }
@@ -1421,11 +1553,7 @@ function Submit-Prompt {
             # DeepSeek preserves an unsent draft across new conversations.
             # Move to the end and delete a bounded maximum prompt length in a
             # single adb invocation before typing the retry payload.
-            $clearKeys = @("123") + @(1..300 | ForEach-Object { "67" })
-            & adb -s $script:deviceSerial shell input keyevent @clearKeys | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                throw "ADB failed to clear the DeepSeek prompt input"
-            }
+            Clear-NativePromptDraft -SessionId $SessionId
             Start-Sleep -Milliseconds 500
             $input = "adb"
         }
@@ -1459,6 +1587,10 @@ function Submit-Prompt {
                 $inputBounds.center_x $inputBounds.center_y | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 throw "ADB failed to focus the $Platform prompt input"
+            }
+            if ($Platform -eq 'yuanbao') {
+                Start-Sleep -Milliseconds 300
+                Clear-NativePromptDraft -SessionId $SessionId
             }
         }
         Start-Sleep -Milliseconds 500
@@ -1525,42 +1657,13 @@ function Submit-Prompt {
     }
     Start-Sleep -Seconds 1
 
-    if ($Platform -eq "yuanbao") {
-        # Restore the full-height layout before locating the send control.
-        & adb -s $script:deviceSerial shell input keyevent 4 | Out-Null
-        Start-Sleep -Milliseconds 500
-    }
-    if ($Platform -eq "deepseek") {
-        $sizeOutput = (
-            & adb -s $script:deviceSerial shell wm size 2>&1
-        ) -join "`n"
-        $sizeMatches = [regex]::Matches($sizeOutput, '(\d+)x(\d+)')
-        if ($sizeMatches.Count -lt 1) {
-            throw "Could not determine the Android display size"
-        }
-        $activeSize = $sizeMatches[$sizeMatches.Count - 1]
-        $width = [int]$activeSize.Groups[1].Value
-        $height = [int]$activeSize.Groups[2].Value
-        & adb -s $script:deviceSerial shell input tap `
-            ([int]($width * 0.89)) ([int]($height * 0.60)) | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "ADB failed to tap the DeepSeek send button"
-        }
-        return
-    }
-    if ($Platform -eq "yuanbao") {
-        $sizeOutput = (& adb -s $script:deviceSerial shell wm size 2>&1) -join "`n"
-        $sizeMatches = [regex]::Matches($sizeOutput, '(\d+)x(\d+)')
-        if ($sizeMatches.Count -lt 1) {
-            throw "Could not determine the Android display size"
-        }
-        $activeSize = $sizeMatches[$sizeMatches.Count - 1]
-        & adb -s $script:deviceSerial shell input tap `
-            ([int]([int]$activeSize.Groups[1].Value * 0.90)) `
-            ([int]([int]$activeSize.Groups[2].Value * 0.89)) | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "ADB failed to tap the Yuanbao send button"
-        }
+    if ($Platform -in @('deepseek', 'yuanbao')) {
+        $beforeSend = Get-PageSource -SessionId $SessionId
+        $sendBounds = Get-SendButtonBounds -SessionId $SessionId -TargetPlatform $Platform
+        if (-not $sendBounds) { throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: native send control is not uniquely identifiable' }
+        & adb -s $script:deviceSerial shell input tap $sendBounds.center_x $sendBounds.center_y | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'CAPTURE_NATIVE_OUTPUT_TIMEOUT: native send tap failed' }
+        Confirm-PromptDelivery -SessionId $SessionId -Prompt $Prompt -BeforeSource $beforeSend
         return
     }
     if ($Platform -in @("qwen", "kimi")) {
@@ -3400,9 +3503,11 @@ function Open-KimiSearchPanel {
 
     $source = Move-ToKimiConversationTop -SessionId $SessionId
     $document = ConvertTo-Xml -Source $source
-    $searchNode = $document.SelectSingleNode(
-        "//*[@class='android.widget.TextView' and @text='搜索网页']"
-    )
+    $summaries = @($document.SelectNodes(
+        "//*[@package='com.moonshot.kimichat' and @class='android.widget.TextView' and " +
+        "(@text='搜索网页' or (starts-with(@text,'使用 ') and contains(@text,' 个工具'))) ]"
+    ) | Where-Object { -not $_.SelectSingleNode("ancestor::*[@class='android.webkit.WebView']") })
+    $searchNode = if ($summaries.Count -eq 1) { $summaries[0] } else { $null }
     if (-not $searchNode) {
         throw "Kimi answer did not expose its searched web pages"
     }

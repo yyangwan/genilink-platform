@@ -124,7 +124,7 @@ try {
         if (Get-PromptInputBounds -SessionId adb -TargetPlatform kimi) { throw 'Web content accepted as native Kimi input' }
     }
     if ($AdapterCase -in @('all','deepseek')) {
-        foreach ($name in @('ConvertTo-Xml','Get-Bounds','Set-DeepSeekPromptText')) { Load-Function $asts[0] $name }
+        foreach ($name in @('ConvertTo-Xml','Get-Bounds','ConvertTo-ModifiedUtf7','ConvertTo-AdbTextArgument','Set-DeepSeekPromptText')) { Load-Function $asts[0] $name }
         $Platform='deepseek';$packageName='com.deepseek.chat';$script:deviceSerial='fixture-device'
         function Get-PageSource { param($SessionId) $script:inputPage }
         $script:originalIme='test.keyboard/.IME';$script:ime=$script:originalIme
@@ -145,15 +145,18 @@ try {
         $script:inputPage='<hierarchy><node class="android.widget.EditText" package="com.deepseek.chat" enabled="true" focused="true" text="'+[Security.SecurityElement]::Escape($script:promptText)+'" bounds="[10,100][900,400]"/></hierarchy>'
         Set-DeepSeekPromptText -Text $script:promptText
         if ($script:ime -ne $script:originalIme) { throw 'Original keyboard not restored after typing' }
-        $decoded=''
-        foreach ($command in $script:inputCommands) {
-            if ($command -match "shell input text '(&[A-Za-z0-9+,]+-)'$") {
-                $data=$Matches[1].Substring(1,$Matches[1].Length-2).Replace(',','/')
-                $data=$data.PadRight($data.Length+((4-$data.Length%4)%4),'=')
-                $decoded += [Text.Encoding]::BigEndianUnicode.GetString([Convert]::FromBase64String($data))
-            } elseif ($command -match 'shell input text') { throw 'Raw prompt escaped into a shell command' }
+        $expectedCommands=@()
+        for($offset=0;$offset -lt $script:promptText.Length;){
+            $length=[math]::Min(256,$script:promptText.Length-$offset)
+            if([char]::IsHighSurrogate($script:promptText[$offset+$length-1])){$length--}
+            $encoded=ConvertTo-ModifiedUtf7 -Text $script:promptText.Substring($offset,$length)
+            foreach($piece in [regex]::Split($encoded,'(?<=%)(?=s)')){
+                $expectedCommands += '-s fixture-device shell input text '+(ConvertTo-AdbTextArgument -Text $piece)
+            }
+            $offset+=$length
         }
-        if ($decoded -cne $script:promptText) { throw 'Unicode prompt chunks did not round trip exactly' }
+        $actualCommands=@($script:inputCommands|Where-Object{$_ -match 'shell input text'})
+        if(($actualCommands -join "`n") -cne ($expectedCommands -join "`n")){throw 'Canonical input chunks or shell quoting changed'}
         if (-not ($script:inputCommands -match 'ime disable io.appium.settings/.UnicodeIME$')) { throw 'Temporary keyboard enable not restored' }
         $script:failTyping=$true
         try { Set-DeepSeekPromptText -Text 'test';throw 'Expected controlled input failure' }

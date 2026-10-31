@@ -1,5 +1,26 @@
 # Mobile Device Gateway
 
+## Input And Delivery Verification
+
+DeepSeek Unicode input uses canonical modified UTF-7: printable ASCII stays
+outside shifted segments and literal `&` is escaped separately. Shell text is
+quoted for both Windows argv and Android's shell; `%s` is split across input
+commands to prevent Android from converting a literal pair into a space.
+Multiline drafts are cleared on both sides of the caret and checked afterward.
+
+DeepSeek focuses the native editor/Compose placeholder rather than a fixed
+screen point. DeepSeek and Yuanbao locate a unique native send control from
+the current hierarchy, then require a new prompt echo outside the editor and
+absence of the draft. Unknown delivery stops without replaying the question;
+it does not enter the model-answer wait loop. Kimi accepts the newer native
+`使用 N 个工具` summary as well as the older `搜索网页` summary for source panels.
+These are gateway-only changes; capture/audit wire formats remain unchanged.
+
+`test-prompt-delivery.ps1` covers encoding, shell quoting, multiline clearing,
+send geometry, ambiguous/foreign controls and new versus stale delivery echoes.
+Offline tests do not establish end-to-end citation success: verify actual
+answer and exact source completeness after a landed gateway release.
+
 This gateway is released independently of the cloud service and web client.
 See [release scopes](../RELEASE_SCOPES.md) for gateway-only checks, exact-SHA
 publishing, configuration preservation and rollback. Gateway-only changes must

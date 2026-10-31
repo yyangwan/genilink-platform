@@ -8,6 +8,7 @@ foreach ($file in $files) {
     if ($parseErrors -and $file.Name -notlike 'test-*') { throw "Gateway syntax errors: $($file.Name)" }
 }
 $tests = @(
+    'test-prompt-delivery.ps1',
     'test-popup-guard.ps1', 'test-popup-integration.ps1',
     'test-device-selector.ps1', 'test-device-failure-state.ps1',
     'test-browser-session-readiness.ps1', 'test-gateway-failure-policy.ps1',
