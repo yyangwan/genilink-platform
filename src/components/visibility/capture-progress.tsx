@@ -22,12 +22,13 @@ function isStatus(value: CaptureStatus, auditId: string): boolean {
     [value.expected_samples, value.sealed, value.failed, value.source_pending, value.analysis_pending].every(n => Number.isInteger(n) && n >= 0);
 }
 
-export function CaptureProgress({ projectId, auditId, onPublished, report, onStatus }: { projectId: string; auditId: string; onPublished?: (id: string) => void; report?: CitationReport | null; onStatus?: (status: CaptureStatus) => void }) {
+interface ProgressProps { projectId: string; auditId: string; onPublished?: (id: string) => void; report?: CitationReport | null; onStatus?: (status: CaptureStatus) => void; collection?: boolean; evidenceHref?: string }
+export function CaptureProgress({ projectId, auditId, onPublished, report, onStatus, collection, evidenceHref }: ProgressProps) {
   // Remounting by project + audit prevents stale data from leaking between task contexts.
-  return <TaskProgress key={`${projectId}:${auditId}`} projectId={projectId} auditId={auditId} onPublished={onPublished} onStatus={onStatus} report={report?.audit_id === auditId ? report : null} />;
+  return <TaskProgress key={`${projectId}:${auditId}`} projectId={projectId} auditId={auditId} onPublished={onPublished} onStatus={onStatus} collection={collection} evidenceHref={evidenceHref} report={report?.audit_id === auditId ? report : null} />;
 }
 
-function TaskProgress({ projectId, auditId, onPublished, report, onStatus }: { projectId: string; auditId: string; onPublished?: (id: string) => void; report?: CitationReport | null; onStatus?: (status: CaptureStatus) => void }) {
+function TaskProgress({ projectId, auditId, onPublished, report, onStatus, collection, evidenceHref }: ProgressProps) {
   const [data, setData] = useState<CaptureStatus | null>(null);
   const [error, setError] = useState('');
   const [updated, setUpdated] = useState<Date | null>(null);
@@ -73,6 +74,8 @@ function TaskProgress({ projectId, auditId, onPublished, report, onStatus }: { p
   }, [projectId, auditId, refresh]);
   useEffect(() => { if (data) onStatus?.(data); }, [data, onStatus]);
   const published = data?.published_run_id;
+  const analysisCoverage = published && report?.run_id === published && data?.analysis_status !== 'failed' ? report.coverage : undefined;
+  const matchingPublishedReport = !!published && report?.run_id === published && data?.analysis_status !== 'failed';
   useEffect(() => { if (published) onPublished?.(published); }, [published, onPublished]);
   const waiting = data?.status === 'pending';
   const running = data && ['pending', 'running'].includes(data.status);
@@ -91,16 +94,16 @@ function TaskProgress({ projectId, auditId, onPublished, report, onStatus }: { p
     const sealed = samples.filter(sample => sample.status === 'sealed').length;
     return <div className="capture-platform-row" key={platform}><strong><AiPlatformLabel platform={platform} iconSize={16} /></strong><span>{sealed} / {samples.length} 已入库</span><span>{samples.filter(sample => sample.status === 'failed').length} 未成功</span><progress aria-label={`${platform}回答采集进度`} value={sealed} max={Math.max(samples.length, 1)} /></div>;
   })}</div>;
-  return <section className="capture-progress" aria-label="当前采集任务" aria-busy={checking}>
+  return <section className={`capture-progress${collection ? ' capture-progress--collection' : ''}`} aria-label="当前采集任务" aria-busy={checking}>
     <div className="capture-progress__head"><div><p className="audit-eyebrow">当前任务 · 审计 #{auditId}</p><h2>{error ? <AlertCircle size={19} /> : <Radio size={19} />}{title}<span className={`capture-state ${error ? 'capture-state--warning' : running ? 'capture-state--running' : completed ? 'capture-state--ready' : 'capture-state--warning'}`}>{error ? '连接中断' : running ? '进行中' : completed ? '回答已结束' : '待核对'}</span></h2><p className="audit-meta">{updated ? `${error ? '最后成功同步' : '最近同步'} ${updated.toLocaleTimeString('zh-CN')} · ${error ? '状态可能滞后' : running ? '自动刷新中' : '可回查本次任务'}` : '查询已有任务，不会重复创建采集'}</p></div>
       <div className="capture-progress__count">{data ? <><strong>{data.sealed}</strong><span> / {data.expected_samples} 份回答</span></> : <span>等待状态同步</span>}</div></div>
-    {data && <><progress aria-label="回答采集进度" value={data.sealed} max={Math.max(data.expected_samples, 1)} /><div className="capture-stages">
-      <div><h3>平台回答</h3><strong>{data.sealed} 已入库 · {data.failed} 未成功</strong><p>未完成与失败样本不计为品牌缺席</p></div>
-      <div><h3>来源正文归档</h3><strong>{report?.coverage?.sources != null ? `${report.coverage.captured_sources ?? '未知'} / ${report.coverage.sources} 已存文本` : data.source_pending ? `${data.source_pending} 项待处理` : '当前无待处理项'}</strong><p>{data.source_failed_documents || data.source_unresolved ? `${data.source_failed_documents || 0} 个来源正文未获取 · ${data.source_unresolved || 0} 条来源缺少精确链接` : '与回答采集可并行；不代表全文完整'}</p></div>
-      <div><h3>证据分析</h3><strong>{report?.revision != null && published ? `修订 ${report.revision} · ${data.analysis_status === 'partial' ? '部分完成' : '结果可用'}` : analysisLabel}</strong><p>{waitingForRefresh && data.refresh_available_at ? `预计 ${new Date(data.refresh_available_at).toLocaleString('zh-CN')} 继续；当前未在执行` : data.semantic_error_count ? `${data.semantic_error_count} 个文本片段解析失败，其他片段仍保留` : '回答采集完成不等于报告已完成'}</p></div>
+    {data && <>{!collection && <progress aria-label="回答采集进度" value={data.sealed} max={Math.max(data.expected_samples, 1)} />}<div className="capture-stages">
+      <div><h3>{collection ? '回答采集' : '平台回答'}</h3><strong>{data.sealed} 已入库 · {data.failed} 未成功</strong>{collection && <progress aria-label="回答采集进度" value={data.sealed} max={Math.max(data.expected_samples, 1)} />}<p>未完成与失败样本不计为品牌缺席</p></div>
+      <div><h3>{collection ? '来源归档' : '来源正文归档'}</h3><strong>{report?.coverage?.sources != null ? `${report.coverage.captured_sources ?? '未知'} / ${report.coverage.sources} 已存文本` : data.source_pending ? `${data.source_pending} 项待处理` : '当前无待处理项'}</strong>{collection && <progress aria-label="已发布修订的来源归档进度" max={Math.max(report?.coverage?.sources || 0, 1)} value={report?.coverage?.sources ? report.coverage.captured_sources : undefined} />}<p>{data.source_failed_documents || data.source_unresolved ? `${data.source_failed_documents || 0} 个来源正文未获取 · ${data.source_unresolved || 0} 条来源缺少精确链接` : '与回答采集可并行；不代表全文完整'}</p></div>
+      <div><h3>{collection ? '语义分析' : '证据分析'}</h3><strong>{report?.revision != null && matchingPublishedReport ? `修订 ${report.revision} · ${data.analysis_status === 'partial' ? '部分完成' : '结果可用'}` : analysisLabel}</strong>{collection && (analysisCoverage?.total_characters ? <progress aria-label="已发布修订的分析字符覆盖" max={analysisCoverage.total_characters} value={analysisCoverage.analyzed_characters} /> : <div className="visibility-collection__stage-track" role="img" aria-label="语义分析覆盖待确认" />)}<p>{waitingForRefresh && data.refresh_available_at ? `预计 ${new Date(data.refresh_available_at).toLocaleString('zh-CN')} 继续；当前未在执行` : data.semantic_error_count ? `${data.semantic_error_count} 个文本片段解析失败，其他片段仍保留` : '回答采集完成不等于报告已完成'}{collection && analysisCoverage?.total_characters ? ` · 已发布修订分析 ${analysisCoverage.analyzed_characters ?? '未知'} / ${analysisCoverage.total_characters} 字` : ''}</p></div>
     </div></>}
     {!!platforms.length && (running ? <div className="capture-platforms"><h3>分平台采集进度 <span>{platforms.length} 个平台</span></h3>{platformRows}</div> : <details className="capture-platforms"><summary>查看分平台采集进度 <span>{platforms.length} 个平台</span></summary>{platformRows}</details>)}
     <details className="capture-events"><summary>最近状态变化 <span>{events.length ? `${events.length} 条 · 仅本次打开页面后观察到` : '等待新变化'}</span></summary><div>{events.length ? <ol>{events.map((event, index) => <li key={`${event.time}-${index}`}><time>{event.time}</time>{event.text}</li>)}</ol> : <p>状态已同步；本次打开页面后尚未观察到新的变化。历史任务进度以当前状态为准。</p>}</div></details>
-    <div className="capture-progress__footer"><p role={error ? 'alert' : undefined}>{error ? `${error} 状态查询异常不代表任务失败，已有进度仍保留。` : '可以离开页面，稍后继续查看。本面板分别展示采集、正文和分析状态。'}</p><div className="flex shrink-0 flex-wrap gap-2"><button type="button" disabled={checking} onClick={() => setRefresh(value => value + 1)} className="dashboard-button dashboard-button--secondary"><RefreshCw size={14} className={checking ? 'animate-spin' : ''} />{error ? '重新查询' : '刷新状态'}</button><Link className="dashboard-button dashboard-button--primary" href={`/intelligence?${new URLSearchParams({ project: projectId, auditId })}`}>查看本次证据</Link></div></div>
+    <div className="capture-progress__footer"><p role={error ? 'alert' : undefined}>{error ? `${error} 状态查询异常不代表任务失败，已有进度仍保留。` : '可以离开页面，稍后继续查看。本面板分别展示采集、正文和分析状态。'}</p><div className="flex shrink-0 flex-wrap gap-2"><button type="button" disabled={checking} onClick={() => setRefresh(value => value + 1)} className="dashboard-button dashboard-button--secondary"><RefreshCw size={14} className={checking ? 'animate-spin' : ''} />{error ? '重新查询' : '刷新状态'}</button><Link className={`dashboard-button dashboard-button--${collection ? 'secondary' : 'primary'}`} href={evidenceHref || `/intelligence?${new URLSearchParams({ project: projectId, auditId })}`}>查看本次证据</Link></div></div>
   </section>;
 }
