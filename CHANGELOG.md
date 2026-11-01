@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1.0] - 2026-11-01
+
+### Fixed
+- Apply brand, comparison, platform and scenario selections immediately and preserve their scope when opening insight or evidence.
+- Restore the approved visibility collection layout, prominent single-capture action and separate answer, source and analysis stages, including idle and failure states.
+- Keep failed analysis coverage unknown instead of displaying an older revision as successful progress.
+
 ## [0.6.0.0] - 2026-10-30
 
 ### Added
