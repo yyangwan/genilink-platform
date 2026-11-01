@@ -5,7 +5,7 @@ import '@testing-library/jest-dom/vitest';
 const navigation = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn() }));
 vi.mock('next/navigation', async () => {
   const { useMemo, useSyncExternalStore } = await import('react');
-  const subscribe = (cb: () => void) => { window.addEventListener('navigation', cb); window.addEventListener('popstate', cb); window.addEventListener('genilink-task-scope', cb); return () => { window.removeEventListener('navigation', cb); window.removeEventListener('popstate', cb); window.removeEventListener('genilink-task-scope', cb); }; };
+  const subscribe = (cb: () => void) => { window.addEventListener('navigation', cb); window.addEventListener('popstate', cb); return () => { window.removeEventListener('navigation', cb); window.removeEventListener('popstate', cb); }; };
   return { useRouter: () => navigation, useSearchParams: () => { const value = useSyncExternalStore(subscribe, () => window.location.search); return useMemo(() => new URLSearchParams(value), [value]); } };
 });
 vi.mock('@/components/project/project-context', () => ({ useProject: () => ({ currentProjectId: 'test-project' }) }));
@@ -20,7 +20,14 @@ let newer: ReturnType<typeof analysisRun>, requests: Array<{ url: string; method
 const response = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status });
 beforeEach(() => {
   vi.clearAllMocks(); requests = []; newer = { ...analysisRun(), id: 'f'.repeat(32), revision: 4 };
-  window.history.replaceState({}, '', `/intelligence?project=${project}&runId=${runId}&ownTarget=registry%3Aown&compareTarget=entity%3Arival&platform=qwen&scenario=implementation&view=overview&priority=current&actionId=old-action`);
+  window.history.replaceState({ __NA: true, __PRIVATE_NEXTJS_INTERNALS_TREE: [] }, '', `/intelligence?project=${project}&runId=${runId}&ownTarget=registry%3Aown&compareTarget=entity%3Arival&platform=qwen&scenario=implementation&view=overview&priority=current&actionId=old-action`);
+  const replaceState = window.history.replaceState.bind(window.history);
+  // Match Next's history bridge: its own router entries bypass URL notifications.
+  // useSearchParams does not subscribe to our custom task-scope event.
+  vi.spyOn(window.history, 'replaceState').mockImplementation((data, unused, url) => {
+    replaceState({ ...data, __NA: true, __PRIVATE_NEXTJS_INTERNALS_TREE: [] }, unused, url);
+    if (!data?.__NA && !data?._N) window.dispatchEvent(new Event('navigation'));
+  });
   navigation.replace.mockImplementation((url: string) => { window.history.replaceState({}, '', url); window.dispatchEvent(new Event('navigation')); });
   navigation.push.mockImplementation(navigation.replace);
   HTMLDialogElement.prototype.showModal = vi.fn(function(this: HTMLDialogElement) { this.open = true; });
@@ -36,7 +43,7 @@ beforeEach(() => {
     return response({ enabled: true, runs: [analysisRun(), newer] });
   }));
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 it('enters exactly the overview opportunity evidence and task without losing scope or keeping an unrelated action', async () => {
   render(<IntelligencePage />);
@@ -67,6 +74,34 @@ it('preserves all four scope choices across platform/source tabs and uses the sa
   expect(screen.queryByLabelText('筛选来源平台')).toBeNull();
   expect(readTaskScope(project)).toMatchObject({ own: 'registry:own', comparison: 'entity:rival', platform: 'doubao', scenario: 'implementation' });
   expect(screen.getByLabelText('需求场景')).toHaveValue('implementation');
+});
+
+it('updates all four dropdowns and the displayed score through the Next history bridge without refetching the run', async () => {
+  const normal = vi.mocked(fetch).getMockImplementation()!;
+  vi.mocked(fetch).mockImplementation((input, init) => {
+    if (String(input).includes('view=detail')) {
+      const run = analysisRun();
+      run.summary.brand_presence!.targets.find(row => row.target_id === 'entity:new')!.role = 'own';
+      return Promise.resolve(response(run));
+    }
+    return normal(input, init);
+  });
+  render(<IntelligencePage />);
+  await waitFor(() => expect(document.querySelector('.brand-score-conclusion > strong')).toHaveTextContent('60'));
+  const detailRequests = () => requests.filter(row => row.url.includes('view=detail')).length;
+  const before = detailRequests();
+  fireEvent.change(screen.getByLabelText('自有品牌'), { target: { value: 'entity:new' } });
+  await waitFor(() => expect(screen.getByLabelText('自有品牌')).toHaveValue('entity:new'));
+  expect(document.querySelector('.brand-score-conclusion > strong')).toHaveTextContent('80');
+  fireEvent.change(screen.getByLabelText('对比品牌'), { target: { value: 'registry:own' } });
+  await waitFor(() => expect(screen.getByLabelText('对比品牌')).toHaveValue('registry:own'));
+  fireEvent.change(screen.getByLabelText('目标平台'), { target: { value: 'doubao' } });
+  await waitFor(() => expect(document.querySelector('.brand-score-conclusion > strong')).toHaveTextContent('50'));
+  fireEvent.change(screen.getByLabelText('需求场景'), { target: { value: 'cost' } });
+  await waitFor(() => expect(document.querySelector('.brand-score-conclusion > strong')).toHaveTextContent('—'));
+  expect(readTaskScope(project)).toMatchObject({ own: 'entity:new', comparison: 'registry:own', platform: 'doubao', scenario: 'cost' });
+  expect(detailRequests()).toBe(before);
+  expect(requests.every(row => !row.method)).toBe(true);
 });
 
 it('switches revisions without discarding comparison scope, clears obsolete task IDs and retains invalid brands visibly', async () => {
