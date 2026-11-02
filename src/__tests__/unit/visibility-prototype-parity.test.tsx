@@ -25,7 +25,7 @@ import { CaptureProgress } from '@/components/visibility/capture-progress';
 
 const run = analysisRun();
 const empty: CitationDashboard = { schema: 'citation-dashboard-1', project_id: 'p1', enabled: true, can_capture: true, processing: false, latest_audit: null, report: null };
-const saved: CitationDashboard = { ...empty, latest_audit: { id: run.audit_id, status: 'completed', stage: 'done', created_at: '', platforms: ['qwen'] }, report: { schema: 'citation-report-1', project_id: 'p1', audit_id: run.audit_id, run_id: run.id, revision: run.revision, status: 'partial', snapshot_current: true, coverage: run.coverage } };
+const saved: CitationDashboard = { ...empty, latest_audit: { id: run.audit_id, status: 'completed', stage: 'done', created_at: '', platforms: ['qwen'] }, report: { schema: 'citation-report-1', project_id: 'p1', audit_id: run.audit_id, run_id: run.id, revision: run.revision, status: 'partial', snapshot_current: true, coverage: run.coverage, analysis_scope: { id: run.id, audit_id: run.audit_id, revision: run.revision, targets: run.summary.brand_presence!.targets, platforms: [...new Set(run.responses.map(row => row.platform))] } } };
 function dashboard(data: CitationDashboard) { vi.mocked(useVisibilityDashboard).mockReturnValue({ data, loading: false, error: false, locked: false, refetch: vi.fn() }); }
 beforeEach(() => {
   window.history.replaceState({ __NA: true }, '', '/visibility?project=p1');
@@ -36,7 +36,7 @@ beforeEach(() => {
   });
   vi.stubGlobal('fetch', vi.fn(async input => {
     const params = new URL(String(input), 'http://localhost').searchParams;
-    if (params.get('view') === 'detail') return Response.json(run);
+    if (params.get('view') === 'detail') throw new Error('Capture must not download the full run');
     if (params.get('view') === 'capture') return Response.json({ audit_id: run.audit_id, status: 'completed', expected_samples: 3, sealed: 3, failed: 0, source_pending: 0, analysis_pending: 0, refresh_pending: false, published_run_id: run.id, analysis_status: 'partial', samples: [] });
     return Response.json([{ id: 1, text: '有哪些方案' }]);
   }));
@@ -68,14 +68,13 @@ it('preserves the comparison choices when entering insight and keeps capture sco
   expect(new URL(screen.getByRole('link', { name: '查看本次证据' }).getAttribute('href')!, 'http://localhost').searchParams.get('scenario')).toBe('implementation');
   expect(screen.getByText('1 个提示词 × 5 个平台')).toBeInTheDocument();
   expect(vi.mocked(fetch).mock.calls.every(([, init]) => !init?.method)).toBe(true);
+  expect(vi.mocked(fetch).mock.calls.every(([url]) => !String(url).includes('view=detail'))).toBe(true);
   fireEvent.change(screen.getByLabelText('自有品牌'), { target: { value: '' } });
   await waitFor(() => expect(screen.getByLabelText('自有品牌')).toHaveValue(''));
 });
 
-it('rejects a detail response for a different audit instead of displaying its brands', async () => {
-  dashboard(saved);
-  vi.mocked(fetch).mockImplementation(async input => new URL(String(input), 'http://localhost').searchParams.get('view') === 'detail'
-    ? Response.json({ ...run, audit_id: '1000' }) : Response.json([]));
+it('rejects embedded scope for a different audit instead of displaying its brands', async () => {
+  dashboard({ ...saved, report: { ...saved.report!, analysis_scope: { ...saved.report!.analysis_scope!, audit_id: '1000' } } });
   render(<VisibilityPage />);
   await screen.findByText('分析范围与当前审计不匹配，请刷新后重试。');
   expect(screen.getByLabelText('自有品牌')).toBeDisabled();

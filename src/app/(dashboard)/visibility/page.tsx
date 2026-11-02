@@ -14,7 +14,7 @@ import { intelligenceUrl } from '@/lib/visibility/analysis-scope';
 import '@/components/visibility/visibility-collection.css';
 
 function ProjectVisibility({ projectId }: { projectId: string }) {
-  const dashboard = useVisibilityDashboard(projectId);
+  const dashboard = useVisibilityDashboard(projectId, 'collection');
   const search = useSearchParams(), router = useRouter();
   const [createdAudit, setCreatedAudit] = useState('');
   const [captureStatus, setCaptureStatus] = useState<CaptureStatus | null>(null);

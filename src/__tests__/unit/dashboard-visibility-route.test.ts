@@ -16,6 +16,13 @@ describe('latest-audit visibility overview proxy', () => {
     expect(fetchUpstream).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ projectId: 'p1' }), '/api/intelligence/projects/p1/dashboard', expect.anything());
     expect(response.headers.get('Cache-Control')).toBe('no-store'); expect((await response.json()).can_capture).toBe(true);
   });
+  it('forwards only the explicit collection projection and rejects unknown projections', async () => {
+    await GET(new NextRequest(req().url + '&view=collection'));
+    expect(fetchUpstream).toHaveBeenLastCalledWith(expect.anything(), '/api/intelligence/projects/p1/dashboard?view=collection', expect.anything());
+    vi.mocked(fetchUpstream).mockClear();
+    expect((await GET(new NextRequest(req().url + '&view=unknown'))).status).toBe(400);
+    expect(fetchUpstream).not.toHaveBeenCalled();
+  });
   it('redacts basic detail consistently with the report and disables capture', async () => {
     vi.mocked(resolveGuard).mockResolvedValue(guard('basic'));
     const data = await (await GET(req())).json();

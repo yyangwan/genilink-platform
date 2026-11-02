@@ -50,6 +50,11 @@ export interface EvidenceRunListItem {
     captured_sources?: number; complete?: boolean; semantic_error_count?: number;
     evidence_alignment?: import('@/lib/visibility/source-observation').EvidenceAlignment };
 }
+export interface AnalysisScopeRun {
+  id: string; audit_id: string; revision: number;
+  targets: Array<{ target_id: string; name: string; role: string; identity_status: string; entity_id?: string | null }>;
+  platforms: string[];
+}
 export interface EvidenceRun extends EvidenceRunListItem {
   readiness?: ResultReadiness;
   identity_reviews?: Record<string, { event_id: string; version: number; decision: string; canonical_name: string; reason: string }>;

@@ -3,8 +3,8 @@ import { useEffect } from 'react';
 import { useSectionFetch } from '@/components/dashboard/use-section-fetch';
 import type { CitationDashboard } from '@/types/citation-dashboard';
 
-export function useVisibilityDashboard(projectId: string) {
-  const result = useSectionFetch<CitationDashboard>(`/api/dashboard/visibility?${new URLSearchParams({ projectId })}`);
+export function useVisibilityDashboard(projectId: string, view: 'overview' | 'collection' = 'overview') {
+  const result = useSectionFetch<CitationDashboard>(`/api/dashboard/visibility?${new URLSearchParams({ projectId, ...(view === 'collection' ? { view } : {}) })}`);
   const data = result.data?.project_id === projectId && result.data.schema === 'citation-dashboard-1' ? result.data : null;
   const { refetch, loading } = result;
   useEffect(() => {
