@@ -1,0 +1,44 @@
+.visibility-collection { --collection-track: color-mix(in srgb, var(--text-secondary) 22%, var(--bg-card)); min-width: 0; gap: 18px; }
+.visibility-collection .dashboard-button--secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border); }
+.visibility-collection .citation-page-head { padding-bottom: 12px; }
+.visibility-collection .citation-panel h2 { font-size: 17px; font-weight: 650; }
+.visibility-collection__scope .analysis-scope { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; padding: 18px; }
+.visibility-collection__scope .analysis-scope-controls { flex: 0 1 560px; width: 100%; gap: 12px; }
+.visibility-collection__scope .analysis-scope > p { flex: 1 1 250px; margin: 0 0 3px; font-size: 11px; line-height: 1.7; }
+.visibility-collection__scope select:disabled { opacity: .55; }
+.visibility-collection__scope-note { margin: 7px 2px 0; color: var(--text-secondary); font-size: 11px; }
+.visibility-collection__launch { padding: 22px; border-color: color-mix(in srgb, var(--color-primary) 38%, var(--border)); }
+.visibility-collection__launch-row { display: flex; justify-content: space-between; align-items: stretch; gap: 24px; }
+.visibility-collection__launch-row h2 { margin: 0 0 10px; }
+.visibility-collection__launch-row p { font-size: 13px; }
+.visibility-collection__launch-row > button { flex: 0 0 180px; min-height: 102px; font-size: 14px; font-weight: 700; justify-content: center; white-space: normal; }
+.visibility-collection__platforms { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 13px; font-size: 12px; }
+.visibility-collection__prompts { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 12px; font-size: 12px; color: var(--text-secondary); }
+.visibility-collection__prompts[open] { color: var(--text-primary); }
+.visibility-collection__manage { display: flex; justify-content: flex-end; margin: 7px 2px 0; color: var(--color-primary); font-size: 12px; }
+.visibility-collection__idle { padding: 22px; }
+.visibility-collection__idle-stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 24px 0 20px; }
+.visibility-collection__idle-stages > div { display: grid; gap: 8px; min-width: 0; }
+.visibility-collection__idle-stages span { font-size: 12px; color: var(--text-secondary); }
+.visibility-collection__idle-stages strong { font-size: 14px; }
+.visibility-collection__idle-stages progress, .capture-progress--collection .capture-stages progress, .visibility-collection__stage-track { width: 100%; height: 5px; margin: 6px 0 0; accent-color: var(--color-primary); border: 0; border-radius: 8px; overflow: hidden; background: var(--collection-track); }
+.visibility-collection__idle-stages progress::-webkit-progress-bar, .capture-progress--collection .capture-stages progress::-webkit-progress-bar { background: var(--collection-track); }
+.visibility-collection__idle-stages progress::-webkit-progress-value { background: var(--color-primary); }
+.capture-progress--collection .capture-progress__head { padding-bottom: 10px; }
+.capture-progress--collection .capture-stages { background: transparent; border: 0; gap: 24px; padding: 8px 22px 20px; }
+.capture-progress--collection .capture-stages > div { min-width: 0; padding: 0; border: 0; }
+.capture-progress--collection .capture-stages h3 { margin-bottom: 7px; }
+.capture-progress--collection .capture-stages strong { display: block; font-size: 14px; font-weight: 600; }
+.capture-progress--collection .capture-stages p { line-height: 1.7; }
+.capture-progress--collection .capture-progress__footer { border-top: 1px solid var(--border); }
+.visibility-collection__next { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.visibility-collection__next p { color: var(--text-secondary); font-size: 12px; }
+.visibility-collection__next a { flex-shrink: 0; }
+@media (max-width: 700px) {
+  .visibility-collection .citation-page-head { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .visibility-collection__scope .analysis-scope-controls { flex-basis: 100%; }
+  .visibility-collection__launch-row { flex-direction: column; gap: 18px; }
+  .visibility-collection__launch-row > button { flex-basis: auto; min-height: 48px; width: 100%; }
+  .visibility-collection__idle-stages, .capture-progress--collection .capture-stages { grid-template-columns: 1fr; gap: 20px; }
+  .visibility-collection__next { align-items: flex-start; flex-direction: column; }
+}

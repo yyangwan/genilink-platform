@@ -19,7 +19,8 @@ export function setTaskScope(project: string, change: Partial<TaskScope>, extra:
   const names = { own: 'ownTarget', comparison: 'compareTarget', platform: 'platform', scenario: 'scenario', opportunity: 'opportunity', action: 'actionId' };
   for (const [name, value] of Object.entries(change)) { if (value) url.searchParams.set(names[name as keyof TaskScope], value); else url.searchParams.delete(names[name as keyof TaskScope]); }
   for (const [name, value] of Object.entries(extra)) url.searchParams.set(name, value);
-  window.history.replaceState(window.history.state, '', url);
+  // Let Next preserve its internal history state and notify useSearchParams.
+  window.history.replaceState(null, '', url);
   window.dispatchEvent(new Event('genilink-task-scope'));
 }
 export function subscribeTaskScope(callback: () => void) {
