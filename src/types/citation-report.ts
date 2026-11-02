@@ -1,9 +1,10 @@
-import type { EvidenceRun } from './intelligence';
+import type { AnalysisScopeRun, EvidenceRun } from './intelligence';
 import type { MeasurementHistory } from './measurement-history';
 
 export interface CitationReport {
   schema: 'citation-report-1'; audit_id: string; project_id: string; status: string;
   run_id?: string; revision?: number; finished_at?: string; snapshot_current: boolean;
+  analysis_scope?: AnalysisScopeRun;
   context_sync_pending?: boolean; entitlementLevel?: string;
   coverage?: EvidenceRun['coverage']; entities?: NonNullable<EvidenceRun['summary']['entities']>;
   platforms?: Array<{ platform: string; samples: number; metrics: Array<{ metric: string;

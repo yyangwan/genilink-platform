@@ -7,6 +7,13 @@ import { useVisibilityDashboard } from '@/components/visibility/use-visibility-d
 const data = { schema: 'citation-dashboard-1', project_id: 'p1', enabled: true, processing: true, report: null, latest_audit: null };
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
 describe('read-only dashboard polling', () => {
+  it('requests the collection projection for capture while keeping the default overview', () => {
+    vi.mocked(useSectionFetch).mockReturnValue({ data, loading: false, error: false, locked: false, refetch: vi.fn() });
+    const { rerender } = renderHook(({ view }: { view: 'overview' | 'collection' }) => useVisibilityDashboard('p1', view), { initialProps: { view: 'collection' } });
+    expect(useSectionFetch).toHaveBeenLastCalledWith('/api/dashboard/visibility?projectId=p1&view=collection');
+    rerender({ view: 'overview' });
+    expect(useSectionFetch).toHaveBeenLastCalledWith('/api/dashboard/visibility?projectId=p1');
+  });
   it('polls only active work and clears timers for an in-flight read or different project', () => {
     vi.useFakeTimers();
     const refetch = vi.fn();

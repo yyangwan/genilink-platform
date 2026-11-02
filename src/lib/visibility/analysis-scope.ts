@@ -1,18 +1,20 @@
-import type { EvidenceRun } from '@/types/intelligence';
+import type { AnalysisScopeRun, EvidenceRun } from '@/types/intelligence';
 import { SCENARIOS } from './scenarios';
 import type { TaskScope } from './task-view';
 import type { TaskOpportunity } from './task-contract';
 
-export function analysisTargets(run: Pick<EvidenceRun, 'summary'>) {
+export function analysisTargets(run: Pick<EvidenceRun, 'summary'> | AnalysisScopeRun) {
+  if ('targets' in run) return run.targets;
   return run.summary.brand_presence?.targets || (run.summary.entities || []).map(row => ({
     target_id: `entity:${row.id}`, entity_id: row.id, registry_brand_id: null,
     name: row.name, role: row.role, identity_status: row.identity_status,
   }));
 }
-export function analysisPlatforms(run: EvidenceRun) {
+export function analysisPlatforms(run: EvidenceRun | AnalysisScopeRun) {
+  if ('platforms' in run) return run.platforms;
   return [...new Set([...run.responses.map(row => row.platform), ...(run.summary.platforms || []).map(row => row.platform)])];
 }
-export function scopeIssues(run: EvidenceRun, scope: TaskScope) {
+export function scopeIssues(run: EvidenceRun | AnalysisScopeRun, scope: TaskScope) {
   const targets = analysisTargets(run), problems: string[] = [];
   if (scope.own && !targets.some(row => row.target_id === scope.own && row.role === 'own')) problems.push('原自有品牌不在本次分析范围内');
   if (scope.comparison && (!targets.some(row => row.target_id === scope.comparison) || scope.comparison === scope.own)) problems.push('原比较对象失效或与自有品牌相同');

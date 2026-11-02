@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.2.0] - 2026-11-02
+
+### Fixed
+- Load the visibility capture page with a compact dashboard projection and embedded selector options, eliminating its multi-megabyte full-run request.
+
 ## [0.6.1.0] - 2026-11-01
 
 ### Fixed

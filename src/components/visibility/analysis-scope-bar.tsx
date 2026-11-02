@@ -1,12 +1,12 @@
 "use client";
-import type { EvidenceRun } from '@/types/intelligence';
+import type { AnalysisScopeRun, EvidenceRun } from '@/types/intelligence';
 import { analysisPlatforms, analysisTargets, scopeIssues } from '@/lib/visibility/analysis-scope';
 import { SCENARIOS } from '@/lib/visibility/scenarios';
 import type { TaskScope } from '@/lib/visibility/task-view';
 import { getAiPlatformLabel } from '@/lib/ai-platforms';
 import './analysis-scope.css';
 
-export function AnalysisScopeBar({ run, scope, onChange }: { run: EvidenceRun; scope: TaskScope; onChange: (change: Partial<TaskScope>) => void }) {
+export function AnalysisScopeBar({ run, scope, onChange }: { run: EvidenceRun | AnalysisScopeRun; scope: TaskScope; onChange: (change: Partial<TaskScope>) => void }) {
   const targets = analysisTargets(run), own = targets.filter(row => row.role === 'own'), comparisons = targets.filter(row => row.target_id !== scope.own), platforms = analysisPlatforms(run);
   const issues = scopeIssues(run, scope);
   return <section className="citation-panel citation-pad analysis-scope" aria-label="统一比较范围"><div className="analysis-scope-controls">
