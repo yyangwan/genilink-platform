@@ -99,7 +99,9 @@ jobs:
           DATABASE_URL: postgresql://genilink:genilink_dev@localhost:5432/genilink
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: |
+          npx tsc --noEmit
+          npx tsc -p apps/wechat-mini-program/tsconfig.json
 
       - name: Lint
         run: npm run lint --if-present
@@ -109,6 +111,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://genilink:genilink_dev@localhost:5432/genilink
           AUTH_SECRET: test-secret
+          MINI_PROGRAM_TEST_POSTGRES: 'true'
 
       - name: Test deployment environment normalization
         run: bash deploy/test-prepare-docker-env.sh

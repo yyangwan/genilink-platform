@@ -1,0 +1,12 @@
+{
+  "name": "@genilink/wechat-mini-program",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GeniLink 原生微信小程序客户端（匿名链接体检、报告留存、短信绑定注册、品牌评估）",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}

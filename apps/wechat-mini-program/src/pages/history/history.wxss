@@ -1,0 +1,43 @@
+.empty {
+  text-align: center;
+  padding: 80rpx 28rpx;
+}
+
+.empty-icon {
+  font-size: 72rpx;
+  margin-bottom: 16rpx;
+}
+
+.empty-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 10rpx;
+}
+
+.list-item {
+  padding: 24rpx 28rpx;
+}
+
+.item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.item-url {
+  font-size: 28rpx;
+  word-break: break-all;
+  flex: 1;
+}
+
+.item-time {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #9ca3af;
+}
+
+.center {
+  text-align: center;
+  padding: 16rpx 0 32rpx;
+}

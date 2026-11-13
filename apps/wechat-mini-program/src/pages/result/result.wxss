@@ -1,0 +1,141 @@
+.status-card {
+  text-align: center;
+  padding: 44rpx 28rpx;
+}
+
+.status-icon {
+  font-size: 64rpx;
+  margin-bottom: 12rpx;
+}
+
+.status-icon.warn {
+  color: #b45309;
+}
+
+.status-icon.ok {
+  color: #047857;
+}
+
+.status-icon.failed {
+  color: #b91c1c;
+}
+
+.status-main {
+  font-size: 32rpx;
+  font-weight: 600;
+  margin-bottom: 8rpx;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: center;
+  gap: 48rpx;
+  margin: 24rpx 0 8rpx;
+}
+
+.summary-item .num {
+  font-size: 44rpx;
+  font-weight: 700;
+}
+
+.summary-item.issue .num {
+  color: #b91c1c;
+}
+
+.summary-item.pass .num {
+  color: #047857;
+}
+
+.summary-item.unknown .num {
+  color: #4b5563;
+}
+
+.summary-item .label {
+  font-size: 22rpx;
+  color: #6b7280;
+}
+
+.meta {
+  margin-top: 16rpx;
+  font-size: 24rpx;
+  color: #6b7280;
+  text-align: left;
+  line-height: 1.9;
+}
+
+.target-url {
+  font-size: 26rpx;
+  word-break: break-all;
+  color: #374151;
+}
+
+.priority {
+  border-left: 8rpx solid #f59e0b;
+}
+
+.priority-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 10rpx;
+}
+
+.evidence {
+  font-size: 24rpx;
+  color: #4b5563;
+  background: #f8f9fb;
+  border-radius: 10rpx;
+  padding: 12rpx 16rpx;
+  margin-bottom: 8rpx;
+  word-break: break-all;
+}
+
+.action {
+  font-size: 24rpx;
+  color: #0f766e;
+  background: #ecfdf5;
+  border-radius: 10rpx;
+  padding: 12rpx 16rpx;
+  word-break: break-all;
+}
+
+.check-item {
+  border-bottom: 1rpx solid #eef0f3;
+  padding: 18rpx 0;
+}
+
+.check-item:last-child {
+  border-bottom: none;
+}
+
+.check-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.check-label {
+  font-size: 28rpx;
+}
+
+.check-detail {
+  margin-top: 12rpx;
+}
+
+.expand-hint {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #0f766e;
+  text-align: right;
+}
+
+.web-url {
+  font-size: 26rpx;
+  color: #0f766e;
+  font-weight: 600;
+  margin-top: 8rpx;
+}
+
+.small {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+}

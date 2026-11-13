@@ -1,0 +1,41 @@
+<view class="page">
+  <!-- 未登录 -->
+  <view class="card empty" wx:if="{{!signedIn}}">
+    <view class="empty-icon">🗂</view>
+    <view class="empty-title">登录后查看历史报告</view>
+    <view class="hint">验证手机号后，保存过的检测报告都会保留在这里，换设备也能找回。</view>
+    <button class="primary-btn" bindtap="onGoLogin">手机号验证登录</button>
+  </view>
+
+  <!-- 加载中 -->
+  <view class="card empty" wx:elif="{{loading}}">
+    <view class="hint">正在加载历史报告…</view>
+  </view>
+
+  <!-- 加载失败 -->
+  <view class="card empty" wx:elif="{{errorText}}">
+    <view class="empty-title">加载失败</view>
+    <view class="hint">{{errorText}}</view>
+    <button class="plain-btn" bindtap="onRetryLoad">重试</button>
+  </view>
+
+  <!-- 空列表 -->
+  <view class="card empty" wx:elif="{{items.length === 0}}">
+    <view class="empty-icon">🗂</view>
+    <view class="empty-title">还没有历史报告</view>
+    <view class="hint">在首页完成检测并「保存到账号」后，会显示在这里。</view>
+  </view>
+
+  <!-- 列表 -->
+  <block wx:else>
+    <view class="card list-item" wx:for="{{items}}" wx:key="id" data-id="{{item.id}}" bindtap="onOpenItem">
+      <view class="item-head">
+        <view class="item-url">{{item.urlShort}}</view>
+        <text class="tag {{item.statusClass}}">{{item.statusText}}</text>
+      </view>
+      <view class="item-time">{{item.checkedAt}}</view>
+    </view>
+    <view class="hint center" wx:if="{{loadingMore}}">正在加载更多…</view>
+    <view class="hint center" wx:elif="{{!nextCursor}}">没有更多了</view>
+  </block>
+</view>

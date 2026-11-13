@@ -59,6 +59,7 @@ interface Workspace {
 
 const topItems: NavItem[] = [
   { label: "仪表盘", href: "/dashboard", icon: LayoutDashboard },
+  { label: "官网快检", href: "/quick-checks", icon: Globe2 },
   { label: "项目管理", href: "/projects", icon: FolderKanban },
   { label: "品牌管理", href: "/brands", icon: Tag },
 ];

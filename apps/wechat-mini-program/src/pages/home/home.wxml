@@ -1,0 +1,38 @@
+<view class="page">
+  <view class="card hero">
+    <view class="hero-title">看看你的官网是否容易被读懂</view>
+    <view class="hint">输入官网地址，免费查看首页证据和优先修改建议。</view>
+  </view>
+
+  <view class="card" wx:if="{{restoreRecord}}">
+    <view class="card-title">继续上次的检测</view>
+    <view class="hint">检测对象：{{restoreUrlShort}}</view>
+    <view class="row-actions">
+      <button class="plain-btn resume-btn" bindtap="onResume" loading="{{submitting}}">继续查看 / 重试</button>
+      <button class="link-btn" bindtap="onDiscardRestore">放弃</button>
+    </view>
+    <view class="hint small">重试会沿用同一份检测单，不会重复提交。</view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">官网地址</view>
+    <input
+      class="input"
+      placeholder="例如：example.com"
+      value="{{urlInput}}"
+      bindinput="onUrlInput"
+      confirm-type="go"
+      bindconfirm="onSubmit"
+    />
+    <button class="primary-btn" bindtap="onSubmit" loading="{{submitting}}" disabled="{{submitting}}">
+      免费检查
+    </button>
+    <view class="hint small">基础结果无需登录。验证身份后可保存到智链账号。</view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">电脑上继续</view>
+    <view class="hint">在电脑浏览器打开 genilink.cn/quick-checks，用同一个智链账号查看已保存的报告。</view>
+    <button class="plain-btn" bindtap="onGoHistory">{{signedIn ? '查看我的历史报告' : '登录后保存历史报告'}}</button>
+  </view>
+</view>

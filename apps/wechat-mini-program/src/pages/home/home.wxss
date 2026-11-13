@@ -1,0 +1,38 @@
+.hero {
+  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+  color: #ffffff;
+}
+
+.hero-title {
+  font-size: 38rpx;
+  font-weight: 700;
+  margin-bottom: 12rpx;
+}
+
+.hero .hint {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.resume-btn {
+  flex: 1;
+  margin-top: 16rpx;
+}
+
+.link-btn {
+  background: transparent;
+  color: #6b7280;
+  font-size: 26rpx;
+  padding: 0 16rpx;
+  line-height: 2.4;
+}
+
+.small {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+}

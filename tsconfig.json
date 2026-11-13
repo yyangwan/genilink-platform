@@ -39,6 +39,7 @@
     ".next-runtime/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "apps/wechat-mini-program"
   ]
 }
