@@ -9,6 +9,7 @@ $steps = @(
     @{ Name = "dependencies"; Command = $npmCommand; Arguments = @("ci") },
     @{ Name = "prisma"; Command = $npmCommand; Arguments = @("run", "db:generate") },
     @{ Name = "types"; Command = "node"; Arguments = @("node_modules/typescript/lib/tsc.js", "--noEmit") },
+    @{ Name = "mini-program-types"; Command = "node"; Arguments = @("node_modules/typescript/lib/tsc.js", "-p", "apps/wechat-mini-program/tsconfig.json") },
     @{ Name = "lint"; Command = $npmCommand; Arguments = @("run", "lint") },
     @{ Name = "tests"; Command = $npmCommand; Arguments = @("test") },
     @{ Name = "build"; Command = $npmCommand; Arguments = @("run", "build"); NodeOptions = "--max-old-space-size=4096" }

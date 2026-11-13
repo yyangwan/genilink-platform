@@ -37,6 +37,10 @@ model User {
   billingNotifications      BillingNotification[]
   acquisitionSessions       AcquisitionSession[]
   acquisitionIntents        AcquisitionIntent[]
+  websiteQuickChecks        WebsiteQuickCheck[]
+  miniProgramIdentities     MiniProgramIdentity[]
+  miniProgramWebPairs       MiniProgramWebPair[]
+  miniProgramAgreements     MiniProgramAgreement[]
   funnelEvents              FunnelEvent[]
   marketingLeads            MarketingLead[]            @relation("MarketingLeadOwner")
   assignedMarketingLeads    MarketingLead[]            @relation("MarketingLeadAssignee")
@@ -78,6 +82,8 @@ model SmsVerificationCode {
   phone      String    @db.Text
   codeHash   String    @db.Text
   purpose    String    @default("login") @db.Text
+  miniProgramBindingId String? @db.Text
+  miniProgramBinding MiniProgramBinding? @relation(fields: [miniProgramBindingId], references: [id], onDelete: Cascade)
   provider   String    @default("aliyun") @db.Text
   ipHash     String    @db.Text
   attempts   Int       @default(0)
@@ -90,6 +96,66 @@ model SmsVerificationCode {
   @@index([phone, purpose, createdAt])
   @@index([ipHash, createdAt])
   @@index([expiresAt])
+  @@index([miniProgramBindingId, createdAt])
+}
+
+model MiniProgramIdentity {
+  id        String @id @default(cuid()) @db.Text
+  appId     String @db.Text
+  openId    String @db.Text
+  unionId   String? @db.Text
+  userId    String @db.Text
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boundAt   DateTime @default(now())
+  sessions  MiniProgramSession[]
+
+  @@unique([appId, openId])
+  @@unique([appId, userId])
+}
+
+model MiniProgramSession {
+  tokenHash  String @id @db.Text
+  identityId String @db.Text
+  identity   MiniProgramIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+
+  @@index([expiresAt])
+  @@index([identityId])
+}
+
+model MiniProgramBinding {
+  id            String @id @default(cuid()) @db.Text
+  tokenHash     String @unique @db.Text
+  appId         String @db.Text
+  openId        String @db.Text
+  unionId       String? @db.Text
+  verifiedPhone String? @db.Text
+  verifiedAt    DateTime?
+  consumedAt    DateTime?
+  expiresAt     DateTime
+  smsCodes      SmsVerificationCode[]
+
+  @@index([expiresAt])
+}
+
+model MiniProgramWebPair {
+  tokenHash  String @id @db.Text
+  userId     String @db.Text
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  @@index([expiresAt])
+  @@index([userId])
+}
+
+model MiniProgramAgreement {
+  id             String @id @default(cuid()) @db.Text
+  userId         String @db.Text
+  user           User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  termsVersion   String @db.Text
+  privacyVersion String @db.Text
+  acceptedAt     DateTime @default(now())
 }
 
 model CredentialRateLimitBucket {
@@ -262,6 +328,7 @@ model AcquisitionSession {
   expiresAt     DateTime
 
   intents          AcquisitionIntent[]
+  websiteQuickChecks WebsiteQuickCheck[]
   events           FunnelEvent[]
   checkoutSessions CheckoutSession[]
   paymentOrders    PaymentOrder[]
@@ -294,6 +361,31 @@ model AcquisitionIntent {
   @@index([userId, status])
   @@index([sessionId, createdAt])
   @@index([expiresAt, status])
+}
+
+model WebsiteQuickCheck {
+  id                   String             @id @default(cuid()) @db.Text
+  acquisitionSessionId String             @db.Text
+  acquisitionSession   AcquisitionSession @relation(fields: [acquisitionSessionId], references: [id], onDelete: Cascade)
+  ownerUserId          String?            @db.Text
+  owner                User?              @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  targetUrl            String             @db.Text
+  idempotencyKey       String             @db.Text
+  ruleVersion          String             @db.Text
+  status               String             @db.Text
+  result               Json?
+  errorCode            String?            @db.Text
+  leaseId              String?            @db.Text
+  leaseUntil           DateTime?
+  attempts             Int                @default(0)
+  createdAt            DateTime           @default(now())
+  expiresAt            DateTime?
+  assessmentLeads      MarketingLead[]
+
+  @@unique([acquisitionSessionId, idempotencyKey])
+  @@index([ownerUserId, createdAt])
+  @@index([expiresAt])
+  @@index([leaseUntil])
 }
 
 model FunnelEvent {
@@ -334,7 +426,7 @@ model FunnelDailyMetric {
   visitorCount Int      @default(0)
   updatedAt    DateTime @updatedAt
 
-  @@unique([metricDate, eventName, source, medium, campaign])
+  @@unique([metricDate, eventName, source, medium, campaign], map: "FunnelDailyMetric_metricDate_eventName_source_medium_campaign_k")
   @@index([eventName, metricDate])
 }
 
@@ -344,6 +436,8 @@ model MarketingLead {
   session              AcquisitionSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   userId               String?             @db.Text
   user                 User?               @relation("MarketingLeadOwner", fields: [userId], references: [id], onDelete: SetNull)
+  websiteQuickCheckId  String?             @db.Text
+  websiteQuickCheck    WebsiteQuickCheck?  @relation(fields: [websiteQuickCheckId], references: [id], onDelete: SetNull)
   kind                 String              @db.Text
   companyName          String              @db.Text
   website              String?             @db.Text

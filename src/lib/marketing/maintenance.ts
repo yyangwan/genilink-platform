@@ -468,9 +468,17 @@ export async function cleanupMarketingData(now = new Date()) {
     prisma.credentialRateLimitBucket.deleteMany({
       where: {
         expiresAt: { lt: now },
-        OR: [{ key: { startsWith: 'acquisition:' } }, { key: { startsWith: 'lead:' } }],
+        OR: [{ key: { startsWith: 'acquisition:' } }, { key: { startsWith: 'lead:' } }, { key: { startsWith: 'mini:' } }],
       },
     }),
+  ]);
+  const quickChecks = await prisma.websiteQuickCheck.deleteMany({
+    where: { ownerUserId: null, expiresAt: { lt: now } },
+  });
+  await prisma.$transaction([
+    prisma.miniProgramSession.deleteMany({ where: { expiresAt: { lt: now } } }),
+    prisma.miniProgramBinding.deleteMany({ where: { expiresAt: { lt: now } } }),
+    prisma.miniProgramWebPair.deleteMany({ where: { expiresAt: { lt: now } } }),
   ]);
   const sessions = await prisma.acquisitionSession.deleteMany({
     where: {
@@ -479,6 +487,7 @@ export async function cleanupMarketingData(now = new Date()) {
       leads: { none: {} },
       checkoutSessions: { none: {} },
       paymentOrders: { none: {} },
+      websiteQuickChecks: { none: {} },
     },
   });
   return {
@@ -488,6 +497,7 @@ export async function cleanupMarketingData(now = new Date()) {
       events: events.count,
       rateLimits: rateLimits.count,
       sessions: sessions.count,
+      quickChecks: quickChecks.count,
     },
   };
 }

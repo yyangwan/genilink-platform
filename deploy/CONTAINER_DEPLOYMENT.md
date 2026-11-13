@@ -74,6 +74,18 @@ configuration passes `prepare-docker-env.sh`:
   separate key.
 - `MARKETING_JOBS_ENABLED=true` enables authenticated maintenance jobs and
   requires `MARKETING_CRON_SECRET`.
+- Deploy the visibility service's private quick-check endpoint before enabling
+  `MINI_PROGRAM_QUICK_CHECK_ENABLED`. Set `WEBSITE_QUICK_CHECK_SERVICE_URL`
+  to the private visibility origin. The portal's
+  `WEBSITE_QUICK_CHECK_SERVICE_SECRET` must match the visibility service's
+  `AISCOPE_WEBSITE_QUICK_CHECK_SERVICE_SECRET`.
+- `MINI_PROGRAM_BINDING_ENABLED` controls new bindings. Set the mini-program
+  AppID and AppSecret in the server-owned runtime configuration and verify the
+  configured SMS provider. The marketing maintenance job removes expired
+  anonymous reports and mini-program credentials and reconciles analysis starts.
+- Enable `MINI_PROGRAM_WECHAT_PHONE_ENABLED` after the mini-program has access to
+  WeChat's phone number verification component and its privacy notice is configured.
+  Confirm one-click signup and existing-account fallback on a real device.
 - `MARKETING_EVENT_RETENTION_DAYS` must be between 30 and 730 days.
 - `SALES_LEAD_WEBHOOK_URL`, when configured, must use HTTPS outside local test
   environments.

@@ -8,7 +8,7 @@ import { consumeFixedWindowRateLimit } from '@/lib/marketing/rate-limit';
 import { normalizeProductWebsiteUrl } from '@/lib/product-website/url';
 
 export type LeadInput = {
-  kind: 'agency' | 'private_deployment' | 'managed_service';
+  kind: 'agency' | 'private_deployment' | 'managed_service' | 'brand_visibility_check';
   companyName: string;
   website?: string;
   industry?: string;
@@ -68,7 +68,12 @@ async function visitorId(token?: string) {
   return visitor;
 }
 
-export async function createMarketingLead(input: LeadInput, context: { visitorToken?: string; clientIp: string }) {
+export async function createMarketingLead(input: LeadInput, context: {
+  visitorToken?: string;
+  clientIp: string;
+  userId?: string;
+  quickCheck?: { id: string; session: { id: string; firstSource: string | null; firstMedium: string | null; firstCampaign: string | null } };
+}) {
   const contact = normalizeContact({ phone: input.phone, email: input.email, wechat: input.wechat });
   if (!contact.phone && !contact.email && !contact.wechat) throw new TypeError('至少提供一种联系方式');
   const ipHash = createHmac('sha256', marketingSecret()).update(`lead-ip:${context.clientIp || 'unknown'}`).digest('hex');
@@ -77,17 +82,22 @@ export async function createMarketingLead(input: LeadInput, context: { visitorTo
 
   const website = input.website ? normalizeProductWebsiteUrl(input.website) : null;
   if (website && !website.ok) throw new TypeError(website.error);
-  const attribution = await visitorId(context.visitorToken);
+  const attribution = context.quickCheck?.session ?? await visitorId(context.visitorToken);
   const scored = scoreLead(input);
   const destination = process.env.SALES_LEAD_WEBHOOK_URL ? 'sales-webhook' : null;
   const contactWithdrawalToken = withdrawalToken(input.submissionToken);
 
   const lead = await prisma.$transaction(async (tx) => {
+    if (context.quickCheck) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`mini-brand:${input.submissionToken}`}, 0))`;
+    }
     const existing = await tx.marketingLead.findUnique({ where: { submissionToken: input.submissionToken } });
     if (existing) return existing;
     const lead = await tx.marketingLead.create({
       data: {
         sessionId: attribution?.id ?? null,
+        userId: context.userId,
+        websiteQuickCheckId: context.quickCheck?.id,
         kind: input.kind,
         companyName: input.companyName.trim(),
         website: website?.ok ? website.url : null,
@@ -113,13 +123,14 @@ export async function createMarketingLead(input: LeadInput, context: { visitorTo
       where: { eventId: `lead:${lead.id}:submitted` },
       create: {
         eventId: `lead:${lead.id}:submitted`, sessionId: attribution?.id ?? null,
-        eventName: 'lead_submitted', eventSource: 'server',
+        eventName: context.quickCheck ? 'mini_brand_assessment_submitted' : 'lead_submitted', eventSource: 'server',
+        userId: context.userId,
         source: attribution?.firstSource, medium: attribution?.firstMedium, campaign: attribution?.firstCampaign,
-        properties: { leadId: lead.id, kind: lead.kind, grade: lead.grade }, occurredAt: new Date(),
+        properties: { leadId: lead.id, kind: lead.kind, grade: lead.grade, quickCheckId: context.quickCheck?.id }, occurredAt: new Date(),
       }, update: {},
     });
     return lead;
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }, { isolationLevel: context.quickCheck ? Prisma.TransactionIsolationLevel.ReadCommitted : Prisma.TransactionIsolationLevel.Serializable });
   return { lead, withdrawalToken: contactWithdrawalToken };
 }
 

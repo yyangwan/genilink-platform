@@ -1,0 +1,45 @@
+<view class="page">
+  <!-- 已提交状态 -->
+  <view class="card" wx:if="{{submitted}}">
+    <view class="card-title">已收到品牌实测申请</view>
+    <view class="confirm-line">品牌：<text class="strong">{{leadBrand}}</text></view>
+    <view class="confirm-line">提交时间：{{leadTime}}</view>
+    <view class="hint">智链将通过你留的联系方式沟通实测。撤回后将清除联系方式并停止联络。</view>
+    <button class="danger-btn" bindtap="onWithdraw" loading="{{withdrawing}}" disabled="{{withdrawing}}">撤回本次提交</button>
+  </view>
+
+  <!-- 表单 -->
+  <view class="card" wx:else>
+    <view class="card-title">申请品牌实测</view>
+    <view class="hint">告诉我们想验证的品牌和买家问题，我们会联系你确认检测范围。</view>
+    <view class="gap"></view>
+
+    <view class="field-label">品牌名称</view>
+    <input class="input" placeholder="例如：某某商城" value="{{brand}}" bindinput="onBrandInput" />
+
+    <view class="field-label">场景描述</view>
+    <textarea
+      class="input textarea"
+      placeholder="例如：连锁门店如何选择排班工具"
+      value="{{scenario}}"
+      maxlength="500"
+      bindinput="onScenarioInput"
+    />
+
+    <view class="field-label">联系方式</view>
+    <input class="input" placeholder="手机号 / 邮箱" value="{{contact}}" bindinput="onContactInput" />
+
+    <!-- 显式同意控件 -->
+    <view class="agree-row" bindtap="onToggleConsent">
+      <view class="checkbox {{consent ? 'checked' : ''}}">{{consent ? '✓' : ''}}</view>
+      <view class="agree-text">我同意 GeniLink 就此线索<text class="strong">回访联系我</text>（隐私政策版本 {{privacyVersion}}）</view>
+    </view>
+
+    <button class="primary-btn" bindtap="onSubmit" loading="{{submitting}}" disabled="{{submitting || !consent}}">
+      提交申请
+    </button>
+    <view class="hint small">提交即代表你已获得以品牌方身份提交本信息的授权。</view>
+
+    <view class="error" wx:if="{{errorText}}">{{errorText}}</view>
+  </view>
+</view>

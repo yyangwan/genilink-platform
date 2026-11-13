@@ -1,0 +1,31 @@
+<view class="page">
+  <!-- 账号状态 -->
+  <view class="card">
+    <view class="card-title">账号</view>
+    <block wx:if="{{signedIn}}">
+      <view class="account-line">已登录{{maskedPhone ? '：' + maskedPhone : ''}}</view>
+      <button class="danger-btn" bindtap="onLogout" loading="{{loggingOut}}" disabled="{{loggingOut}}">退出登录</button>
+      <view class="hint small">退出会清除本机的报告缓存与访客身份，重新使用时将生成新的匿名身份。</view>
+    </block>
+    <block wx:else>
+      <view class="account-line muted">未登录（匿名模式）</view>
+      <button class="primary-btn" bindtap="onGoLogin">手机号验证登录</button>
+      <view class="hint small">登录后可保存报告和申请品牌实测。</view>
+    </block>
+  </view>
+
+  <!-- 配对 -->
+  <view class="card">
+    <view class="card-title">电脑端配对</view>
+    <view class="hint">在电脑浏览器打开 {{webUrl}}，使用「微信小程序配对」二维码与本机绑定。</view>
+    <button class="plain-btn" bindtap="onGoPair">扫码配对</button>
+  </view>
+
+  <!-- 环境信息（开发联调） -->
+  <view class="card" wx:if="{{showEnvironment}}">
+    <view class="card-title">接口环境</view>
+    <view class="hint">当前：{{currentOriginLabel}}</view>
+    <button class="plain-btn" bindtap="onPickOrigin">切换环境（开发用）</button>
+    <view class="hint small">正式包请保持正式环境；切换仅影响本机。</view>
+  </view>
+</view>

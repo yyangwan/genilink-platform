@@ -1,0 +1,31 @@
+{
+  "pages": [
+    "pages/home/home",
+    "pages/result/result",
+    "pages/history/history",
+    "pages/login/login",
+    "pages/pair/pair",
+    "pages/brand/brand",
+    "pages/me/me"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#0f766e",
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "智链官网快检",
+    "backgroundColor": "#f5f6f8",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#6b7280",
+    "selectedColor": "#0f766e",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/home/home", "text": "首页" },
+      { "pagePath": "pages/history/history", "text": "历史" },
+      { "pagePath": "pages/me/me", "text": "我的" }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

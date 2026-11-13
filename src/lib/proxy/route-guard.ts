@@ -44,6 +44,8 @@ export interface GuardOptions {
   timeoutMs?: number;
   capability?: BillingCapabilityKey;
   minimumCapabilityLevel?: CapabilityLevel;
+  /** Explicit workspace selected by a server-validated workflow. Membership is still required. */
+  workspaceId?: string;
 }
 
 type GuardResult =
@@ -69,7 +71,7 @@ export async function resolveGuard(
   const session = { user: { id: rawSession.user.id } };
 
   // 2. Workspace
-  const workspaceId = await getWorkspaceId(session.user.id);
+  const workspaceId = opts.workspaceId ?? await getWorkspaceId(session.user.id);
   if (!workspaceId) {
     return { ok: false, response: NextResponse.json({ error: 'No workspace selected' }, { status: 400 }) };
   }

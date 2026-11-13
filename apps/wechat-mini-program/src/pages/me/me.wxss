@@ -1,0 +1,10 @@
+.account-line {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 8rpx;
+}
+
+.small {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+}

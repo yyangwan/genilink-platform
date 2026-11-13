@@ -1,0 +1,85 @@
+<view class="page">
+  <!-- 检测对象 -->
+  <view class="card">
+    <view class="card-title">检测对象</view>
+    <view class="target-url">{{targetUrlShort}}</view>
+  </view>
+
+  <!-- 进行中 -->
+  <view class="card status-card" wx:if="{{status === 'loading' || status === 'running'}}">
+    <view class="status-icon running">⏳</view>
+    <view class="status-main">{{statusText}}</view>
+    <view class="hint">可以离开本页，稍后从「历史」或首页恢复查看，进度不会丢失。</view>
+    <button class="plain-btn" bindtap="onManualRefresh">立即刷新</button>
+  </view>
+
+  <!-- 失败 -->
+  <view class="card status-card" wx:if="{{status === 'failed'}}">
+    <view class="status-icon failed">✕</view>
+    <view class="status-main">{{statusText}}</view>
+    <view class="hint" wx:if="{{errorCode}}">错误码：{{errorCode}}</view>
+    <button class="primary-btn" wx:if="{{retryable}}" bindtap="onRetry">重试本次检测</button>
+    <view class="hint small" wx:if="{{retryable}}">重试沿用同一份检测单，不会重复提交。</view>
+  </view>
+
+  <!-- 完成 -->
+  <block wx:if="{{status === 'completed'}}">
+    <view class="card status-card">
+      <view class="status-icon {{issueCount > 0 ? 'warn' : 'ok'}}">{{issueCount > 0 ? '⚠' : '✓'}}</view>
+      <view class="status-main">{{statusText}}</view>
+      <view class="summary-row">
+        <view class="summary-item issue"><view class="num">{{issueCount}}</view><view class="label">可改进</view></view>
+        <view class="summary-item pass"><view class="num">{{passCount}}</view><view class="label">通过</view></view>
+        <view class="summary-item unknown"><view class="num">{{unknownCount}}</view><view class="label">待定</view></view>
+      </view>
+      <view class="meta">
+        <view>检测时间：{{checkedAt}}</view>
+        <view>最终域名：{{finalHost}}</view>
+        <view>规则版本：{{ruleVersion}}</view>
+      </view>
+    </view>
+
+    <!-- 优先发现 -->
+    <view class="card priority" wx:if="{{priorityTitle}}">
+      <view class="card-title">优先关注</view>
+      <view class="priority-title">{{priorityTitle}}</view>
+      <view class="evidence" wx:if="{{priorityEvidence}}">证据：{{priorityEvidence}}</view>
+      <view class="action" wx:if="{{priorityAction}}">建议：{{priorityAction}}</view>
+    </view>
+
+    <!-- 逐项检查 -->
+    <view class="card">
+      <view class="card-title">检查明细（{{checks.length}} 项）</view>
+      <view class="check-item" wx:for="{{checks}}" wx:key="key" data-index="{{index}}" bindtap="onToggleCheck">
+        <view class="check-head">
+          <view class="check-label">{{item.label}}</view>
+          <text class="tag {{item.statusClass}}">{{item.statusText}}</text>
+        </view>
+        <view class="check-detail" wx:if="{{item.expanded}}">
+          <view wx:if="{{item.evidence}}" class="evidence">证据：{{item.evidence}}</view>
+          <view wx:if="{{item.action}}" class="action">建议：{{item.action}}</view>
+          <view wx:if="{{!item.evidence && !item.action}}" class="hint">暂无补充信息</view>
+        </view>
+        <view class="expand-hint">{{item.expanded ? '收起 ▲' : '展开证据 ▼'}}</view>
+      </view>
+    </view>
+
+    <!-- 保存 / 品牌评估 -->
+    <view class="card">
+      <view class="card-title">后续处理</view>
+      <button class="primary-btn" bindtap="onSave" loading="{{saving}}" disabled="{{saving}}">
+        {{saved ? '已保存到账号' : (signedIn ? '保存到我的账号' : '登录并保存这份报告')}}
+      </button>
+      <button class="plain-btn" bindtap="onGoBrand">申请品牌实测</button>
+      <view class="hint small">保存后会出现在「历史」中，换手机也能找回。未登录时保存需要验证手机号。</view>
+    </view>
+
+    <!-- 电脑续看 -->
+    <view class="card">
+      <view class="card-title">在电脑上继续</view>
+      <view class="hint">如需继续做完整官网诊断，请在电脑浏览器访问</view>
+      <view class="web-url">{{webUrl}}</view>
+      <view class="hint small">用同一个智链账号登录，即可打开已保存的报告。</view>
+    </view>
+  </block>
+</view>

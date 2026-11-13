@@ -1,0 +1,12 @@
+<view class="page">
+  <view class="card">
+    <view class="card-title">配对电脑端</view>
+    <view class="hint">在电脑浏览器打开 genilink.cn/quick-checks，点击「微信小程序配对」会出现登录二维码。</view>
+    <view class="gap"></view>
+    <view class="step">1. 用本页按钮扫描电脑上的二维码</view>
+    <view class="step">2. 完成手机号验证</view>
+    <view class="step">3. 电脑端自动登录，报告双向同步</view>
+    <button class="primary-btn" bindtap="onScanAgain" disabled="{{busy}}">扫描登录二维码</button>
+    <view class="hint small">二维码一次有效；如提示过期，请在电脑端刷新后重扫。</view>
+  </view>
+</view>

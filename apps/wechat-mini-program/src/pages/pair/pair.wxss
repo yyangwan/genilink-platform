@@ -1,0 +1,10 @@
+.step {
+  font-size: 28rpx;
+  margin-bottom: 14rpx;
+  color: #374151;
+}
+
+.small {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+}

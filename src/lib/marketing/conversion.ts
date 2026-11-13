@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { Prisma } from '@/generated/prisma/client';
 
 export const CONVERSION_EVENTS = [
   'diagnosis_intent_created',
@@ -38,4 +39,48 @@ export async function getConversionSummary(days = 30, now = new Date()) {
     totals,
     channels: [...channels.values()].sort((a, b) => b.events.diagnosis_intent_created - a.events.diagnosis_intent_created).slice(0, 50),
   };
+}
+
+type MiniProgramConversion = {
+  channel: string;
+  viewed: number;
+  saved: number;
+  registered: number;
+  linked: number;
+  continued: number;
+};
+
+export function getMiniProgramConversion(now = new Date()) {
+  const since = new Date(now.getTime() - 30 * 86400_000);
+  const completeWindow = new Date(now.getTime() - 7 * 86400_000);
+  return prisma.$queryRaw<MiniProgramConversion[]>(Prisma.sql`
+    WITH views AS (
+      SELECT "properties"->>'quickCheckId' AS id,
+        COALESCE("medium", 'direct') AS channel, "occurredAt" AS viewed_at
+      FROM "FunnelEvent"
+      WHERE "eventName" = 'mini_quick_check_viewed'
+        AND "occurredAt" >= ${since} AND "occurredAt" <= ${completeWindow}
+    )
+    SELECT views.channel, COUNT(*)::int AS viewed,
+      COUNT(*) FILTER (WHERE EXISTS (
+        SELECT 1 FROM "FunnelEvent" e WHERE e."eventId" = 'quick-check:' || views.id || ':mini_account_registered'
+          AND e."occurredAt" BETWEEN views.viewed_at AND views.viewed_at + INTERVAL '7 days'
+      ))::int AS registered,
+      COUNT(*) FILTER (WHERE EXISTS (
+        SELECT 1 FROM "FunnelEvent" e WHERE e."eventId" = 'quick-check:' || views.id || ':mini_account_linked'
+          AND e."occurredAt" BETWEEN views.viewed_at AND views.viewed_at + INTERVAL '7 days'
+      ))::int AS linked,
+      COUNT(*) FILTER (WHERE EXISTS (
+        SELECT 1 FROM "FunnelEvent" e
+        WHERE e."eventId" = 'quick-check:' || views.id || ':mini_quick_check_saved'
+          AND e."occurredAt" BETWEEN views.viewed_at AND views.viewed_at + INTERVAL '7 days'
+      ))::int AS saved,
+      COUNT(*) FILTER (WHERE EXISTS (
+        SELECT 1 FROM "FunnelEvent" e
+        WHERE e."properties"->>'quickCheckId' = views.id
+          AND e."eventName" IN ('mini_full_diagnosis_started', 'mini_brand_assessment_submitted')
+          AND e."occurredAt" BETWEEN views.viewed_at AND views.viewed_at + INTERVAL '7 days'
+      ))::int AS continued
+    FROM views GROUP BY views.channel ORDER BY viewed DESC
+  `);
 }
