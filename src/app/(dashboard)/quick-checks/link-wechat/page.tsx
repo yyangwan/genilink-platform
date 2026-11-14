@@ -9,13 +9,15 @@ export default async function LinkWechatPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/auth/login?callbackUrl=%2Fquick-checks%2Flink-wechat');
   return (
-    <section className="mx-auto max-w-lg space-y-5">
-      <Link href="/quick-checks" className="text-sm underline">返回官网快检</Link>
-      <h1 className="text-2xl font-semibold">关联微信小程序</h1>
-      <p>验证当前智链账号后，用智链小程序内的扫码入口扫配对码。</p>
+    <section className="quick-checks__page quick-checks__page--narrow">
+      <header className="quick-checks__header">
+        <Link href="/quick-checks" className="quick-checks__link quick-checks__back">← 返回官网快检</Link>
+        <h1>关联微信小程序</h1>
+        <p className="quick-checks__muted">验证当前智链账号后，用智链小程序内的扫码入口扫配对码。</p>
+      </header>
       <WebPairForm officialAvailable={Boolean(isWechatLoginServerEnabled()
         && process.env.WECHAT_MP_APPID && process.env.WECHAT_MP_SECRET && process.env.WECHAT_MP_TOKEN)} />
-      <p className="text-sm text-[var(--text-secondary)]">原账号无法验证时，请 <Link href="/support" className="underline">联系智链支持</Link> 核实账号。</p>
+      <p className="quick-checks__muted">原账号无法验证时，请 <Link href="/support" className="quick-checks__link">联系智链支持</Link> 核实账号。</p>
     </section>
   );
 }

@@ -45,30 +45,36 @@ export function FullDiagnosisForm({ reportId, workspaces }: { reportId: string; 
   }
 
   return (
-    <form onSubmit={submit} className="dashboard-surface space-y-4 p-5">
-      <h2 className="text-lg font-semibold">做完整官网诊断</h2>
-      {workspace ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1">工作区
-            <select className="input-base" value={workspaceId} onChange={(event) => {
-              const next = workspaces.find((item) => item.id === event.target.value);
-              setWorkspaceId(event.target.value);
-              setProjectId(next?.projects[0]?.id ?? '');
-            }}>
-              {workspaces.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-          </label>
-          <label className="grid gap-1">项目
-            <select className="input-base" value={projectId} onChange={(event) => setProjectId(event.target.value)}>
-              {workspace.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-              <option value="">为该官网创建项目</option>
-            </select>
-          </label>
+    <section className="quick-checks__panel" aria-labelledby="full-diagnosis">
+      <h2 className="quick-checks__panel-title" id="full-diagnosis">做完整官网诊断</h2>
+      <form onSubmit={submit} className="quick-checks__form">
+        {workspace ? (
+          <div className="quick-checks__fields quick-checks__fields--two">
+            <div className="quick-checks__field">
+              <label htmlFor="diagnosis-workspace">工作区</label>
+              <select id="diagnosis-workspace" value={workspaceId} onChange={(event) => {
+                const next = workspaces.find((item) => item.id === event.target.value);
+                setWorkspaceId(event.target.value);
+                setProjectId(next?.projects[0]?.id ?? '');
+              }}>
+                {workspaces.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </div>
+            <div className="quick-checks__field">
+              <label htmlFor="diagnosis-project">项目</label>
+              <select id="diagnosis-project" value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+                {workspace.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                <option value="">为该官网创建项目</option>
+              </select>
+            </div>
+          </div>
+        ) : <p className="quick-checks__muted">开始诊断时会创建个人工作区和该官网的项目。</p>}
+        <div className="quick-checks__actions">
+          <button className="dashboard-button dashboard-button--primary" type="submit" disabled={pending}>{pending ? '正在提交…' : '确认并开始诊断'}</button>
+          {needsSubscription && <Link className="quick-checks__link" href="/upgrade?module=visibility">查看订阅方案</Link>}
         </div>
-      ) : <p>开始诊断时会创建个人工作区和该官网的项目。</p>}
-      <button className="btn-primary" type="submit" disabled={pending}>{pending ? '正在提交…' : '确认并开始诊断'}</button>
-      {message && <p role="status" className="text-sm">{message}</p>}
-      {needsSubscription && <Link className="underline" href="/upgrade?module=visibility">查看订阅方案</Link>}
-    </form>
+        {message && <p role="status" className="quick-checks__feedback">{message}</p>}
+      </form>
+    </section>
   );
 }

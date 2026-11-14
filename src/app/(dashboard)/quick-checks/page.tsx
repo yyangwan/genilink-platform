@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ChevronRight, Link2 } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth/config';
 import { prisma } from '@/lib/db';
@@ -13,25 +14,42 @@ export default async function QuickChecksPage() {
     take: 50,
   });
   return (
-    <section className="mx-auto max-w-3xl space-y-5">
-      <h1 className="text-2xl font-semibold">官网快检</h1>
-      {reports.length ? (
-        <ul className="dashboard-surface divide-y divide-[var(--border)]">
-          {reports.map((report) => (
-            <li key={report.id}>
-              <Link href={`/quick-checks/${report.id}`} className="flex flex-wrap items-center justify-between gap-3 p-4 hover:underline">
-                <span>{new URL(report.targetUrl).hostname}</span>
-                <time dateTime={report.createdAt.toISOString()} className="text-sm text-[var(--text-muted)]">
-                  {report.createdAt.toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })}
-                </time>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="dashboard-surface p-5 text-[var(--text-secondary)]">打开智链微信小程序检查官网，并使用当前账号保存结果。</p>
-      )}
-      {process.env.MINI_PROGRAM_BINDING_ENABLED === 'true' && <Link className="underline" href="/quick-checks/link-wechat">关联微信小程序</Link>}
+    <section className="quick-checks__page">
+      <header className="quick-checks__header quick-checks__header--actions">
+        <div>
+          <h1>官网快检</h1>
+          <p className="quick-checks__muted">查看从微信小程序保存的官网报告。</p>
+        </div>
+        {process.env.MINI_PROGRAM_BINDING_ENABLED === 'true' && (
+          <Link className="dashboard-button dashboard-button--secondary" href="/quick-checks/link-wechat">
+            <Link2 size={16} aria-hidden="true" />关联微信小程序
+          </Link>
+        )}
+      </header>
+      <section className="quick-checks__panel" aria-labelledby="saved-reports">
+        <h2 className="quick-checks__panel-title" id="saved-reports">已保存的报告</h2>
+        {reports.length ? (
+          <ul className="quick-checks__list">
+            {reports.map((report) => (
+              <li key={report.id}>
+                <Link href={`/quick-checks/${report.id}`} className="quick-checks__report-link">
+                  <span className="quick-checks__link">{new URL(report.targetUrl).hostname}</span>
+                  <span className="quick-checks__report-meta quick-checks__muted">
+                    <time dateTime={report.createdAt.toISOString()}>
+                      {report.createdAt.toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })}
+                    </time>
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="quick-checks__body">
+            <p className="quick-checks__muted">暂无报告。打开智链微信小程序检查官网，并使用当前账号保存结果。</p>
+          </div>
+        )}
+      </section>
     </section>
   );
 }

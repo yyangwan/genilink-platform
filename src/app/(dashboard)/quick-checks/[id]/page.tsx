@@ -26,31 +26,40 @@ export default async function QuickCheckPage({ params }: { params: Promise<{ id:
     orderBy: { joinedAt: 'asc' },
   });
   const { priorityFinding, checks, checkedAt, finalHost } = parsed.data;
+  const hostname = new URL(report.targetUrl).hostname;
   return (
-    <section className="mx-auto max-w-3xl space-y-5">
-      <Link href="/quick-checks" className="text-sm underline">返回官网快检</Link>
-      <header>
-        <h1 className="text-2xl font-semibold">{new URL(report.targetUrl).hostname}</h1>
-        <p className="mt-2 text-sm text-[var(--text-secondary)]">
+    <section className="quick-checks__page">
+      <header className="quick-checks__header">
+        <Link href="/quick-checks" className="quick-checks__link quick-checks__back">← 返回官网快检</Link>
+        <h1>{hostname}</h1>
+        <p className="quick-checks__muted">
           检查于 {new Date(checkedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
-          {finalHost && finalHost !== new URL(report.targetUrl).hostname ? ` · 实际页面 ${finalHost}` : ''}
+          {finalHost && finalHost !== hostname ? ` · 实际页面 ${finalHost}` : ''}
         </p>
       </header>
       {priorityFinding && (
-        <article className="dashboard-surface space-y-2 p-5">
-          <h2 className="text-lg font-semibold">优先建议 · {priorityFinding.title}</h2>
-          {priorityFinding.evidence && <p className="break-words text-[var(--text-secondary)]">{priorityFinding.evidence}</p>}
-          <p>{priorityFinding.action}</p>
+        <article className="quick-checks__panel quick-checks__priority">
+          <h2 className="quick-checks__panel-title">优先建议 · {priorityFinding.title}</h2>
+          <div className="quick-checks__body">
+            {priorityFinding.evidence && <p className="quick-checks__muted">{priorityFinding.evidence}</p>}
+            <p>{priorityFinding.action}</p>
+          </div>
         </article>
       )}
-      <ul className="dashboard-surface divide-y divide-[var(--border)]">
-        {checks.map((check) => (
-          <li key={check.key} className="space-y-1 p-4">
-            <h2 className="font-medium">{labels[check.key]} <span className="ml-2 text-sm text-[var(--text-muted)]">{statuses[check.status]}</span></h2>
-            {check.evidence && <p className="break-words text-sm text-[var(--text-secondary)]">{check.evidence}</p>}
-          </li>
-        ))}
-      </ul>
+      <section className="quick-checks__panel" aria-labelledby="check-findings">
+        <h2 className="quick-checks__panel-title" id="check-findings">检查明细</h2>
+        <ul className="quick-checks__list">
+          {checks.map((check) => (
+            <li key={check.key} className="quick-checks__item">
+              <div className="quick-checks__item-head">
+                <h3>{labels[check.key]}</h3>
+                <span className={`quick-checks__badge quick-checks__badge--${check.status}`}>{statuses[check.status]}</span>
+              </div>
+              {check.evidence && <p className="quick-checks__muted">{check.evidence}</p>}
+            </li>
+          ))}
+        </ul>
+      </section>
       <FullDiagnosisForm reportId={id} workspaces={memberships.map(({ workspace }) => workspace)} />
     </section>
   );

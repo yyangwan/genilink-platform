@@ -112,45 +112,56 @@ export function WebPairForm({ officialAvailable }: { officialAvailable: boolean 
   }
 
   return (
-    <form onSubmit={submit} className="dashboard-surface space-y-4 p-5">
-      <label className="grid gap-1">验证方式
-        <select className="input-base" value={method} onChange={(event) => { setMethod(event.target.value); setQr(''); setOfficial(undefined); setMessage(''); }}>
-          <option value="phone">手机号</option>
-          <option value="email">邮箱和密码</option>
-          {officialAvailable && <option value="official">微信公众号</option>}
-        </select>
-      </label>
-      {method === 'phone' ? (
-        <>
-          <label className="grid gap-1">原账号手机号<input name="phone" className="input-base" type="tel" required /></label>
-          <label className="grid gap-1">验证码<input name="code" className="input-base" inputMode="numeric" autoComplete="one-time-code" required /></label>
-          <button type="button" className="btn-secondary" disabled={pending} onClick={(event) => void sendSms(event.currentTarget.form)}>发送验证码</button>
-        </>
-      ) : method === 'email' ? (
-        <>
-          <label className="grid gap-1">邮箱<input name="email" className="input-base" type="email" autoComplete="username" required /></label>
-          <label className="grid gap-1">密码<input name="password" className="input-base" type="password" autoComplete="current-password" required /></label>
-        </>
-      ) : (
-        <>
-          <button type="button" className="btn-primary" disabled={pending} onClick={() => void startOfficialVerification()}>生成公众号验证码</button>
-          {official && <div>
+    <section className="quick-checks__panel" aria-labelledby="verify-account">
+      <h2 className="quick-checks__panel-title" id="verify-account">验证智链账号</h2>
+      <form onSubmit={submit} className="quick-checks__form">
+        <div className="quick-checks__field">
+          <label htmlFor="verification-method">验证方式</label>
+          <select id="verification-method" value={method} onChange={(event) => { setMethod(event.target.value); setQr(''); setOfficial(undefined); setMessage(''); }}>
+            <option value="phone">手机号</option>
+            <option value="email">邮箱和密码</option>
+            {officialAvailable && <option value="official">微信公众号</option>}
+          </select>
+        </div>
+        {method === 'phone' && (
+          <div className="quick-checks__fields quick-checks__fields--two">
+            <label className="quick-checks__field">原账号手机号<input name="phone" type="tel" autoComplete="tel" required /></label>
+            <label className="quick-checks__field">验证码<input name="code" inputMode="numeric" autoComplete="one-time-code" required /></label>
+          </div>
+        )}
+        {method === 'email' && (
+          <div className="quick-checks__fields quick-checks__fields--two">
+            <label className="quick-checks__field">邮箱<input name="email" type="email" autoComplete="username" required /></label>
+            <label className="quick-checks__field">密码<input name="password" type="password" autoComplete="current-password" required /></label>
+          </div>
+        )}
+        <div className="quick-checks__actions">
+          {method === 'phone' && (
+            <button type="button" className="dashboard-button dashboard-button--secondary" disabled={pending} onClick={(event) => void sendSms(event.currentTarget.form)}>发送验证码</button>
+          )}
+          {method === 'official' ? (
+            <button type="button" className="dashboard-button dashboard-button--primary" disabled={pending} onClick={() => void startOfficialVerification()}>生成公众号验证码</button>
+          ) : (
+            <button type="submit" className="dashboard-button dashboard-button--primary" disabled={pending}>{pending ? '处理中…' : '验证并生成配对码'}</button>
+          )}
+        </div>
+        {method === 'official' && official && (
+          <div className="quick-checks__qr">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={official.url} width={224} height={224} alt="公众号账号验证码" />
             <p>先用原账号对应的微信扫一扫验证。生成配对码后，再打开智链小程序扫码关联。</p>
-          </div>}
-        </>
-      )}
-      {method !== 'official' && <button type="submit" className="btn-primary" disabled={pending}>{pending ? '处理中…' : '验证并生成配对码'}</button>}
-      {message && <p role="status">{message}</p>}
-      {qr && (
-        <div className="space-y-2">
-          {/* The QR image is generated from a short-lived credential in this browser. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qr} width={224} height={224} alt="微信小程序账号配对码" />
-          <p>配对码 3 分钟内有效，仅供你本人扫码。</p>
-        </div>
-      )}
-    </form>
+          </div>
+        )}
+        {message && <p role="status" className="quick-checks__feedback">{message}</p>}
+        {qr && (
+          <div className="quick-checks__qr">
+            {/* The QR image is generated from a short-lived credential in this browser. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qr} width={224} height={224} alt="微信小程序账号配对码" />
+            <p>配对码 3 分钟内有效，仅供你本人扫码。</p>
+          </div>
+        )}
+      </form>
+    </section>
   );
 }
