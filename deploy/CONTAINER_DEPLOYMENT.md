@@ -123,6 +123,13 @@ The repository needs these Actions secrets:
 - `PROD_SSH_KEY`
 - `PROD_KNOWN_HOSTS`
 
+To initialize a replacement host before the edge route points to it, temporarily
+set the GitHub production environment variable `PROD_HEALTH_PORT` to the local
+Nginx listener port. The deployment verifies the exact release SHA through that
+listener. After changing the edge route, verify the same SHA through
+`https://genilink.cn/api/health` and clear `PROD_HEALTH_PORT` so future
+deployments verify the public route directly.
+
 The workflow uses its short-lived `GITHUB_TOKEN` only on the ephemeral GitHub
 runner. Production receives the verified image over SSH and stores no registry
 credential.
