@@ -6,7 +6,7 @@ independent deployment targets. Sharing a repository does not couple releases.
 | Changed system | Source | Validation | Deployment target |
 | --- | --- | --- | --- |
 | Device gateway | `deploy/mobile-gateway/**` (including handlers, browser runtime and receiver) | `test-release.ps1` on Windows PowerShell 5.1 and PowerShell 7; browser Node parser tests | Windows gateway runtime only |
-| Cloud service and web client | `src/**`, `prisma/**`, root packages, Docker and cloud deployment files | `npm run release:check`, authoritative CI and Docker acceptance | Cloud Docker blue/green only |
+| Cloud service and web client | `src/**`, `prisma/**`, root packages, Docker and cloud deployment files | Targeted local checks, full CI and Docker acceptance on PR | Cloud Docker blue/green only |
 | Independent analysis backend | Separate `geo-visibility-analyze` repository | That repository's source/image checks | Its own API/worker release only |
 | Mixed | More than one scope | Each affected system's checks | Separate releases and verification |
 

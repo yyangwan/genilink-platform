@@ -9,8 +9,15 @@ immutable image. Production does not run `npm ci` or `next build`.
 
 ## Pipeline
 
-1. A push to `main` runs type checking, lint, tests, and the Next.js build.
-2. CI builds and pushes both the commit SHA tag and `latest` to GHCR.
+1. Cloud PRs run the full source gates and validate the Docker image against
+   the PR merge revision. That image build also runs the Next.js production build.
+2. On `main`, CI reuses successful source checks from the merged PR only after
+   verifying that the tested Git tree matches the production commit and that
+   the cloud source and image checks passed. If proof is unavailable, CI runs
+   the full source gates for the production commit. The production image is
+   built under the `main` commit SHA and published to GHCR with that tag and
+   `latest`. PR builds read the Docker cache. Main builds may also update it
+   within a 90-second export window.
 3. The deploy job pulls the exact SHA-tagged image on the GitHub runner, streams
    it to production over SSH, and fast-forwards the deployment scripts.
 4. `deploy-container.sh` grants the container's fixed runtime group read-only

@@ -1,8 +1,9 @@
 name: CI
+run-name: >-
+  ${{ github.event_name == 'pull_request' && format('PR #{0} validation {1}', github.event.pull_request.number, github.sha) || github.event.head_commit.message }}
 
 permissions:
   contents: read
-  packages: write
 
 on:
   push:
@@ -14,15 +15,20 @@ jobs:
   changes:
     name: Classify release scope
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
     outputs:
       server: ${{ steps.scope.outputs.server }}
       gateway: ${{ steps.scope.outputs.gateway }}
+      cloud-verified: ${{ steps.proof.outputs.verified }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Test release routing
-        run: node --test scripts/release-scope.test.mjs
+        run: node --test scripts/release-scope.test.mjs scripts/release-proof.test.mjs
       - name: Detect changed systems
         id: scope
         env:
@@ -31,6 +37,12 @@ jobs:
         run: |
           if [[ "$BASE_SHA" =~ ^0+$ ]]; then BASE_SHA=$(git hash-object -t tree /dev/null); fi
           node scripts/release-scope.mjs --base "$BASE_SHA" --head "$HEAD_SHA"
+      - name: Verify prior PR validation
+        id: proof
+        if: github.event_name == 'push' && steps.scope.outputs.server == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/release-proof.mjs
 
   gateway:
     name: Gateway checks (${{ matrix.shell }})
@@ -65,7 +77,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: ${{ needs.changes.outputs.cloud-verified != 'true' && 'postgres:16' || '' }}
         env:
           POSTGRES_USER: genilink
           POSTGRES_PASSWORD: genilink_dev
@@ -80,33 +92,50 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        if: needs.changes.outputs.cloud-verified != 'true'
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify cloud checkout revision
+        if: needs.changes.outputs.cloud-verified != 'true'
+        env:
+          CLOUD_SHA: ${{ github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$CLOUD_SHA"
 
       - name: Setup Node.js
+        if: needs.changes.outputs.cloud-verified != 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
       - name: Install dependencies
+        if: needs.changes.outputs.cloud-verified != 'true'
         run: npm ci
 
       - name: Generate Prisma client
+        if: needs.changes.outputs.cloud-verified != 'true'
         run: npx prisma generate
 
       - name: Validate and apply database migrations
+        if: needs.changes.outputs.cloud-verified != 'true'
         run: npx prisma migrate deploy
         env:
           DATABASE_URL: postgresql://genilink:genilink_dev@localhost:5432/genilink
 
       - name: Type check
+        if: needs.changes.outputs.cloud-verified != 'true'
         run: |
           npx tsc --noEmit
           npx tsc -p apps/wechat-mini-program/tsconfig.json
 
       - name: Lint
+        if: needs.changes.outputs.cloud-verified != 'true'
         run: npm run lint --if-present
 
       - name: Run tests
+        if: needs.changes.outputs.cloud-verified != 'true'
         run: npx vitest run
         env:
           DATABASE_URL: postgresql://genilink:genilink_dev@localhost:5432/genilink
@@ -114,34 +143,39 @@ jobs:
           MINI_PROGRAM_TEST_POSTGRES: 'true'
 
       - name: Test deployment environment normalization
+        if: needs.changes.outputs.cloud-verified != 'true'
         run: bash deploy/test-prepare-docker-env.sh
 
       - name: Test marketing upstream contract gate
+        if: needs.changes.outputs.cloud-verified != 'true'
         run: bash deploy/test-marketing-upstream-contract.sh
 
       - name: Test container key permission preparation
+        if: needs.changes.outputs.cloud-verified != 'true'
         run: sudo bash deploy/test-container-key-access.sh
 
       - name: Validate context retry scheduler
+        if: needs.changes.outputs.cloud-verified != 'true'
         run: |
           bash -n deploy/install-context-sync-timer.sh
           # setup-node uses the runner tool cache; mirror the production binary path.
           if [ ! -x /usr/bin/node ]; then sudo ln -s "$(command -v node)" /usr/bin/node; fi
           systemd-analyze verify deploy/genilink-context-sync.service deploy/genilink-context-sync.timer
 
-      - name: Build
-        run: NODE_OPTIONS="--max-old-space-size=4096" npm run build
-        env:
-          DATABASE_URL: postgresql://genilink:genilink_dev@localhost:5432/genilink
-          AUTH_SECRET: test-secret
+      - name: Report reused validation
+        if: needs.changes.outputs.cloud-verified == 'true'
+        run: echo 'Source validation passed in the merged pull request for this Git tree.'
 
   container:
     name: Build and publish production image
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     services:
       postgres:
-        image: postgres:16
+        image: ${{ github.event_name == 'pull_request' && 'postgres:16' || '' }}
         env:
           POSTGRES_USER: genilink
           POSTGRES_PASSWORD: genilink_dev
@@ -155,6 +189,14 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify cloud checkout revision
+        env:
+          CLOUD_SHA: ${{ github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$CLOUD_SHA"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -166,7 +208,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push immutable image
+      - name: Build immutable image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -178,18 +220,22 @@ jobs:
             ghcr.io/yyangwan/genilink-platform:${{ github.sha }}
             ghcr.io/yyangwan/genilink-platform:latest
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: ${{ github.event_name == 'push' && 'type=gha,mode=max,timeout=90s,ignore-error=true' || '' }}
 
       - name: Smoke test image migration runtime
         if: github.event_name == 'pull_request'
+        env:
+          IMAGE: ghcr.io/yyangwan/genilink-platform:${{ github.sha }}
         run: |
           docker run --rm --network host \
             --env DATABASE_URL=postgresql://genilink:genilink_dev@127.0.0.1:5432/genilink \
-            ghcr.io/yyangwan/genilink-platform:${{ github.sha }} \
+            "$IMAGE" \
             sh -c 'cd /prisma-runtime && node node_modules/prisma/build/index.js migrate deploy'
 
       - name: Smoke test image signing-key access
         if: github.event_name == 'pull_request'
+        env:
+          IMAGE: ghcr.io/yyangwan/genilink-platform:${{ github.sha }}
         run: |
           . deploy/container-runtime.env
           KEY_DIR="$(mktemp -d)"
@@ -203,13 +249,16 @@ jobs:
           KEYS_DIR="$KEY_DIR"
           source deploy/deploy-container.sh
           trap 'sudo rm -rf "$KEY_DIR"' EXIT
-          verify_image_key_access ghcr.io/yyangwan/genilink-platform:${{ github.sha }}
+          verify_image_key_access "$IMAGE"
 
   deploy:
     name: Blue-green production deploy
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: container
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     environment: production
     concurrency:
       group: genilink-production-deploy
