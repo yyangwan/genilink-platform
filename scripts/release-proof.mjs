@@ -34,7 +34,8 @@ export async function findReleaseProof({api, sha, repository, branch, releaseTre
     const testedSha = run.display_title.slice(prefix.length);
     if (!/^[a-f0-9]{40}$/.test(testedSha)) continue;
     const commit = await api(`git/commits/${testedSha}`);
-    if (commit.tree.sha !== releaseTree) continue;
+    if (commit.parents.length !== 2 || commit.parents[1].sha !== pull.head.sha
+      || commit.tree.sha !== releaseTree) continue;
     const {jobs} = await api(`actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
     const complete = requiredJobs.every(([name, steps]) => jobs.some((job) =>
       job.name === name && job.conclusion === 'success'

@@ -12,7 +12,7 @@ const testedSha = 'e'.repeat(40);
 
 function fixture() {
   const pull = {number: 7, merged_at: '2026-11-14', merge_commit_sha: sha, base: {ref: 'main'}, head: {sha: head, repo: {full_name: repo}}};
-  const commit = {tree: {sha: tree}};
+  const commit = {tree: {sha: tree}, parents: [{sha: 'd'.repeat(40)}, {sha: head}]};
   const run = {id: 42, event: 'pull_request', conclusion: 'success', head_sha: head, head_repository: {full_name: repo}, display_title: `PR #7 validation ${testedSha}`};
   const jobs = [...workflow.matchAll(/^  (build|container):\n([\s\S]*?)(?=^  [\w-]+:)/gm)].map(([, id, definition]) => ({
     name: id === 'build' ? 'build' : 'Build and publish production image',
@@ -51,10 +51,13 @@ test('falls back when the PR is from a fork or the release commit does not match
   assert.equal(await unrelated.check(), null);
 });
 
-test('falls back for a different PR or a skipped source or image check', async () => {
+test('falls back for a different PR, a different tested head or a skipped source or image check', async () => {
   const other = fixture();
   other.run.display_title = `PR #8 validation ${testedSha}`;
   assert.equal(await other.check(), null);
+  const unlinked = fixture();
+  unlinked.commit.parents[1].sha = sha;
+  assert.equal(await unlinked.check(), null);
   for (const name of ['Verify cloud checkout revision', 'Run tests', 'Smoke test image migration runtime']) {
     const data = fixture();
     const step = data.jobs.flatMap((job) => job.steps).find((item) => item.name === name);
