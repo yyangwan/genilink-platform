@@ -288,12 +288,18 @@ jobs:
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
           PROD_USER: ${{ secrets.PROD_USER }}
+          PROD_HEALTH_PORT: ${{ vars.PROD_HEALTH_PORT }}
           IMAGE: ghcr.io/yyangwan/genilink-platform:${{ github.sha }}
         run: |
           SSH_OPTIONS=(-o ServerAliveInterval=30 -o ServerAliveCountMax=20)
+          HEALTH_ENV=
+          if [[ -n "$PROD_HEALTH_PORT" ]]; then
+            [[ "$PROD_HEALTH_PORT" =~ ^[1-9][0-9]{0,4}$ ]] && (( PROD_HEALTH_PORT <= 65535 )) || exit 1
+            HEALTH_ENV="PUBLIC_HEALTH_URL=http://127.0.0.1:${PROD_HEALTH_PORT}/api/health"
+          fi
           docker pull "$IMAGE"
           docker save "$IMAGE" | gzip -1 | \
             ssh "${SSH_OPTIONS[@]}" "$PROD_USER@$PROD_HOST" \
               "gzip -dc | docker load >/dev/null"
           ssh "${SSH_OPTIONS[@]}" "$PROD_USER@$PROD_HOST" \
-            "git -C /opt/genilink-platform pull --ff-only origin main && SKIP_IMAGE_PULL=1 /opt/genilink-platform/deploy/deploy-container.sh '$IMAGE'"
+            "git -C /opt/genilink-platform pull --ff-only origin main && $HEALTH_ENV SKIP_IMAGE_PULL=1 /opt/genilink-platform/deploy/deploy-container.sh '$IMAGE'"
