@@ -3,41 +3,66 @@
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { CaptureProgress, type CaptureStatus } from '@/components/visibility/capture-progress';
 import { useProject } from '@/components/project/project-context';
 import { ProjectSetupState } from '@/components/project/project-setup-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { useVisibilityDashboard } from '@/components/visibility/use-visibility-dashboard';
 import { CaptureControls } from '@/components/visibility/capture-controls';
-import { CaptureAnalysisScope } from '@/components/visibility/capture-analysis-scope';
+import { CaptureRecords } from '@/components/visibility/capture-records-v4';
+import { CaptureSummary } from '@/components/visibility/audit-v4-status';
+import { useAuditCapture } from '@/components/visibility/use-audit-v4';
 import { intelligenceUrl } from '@/lib/visibility/analysis-scope';
+import { captureHref, isAuditId, isRecordId } from '@/lib/visibility/v4-audit';
 import '@/components/visibility/visibility-collection.css';
+import '@/components/visibility/audit-v4.css';
 
 function ProjectVisibility({ projectId }: { projectId: string }) {
   const dashboard = useVisibilityDashboard(projectId, 'collection');
   const search = useSearchParams(), router = useRouter();
   const [createdAudit, setCreatedAudit] = useState('');
-  const [captureStatus, setCaptureStatus] = useState<CaptureStatus | null>(null);
-  const queryAudit = search.get('project') === projectId && /^[1-9][0-9]{0,17}$/.test(search.get('auditId') || '') ? search.get('auditId') : null;
-  const auditId = createdAudit || queryAudit || dashboard.data?.latest_audit?.id || '';
-  const currentData = dashboard.data;
-  const selectedReport = currentData?.report?.audit_id === auditId ? currentData.report : null;
+  const scoped = search.get('project') === projectId;
+  const queryAudit = scoped ? search.get('auditId') : null;
+  const auditId = isAuditId(queryAudit) ? queryAudit : createdAudit || dashboard.data?.latest_audit?.id || '';
+  const { data: capture, loading, error, refetch } = useAuditCapture(projectId, auditId);
+  const selectedRecord = scoped && queryAudit === auditId ? search.get('sampleId') : null;
+  const snapshotId = search.get('snapshotId'), ordinal = search.get('ordinal');
+  const requestedSource = selectedRecord && isRecordId(snapshotId) && ordinal && /^[1-9][0-9]{0,2}$/.test(ordinal) && Number(ordinal) <= 200
+    ? { ordinal: Number(ordinal), snapshot_id: snapshotId } : undefined;
+
   const track = (id: string) => {
     setCreatedAudit(id);
-    router.replace(`/visibility?${new URLSearchParams({ project: projectId, auditId: id })}`, { scroll: false });
+    router.replace(captureHref(projectId, id), { scroll: false });
     dashboard.refetch();
   };
-  const reportReady = !!selectedReport?.run_id && ['ready', 'partial', 'stale'].includes(selectedReport.status);
-  const insightUrl = intelligenceUrl(search.toString(), projectId, { auditId: auditId || null, view: 'overview', runId: selectedReport?.run_id || null });
-  const evidenceUrl = intelligenceUrl(search.toString(), projectId, { auditId: auditId || null, view: 'evidence', runId: selectedReport?.run_id || null });
-  return <div className="audit-workspace citation-workspace visibility-collection">
-    <header className="citation-page-head"><div><span>VISIBILITY COLLECTION</span><h1>发起一次采集，跟踪每个阶段</h1><p>覆盖平台由服务端统一安排。客户只需确定问题范围并查看完整性。</p></div><div className="citation-page-actions"><Link className="dashboard-button dashboard-button--secondary" href={`/audits?project=${encodeURIComponent(projectId)}`}>查看历史审计 ↗</Link>{auditId && <Link className="dashboard-button dashboard-button--secondary" href={insightUrl}>{reportReady ? '查看本次审计洞察' : '查看任务详情'}</Link>}</div></header>
-    {dashboard.loading && !dashboard.data ? <p role="status">正在读取当前项目的最新审计…</p> : dashboard.locked ? <p>当前未获得可见性报告权限，请检查订阅或项目访问权限。</p> : dashboard.error || !dashboard.data ? <p role="alert">概览暂不可用，请重试。尚不能判断当前平台表现。</p> : <>
-      <CaptureAnalysisScope projectId={projectId} report={selectedReport} />
-      {dashboard.data.can_capture ? <div id="visibility-capture-settings"><CaptureControls key={projectId} activeAuditId={auditId} projectId={projectId} enabled={dashboard.data.enabled} taskState={!auditId ? "idle" : captureStatus?.audit_id !== auditId ? "checking" : ["pending", "running"].includes(captureStatus.status) ? "running" : "idle"} onCreated={track} /><div className="visibility-collection__manage"><Link href={`/settings/prompts?project=${encodeURIComponent(projectId)}`}>管理提示词 ↗</Link></div></div> : <p className="dashboard-surface p-4 text-sm">采集入口暂不可用。请确认功能已启用、品牌配置已同步，且具有项目写入权限和完整分析权限。</p>}
-      {auditId ? <CaptureProgress collection projectId={projectId} auditId={auditId} onPublished={dashboard.refetch} onStatus={setCaptureStatus} report={selectedReport} evidenceHref={evidenceUrl} /> : <section className="citation-panel citation-pad visibility-collection__idle" aria-label="当前采集任务"><h2>当前没有进行中的采集</h2><div className="visibility-collection__idle-stages">{['回答采集', '来源归档', '语义分析'].map(name => <div key={name}><span>{name}</span><strong>待发起</strong><progress aria-label={`${name}进度`} value={0} max={1} /></div>)}</div><p className="citation-muted">等待、执行、失败和部分完成有具体对象；来源受限不等于品牌表现为零。</p></section>}
-      {currentData && <nav aria-label="本次采集之后" className="visibility-collection__next"><h2 className="sr-only">本次采集之后</h2><p>回答采集完成不等于报告已完成；结果与证据在审计洞察中查看。</p><Link className="dashboard-button dashboard-button--secondary" href={insightUrl}>进入审计洞察 →</Link></nav>}
-    </>}
+  const insightHref = intelligenceUrl(search.toString(), projectId, {
+    auditId: auditId || null, view: 'overview', runId: capture?.published_run_id || null,
+  });
+  const active = capture?.capture?.state === 'collecting' || capture?.archive?.state === 'archiving'
+    || capture?.status === 'running' || capture?.status === 'pending';
+  const taskState = active ? 'running' : auditId && !capture ? 'checking' : 'idle';
+  return <div className="audit-workspace citation-workspace visibility-collection audit-v4">
+    <header className="citation-page-head"><div><span>VISIBILITY COLLECTION</span><h1>可见性分析</h1>
+      <p>发起一次采集，核对每个平台的原始结果。</p></div>
+      <div className="citation-page-actions">
+        <Link className="dashboard-button dashboard-button--secondary" href={'/audits?project=' + encodeURIComponent(projectId)}>历史审计</Link>
+      </div>
+    </header>
+    {dashboard.loading && !dashboard.data && <p role="status">正在读取当前项目的审计…</p>}
+    {dashboard.locked && <p className="v4-warn" role="alert">当前项目权限或订阅不支持查看可见性报告。</p>}
+    {dashboard.error && <p className="v4-warn" role="alert">项目概览暂不可用。 <button className="v4-link" type="button" onClick={dashboard.refetch}>重新查询</button></p>}
+    {dashboard.data?.can_capture
+      ? <div id="visibility-capture-settings"><CaptureControls projectId={projectId} enabled={dashboard.data.enabled}
+        activeAuditId={auditId} taskState={taskState} onCreated={track} confirmStart />
+        <div className="visibility-collection__manage"><Link className="v4-link" href={'/settings/prompts?project=' + encodeURIComponent(projectId)}>管理提示词 ↗</Link></div>
+      </div>
+      : dashboard.data && <p className="v4-note">发起采集需要完整分析和项目写入权限，品牌配置同步后即可使用。</p>}
+    {loading && !capture && <p role="status">正在读取采集状态…</p>}
+    {error && <p className="v4-warn" role="alert">{error} <button className="v4-link" type="button" onClick={refetch}>重新查询状态</button></p>}
+    {capture?.mode === 'v4' && <CaptureSummary data={capture} insightHref={insightHref} />}
+    {auditId && capture && <CaptureRecords key={auditId} projectId={projectId} auditId={auditId} version={capture}
+      selectedRecord={isRecordId(selectedRecord) ? selectedRecord : null} requestedSource={requestedSource}
+      onRecord={id => router.replace(captureHref(projectId, auditId, id || undefined), { scroll: false })} />}
+    {!auditId && dashboard.data && <section className="citation-panel v4-panel"><h2>采集进度</h2><p className="v4-note">当前项目暂无采集记录。</p></section>}
   </div>;
 }
 function VisibilityRoot() {

@@ -13,6 +13,7 @@ export interface SectionFetchState<T> {
 
 export interface SectionFetchOptions<T> {
   notFoundValue?: T;
+  retainOnError?: boolean;
 }
 
 /**
@@ -26,6 +27,7 @@ export function useSectionFetch<T>(url: string | null, options: SectionFetchOpti
   const [error, setError] = useState(false);
   const [locked, setLocked] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const { retainOnError = false } = options;
   const notFoundValueRef = useRef<T | undefined>(options.notFoundValue);
 
   useEffect(() => {
@@ -64,6 +66,8 @@ export function useSectionFetch<T>(url: string | null, options: SectionFetchOpti
         },
       });
 
+      if (controller.signal.aborted) return;
+
       if (res.status === 404 && notFoundValueRef.current !== undefined) {
         setData(notFoundValueRef.current);
         setLoading(false);
@@ -81,23 +85,24 @@ export function useSectionFetch<T>(url: string | null, options: SectionFetchOpti
       if (!res.ok) {
         setError(true);
         setLoading(false);
-        setData(null);
+        if (!retainOnError || res.status < 500) setData(null);
         return;
       }
 
       const json = (await res.json()) as T;
+      if (controller.signal.aborted) return;
       setData(json);
       setLoading(false);
     } catch (err) {
       // Ignore abort errors - they are intentional
-      if (err instanceof DOMException && err.name === "AbortError") {
+      if (controller.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
         return;
       }
       setError(true);
       setLoading(false);
-      setData(null);
+      if (!retainOnError) setData(null);
     }
-  }, [url]);
+  }, [url, retainOnError]);
   useEffect(() => {
     fetchData();
 

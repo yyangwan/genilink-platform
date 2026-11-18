@@ -100,7 +100,7 @@ describe('project-scoped intelligence proxy', () => {
     expect(response.status).toBe(202);
     expect(fetchUpstream).toHaveBeenCalledWith(expect.anything(), '/api/intelligence/projects/trusted-project/audits', expect.objectContaining({
       body: expect.objectContaining({ sampling: expect.objectContaining({
-        platforms: ['qwen', 'deepseek', 'doubao', 'kimi', 'hunyuan'], surface: 'managed_v1', rounds: 1,
+        platforms: ['qwen', 'deepseek', 'doubao', 'kimi', 'hunyuan'], surface: 'managed_v1', rounds: 1, processingMode: 'v4',
       }) }),
     }));
   });
@@ -175,6 +175,30 @@ describe('project-scoped intelligence proxy', () => {
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-content-token', 'X-Visibility-Authorization': 'Bearer test-visibility-token' }, body: JSON.stringify({ approvalId: 'a'.repeat(32) }),
       }));
     } finally { vi.unstubAllGlobals(); }
+  });
+  it('proxies v4 saved source reads and visibility score filters within the verified project', async () => {
+    const sample = 'a'.repeat(32), snapshot = 'b'.repeat(32);
+    const base = 'http://localhost/api/integration/intelligence?auditId=12&projectId=trusted-project&view=';
+    expect((await GET(new NextRequest(base + `captureSource&sampleId=${sample}&ordinal=2&snapshotId=${snapshot}`))).status).toBe(200);
+    expect(fetchUpstream).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: 'trusted-project' }),
+      `/api/intelligence/audits/12/capture/samples/${sample}/sources/2/text?snapshot_id=${snapshot}`, expect.anything());
+    expect((await GET(new NextRequest(base + 'visibilityScore&platform=qwen&compareTarget=entity%3Arival&scenario=cost'))).status).toBe(200);
+    expect(fetchUpstream).toHaveBeenLastCalledWith(expect.anything(),
+      '/api/intelligence/audits/12/visibility-score?platform=qwen&comparison_target_id=entity%3Arival&scenario=cost', expect.anything());
+    expect((await GET(new NextRequest(base + `captureSource&sampleId=${sample}&ordinal=201&snapshotId=${snapshot}`))).status).toBe(400);
+    expect((await GET(new NextRequest(base + 'captureSamples&cursor=../invalid'))).status).toBe(400);
+    expect(fetchUpstream).toHaveBeenCalledTimes(2);
+  });
+  it('retries only the specified v4 attempt without allocating capture usage', async () => {
+    const rev = 'c'.repeat(32);
+    vi.mocked(prisma.projectContextOutbox.count).mockResolvedValue(1);
+    const request = new NextRequest('http://localhost/api/integration/intelligence', { method: 'POST',
+      body: JSON.stringify({ action: 'retryAnalysis', auditId: '12', failedAttemptId: rev, capture: true }),
+    });
+    expect((await POST(request)).status).toBe(202);
+    expect(fetchUpstream).toHaveBeenCalledWith(expect.anything(), '/api/intelligence/audits/12/analysis/retry',
+      expect.objectContaining({ method: 'POST', body: { failedAttemptId: rev } }));
+    expect(reserveContentGeneration).not.toHaveBeenCalled();
   });
   it('reserves an audit once through the durable usage ledger', async () => {
     vi.mocked(fetchUpstream).mockResolvedValue({ data: { audit_id: '123', expected_samples: 3 } });
