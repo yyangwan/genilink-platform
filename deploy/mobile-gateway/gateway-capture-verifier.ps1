@@ -1,13 +1,66 @@
 $ErrorActionPreference = "Stop"
 
+function Get-CaptureOperationTimeout {
+    param([int]$Seconds, [hashtable]$State)
+    if (-not $State -or -not $State.SourceDeadlineUtc) { return $Seconds }
+    $remaining = [math]::Floor(($State.SourceDeadlineUtc - [datetime]::UtcNow).TotalSeconds)
+    if ($remaining -lt 1) { throw 'CAPTURE_SOURCE_DEADLINE' }
+    return [int][math]::Min($Seconds, $remaining)
+}
+
+function Get-RetainedCaptureAnswer {
+    param([hashtable]$State)
+    $sources = @()
+    if ($State.CapturedSources) {
+        $sources = @($State.CapturedSources.Values | Sort-Object { [int]$_.index } | Select-Object -First 200)
+    }
+    $expected = if ($State.ReferenceCount -gt 0 -and $State.ReferenceCount -ge $sources.Count) {
+        [int]$State.ReferenceCount
+    } else { $null }
+    [pscustomobject]@{
+        answer = [string]$State.CapturedAnswer
+        answer_status = if ($State.CapturedAnswerStatus -eq 'complete') { 'complete' } else { 'partial' }
+        reference_count = $expected
+        source_panel_expected_count = $expected
+        source_panel_status = if ($sources.Count) { 'partial' } else { 'unavailable' }
+        capture_status = if ($sources.Count) { 'partial' } else { 'answer_only' }
+        sources = $sources
+    }
+}
+
+function Invoke-CaptureReferenceWindow {
+    param([Parameter(Mandatory)][scriptblock]$Collect,
+        [Parameter(Mandatory)][hashtable]$State,
+        [Parameter(Mandatory)][datetime]$StartedAt,
+        [int]$Seconds = 150)
+    $fromAnswer = [datetime]::UtcNow.AddSeconds($Seconds)
+    $fromStart = $StartedAt.ToUniversalTime().AddSeconds(480)
+    $State.SourceDeadlineUtc = if ($fromAnswer -lt $fromStart) { $fromAnswer } else { $fromStart }
+    try {
+        $null = Get-CaptureOperationTimeout -Seconds $Seconds -State $State
+        $result = Invoke-SourceCollectionRetry -Collect $Collect -RetryWindowSeconds $Seconds
+        return @{ data = $result; retained = $null }
+    } catch {
+        # Leave manual interruptions on their existing recovery path.
+        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+        if ([string]::IsNullOrWhiteSpace([string]$State.CapturedAnswer)) { throw }
+        Write-Warning 'Reference collection interrupted; keeping captured answer and resolved sources.'
+        return @{ data = $null; retained = Get-RetainedCaptureAnswer -State $State }
+    } finally {
+        $State.Remove('SourceDeadlineUtc')
+    }
+}
+
 function Invoke-CaptureNativeCommand {
     param(
         [Parameter(Mandatory)][string]$FilePath,
         [Parameter(Mandatory)][string]$Arguments,
         [Parameter(Mandatory)][string]$Operation,
-        [ValidateRange(1, 120)][int]$TimeoutSeconds = 30
+        [ValidateRange(1, 120)][int]$TimeoutSeconds = 30,
+        [hashtable]$CaptureState
     )
 
+    $TimeoutSeconds = Get-CaptureOperationTimeout -Seconds $TimeoutSeconds -State $CaptureState
     $startInfo = [Diagnostics.ProcessStartInfo]::new()
     $startInfo.FileName = $FilePath
     $startInfo.Arguments = $Arguments
@@ -193,7 +246,7 @@ function Invoke-SourceCollectionRetry {
             $retry.reference_count = [math]::Max([int]$result.reference_count, [int]$retry.reference_count)
             $result = $retry
         } catch {
-            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+            if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
             Write-Warning "source-only retry failed; keeping collected sources: $($_.Exception.Message)"
             break
         }

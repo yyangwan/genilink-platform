@@ -349,7 +349,7 @@ function Send-TaskFailure {
     if ($Message -match '^Android device [^\r\n]+ is locked; configure it for') {
         $Code = "gateway_intervention_required"
     }
-    if ($Message -match '\bCAPTURE_NATIVE_(TIMEOUT|OUTPUT_TIMEOUT)\b') {
+    if ($Message -match '\b(?:CAPTURE_NATIVE_(?:TIMEOUT|OUTPUT_TIMEOUT)|CAPTURE_ANSWER_TIMEOUT)\b') {
         $Code = "gateway_capture_timeout"
     }
     if ($Message -match 'No capture-ready Android device is currently available') {

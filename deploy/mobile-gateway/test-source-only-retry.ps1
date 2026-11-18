@@ -33,3 +33,32 @@ Assert-Equal (Find-KnownSourceRecord $known 1 Article).url 'https://example.com/
 Assert-Equal (Find-KnownSourceRecord $known 1 Different) $null 'changed title not reused'
 $known[0].url_resolution='site_root'
 Assert-Equal (Find-KnownSourceRecord $known 1 Article) $null 'site root is never a resolved citation'
+
+. (Join-Path $PSScriptRoot 'gateway-popup-evidence.ps1')
+. (Join-Path $PSScriptRoot 'capture-v2.ps1')
+$state = @{ CapturedAnswer = 'Verified current answer'; CapturedAnswerStatus = 'complete'; ReferenceCount = 3 }
+$window = Invoke-CaptureReferenceWindow -State $state -StartedAt (Get-Date) -Collect {
+    Remember-CaptureSource -State $state -Record ([pscustomobject]@{
+        index=1; kind='answer_reference'; title='Article'; status='collected'
+        url='https://example.com/a'; url_resolution='exact'
+    })
+    $state.SourceDeadlineUtc = [datetime]::UtcNow.AddSeconds(-1)
+    Get-CaptureOperationTimeout -Seconds 5 -State $state
+}
+$task = @{ id='test'; platform='kimi'; surface='app' }
+$capture = ConvertTo-CaptureV2 -Task $task -Result $window.retained
+Assert-Equal $capture.answer.text 'Verified current answer' 'reference timeout keeps current answer'
+Assert-Equal $capture.answer.status 'complete' 'answer completion is independent of source coverage'
+Assert-Equal $capture.sourcePanel.status 'partial' 'incomplete references are visible'
+Assert-Equal $capture.sourcePanel.expectedCount 3 'reference coverage retains known denominator'
+Assert-Equal $capture.sources[0].url 'https://example.com/a' 'resolved reference survives interruption'
+Assert-Equal ($state.ContainsKey('SourceDeadlineUtc')) $false 'reference deadline does not affect cleanup'
+
+try {
+    Invoke-CaptureReferenceWindow -State $state -StartedAt (Get-Date) -Collect {
+        throw 'CAPTURE_POPUP_MANUAL_REQUIRED'
+    } | Out-Null
+    throw 'Manual popup should retain its intervention path'
+} catch {
+    if ($_.Exception.Message -ne 'CAPTURE_POPUP_MANUAL_REQUIRED') { throw }
+}

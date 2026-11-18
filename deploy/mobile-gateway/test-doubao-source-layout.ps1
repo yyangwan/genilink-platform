@@ -10,7 +10,7 @@ foreach ($function in @($ast.FindAll({
     param($node)
     $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
         $node.Name -in @("Get-NativeNodeBounds", "Get-DoubaoVisibleSourceNodes",
-            "Get-DoubaoReferenceScrollContainer", "Invoke-DoubaoReferenceSwipe")
+            "Get-DoubaoReferenceScrollContainer", "Invoke-DoubaoReferenceSwipe", "Get-AssistantMessage")
 }, $true))) {
     . ([scriptblock]::Create($function.Extent.Text))
 }
@@ -23,6 +23,14 @@ function adb {
 }
 function Start-Sleep { param($Milliseconds) }
 $script:deviceSerial = "fixture-only"
+
+$conversation = '<hierarchy><node resource-id="com.larus.nova:id/input_text"/>' +
+    '<node resource-id="com.larus.nova:id/content_view"><node text="An older and much longer answer"/><node text="Old source"/></node>' +
+    '<node resource-id="com.larus.nova:id/content_view"><node text="Current answer"/><node text="New source"/></node></hierarchy>'
+$current = Get-AssistantMessage -Source $conversation
+if ($current.answer -ne 'Current answer' -or -not $current.completed) {
+    throw 'Native fallback must keep the latest answer rather than the longest older answer'
+}
 
 function New-SourceLayout {
     param([string]$Id = "recyclerView", [string]$Bounds = "[0,1376][1080,2238]",
