@@ -18,6 +18,52 @@ import { evidenceDraftReady } from '@/lib/content/evidence-capabilities';
 const validId = (id: string | null): id is string => !!id && /^[a-f0-9]{32}$/.test(id);
 const badRequest = () => NextResponse.json({ error: '无效的证据查询参数' }, { status: 400 });
 
+const auditIdPattern = /^[1-9][0-9]{0,17}$/;
+const writeRoles = ['owner', 'admin', 'editor', 'member'];
+const v4AuditViews = ['captureV4', 'captureSamples', 'captureSample', 'captureSource', 'visibilityScore'];
+
+function v4AuditPath(view: string, params: URLSearchParams): string | null {
+  const auditId = params.get('auditId');
+  if (!auditId || !auditIdPattern.test(auditId)) return null;
+  const base = `/api/intelligence/audits/${auditId}`;
+  if (view === 'captureV4') return `${base}/capture?summary_only=true`;
+
+  const query = new URLSearchParams();
+  const platform = params.get('platform');
+  if (platform && !CAPTURE_PLATFORMS.some(value => value === platform)) return null;
+  if (platform) query.set('platform', platform);
+
+  if (view === 'visibilityScore') {
+    const fields = [['ownTarget', 'own_target_id'], ['compareTarget', 'comparison_target_id']] as const;
+    for (const [local, upstream] of fields) {
+      const value = params.get(local);
+      if (!value) continue;
+      if (!/^(?:registry|entity):[A-Za-z0-9_-]{1,200}$/.test(value)) return null;
+      query.set(upstream, value);
+    }
+    const scenario = params.get('scenario');
+    if (scenario && !['awareness', 'selection', 'features', 'cost', 'implementation', 'proof', 'risk', 'service'].includes(scenario)) return null;
+    if (scenario) query.set('scenario', scenario);
+    return `${base}/visibility-score${query.size ? `?${query}` : ''}`;
+  }
+
+  const samples = `${base}/capture/samples`;
+  if (view === 'captureSamples') {
+    const status = params.get('status'), cursor = params.get('cursor');
+    if (status && !['pending', 'received', 'failed'].includes(status) || cursor && !validId(cursor)) return null;
+    if (status) query.set('status', status);
+    if (cursor) query.set('cursor', cursor);
+    return `${samples}${query.size ? `?${query}` : ''}`;
+  }
+
+  const sampleId = params.get('sampleId');
+  if (!validId(sampleId)) return null;
+  if (view === 'captureSample') return `${samples}/${sampleId}`;
+  const ordinal = params.get('ordinal'), snapshotId = params.get('snapshotId');
+  if (!ordinal || !/^[1-9][0-9]{0,2}$/.test(ordinal) || Number(ordinal) > 200 || !validId(snapshotId)) return null;
+  return `${samples}/${sampleId}/sources/${ordinal}/text?${new URLSearchParams({ snapshot_id: snapshotId })}`;
+}
+
 export async function GET(req: NextRequest) {
   const guard = await resolveGuard(req, { capability: 'contentInsights', minimumCapabilityLevel: 'full' });
   if (!guard.ok) return guard.response;
@@ -47,7 +93,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ context, pending, retry });
   }
   let path: string;
-  if (view === 'publicationOptions') {
+  if (v4AuditViews.includes(view)) {
+    const target = v4AuditPath(view, params);
+    if (!target) return badRequest();
+    path = target;
+  } else if (view === 'workbenchAudit' || view === 'workbenchExecution') {
+    const section = view === 'workbenchAudit' ? 'audit' : 'execution';
+    path = `/api/intelligence/projects/${encodeURIComponent(guard.ctx.projectId)}/workbench-${section}`;
+  } else if (view === 'publicationOptions') {
     const actionId = params.get('actionId'), revision = params.get('revision');
     if (!validId(actionId) || revision && !/^[1-9][0-9]{0,7}$/.test(revision)) return badRequest();
     path = `/api/intelligence/actions/${actionId}/publication-options${revision ? `?revision=${revision}` : ''}`;
@@ -104,17 +157,17 @@ export async function GET(req: NextRequest) {
   }
   const result = await fetchUpstream(guard.ctx, path, { errorMessage: '证据分析服务暂不可用' });
   if ('response' in result) return result.response;
-  const measurement = ['cohort', 'cohorts', 'assets', 'publicationActions', 'publicationOptions', 'retests', 'measurementResults'].includes(view);
-  return NextResponse.json(measurement ? { ...result.data as object, can_write: ['owner', 'admin', 'editor', 'member'].includes(guard.ctx.role) } : result.data, { headers: { 'Cache-Control': 'no-store' } });
+  const writableView = ['captureV4', 'cohort', 'cohorts', 'assets', 'publicationActions', 'publicationOptions', 'retests', 'measurementResults'].includes(view);
+  return NextResponse.json(writableView ? { ...result.data as object, can_write: writeRoles.includes(guard.ctx.role) } : result.data, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(req: NextRequest) {
   const guard = await resolveGuard(req, { capability: 'contentInsights', minimumCapabilityLevel: 'full' });
   if (!guard.ok) return guard.response;
-  if (!['owner', 'admin', 'editor', 'member'].includes(guard.ctx.role)) {
+  if (!writeRoles.includes(guard.ctx.role)) {
     return NextResponse.json({ error: '需要项目写入权限' }, { status: 403 });
   }
-  let body: { contexts?: unknown; baseHash?: unknown; decisions?: unknown; brandId?: unknown; analysisRole?: unknown; newEntityName?: unknown; mentionId?: unknown; sourceEntityId?: unknown; targetEntityId?: unknown; taskId?: unknown; taskAction?: unknown; deliveryUrl?: unknown; cohortId?: unknown; comparisonMode?: unknown; brandTargetIds?: unknown; promptHashes?: unknown; baselineRunId?: unknown; followupRunId?: unknown; entityIds?: unknown; url?: unknown; contentHash?: unknown; publishedAt?: unknown; auditId?: unknown; documentId?: unknown; runId?: unknown; approvalId?: unknown; factIds?: unknown; factsScopeReviewed?: unknown; channel?: unknown; title?: unknown; expiresAt?: unknown; evidenceId?: unknown; reviewId?: unknown; factId?: unknown; relation?: unknown; sourceQuote?: unknown; scope?: unknown; validFrom?: unknown; validUntil?: unknown; actionId?: unknown; diagnosisId?: unknown; expectedRevision?: unknown; entityId?: unknown; decision?: unknown; canonicalName?: unknown; reason?: unknown; expectedVersion?: unknown; action?: unknown; promptIds?: unknown; platforms?: unknown; rounds?: unknown; surface?: unknown; idempotencyKey?: unknown };
+  let body: { contexts?: unknown; baseHash?: unknown; decisions?: unknown; brandId?: unknown; analysisRole?: unknown; newEntityName?: unknown; mentionId?: unknown; sourceEntityId?: unknown; targetEntityId?: unknown; taskId?: unknown; taskAction?: unknown; deliveryUrl?: unknown; cohortId?: unknown; comparisonMode?: unknown; brandTargetIds?: unknown; promptHashes?: unknown; baselineRunId?: unknown; followupRunId?: unknown; entityIds?: unknown; url?: unknown; contentHash?: unknown; publishedAt?: unknown; auditId?: unknown; documentId?: unknown; runId?: unknown; approvalId?: unknown; factIds?: unknown; factsScopeReviewed?: unknown; channel?: unknown; title?: unknown; expiresAt?: unknown; evidenceId?: unknown; reviewId?: unknown; factId?: unknown; relation?: unknown; sourceQuote?: unknown; scope?: unknown; validFrom?: unknown; validUntil?: unknown; actionId?: unknown; diagnosisId?: unknown; expectedRevision?: unknown; entityId?: unknown; decision?: unknown; canonicalName?: unknown; reason?: unknown; expectedVersion?: unknown; action?: unknown; promptIds?: unknown; platforms?: unknown; rounds?: unknown; surface?: unknown; idempotencyKey?: unknown; failedAttemptId?: unknown };
   try { body = await req.json(); } catch { return badRequest(); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return badRequest();
   const requiresCurrentContext = ['generateDraft', 'approveDraft', 'previewDraft', 'approveFact', 'createAction', 'approveAction', 'createCohort', 'compareCohort', 'startRetest', 'capture', 'analyze', 'createManualTask'].includes(String(body.action)) || body.action === undefined || body.action === 'updateManualTask' && body.taskAction !== 'cancel';
@@ -388,6 +441,16 @@ export async function POST(req: NextRequest) {
     if ('response' in result) return result.response;
     return NextResponse.json(result.data, { status: 202 });
   }
+  if (body.action === 'retryAnalysis') {
+    if (typeof body.auditId !== 'string' || !auditIdPattern.test(body.auditId) ||
+        typeof body.failedAttemptId !== 'string' || !validId(body.failedAttemptId)) return badRequest();
+    const result = await fetchUpstream(guard.ctx, `/api/intelligence/audits/${body.auditId}/analysis/retry`, {
+      method: 'POST', body: { failedAttemptId: body.failedAttemptId },
+      errorMessage: '分析重试结果尚未确认，请使用当前失败记录再次查询',
+    });
+    if ('response' in result) return result.response;
+    return NextResponse.json(result.data, { status: 202, headers: { 'Cache-Control': 'no-store' } });
+  }
   if (body.action === 'capture') {
     if (!Array.isArray(body.promptIds) || !body.promptIds.length || body.promptIds.length > 100 ||
         !body.promptIds.every(value => Number.isSafeInteger(value) && value > 0) ||
@@ -401,11 +464,11 @@ export async function POST(req: NextRequest) {
       id: row.brand.id, name: row.brand.name, aliases: row.brand.aliases || [], is_competitor: row.brand.isCompetitor || false,
     }));
     const sampling = { promptIds: body.promptIds, platforms: [...CAPTURE_PLATFORMS], rounds: 1,
-      surface: 'managed_v1', idempotencyKey: body.idempotencyKey, conditions: { searchMode: 'unknown' } };
+      surface: 'managed_v1', processingMode: 'v4', idempotencyKey: body.idempotencyKey, conditions: { searchMode: 'unknown' } };
     const operationId = 'visibility-capture-' + createHash('sha256').update(`${guard.ctx.workspaceId}:${guard.ctx.projectId}:${body.idempotencyKey}`).digest('hex');
     const requestHash = createHash('sha256').update(JSON.stringify({ projectId: guard.ctx.projectId, sampling, brands })).digest('hex');
     const reservation = await reserveContentGeneration({ userId: guard.ctx.session.user.id, workspaceId: guard.ctx.workspaceId,
-      operationId, requestHash, feature: 'visibility_audit', metadata: { projectId: guard.ctx.projectId, samplingVersion: 2 } });
+      operationId, requestHash, feature: 'visibility_audit', metadata: { projectId: guard.ctx.projectId, samplingVersion: 2, processingMode: 'v4' } });
     if (reservation.type === 'limit') return planLimitResponse(reservation.error);
     if (reservation.type === 'conflict') return NextResponse.json({ error: '采集请求编号已用于不同配置' }, { status: 409 });
     if (reservation.type === 'replay' && reservation.status === 'released') return NextResponse.json({ error: '原请求已结束，请用新的请求编号创建采集' }, { status: 409 });

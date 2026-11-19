@@ -28,6 +28,8 @@ export interface ContentSummary {
     title: string;
     platform: string;
     createdAt: string;
+    updatedAt?: string;
+    status?: string;
   }[];
   qualityAvg: number | null;
   _meta?: {

@@ -39,7 +39,7 @@ beforeEach(() => {
     if (op === 'plans') return response({ actions: [] });
     if (op === 'sourceObservations') return response(sourcePage([observation({ response_id: 'b'.repeat(32), platform: 'qwen' })]));
     if (p.get('view') === 'detail') return response(p.get('runId') === runId ? analysisRun() : newer);
-    if (p.get('view') === 'capture') return response({ audit_id: '99', status: 'completed', expected_samples: 3, sealed: 3, failed: 0, source_pending: 0, analysis_pending: 0, refresh_pending: false, published_run_id: runId });
+    if (p.get('view') === 'capture' || p.get('view') === 'captureV4') return response({ audit_id: '99', status: 'completed', expected_samples: 3, sealed: 3, failed: 0, source_pending: 0, analysis_pending: 0, refresh_pending: false, published_run_id: runId });
     return response({ enabled: true, runs: [analysisRun(), newer] });
   }));
 });

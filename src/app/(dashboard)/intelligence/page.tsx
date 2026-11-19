@@ -1,4 +1,5 @@
 "use client";
+import { AuditInsightV4 } from '@/components/visibility/audit-insight-v4';
 import { ScenarioPreferences } from '@/components/visibility/scenario-preferences';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -6,7 +7,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { BrandScoreWorkspace } from '@/components/visibility/brand-score-workspace';
 import { ResultReadiness } from '@/components/visibility/result-readiness';
 import { EvaluationCohortReview } from '@/components/visibility/evaluation-cohort-review';
-import { CaptureProgress } from '@/components/visibility/capture-progress';
 import { ReadingDrawer } from '@/components/ui/reading-drawer';
 import { Loader2, RefreshCw } from "lucide-react";
 import { useProject } from "@/components/project/project-context";
@@ -47,6 +47,13 @@ export default function IntelligencePage() { return <Suspense fallback={<p>正�
 
 function IntelligenceRoot() {
   const { currentProjectId } = useProject();
+  const search = useSearchParams();
+  const view = search.get('view');
+  const scoped = search.get('project') === currentProjectId;
+  const runOnly = scoped && search.has('runId') && !search.has('auditId');
+  if (currentProjectId && (!view || view === 'overview') && !runOnly) {
+    return <AuditInsightV4 key={currentProjectId} projectId={currentProjectId} legacy={<IntelligenceContent currentProjectId={currentProjectId} />} />;
+  }
   return currentProjectId ? <IntelligenceContent key={currentProjectId} currentProjectId={currentProjectId} />
     : <div><PageHeader title="证据分析" subtitle="完整回答、来源文章与逐平台证据" /><p className="mt-6">请先选择项目。</p></div>;
 }
@@ -69,10 +76,8 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
   const tab = requestedView === "facts" || citationViews.some(view => view.id === requestedView) ? requestedView : "overview";
   const viewMeta = citationViews.find(view => view.id === tab) ||
     (tab === "facts" ? { eyebrow: "FACT REVIEW", title: "批准事实", heading: "核对已批准的品牌事实", subtitle: "对内容行动使用的事实作独立核对。" } : citationViews[0]);
-  const [auditId, setAuditId] = useState(initialAudit);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [observationLock, setObservationLock] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const [reviewRunId, setReviewRunId] = useState<string | null>(null);
@@ -84,26 +89,15 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
   const [contentError, setContentError] = useState("");
   const [contentLoading, setContentLoading] = useState(false);
   const [captureId, setCaptureId] = useState(search.get("runId") ? "" : initialAudit);
-  const [captureExpanded, setCaptureExpanded] = useState(!!initialAudit && !search.get("runId"));
   const [retrying, setRetrying] = useState<string | null>(null);
   const retryKeys = useRef(new Map<string, string>());
-  const alive = useRef(true), initializedScopes = useRef(new Set<string>()), publications = useRef(new Set<string>());
+  const alive = useRef(true), initializedScopes = useRef(new Set<string>());
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const selectRun = useCallback((id: string, audit?: string) => {
     if (!alive.current || observationLock) return;
     setDocument(null); setRunId(id); setReviewRunId(null); setAwaitingRevision(null);
     router.replace(intelligenceUrl(serializedSearch, currentProjectId, { runId: id, auditId: audit || null, view: tab }, true), { scroll: false });
   }, [router, serializedSearch, currentProjectId, tab, observationLock]);
-  const published = useCallback((id: string) => {
-    if (!alive.current || publications.current.has(id)) return;
-    publications.current.add(id);
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('project') !== currentProjectId || params.get('runId') !== id) {
-      setDocument(null); setRunId(id); setReviewRunId(null); setAwaitingRevision(null);
-      router.replace(intelligenceUrl(window.location.search, currentProjectId, { runId: id, auditId: captureId || null, view: params.get('project') === currentProjectId ? params.get('view') || 'overview' : 'overview' }, true), { scroll: false });
-    }
-    setRefresh(value => value + 1);
-  }, [currentProjectId, router, captureId]);
   const changeTab = (id: string) => {
     if (observationLock) return;
     const params = new URLSearchParams(search.get('project') === currentProjectId ? search.toString() : '');
@@ -172,18 +166,6 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
   const open = (kind: string, id: string, title: string, analysisRunId?: string) => {
     setContentError(""); setOffset(0); setNextOffset(null); setContent([]); setContentLoading(true); setDocument({ kind, id, title, analysisRunId });
   };
-  const start = async () => {
-    if (!currentProjectId || !/^[1-9][0-9]{0,17}$/.test(auditId)) { setError("请输入有效的审计编号"); return; }
-    const initiatingProject = currentProjectId;
-    setSubmitting(true); setError("");
-    try {
-      const created = await jsonFetch<EvidenceRun>("/api/integration/intelligence", undefined, { method: "POST",
-        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId: initiatingProject, auditId }) });
-      if (!alive.current) return;
-      selectRun(created.id, created.audit_id); setRefresh(value => value + 1);
-    } catch (e) { setError(e instanceof Error ? e.message : "启动失败"); }
-    finally { setSubmitting(false); }
-  };
   const retrySource = async (documentId: string) => {
     if (!run || retrying) return;
     const key = `${run.audit_id}:${documentId}`;
@@ -227,17 +209,6 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
       <span>{run ? "审计 #" + run.audit_id + " · 修订 " + run.revision + " · " + label(run.status) : "等待分析版本"}</span>
       <button aria-label="刷新分析" onClick={() => setRefresh(value => value + 1)}>{loading ? <Loader2 size={17} className="animate-spin" /> : <RefreshCw size={17} />} 刷新</button>
     </div>
-    {tab === "overview" && <details className="citation-capture-details" open={captureExpanded}
-      onToggle={event => setCaptureExpanded(event.currentTarget.open)}>
-      <summary>本次任务进度 <span>查看各平台进度、来源归档与分析状态</span></summary>
-      {(captureId || run?.audit_id) && <CaptureProgress key={retrying || "task"} projectId={currentProjectId}
-        auditId={captureId || run!.audit_id} onPublished={captureId ? published : undefined} />}
-      <div className="citation-analysis-trigger">
-        <input aria-label="审计编号" placeholder="审计编号" inputMode="numeric" value={auditId}
-          onChange={event => setAuditId(event.target.value)} />
-        <button disabled={!enabled || submitting} onClick={start}>{submitting ? "启动中…" : "启动分析"}</button>
-      </div>
-    </details>}
     {!enabled && !loading && !error && <p className="citation-notice citation-notice--warning">分析服务尚未启用，请先检查存储与运行环境。</p>}
     <CitationViewNav value={tab} onChange={changeTab} />
     {run && <AnalysisScopeBar run={run} scope={scope} onChange={change => setTaskScope(currentProjectId, change)} />}

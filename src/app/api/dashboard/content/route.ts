@@ -4,7 +4,9 @@ import { prisma } from '@/lib/db';
 import { getWorkspaceId } from '@/lib/auth/get-workspace';
 import { proxyRequest } from '@/lib/proxy/zhijian-client';
 import { getWorkspaceRole } from '@/lib/auth/workspace';
+import { PermissionDeniedError, requirePermission } from '@/lib/auth/content-permissions';
 import { issueContentProjectJWT } from '@/lib/auth/service-jwt';
+import type { ContentSummary } from '@/types/dashboard';
 import { buildContentSummary } from '@/lib/content/content-summary';
 import { requireBilling, BillingError } from '@/lib/billing/guard';
 
@@ -24,6 +26,7 @@ export async function GET(req: NextRequest) {
   }
 
   const projectId = req.nextUrl.searchParams.get('project');
+  const workbench = req.nextUrl.searchParams.get('view') === 'workbench';
   if (!projectId) {
     return NextResponse.json(emptyData);
   }
@@ -45,7 +48,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const role = await getWorkspaceRole(session.user.id, workspaceId);
+    const role = workbench ? await requirePermission(session.user.id, workspaceId, 'read')
+      : await getWorkspaceRole(session.user.id, workspaceId);
     if (!role) return NextResponse.json(emptyData);
     const serviceToken = await issueContentProjectJWT({
       userId: session.user.id,
@@ -55,6 +59,21 @@ export async function GET(req: NextRequest) {
       projectId,
       role,
     });
+    if (workbench) {
+      const response = await proxyRequest({
+        projectId,
+        service: 'content',
+        path: '/api/content/workbench?' + new URLSearchParams({ projectId }),
+        accessToken: serviceToken,
+      }) as { project_id?: string; items?: ContentSummary['recentContent'] } | null;
+      if (response?.project_id !== projectId || !Array.isArray(response.items)) {
+        return NextResponse.json({ error: '内容列表暂不可用' }, { status: 503 });
+      }
+      return NextResponse.json({ recentContent: response.items.slice(0, 2) }, {
+        headers: { 'Cache-Control': 'no-store' },
+      });
+    }
+
     const [contentItems, analytics] = await Promise.allSettled([
       proxyRequest({
         projectId,
@@ -90,7 +109,11 @@ export async function GET(req: NextRequest) {
       contentItems.status === 'fulfilled',
     );
     return NextResponse.json(summary);
-  } catch {
+  } catch (error) {
+    if (error instanceof PermissionDeniedError) {
+      return NextResponse.json({ error: '当前角色无权查看项目内容' }, { status: 403 });
+    }
+    if (workbench) return NextResponse.json({ error: '内容服务暂不可用' }, { status: 503 });
     return NextResponse.json(emptyData);
   }
 }
