@@ -115,7 +115,7 @@ function Invoke-AppiumRequest {
     $request = @{
         Method = $Method
         Uri = $appiumBaseUrl + $Path
-        TimeoutSec = $TimeoutSeconds
+        TimeoutSec = Get-CaptureOperationTimeout -Seconds $TimeoutSeconds -State $script:capturePopupState
     }
     if ($null -ne $Body) {
         $request.ContentType = "application/json; charset=utf-8"
@@ -167,38 +167,10 @@ function Copy-AdbFile {
         [int]$TimeoutSeconds = 15
     )
 
-    $startInfo = [Diagnostics.ProcessStartInfo]::new()
-    $startInfo.FileName = "adb"
-    $startInfo.Arguments = "-s $script:deviceSerial exec-out cat $DevicePath"
-    $startInfo.UseShellExecute = $false
-    $startInfo.CreateNoWindow = $true
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
-    $process = [Diagnostics.Process]::new()
-    $process.StartInfo = $startInfo
-    $stream = $null
-    try {
-        if (-not $process.Start()) {
-            throw "Could not start adb file transfer"
-        }
-        $errorTask = $process.StandardError.ReadToEndAsync()
-        $stream = [IO.File]::Create($LocalPath)
-        $process.StandardOutput.BaseStream.CopyTo($stream)
-        $stream.Dispose()
-        $stream = $null
-        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-            $process.Kill()
-            throw "ADB file transfer timed out"
-        }
-        if ($process.ExitCode -ne 0) {
-            throw "ADB file transfer failed: $($errorTask.Result.Trim())"
-        }
-    } finally {
-        if ($stream) {
-            $stream.Dispose()
-        }
-        $process.Dispose()
-    }
+    Invoke-CaptureNativeCommand -FilePath adb `
+        -Arguments "-s $script:deviceSerial pull $DevicePath `"$LocalPath`"" `
+        -Operation 'transfer Android capture data' -TimeoutSeconds $TimeoutSeconds `
+        -CaptureState $script:capturePopupState | Out-Null
 }
 
 function Find-Element {
@@ -222,7 +194,7 @@ function Find-Element {
                 return $elementId
             }
         } catch {
-            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+            if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
             if ((Get-Date) -ge $deadline -and -not $Optional) {
                 throw
             }
@@ -253,7 +225,7 @@ function Find-Elements {
                 Where-Object { $_ }
         )
     } catch {
-        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+        if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
         @()
     }
 }
@@ -392,14 +364,16 @@ function Get-RawPageSource {
                 }
                 $attemptCount = if ($compressed) { 2 } else { 3 }
                 for ($attempt = 0; $attempt -lt $attemptCount; $attempt++) {
-                    $savedPreference = $ErrorActionPreference
-                    $ErrorActionPreference = "Continue"
                     try {
-                        $dumpOutput = & adb -s $script:deviceSerial shell timeout 15 `
-                            uiautomator @dumpArgs 2>&1
-                        $dumpExitCode = $LASTEXITCODE
-                    } finally {
-                        $ErrorActionPreference = $savedPreference
+                        Invoke-CaptureNativeCommand -FilePath adb `
+                            -Arguments "-s $script:deviceSerial shell timeout 15 uiautomator $($dumpArgs -join ' ')" `
+                            -Operation 'read Android hierarchy' -TimeoutSeconds 18 `
+                            -CaptureState $script:capturePopupState | Out-Null
+                        $dumpExitCode = 0
+                    } catch {
+                        if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
+                        $dumpExitCode = if ($_.Exception.Message -match 'exited with code (-?\d+)$') { [int]$Matches[1] } else { 1 }
+                        $dumpOutput = $_.Exception.Message
                     }
                     if ($dumpExitCode -eq 0) {
                         if ($compressed) { Write-GatewayTrace "ui_dump compressed fallback succeeded" }
@@ -423,7 +397,7 @@ function Get-RawPageSource {
             return [IO.File]::ReadAllText($localPath, [Text.Encoding]::UTF8)
         } finally {
             Remove-Item -LiteralPath $localPath -Force -ErrorAction SilentlyContinue
-            & adb -s $script:deviceSerial shell rm -f $devicePath | Out-Null
+            $null = Invoke-CaptureDeviceCommand -Arguments @('-s', $script:deviceSerial, 'shell', 'rm', '-f', $devicePath)
         }
     }
     [string](Invoke-AppiumRequest `
@@ -509,7 +483,7 @@ function Get-ClipboardText {
                         $text = $nested
                     }
                 } catch {
-                    if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+                    if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
 }
             }
             return $text
@@ -537,7 +511,7 @@ function Get-ClipboardText {
             [Convert]::FromBase64String([string]$response.value)
         ).Trim()
     } catch {
-        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+        if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
         throw "Appium returned invalid clipboard content"
     }
 }
@@ -580,7 +554,7 @@ function Set-ClipboardText {
                     -Body $null `
                     -TimeoutSeconds 15 | Out-Null
             } catch {
-                if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+                if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
                 Write-GatewayTrace (
                     "clipboard Appium session cleanup skipped: " +
                     $_.Exception.Message
@@ -816,7 +790,7 @@ function ConvertTo-Xml {
     try {
         [xml]$Source
     } catch {
-        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+        if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
         $null
     }
 }
@@ -1149,7 +1123,7 @@ function ConvertTo-CanonicalUrl {
         $builder.Fragment = ""
         $builder.Uri.AbsoluteUri
     } catch {
-        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+        if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
         $Url
     }
 }
@@ -1163,7 +1137,7 @@ function Get-Host {
     try {
         ([Uri]$Url).Host.ToLowerInvariant()
     } catch {
-        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+        if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
         $null
     }
 }
@@ -1187,7 +1161,7 @@ function Get-ResolverUrl {
                     $hostName -eq $expected -or
                         $hostName.EndsWith(".$expected", [StringComparison]::Ordinal)
                 } catch {
-                    if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+                    if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
  $false }
             })
             if ($candidates.Count -eq 0) { return $null }
@@ -1210,7 +1184,7 @@ function Get-ResolverUrl {
                 )
             }
         } catch {
-            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+            if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
 }
         return $first
     }
@@ -2098,7 +2072,7 @@ function Wait-ForAnswer {
                     Get-YuanbaoAnswerSnapshot -SessionId $SessionId
                 }
             } catch {
-                if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+                if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
                 Write-GatewayTrace "$Platform snapshot unavailable: $($_.Exception.Message)"
                 $info = $null
             }
@@ -2267,7 +2241,7 @@ function Return-ToDeepSeekSourcePanel {
             try {
                 Click-Element -SessionId $SessionId -ElementId $close
             } catch {
-                if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+                if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
                 Press-Back -SessionId $SessionId
             }
         } else {
@@ -2411,7 +2385,7 @@ function Resolve-YuanbaoSourceUrl {
         try {
             $clipboardBefore = Get-ClipboardText -SessionId $SessionId
         } catch {
-            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+            if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
 }
         Write-GatewayTrace "source $($Record.index) open"
         & adb -s $script:deviceSerial shell input tap `
@@ -2486,7 +2460,7 @@ function Resolve-YuanbaoSourceUrl {
                 throw "Yuanbao Copy Link did not provide a fresh HTTP URL"
             }
         } catch {
-            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+            if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
             if (-not (Test-ShareReceiverEnabled -Serial $script:deviceSerial)) { throw }
             Write-GatewayTrace "source $($Record.index) copy failed; trying share receiver"
             $shareState = Get-PageSource -SessionId $SessionId
@@ -2506,7 +2480,7 @@ function Resolve-YuanbaoSourceUrl {
         $Record.url_resolution = "exact"
         Remember-CaptureSource -State $script:capturePopupState -Record $Record
     } catch {
-        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+        if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
         $Record.status = "failed"
         $Record.error_message = $_.Exception.Message
         Write-GatewayTrace "source $($Record.index) failed $($Record.error_message)"
@@ -2519,7 +2493,7 @@ function Resolve-YuanbaoSourceUrl {
                 }
                 Return-ToYuanbaoSourcePanel -SessionId $SessionId
             } catch {
-                if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+                if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
                 if ($Record.status -ne "failed") {
                     $Record.status = "failed"
                     $Record.error_message = $_.Exception.Message
@@ -2548,7 +2522,7 @@ function Get-DeepSeekSources {
         }
         if (-not $answerDocument) { throw "DeepSeek answer hierarchy was invalid XML" }
     } catch {
-        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+        if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
         Write-GatewayTrace "deepseek source panel unavailable: $($_.Exception.Message)"
         return Complete-DeepSeekSourceRecords `
             -Collected $collected `
@@ -2592,7 +2566,7 @@ function Get-DeepSeekSources {
             $document = ConvertTo-Xml -Source $panelSource
             if (-not $document) { throw "DeepSeek source panel hierarchy was invalid XML" }
         } catch {
-            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+            if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
             $panelError = $_.Exception.Message
             Write-GatewayTrace "deepseek source panel read failed: $panelError"
             break
@@ -2778,7 +2752,7 @@ function Get-DeepSeekSources {
                 Start-Sleep -Milliseconds 500
                 Return-ToDeepSeekSourcePanel -SessionId $SessionId
             } catch {
-                if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+                if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
                 $record.status = "failed"
                 $record.error_message = $_.Exception.Message
                 Write-GatewayTrace `
@@ -2788,7 +2762,7 @@ function Get-DeepSeekSources {
                     Start-Sleep -Milliseconds 500
                     Return-ToDeepSeekSourcePanel -SessionId $SessionId
                 } catch {
-                    if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+                    if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
 }
             }
             $collected[[string]$ordinal] = $record
@@ -3241,7 +3215,7 @@ function Get-PanelSources {
                     }
                 }
             } catch {
-                if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+                if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
                 $record.status = "failed"
                 $record.error_message = $_.Exception.Message
             }
@@ -3514,7 +3488,7 @@ function Get-KimiPageSource {
         try {
             return Get-PageSource -SessionId $SessionId
         } catch {
-            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+            if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
             if ($attempt -ge 2) {
                 throw
             }
@@ -3614,7 +3588,7 @@ function Return-ToKimiSearchPanel {
         try {
             $source = Get-KimiPageSource -SessionId $SessionId
         } catch {
-            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+            if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
             Press-Back -SessionId $SessionId
             Start-Sleep -Milliseconds 700
             continue
@@ -3764,7 +3738,7 @@ function Resolve-KimiSourceUrl {
                         throw "Kimi Copy Link did not provide an HTTP URL"
                     }
                 } catch {
-                    if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+                    if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
                     if (-not (Test-ShareReceiverEnabled -Serial $script:deviceSerial)) { throw }
                     Write-GatewayTrace "kimi source $($Record.index) copy failed; trying share receiver"
                     $shareState = Get-KimiPageSource -SessionId $SessionId
@@ -3796,7 +3770,7 @@ function Resolve-KimiSourceUrl {
         $Record.error_message = $null
         Write-GatewayTrace "kimi source $($Record.index) resolved $canonicalUrl"
     } catch {
-        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+        if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
         $Record.status = "failed"
         $Record.error_message = $_.Exception.Message
         Write-GatewayTrace "kimi source $($Record.index) failed $($Record.error_message)"
@@ -3974,7 +3948,7 @@ function Resolve-KimiInlineSearchFallback {
             }
         }
     } catch {
-        if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+        if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
         Write-GatewayTrace "kimi search fallback failed $($_.Exception.Message)"
     } finally {
         if (-not $script:capturePopupState.CapturePopupBlocked) {
@@ -4044,7 +4018,7 @@ function Get-KimiInlineSources {
                 }
             }
         } catch {
-            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+            if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
             $record.status = "failed"
             $record.error_message = $_.Exception.Message
             Write-GatewayTrace "kimi inline source $($record.index) failed $($record.error_message)"
@@ -4164,9 +4138,12 @@ try {
     $answerCompletedAt = Get-Date
     $script:capturePopupState.CapturedAnswer = $answerInfo.answer
     $script:capturePopupState.ReferenceCount = [int]$answerInfo.reference_count
+    # Kimi returned its completed UI and Yuanbao returned the same
+    # response-specific clipboard snapshot twice.
+    $script:capturePopupState.CapturedAnswerStatus = if ($Platform -in @('kimi','yuanbao')) { 'complete' } else { 'partial' }
 
     $sourceCollectionStartedAt = Get-Date
-    $sourceCollection = Invoke-SourceCollectionRetry -Collect {
+    $window = Invoke-CaptureReferenceWindow -State $script:capturePopupState -StartedAt $startedAt -Collect {
     param([object[]]$KnownSources)
     $panelCollection = $null
     $collectedSources = switch ($Platform) {
@@ -4196,6 +4173,11 @@ try {
     }
     @{ reference_count = $count; sources = @($collectedSources) }
     }
+    if ($window.retained) {
+        Write-GatewayTrace 'reference window interrupted; returning retained answer'
+        return ($window.retained | ConvertTo-Json -Depth 30 -Compress)
+    }
+    $sourceCollection = $window.data
     $sources = @($sourceCollection.sources)
     $answerInfo.reference_count = [int]$sourceCollection.reference_count
     $sourceCollectionCompletedAt = Get-Date
@@ -4204,11 +4186,8 @@ try {
         $answerInfo.reference_count -gt 0 -and
         @($sources).Count -ne [int]$answerInfo.reference_count
     ) {
-        throw (
-            "$Platform source collection incomplete: expected {0}, collected {1}" -f
-                $answerInfo.reference_count,
-                @($sources).Count
-        )
+        Write-Warning ("$Platform reference collection incomplete: expected {0}, collected {1}" -f
+            $answerInfo.reference_count, @($sources).Count)
     }
 
     $answerUrls = @(Get-UrlsFromText -Text $answerInfo.answer)
@@ -4225,12 +4204,20 @@ try {
     if ($Platform -in @("deepseek", "yuanbao", "qwen", "kimi")) {
         $deviceScreenshot = "/sdcard/$safeTaskId-screenshot.png"
         try {
-            & adb -s $script:deviceSerial shell screencap -p $deviceScreenshot | Out-Null
-            Copy-AdbFile `
-                -DevicePath $deviceScreenshot `
-                -LocalPath $screenshotPath
+            if (-not (Invoke-CaptureDeviceCommand -Arguments @('-s', $script:deviceSerial, 'shell', 'screencap', '-p', $deviceScreenshot))) {
+                Write-Warning 'Could not take Android capture screenshot.'
+                $screenshotPath = $null
+            } else {
+                try {
+                    Copy-AdbFile -DevicePath $deviceScreenshot -LocalPath $screenshotPath
+                } catch {
+                    if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
+                    Write-Warning 'Could not transfer Android capture screenshot.'
+                    $screenshotPath = $null
+                }
+            }
         } finally {
-            & adb -s $script:deviceSerial shell rm -f $deviceScreenshot | Out-Null
+            $null = Invoke-CaptureDeviceCommand -Arguments @('-s', $script:deviceSerial, 'shell', 'rm', '-f', $deviceScreenshot)
         }
     } else {
         $screenshotResponse = Invoke-AppiumRequest `
@@ -4275,6 +4262,8 @@ try {
         device_serial = $serial
         prompt = $prompt
         answer = $answerInfo.answer
+        answer_status = $script:capturePopupState.CapturedAnswerStatus
+        source_panel_status = if ($captureStatus -eq "complete") { "complete" } elseif ($sourceRecords.Count) { "partial" } else { "unknown" }
         answer_urls = $answerUrls
         reference_count = [int]$answerInfo.reference_count
         source_count = $sourceRecords.Count
@@ -4313,7 +4302,7 @@ try {
                 -Path "/session/$sessionId" `
                 -Body $null | Out-Null
         } catch {
-            if ($_.Exception.Message -match '\bCAPTURE_POPUP_[A-Z_]+') { throw }
+            if ($_.Exception.Message -match '\b(?:CAPTURE_POPUP_[A-Z_]+|CAPTURE_SOURCE_DEADLINE)\b') { throw }
 }
     }
     $mutex.ReleaseMutex()

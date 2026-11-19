@@ -35,11 +35,18 @@ try {
     $script:deviceSerial = "test-device"
     $Platform = "deepseek"
     $script:dumpCommands = @()
+    $script:allDumpsFail = $false
     function Write-GatewayTrace { param([string]$Message) }
-    function adb {
-        $script:dumpCommands += @($args -join " ")
-        $global:LASTEXITCODE = if ($args -contains "dump" -and $args -notcontains "--compressed") { 1 } else { 0 }
-        if ($LASTEXITCODE -ne 0) { "NullPointerException in AccessibilityNodeInfoDumper" }
+    function Start-Sleep { param($Seconds, $Milliseconds) }
+    function Invoke-CaptureDeviceCommand { param($Arguments) return $true }
+    function Invoke-CaptureNativeCommand {
+        param($FilePath, $Arguments, $Operation, $TimeoutSeconds, $CaptureState)
+        if ($TimeoutSeconds -gt 18) { throw 'Unbounded hierarchy command' }
+        $script:dumpCommands += $Arguments
+        if ($script:allDumpsFail) { throw "CAPTURE_NATIVE_FAILED: $Operation exited with code 137" }
+        if ($Arguments -notmatch '\b--compressed\b' -and $Arguments -notmatch '\s--compressed\s') {
+            throw "CAPTURE_NATIVE_FAILED: $Operation exited with code 1"
+        }
     }
     function Copy-AdbFile {
         param([string]$DevicePath, [string]$LocalPath)
@@ -57,10 +64,7 @@ try {
         Assert-Equal (Get-PageSource -SessionId "adb") '<hierarchy rotation="0" />' "$otherPlatform compressed fallback"
         Assert-Equal @($script:dumpCommands | Where-Object { $_ -match '--compressed' }).Count 1 "$otherPlatform fallback"
     }
-    function adb {
-        $global:LASTEXITCODE = 137
-        "NullPointerException in AccessibilityNodeInfoDumper"
-    }
+    $script:allDumpsFail = $true
     try {
         Get-PageSource -SessionId "adb" | Out-Null
         throw "Expected both hierarchy modes to fail"
@@ -69,6 +73,7 @@ try {
             throw
         }
     }
+    $script:allDumpsFail = $false
     function adb {
         $script:dumpCommands += @($args -join " ")
         $global:LASTEXITCODE = if ($args -contains "dump" -and $args -notcontains "--compressed") { 1 } else { 0 }

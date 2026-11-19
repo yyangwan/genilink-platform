@@ -96,6 +96,9 @@ function Invoke-CaptureSourceGuard {
         [string]$ExpectedPackage, [string]$DeviceSerial,
         [string]$TaskKey, [string]$TaskPrompt, [string]$ResultRoot,
         [hashtable]$State = @{})
+    if ($State.SourceDeadlineUtc -and -not $State.ContainsKey('CapturePopupBlocked')) {
+        $null = Get-CaptureOperationTimeout -Seconds 1 -State $State
+    }
     $source = if ($State.ContainsKey('CapturePopupBlocked')) { '' } else { & $ReadSource }
     Resolve-CaptureInterruptions -Source $source -ExpectedPackage $ExpectedPackage -State $State `
         -Refresh $ReadSource -Tap {

@@ -247,6 +247,7 @@ function Resolve-CaptureInterruptions {
             if ($fresh.Count -ne 1 -or $fresh[0] -isnot [string] -or [string]::IsNullOrWhiteSpace($fresh[0])) { throw 'Refresh failed' }
             $current = $fresh[0]
         } catch {
+            if ($_.Exception.Message -match '\bCAPTURE_SOURCE_DEADLINE\b') { throw }
             Stop-CaptureInterruption $current 'refresh_failed' 'CAPTURE_POPUP_MANUAL_REQUIRED' $OnBlocked $State
         }
         $afterPopup = Get-CaptureInterruption -Source $current -ExpectedPackage $ExpectedPackage -AllowSourceDownload:$allowDownload
