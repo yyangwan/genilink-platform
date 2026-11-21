@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.0.0] - 2026-11-21
+
+### Added
+- Compare brands using the audit scoring rule on jointly scorable samples, review brand identities, and open a representative question directly from a score gap.
+- Compare the same question across platforms, review recommendation reasons and exact citation excerpts, and open actions for the selected question.
+
+### Fixed
+- Keep the brand list grounded in answer-body observations and show planned platforms with missing or partial responses.
+
 ## [0.6.2.0] - 2026-11-02
 
 ### Fixed

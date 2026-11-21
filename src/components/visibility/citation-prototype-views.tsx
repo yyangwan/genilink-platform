@@ -7,7 +7,7 @@ import { getAiPlatformLabel } from "@/lib/ai-platforms";
 import { EvidenceComparisons } from "./evidence-comparisons";
 import type { EvidenceRun } from "@/types/intelligence";
 import { OwnedMaterials } from './owned-materials';
-import { scopeResponseIds } from '@/lib/visibility/analysis-scope';
+import { answerBrands, scopeResponseIds } from '@/lib/visibility/analysis-scope';
 import type { TaskScope } from '@/lib/visibility/task-view';
 import { ObservedSourceLibrary, type SourceLibraryProps } from './source-observation-workspace';
 
@@ -44,7 +44,7 @@ export function CitationOverview({ run, onView }: { run: EvidenceRun; onView: (v
   const platforms = run.summary.platforms || [];
   const analyzedResponses = platforms.reduce((sum, item) => sum + item.analyzed_responses, 0);
   const own = (run.summary.entities || []).filter(item => item.role === "own");
-  const newlyFound = (run.summary.entities || []).filter(item => item.role === "unregistered");
+  const newlyFound = answerBrands(run).filter(item => item.role === "unregistered");
   const gaps = [
     { title: "核对文本分析失败", detail: "已分析字符 " + analyzed + " / " + total + "；在恢复分析前不能判断品牌缺席。", view: "evidence" as CitationViewId },
     { title: "补齐可取得的来源正文", detail: String(coverage.captured_sources || 0) + " / " + String(coverage.sources || 0) + " 条来源已存正文；未取得的部分保持未知。", view: "sources" as CitationViewId },
@@ -61,7 +61,7 @@ export function CitationOverview({ run, onView }: { run: EvidenceRun; onView: (v
         detail={analyzedResponses && own.length === 1 ? "仅限已分析的有效回答" : "分析或品牌身份未就绪"} tone="citation-teal" />
       <Stat title="已保存来源正文" value={String(coverage.captured_sources || 0) + " / " + String(coverage.sources || 0)}
         detail="正文保存不等于全文完整" tone="citation-purple" />
-      <Stat title="新发现实体" value={analyzed ? newlyFound.length : "待分析"}
+      <Stat title="新发现品牌" value={analyzed ? newlyFound.length : "待分析"}
         detail={analyzed ? "未登记主体仍须确认身份" : "不能据此断言没有其他品牌"} />
     </div>
     <div className="citation-notice">{analyzed
@@ -184,27 +184,27 @@ export function EntityComparison({ run, onReview }: { run: EvidenceRun; onReview
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<"all" | "focus">("all");
   const [role, setRole] = useState("");
-  const entities = run.summary.entities || [];
+  const entities = answerBrands(run);
   const candidates = entities.filter(item => item.role === "unregistered" || item.identity_status !== "confirmed");
-  const sourceOnly = entities.filter(item => item.response_count === 0 && item.source_mentions > 0);
+  const platforms = new Set(entities.flatMap(item => Object.keys(item.platform_response_counts)));
   const responseCount = run.summary.platforms?.reduce((sum, item) => sum + item.analyzed_responses, 0) || 0;
   const filtered = entities.filter(item => (scope === "all" || ["own", "competitor"].includes(item.role)) &&
     (!role || item.role === role) && item.name.toLowerCase().includes(query.trim().toLowerCase()));
   const primaryCandidate = candidates.find(item => item.response_count > 0) || candidates[0];
   return <div className="citation-stack">
     <div className="citation-stat-grid">
-      <Stat title="回答内品牌 / 相关实体" value={entities.filter(item => item.response_count > 0).length} detail="已分析回答中的观察主体" />
+      <Stat title="回答正文中的品牌" value={entities.length} detail="已分析回答中明确提到的品牌" />
       <Stat title="候选待确认" value={candidates.length} detail="不自动归入竞品名单" tone="citation-purple" />
-      <Stat title="仅来源文章中发现" value={sourceOnly.length} detail="不加入回答提及分母" />
+      <Stat title="观察到品牌的平台" value={platforms.size} detail="至少一份回答正文提到品牌" />
       <Stat title="无品牌回答" value="待核对" detail="须按有效回答及实体归属核验" />
     </div>
     <section className="citation-panel citation-pad">
       <div className="citation-tabs" role="tablist" aria-label="实体范围">
-        <button type="button" role="tab" aria-selected={scope === "all"} onClick={() => setScope("all")}>全部发现实体 · {entities.length}</button>
+        <button type="button" role="tab" aria-selected={scope === "all"} onClick={() => setScope("all")}>全部发现品牌 · {entities.length}</button>
         <button type="button" role="tab" aria-selected={scope === "focus"} onClick={() => setScope("focus")}>重点品牌 · {entities.filter(item => ["own", "competitor"].includes(item.role)).length}</button>
       </div>
       <div className="citation-filter-row">
-        <input aria-label="搜索品牌或实体" value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索品牌、产品或机构" />
+        <input aria-label="搜索品牌" value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索回答中的品牌" />
         <select aria-label="筛选实体身份" value={role} onChange={event => setRole(event.target.value)}>
           <option value="">全部身份</option><option value="own">自有品牌</option><option value="competitor">已登记竞品</option>
           <option value="unregistered">未登记主体</option><option value="comparison">仅用于比较</option>
@@ -212,7 +212,7 @@ export function EntityComparison({ run, onReview }: { run: EvidenceRun; onReview
         <span className="citation-muted">比较队列：{responseCount ? responseCount + " 份已分析回答" : "有效回答待确认"}</span>
       </div>
       <div className="overflow-x-auto"><table className="citation-table"><thead><tr>
-        <th>品牌 / 实体</th><th>项目身份</th><th>回答内出现</th><th>来源提及</th><th>各平台回答提及</th>
+        <th>品牌</th><th>项目身份</th><th>回答内出现</th><th>来源提及</th><th>各平台回答提及</th>
       </tr></thead><tbody>{filtered.map(entity => <tr key={entity.id}>
         <td><strong>{entity.name}</strong><small>{entity.identity_status === "confirmed" ? "已确认" : entity.role_conflict ? "角色冲突" : "待确认"}</small></td>
         <td><span className="citation-tag">{entity.role === "own" ? "自有品牌" : entity.role === "competitor" ? "已登记竞品" : entity.role === "comparison" ? "仅用于比较" : "候选主体"}</span></td>

@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from 'react';
 import type { EvidenceRun } from '@/types/intelligence';
+import { answerBrands } from '@/lib/visibility/analysis-scope';
 
 type Binding = { version: number; decision: string; target_entity_id: string | null; target_name: string | null; reason: string };
 export function EntityAliases({ run, projectId, onSaved }: { run: EvidenceRun; projectId: string; onSaved: () => void }) {
   const [bindings, setBindings] = useState<Record<string, Binding>>({}), [source, setSource] = useState(''), [target, setTarget] = useState(''), [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [refresh, setRefresh] = useState(0);
   const pending = useRef<{ signature: string; key: string } | null>(null);
-  const entities = run.summary.entities || [];
+  const entities = answerBrands(run);
   const sources = entities.flatMap(entity => entity.observed_entities || [{ id: entity.id, name: entity.name }]);
   const targets = Object.entries(run.identity_reviews || {}).filter(([id, item]) => item.decision === 'confirmed' && bindings[id]?.decision !== 'merge');
   useEffect(() => { const controller = new AbortController();

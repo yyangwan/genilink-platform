@@ -8,8 +8,8 @@ afterEach(cleanup);
 const aggregate = (score: number | null) => ({ rule_version: 'brand-visibility-v1', cohort_hash: 'hash', score, covered_weight: score === null ? 0 : 1, missing_sample_ids: [], status: score === null ? 'pending' : 'complete' });
 function fixture(): EvidenceRun {
   return { id: 'run', responses: [], sources: [], coverage: {}, summary: {
-    entities: [{ id: 'own', name: '自有品牌甲', kind: 'brand', role: 'own', identity_status: 'confirmed' },
-      { id: 'other', name: '对比品牌乙', kind: 'brand', role: 'unregistered', identity_status: 'confirmed' }],
+    entities: [{ id: 'own', name: '自有品牌甲', kind: 'brand', role: 'own', identity_status: 'confirmed', response_count: 1 },
+      { id: 'other', name: '对比品牌乙', kind: 'brand', role: 'unregistered', identity_status: 'confirmed', response_count: 1 }],
     brand_evaluation: { version: 'brand-visibility-v1', status: 'partial', score: null,
       brand_scores: [{ entity_id: 'own', ...aggregate(null) }], answer_scores: [],
       comparison: { gaps: [], scope_scores: ['platform', 'overall'].flatMap(axis => ['own', 'other'].map(entity_id => ({ entity_id, axis, scope: axis === 'overall' ? 'all' : 'qwen', total: aggregate(null),

@@ -3,9 +3,13 @@ import { SCENARIOS } from './scenarios';
 import type { TaskScope } from './task-view';
 import type { TaskOpportunity } from './task-contract';
 
+export function answerBrands(run: Pick<EvidenceRun, 'summary'>) {
+  return run.summary.answer_brands ?? (run.summary.entities || []).filter(row => row.kind === 'brand' && row.response_count > 0);
+}
+
 export function analysisTargets(run: Pick<EvidenceRun, 'summary'> | AnalysisScopeRun) {
   if ('targets' in run) return run.targets;
-  return run.summary.brand_presence?.targets || (run.summary.entities || []).map(row => ({
+  return run.summary.brand_presence?.targets || answerBrands(run).map(row => ({
     target_id: `entity:${row.id}`, entity_id: row.id, registry_brand_id: null,
     name: row.name, role: row.role, identity_status: row.identity_status,
   }));
@@ -39,7 +43,7 @@ export function intelligenceUrl(search: string, project: string, change: Record<
   const params = new URLSearchParams(search);
   if (params.get('project') !== project) { for (const key of [...params.keys()]) params.delete(key); }
   params.set('project', project);
-  if (switchRun) ['opportunity', 'actionId', 'evidenceId', 'taskEvidence'].forEach(key => params.delete(key));
+  if (switchRun) ['opportunity', 'actionId', 'evidenceId', 'taskEvidence', 'question', 'fromBrandPlatform'].forEach(key => params.delete(key));
   for (const [key, value] of Object.entries(change)) { if (value === null || value === '') params.delete(key); else params.set(key, value); }
   return '/intelligence?' + params;
 }

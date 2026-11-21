@@ -150,6 +150,22 @@ export async function GET(req: NextRequest) {
       if (!kind || !['answer', 'citation', 'snapshot'].includes(kind) || !ownerId ||
           !/^(?:[a-f0-9]{32}|[0-9]{1,18})$/.test(ownerId) || !/^[0-9]{1,8}$/.test(offset)) return badRequest();
       path += `/content?${new URLSearchParams({ owner_kind: kind, owner_id: ownerId, offset })}`;
+    } else if (view === 'comparison') {
+      const mode = params.get('mode'), question = params.get('question'), platform = params.get('platform'), scenario = params.get('scenario');
+      if (mode !== 'brands' && mode !== 'platforms') return badRequest();
+      if (question && !/^(?:[a-f0-9]{32}|[a-f0-9]{64})$/.test(question)) return badRequest();
+      if (platform && !CAPTURE_PLATFORMS.some(value => value === platform)) return badRequest();
+      if (scenario && !/^(awareness|selection|features|cost|implementation|proof|risk|service|unreviewed)$/.test(scenario)) return badRequest();
+      const query = new URLSearchParams({ mode });
+      for (const [local, remote] of [['ownTarget', 'own_target_id'], ['compareTarget', 'comparison_target_id']]) {
+        const value = params.get(local);
+        if (value && !/^(?:registry|entity):[A-Za-z0-9_-]{1,200}$/.test(value)) return badRequest();
+        if (value) query.set(remote, value);
+      }
+      if (question) query.set('question_id', question);
+      if (platform) query.set('platform', platform);
+      if (scenario) query.set('scenario', scenario);
+      path += '/comparison?' + query;
     } else if (view === 'actions') path += '/actions';
     else if (view === 'evaluationCohort') path += '/evaluation-cohort';
     else if (view === 'scenarios') path += '/scenarios';
