@@ -5,7 +5,7 @@ import { useState, type ReactNode } from 'react';
 import { getAiPlatformLabel } from '@/lib/ai-platforms';
 import { AiPlatformLabel } from '@/components/ui/ai-platform-label';
 import type { BrandScoreDimension, EvidenceRun } from '@/types/intelligence';
-import { analysisTargets } from '@/lib/visibility/analysis-scope';
+import { analysisTargets, answerBrands } from '@/lib/visibility/analysis-scope';
 import type { TaskScope } from '@/lib/visibility/task-view';
 import './brand-score-workspace.css';
 
@@ -27,7 +27,7 @@ export function BrandScoreWorkspace({ run, mode = 'brands', onEvidence, onPlatfo
     comparison: { version: 'competitive-comparison-v1', minimum_gap_points: 10, candidate_gap_count: 0,
       interpretation: 'single_audit_observation', ordering_basis: 'observed_gap_not_business_priority', threshold_note: '', scope_scores: [], gaps: [] },
   } satisfies NonNullable<EvidenceRun['summary']['brand_evaluation']>;
-  const brands = presence ? presence.targets.map(target => ({ id: target.target_id, name: target.name, role: target.role, identity_status: target.identity_status })) : (run.summary.entities || []).filter(entity => ['brand', 'organization', 'product'].includes(entity.kind));
+  const brands = presence ? presence.targets.map(target => ({ id: target.target_id, name: target.name, role: target.role, identity_status: target.identity_status })) : answerBrands(run);
   const brandId = (id: string) => presence ? id : analysisTargets(run).find(row => row.target_id === id)?.entity_id || id;
   const own = brands.find(entity => entity.role === 'own' && entity.identity_status === 'confirmed' && (!scope || entity.id === brandId(scope.own)));
   const candidates = brands.filter(entity => entity.id !== own?.id && entity.identity_status === 'confirmed');

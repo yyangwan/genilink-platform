@@ -105,6 +105,7 @@ export interface EvidenceRun extends EvidenceRunListItem {
     prompt_platforms?: Array<{ prompt_hash: string; prompt: string; platform: string; sample_count: number; comparable: boolean }>;
     entities?: Array<{ id: string; name: string; kind: string; role: string; identity_status: string; observed_entities?: Array<{ id: string; name: string }>; observed_names?: string[]; role_conflict?: boolean;
       response_count: number; source_mentions: number; platform_response_counts: Record<string, number> }>;
+    answer_brands?: EvidenceRun['summary']['entities'];
     platforms?: Array<{ platform: string; responses: number; analyzed_responses: number; source_observations: number; snapshot_count: number }>;
     mentions?: Array<{ id: string; entity_id?: string; identity_ambiguity?: boolean; binding_key?: string; observed_entity_name?: string; attribution?: { decision: string; version: number; target_entity_id: string | null; reason: string } | null; entity_name: string; owner_kind: string; owner_id: string; quote: string; sentiment: string }>;
     claims?: Array<{ segment_id: string; owner_kind: string; owner_id: string; quote: string; subject: string; topic: string; evidence_relation: string }>;

@@ -15,9 +15,39 @@ import { analysisRun, analysisOpportunities } from '../fixtures/analysis-scope';
 import { project, runId } from '../fixtures/task-workspace';
 import { readTaskScope } from '@/lib/visibility/task-view';
 import { sourcePage, observation } from '../fixtures/source-observations';
+import type { ComparisonReport } from '@/lib/visibility/comparison-workspace';
+import type { VisibilityScore } from '@/lib/visibility/v4-audit';
 
 let newer: ReturnType<typeof analysisRun>, requests: Array<{ url: string; method?: string }>;
 const response = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status });
+const firstQuestion = '4'.repeat(32), secondQuestion = '6'.repeat(32);
+function comparisonFixture(params: URLSearchParams): ComparisonReport {
+  const run = analysisRun();
+  const targets = run.summary.brand_presence!.targets.map(row => ({ ...row, identity_method: 'confirmed' }));
+  const questions = [run.responses[0], run.responses[2]].map((row, index) => ({
+    id: index ? secondQuestion : firstQuestion, prompt: row.prompt, prompt_hash: row.prompt_hash,
+    scenario: index ? 'cost' : 'implementation', scope: 'eligible', platforms: ['qwen', 'doubao'],
+  }));
+  const score = (value: number): VisibilityScore => ({ value, no_score_reason: null });
+  const base = { run_id: run.id, audit_id: run.audit_id, revision: run.revision, targets, questions };
+  if (params.get('mode') === 'brands') return { ...base, brands: {
+    rule_version: 'v4', own_target_id: 'registry:own', comparison_target_id: 'entity:rival', observations_available: true,
+    own: score(63), pair: { count: 1, own: score(60), other: score(78) }, coverage: { planned: 2, received: 1 },
+    matrices: { platform: [], scenario: [] },
+    gaps: [{ question_id: firstQuestion, platform: 'qwen', gap: 18, own_response_id: 'b'.repeat(32) }],
+    brands: targets.map(row => ({ ...row, answer_count: 1, recommended_count: 1, platforms: ['qwen'], score: score(60) })),
+  } };
+  const second = params.get('question') === secondQuestion;
+  return { ...base, detail: {
+    question: questions[second ? 1 : 0],
+    samples: [{ sample_id: 'first', platform: 'qwen', response_id: (second ? '6' : 'b').repeat(32),
+      status: 'received', search_mode: 'enabled', analysis_ready: true, findings: [], sources: second ? [] : [{
+        id: 'source', title: '首题实施手册', url: 'https://example.com/manual', domain: 'example.com', content_type: 'documentation',
+        family_id: null, snapshot_id: null, fetch_status: 'pending', snippet: null, ordinal: 1,
+        frozen: false, anchor: false, evidence: [],
+      }] }, { sample_id: 'missing', platform: 'doubao', response_id: null, status: 'failed', search_mode: null, findings: [], sources: [] }],
+  } };
+}
 beforeEach(() => {
   vi.clearAllMocks(); requests = []; newer = { ...analysisRun(), id: 'f'.repeat(32), revision: 4 };
   window.history.replaceState({ __NA: true, __PRIVATE_NEXTJS_INTERNALS_TREE: [] }, '', `/intelligence?project=${project}&runId=${runId}&ownTarget=registry%3Aown&compareTarget=entity%3Arival&platform=qwen&scenario=implementation&view=overview&priority=current&actionId=old-action`);
@@ -39,6 +69,7 @@ beforeEach(() => {
     if (op === 'plans') return response({ actions: [] });
     if (op === 'sourceObservations') return response(sourcePage([observation({ response_id: 'b'.repeat(32), platform: 'qwen' })]));
     if (p.get('view') === 'detail') return response(p.get('runId') === runId ? analysisRun() : newer);
+    if (p.get('view') === 'comparison') return response(comparisonFixture(p));
     if (p.get('view') === 'capture' || p.get('view') === 'captureV4') return response({ audit_id: '99', status: 'completed', expected_samples: 3, sealed: 3, failed: 0, source_pending: 0, analysis_pending: 0, refresh_pending: false, published_run_id: runId });
     return response({ enabled: true, runs: [analysisRun(), newer] });
   }));
@@ -60,20 +91,40 @@ it('enters exactly the overview opportunity evidence and task without losing sco
   expect(requests.every(row => !row.method)).toBe(true);
 });
 
-it('preserves all four scope choices across platform/source tabs and uses the same platform for scores', async () => {
+it('preserves scope across platform/source tabs and highlights a platform without hiding its peers', async () => {
   render(<IntelligencePage />); await screen.findByRole('region', { name: '本次优化机会' });
   await waitFor(() => expect(document.querySelector('.brand-score-conclusion > strong')).toHaveTextContent('60'));
   fireEvent.click(screen.getByRole('button', { name: /平台差异对照/ }));
-  await screen.findByText('同一提示词');
-  expect(screen.getByLabelText('目标平台')).toHaveValue('qwen');
-  expect(document.querySelectorAll('.citation-platform-card')).toHaveLength(1);
-  fireEvent.change(screen.getByLabelText('目标平台'), { target: { value: 'doubao' } });
-  await waitFor(() => expect(document.querySelector('.citation-platform-card')?.textContent).toContain('豆包'));
+  await screen.findByText('问题与样本');
+  expect(screen.getByLabelText('重点平台')).toHaveValue('qwen');
+  expect(document.querySelectorAll('.comparison-card')).toHaveLength(2);
+  fireEvent.change(screen.getByLabelText('重点平台'), { target: { value: 'doubao' } });
+  await waitFor(() => expect(document.querySelector('.comparison-focused')?.textContent).toContain('豆包'));
   fireEvent.click(screen.getByRole('button', { name: /来源文章库/ }));
   await screen.findByText(/本页保留所选平台与场景的全部来源/);
   expect(screen.queryByLabelText('筛选来源平台')).toBeNull();
   expect(readTaskScope(project)).toMatchObject({ own: 'registry:own', comparison: 'entity:rival', platform: 'doubao', scenario: 'implementation' });
   expect(screen.getByLabelText('需求场景')).toHaveValue('implementation');
+});
+
+it('drills into the exact question and clears prior citations and actions when switching questions', async () => {
+  render(<IntelligencePage />);
+  await screen.findByRole('region', { name: '本次优化机会' });
+  fireEvent.click(screen.getByRole('button', { name: /品牌发现对比/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /查看同题推荐依据/ }));
+  await screen.findByText('首题实施手册');
+  expect(screen.getByLabelText('对照提示词')).toHaveValue(firstQuestion);
+  expect(screen.getByLabelText('对比品牌')).toHaveValue('entity:rival');
+  expect(await screen.findByRole('button', { name: '查看具体任务 →' })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: /核对引用/ }));
+  const drawer = await screen.findByRole('dialog', { name: '首题实施手册' });
+  expect(drawer).toHaveTextContent('冻结正文尚不可核对');
+  fireEvent.click(within(drawer).getByRole('button', { name: '关闭引用依据' }));
+  fireEvent.change(screen.getByLabelText('对照提示词'), { target: { value: secondQuestion } });
+  await screen.findByText('该题暂无可核对的实际引用。');
+  expect(screen.queryByText('首题实施手册')).toBeNull();
+  expect(screen.queryByRole('button', { name: '查看具体任务 →' })).toBeNull();
+  expect(new URLSearchParams(window.location.search).get('question')).toBe(secondQuestion);
 });
 
 it('updates all four dropdowns and the displayed score through the Next history bridge without refetching the run', async () => {

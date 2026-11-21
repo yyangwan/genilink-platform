@@ -44,6 +44,15 @@ describe('project-scoped intelligence proxy', () => {
     expect(reserveContentGeneration).not.toHaveBeenCalled();
 
   });
+  it('proxies the exact comparison revision and validates typed selectors', async () => {
+    const runId = 'a'.repeat(32), question = 'b'.repeat(32);
+    const url = `http://localhost/api/integration/intelligence?view=comparison&mode=platforms&runId=${runId}&question=`;
+    expect((await GET(new NextRequest(url + question))).status).toBe(200);
+    expect(fetchUpstream).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'trusted-project' }),
+      `/api/intelligence/runs/${runId}/comparison?mode=platforms&question_id=${question}`, expect.anything());
+    expect((await GET(new NextRequest(url + '../other'))).status).toBe(400);
+    expect(fetchUpstream).toHaveBeenCalledTimes(1);
+  });
   it('does not proxy traversal in run or content IDs', async () => {
     const response = await GET(new NextRequest('http://localhost/api/integration/intelligence?view=detail&runId=../auth'));
     expect(response.status).toBe(400);

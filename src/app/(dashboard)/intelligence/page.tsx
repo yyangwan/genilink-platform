@@ -5,6 +5,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import Link from "next/link";
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BrandScoreWorkspace } from '@/components/visibility/brand-score-workspace';
+import { ComparisonWorkspace } from '@/components/visibility/comparison-workspace';
 import { ResultReadiness } from '@/components/visibility/result-readiness';
 import { EvaluationCohortReview } from '@/components/visibility/evaluation-cohort-review';
 import { ReadingDrawer } from '@/components/ui/reading-drawer';
@@ -25,7 +26,7 @@ import { AnalysisScopeBar } from '@/components/visibility/analysis-scope-bar';
 import { OpportunityOverview, SelectedOpportunityEvidence } from '@/components/visibility/opportunity-overview';
 import { analysisTargets, intelligenceUrl, scopeIssues } from '@/lib/visibility/analysis-scope';
 import { readTaskScope, setTaskScope } from '@/lib/visibility/task-view';
-import { CitationViewNav, citationViews, DraftEvidenceSummary, EntityComparison, EvidenceWorkspace, PlatformComparison, SourceLibrary, WorkflowIntro } from "@/components/visibility/citation-prototype-views";
+import { CitationViewNav, citationViews, DraftEvidenceSummary, EvidenceWorkspace, SourceLibrary, WorkflowIntro } from "@/components/visibility/citation-prototype-views";
 
 const labels: Record<string, string> = {
   queued: "排队中", running: "分析中", ready: "已完成", partial: "部分完成", failed: "失败",
@@ -62,6 +63,7 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
   const search = useSearchParams(), router = useRouter();
   const initialAudit = search.get('project') === currentProjectId && /^[1-9][0-9]{0,17}$/.test(search.get('auditId') || '') ? search.get('auditId')! : '';
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [identityReview, setIdentityReview] = useState<{ runId: string; entityId?: string } | null>(null);
   const [runs, setRuns] = useState<EvidenceRunListItem[]>([]);
   const urlRunId = search.get('project') === currentProjectId ? search.get('runId') || '' : '';
   const [fallbackRunId, setRunId] = useState(urlRunId);
@@ -185,7 +187,7 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
 
   return <div className="audit-workspace citation-workspace">
     <header className="citation-page-head">
-      <div><span>{viewMeta.eyebrow}</span><h1>{viewMeta.heading}</h1><p>{viewMeta.subtitle}</p></div>
+      <div><span>{viewMeta.eyebrow}</span><h1>{tab === 'entities' ? '品牌发现对比' : tab === 'platforms' ? '平台差异对照' : viewMeta.heading}</h1><p>{viewMeta.subtitle}</p></div>
       <div className="citation-page-actions">
         <Link className="dashboard-button dashboard-button--secondary" href="/visibility">采集任务</Link>
         {(run?.audit_id || captureId) && <Link className="dashboard-button dashboard-button--secondary"
@@ -211,34 +213,34 @@ function IntelligenceContent({ currentProjectId }: { currentProjectId: string })
     </div>
     {!enabled && !loading && !error && <p className="citation-notice citation-notice--warning">分析服务尚未启用，请先检查存储与运行环境。</p>}
     <CitationViewNav value={tab} onChange={changeTab} />
-    {run && <AnalysisScopeBar run={run} scope={scope} onChange={change => setTaskScope(currentProjectId, change)} />}
+    {run && !['entities', 'platforms'].includes(tab) && <AnalysisScopeBar run={run} scope={scope} onChange={change => setTaskScope(currentProjectId, change)} />}
     {!run && <div className="citation-panel citation-empty">{runId ? "正在读取分析版本…" : "完成一次审计后，在审计洞察中选择分析版本。尚无结果时不会填入示例数据。"}</div>}
     {run && <div className="citation-result" aria-label={viewMeta.title}>
       {runs.filter(item => item.audit_id === run.audit_id && item.revision > run.revision && ['ready', 'partial', 'failed'].includes(item.status)).sort((a, b) => b.revision - a.revision).slice(0, 1).map(item => <div key={item.id} role="status" className="citation-notice"><div>新分析修订 {item.revision} {item.status === 'failed' ? '分析尚未成功，可查看处理状态' : '已就绪'}，当前仍显示修订 {run.revision}。</div><button type="button" className="citation-link" onClick={() => { selectRun(item.id, item.audit_id); }}>查看新修订 →</button></div>)}
-      {scopeValid && ["overview", "entities", "platforms"].includes(tab) && <BrandScoreWorkspace key={run.id + tab} run={run} mode={tab === "entities" ? "brands" : tab === "platforms" ? "platforms" : "overview"} onEvidence={id => open("answer", id, "评分依据：原始回答")} onPlatformSelect={platform => setTaskScope(currentProjectId, { platform })} scope={scope} showGaps={false} scenarioValue={scope.scenario} readinessPanel={tab === 'overview' ? <ResultReadiness readiness={run.readiness} onRemedy={remedy => {
+      {scopeValid && tab === "overview" && <BrandScoreWorkspace key={run.id + tab} run={run} mode="overview" onEvidence={id => open("answer", id, "评分依据：原始回答")} onPlatformSelect={platform => setTaskScope(currentProjectId, { platform })} scope={scope} showGaps={false} scenarioValue={scope.scenario} readinessPanel={<ResultReadiness readiness={run.readiness} onRemedy={remedy => {
         if (remedy.action === 'review_prompt_scope') setReviewRunId(run.id);
         else if (remedy.view === 'capture') router.push('/visibility?' + new URLSearchParams({ project: currentProjectId, auditId: run.audit_id }));
         else changeTab(remedy.view);
-      }} /> : undefined} />}
+      }} />} />}
 
       {tab === "overview" && <OpportunityOverview key={run.id} run={run} projectId={currentProjectId} scope={scope} search={serializedSearch} onPreferences={() => setPreferencesOpen(true)} />}
-      {tab === "platforms" && scopeValid && <PlatformComparison key={run.id} run={run}
-        scope={scope} selectedPlatform={scope.platform} onPlatformChange={platform => setTaskScope(currentProjectId, { platform })} onOpenAnswer={id => open("answer", id, "同题原始回答")} onView={changeTab} />}
-      {tab === "platforms" && <OpportunityOverview key={run.id + "opportunities"} run={run} projectId={currentProjectId} scope={scope} search={serializedSearch} onPreferences={() => setPreferencesOpen(true)} />}
-      {tab === "entities" && <>
-        <p className="citation-notice">下方为全审计主体发现与身份管理，保留全部候选，不因比较筛选删去主体。当前范围的评分见上方图表。</p>
-        <EntityComparison run={run} onReview={() => {
-          const details = globalThis.document.getElementById("citation-entity-review") as HTMLDetailsElement | null;
-          if (details) { details.open = true; details.scrollIntoView({ behavior: "smooth", block: "start" }); }
-        }} />
-        <details open id="citation-entity-review" className="citation-deep-details"><summary>品牌身份确认与项目名单管理</summary>
-          <ProjectBrandBindings key={"brand-bindings-" + run.id} projectId={currentProjectId} run={run} onSaved={() => setRefresh(value => value + 1)} />
-          <ProjectBrandContext key={"brand-context-" + currentProjectId} projectId={currentProjectId} refreshKey={refresh} onSaved={() => setRefresh(value => value + 1)} />
-          <IdentityReview key={run.id} run={run} projectId={currentProjectId} onSaved={() => setRefresh(value => value + 1)} />
-          <EntityAliases key={"aliases-" + run.id} run={run} projectId={currentProjectId} onSaved={() => setRefresh(value => value + 1)} />
-          <MentionBindings key={"bindings-" + run.id} run={run} projectId={currentProjectId} onSaved={() => setRefresh(value => value + 1)} />
+      {(tab === 'entities' || tab === 'platforms') && <ComparisonWorkspace key={run.id + tab}
+        mode={tab === 'entities' ? 'brands' : 'platforms'} run={run} projectId={currentProjectId}
+        scope={scope} search={serializedSearch} version={refresh} onOpenContent={open}
+        onIdentity={entityId => setIdentityReview({ runId: run.id, entityId })}
+        onQuestionReview={() => setReviewRunId(run.id)} onPreferences={() => setPreferencesOpen(true)} />}
+      {tab === 'entities' && identityReview?.runId === run.id && <ReadingDrawer title="品牌身份确认" closeLabel="关闭品牌身份确认" onClose={() => setIdentityReview(null)}>
+        <IdentityReview key={identityReview.entityId || run.id} initialEntityId={identityReview.entityId} run={run} projectId={currentProjectId}
+          onSaved={() => setRefresh(value => value + 1)} onOpenAnswer={id => { setIdentityReview(null); open('answer', id, '品牌身份 · 原始回答'); }} />
+        <details className="citation-deep-details"><summary>别名和同名归属</summary>
+          <EntityAliases run={run} projectId={currentProjectId} onSaved={() => setRefresh(value => value + 1)} />
+          <MentionBindings run={run} projectId={currentProjectId} onSaved={() => setRefresh(value => value + 1)} />
         </details>
-      </>}
+        <details className="citation-deep-details"><summary>项目品牌名单与角色</summary>
+          <ProjectBrandBindings projectId={currentProjectId} run={run} onSaved={() => setRefresh(value => value + 1)} />
+          <ProjectBrandContext projectId={currentProjectId} refreshKey={refresh} onSaved={() => setRefresh(value => value + 1)} />
+        </details>
+      </ReadingDrawer>}
       {tab === 'sources' && search.get('actionId') && <button type="button" className="citation-link" onClick={() => changeTab('actions')}>返回原行动计划 →</button>}
       {tab === "sources" && <SourceLibrary key={run.id} run={run} scope={scope} retrying={retrying} projectId={currentProjectId} onSaved={() => setRefresh(value => value + 1)}
         onOpenAnswer={(id, originalRun) => open("answer", id, "引用该来源的回答", originalRun)}
