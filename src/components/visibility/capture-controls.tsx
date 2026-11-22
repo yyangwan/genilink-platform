@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CAPTURE_PLATFORMS } from "@/lib/visibility/capture-policy";
+import { isAuditId } from '@/lib/visibility/v4-audit';
 import { ReadingDrawer } from '@/components/ui/reading-drawer';
 import { AiPlatformLabel } from '@/components/ui/ai-platform-label';
 
@@ -37,7 +38,7 @@ export function CaptureControls({ projectId, enabled, onCreated, activeAuditId, 
         body: JSON.stringify({ ...payload, idempotencyKey: operation.current.key }) });
       const data = await response.json();
       if (!response.ok && response.status < 500) operation.current = null;
-      if (!response.ok || typeof data.audit_id !== "string") throw new Error(data.error || "采集创建失败，重试会沿用相同请求编号");
+      if (!response.ok || typeof data.audit_id !== "string" || !isAuditId(data.audit_id)) throw new Error(data.error || "采集创建失败，重试会沿用相同请求编号");
       operation.current = null;
       onCreated(data.audit_id);
     } catch (e) { setError(e instanceof Error ? e.message : "采集创建失败"); }
@@ -48,7 +49,7 @@ export function CaptureControls({ projectId, enabled, onCreated, activeAuditId, 
       <h2>{selected.length} 个提示词 × {CAPTURE_PLATFORMS.length} 个平台</h2>
       <p>每题每平台一次 · {CAPTURE_PLATFORMS.length} 个平台，共 {total} 次计划采集</p>
       <div className="visibility-collection__platforms" aria-label="本次覆盖平台">{CAPTURE_PLATFORMS.map(platform => <AiPlatformLabel key={platform} platform={platform} iconSize={22} />)}</div>
-    </div><button type="button" onClick={() => confirmStart ? setConfirming(true) : void start()} disabled={taskState !== "idle" || !enabled || busy || !total || total > 1000 || selected.length > 100} className="dashboard-button dashboard-button--primary">{busy ? "正在创建…" : taskState === "checking" ? "正在确认任务状态…" : taskState === "running" ? "当前采集进行中" : "开始本次采集"}</button></div>
+    </div><button type="button" onClick={() => confirmStart ? setConfirming(true) : void start()} disabled={taskState !== "idle" || !enabled || busy || !total || total > 1000 || selected.length > 100} className="dashboard-button dashboard-button--primary">{busy ? "正在创建…" : taskState === "checking" ? "正在确认任务状态…" : taskState === "running" ? "当前采集进行中" : activeAuditId && confirmStart ? "发起新审计" : "开始本次采集"}</button></div>
     <details className="visibility-collection__prompts"><summary>选择提示词：已选 {selected.length} / {prompts.length}</summary><div className="mt-3 max-h-48 space-y-2 overflow-auto">{prompts.map(item => <label key={item.id} className="flex items-start gap-2 text-sm"><input type="checkbox" checked={selected.includes(item.id)} disabled={busy || taskState !== 'idle'} onChange={e => setSelected(previous => e.target.checked ? [...previous, item.id] : previous.filter(id => id !== item.id))} className="mt-1" /><span>{item.text}</span></label>)}</div></details>
     {activeAuditId && !confirmStart && <p className="audit-meta">已创建采集任务 #{activeAuditId}。进度在当前任务面板持续更新；再次创建会产生独立的新任务。</p>}
     {confirming && <ReadingDrawer variant="modal" title="确认本次采集" eyebrow="采集计划" closeLabel="关闭采集确认" onClose={() => setConfirming(false)}>

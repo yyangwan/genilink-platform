@@ -65,10 +65,12 @@ function v4AuditPath(view: string, params: URLSearchParams): string | null {
 }
 
 export async function GET(req: NextRequest) {
-  const guard = await resolveGuard(req, { capability: 'contentInsights', minimumCapabilityLevel: 'full' });
-  if (!guard.ok) return guard.response;
   const params = req.nextUrl.searchParams;
   const view = params.get('view') || 'runs';
+  const guard = await resolveGuard(req, ['prompts', 'captureV4', 'captureSamples', 'captureSample'].includes(view)
+    ? { capability: 'auditReport' }
+    : { capability: 'contentInsights', minimumCapabilityLevel: 'full' });
+  if (!guard.ok) return guard.response;
   if (view === 'manualTasks' || view === 'evidenceCapabilities') {
     try { await requireBilling(guard.ctx.session.user.id, guard.ctx.workspaceId, 'content'); }
     catch { return NextResponse.json({ error: '需要内容服务订阅' }, { status: 403 }); }
@@ -178,14 +180,16 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const guard = await resolveGuard(req, { capability: 'contentInsights', minimumCapabilityLevel: 'full' });
+  let body: { contexts?: unknown; baseHash?: unknown; decisions?: unknown; brandId?: unknown; analysisRole?: unknown; newEntityName?: unknown; mentionId?: unknown; sourceEntityId?: unknown; targetEntityId?: unknown; taskId?: unknown; taskAction?: unknown; deliveryUrl?: unknown; cohortId?: unknown; comparisonMode?: unknown; brandTargetIds?: unknown; promptHashes?: unknown; baselineRunId?: unknown; followupRunId?: unknown; entityIds?: unknown; url?: unknown; contentHash?: unknown; publishedAt?: unknown; auditId?: unknown; documentId?: unknown; runId?: unknown; approvalId?: unknown; factIds?: unknown; factsScopeReviewed?: unknown; channel?: unknown; title?: unknown; expiresAt?: unknown; evidenceId?: unknown; reviewId?: unknown; factId?: unknown; relation?: unknown; sourceQuote?: unknown; scope?: unknown; validFrom?: unknown; validUntil?: unknown; actionId?: unknown; diagnosisId?: unknown; expectedRevision?: unknown; entityId?: unknown; decision?: unknown; canonicalName?: unknown; reason?: unknown; expectedVersion?: unknown; action?: unknown; promptIds?: unknown; platforms?: unknown; rounds?: unknown; surface?: unknown; idempotencyKey?: unknown; failedAttemptId?: unknown };
+  try { body = await req.clone().json(); } catch { return badRequest(); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return badRequest();
+  const guard = await resolveGuard(req, body.action === 'capture'
+    ? { capability: 'auditReport' }
+    : { capability: 'contentInsights', minimumCapabilityLevel: 'full' });
   if (!guard.ok) return guard.response;
   if (!writeRoles.includes(guard.ctx.role)) {
     return NextResponse.json({ error: '需要项目写入权限' }, { status: 403 });
   }
-  let body: { contexts?: unknown; baseHash?: unknown; decisions?: unknown; brandId?: unknown; analysisRole?: unknown; newEntityName?: unknown; mentionId?: unknown; sourceEntityId?: unknown; targetEntityId?: unknown; taskId?: unknown; taskAction?: unknown; deliveryUrl?: unknown; cohortId?: unknown; comparisonMode?: unknown; brandTargetIds?: unknown; promptHashes?: unknown; baselineRunId?: unknown; followupRunId?: unknown; entityIds?: unknown; url?: unknown; contentHash?: unknown; publishedAt?: unknown; auditId?: unknown; documentId?: unknown; runId?: unknown; approvalId?: unknown; factIds?: unknown; factsScopeReviewed?: unknown; channel?: unknown; title?: unknown; expiresAt?: unknown; evidenceId?: unknown; reviewId?: unknown; factId?: unknown; relation?: unknown; sourceQuote?: unknown; scope?: unknown; validFrom?: unknown; validUntil?: unknown; actionId?: unknown; diagnosisId?: unknown; expectedRevision?: unknown; entityId?: unknown; decision?: unknown; canonicalName?: unknown; reason?: unknown; expectedVersion?: unknown; action?: unknown; promptIds?: unknown; platforms?: unknown; rounds?: unknown; surface?: unknown; idempotencyKey?: unknown; failedAttemptId?: unknown };
-  try { body = await req.json(); } catch { return badRequest(); }
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return badRequest();
   const requiresCurrentContext = ['generateDraft', 'approveDraft', 'previewDraft', 'approveFact', 'createAction', 'approveAction', 'createCohort', 'compareCohort', 'startRetest', 'capture', 'analyze', 'createManualTask'].includes(String(body.action)) || body.action === undefined || body.action === 'updateManualTask' && body.taskAction !== 'cancel';
   if (requiresCurrentContext && await prisma.projectContextOutbox.count({ where: { projectId: guard.ctx.projectId, deliveredAt: null } })) return NextResponse.json({ error: '品牌配置尚未同步，请先完成同步后再分析或使用材料' }, { status: 409 });
   if (body.action === 'reviewEvaluationCohort') {

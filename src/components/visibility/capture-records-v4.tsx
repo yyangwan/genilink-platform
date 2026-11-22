@@ -57,8 +57,9 @@ function ArchivedText({ projectId, auditId, sampleId, source, requestedSnapshot 
   </div>;
 }
 
-export function CaptureRecordDrawer({ projectId, auditId, sampleId, requestedSource, version, onClose }: {
+export function CaptureRecordDrawer({ projectId, auditId, sampleId, requestedSource, version, canReadSource = true, onClose }: {
   projectId: string; auditId: string; sampleId: string; version: unknown;
+  canReadSource?: boolean;
   requestedSource?: { ordinal: number; snapshot_id: string }; onClose: () => void;
 }) {
   const record = useAuditResource<CaptureSampleDetail>(auditApi('captureSample', projectId, auditId, { sampleId }), version);
@@ -85,8 +86,8 @@ export function CaptureRecordDrawer({ projectId, auditId, sampleId, requestedSou
             {source.archive.reason && <p className="v4-note">{archiveReasons[source.archive.reason] || '未取得正文'}</p>}
             {source.archive.archived_at && <p className="v4-note">{dateTime.format(new Date(source.archive.archived_at))}（北京时间）归档</p>}
             {source.archive.used_in_analysis === false && <p className="v4-note">该归档版本未纳入本次分析。</p>}
-            <ArchivedText projectId={projectId} auditId={auditId} sampleId={sampleId} source={source}
-              requestedSnapshot={requestedSource?.ordinal === source.ordinal ? requestedSource.snapshot_id : undefined} />
+            {canReadSource && <ArchivedText projectId={projectId} auditId={auditId} sampleId={sampleId} source={source}
+              requestedSnapshot={requestedSource?.ordinal === source.ordinal ? requestedSource.snapshot_id : undefined} />}
           </article>)}
         </section>
         {data.attempts.length > 0 && <section><h3>采集尝试</h3>
@@ -132,8 +133,9 @@ function SampleTable({ projectId, auditId, platform, status, version, onRecord }
   </>;
 }
 
-export function CaptureRecords({ projectId, auditId, version, selectedRecord, requestedSource, onRecord }: {
+export function CaptureRecords({ projectId, auditId, version, selectedRecord, requestedSource, canReadSource, onRecord }: {
   projectId: string; auditId: string; version: unknown; selectedRecord: string | null;
+  canReadSource?: boolean;
   requestedSource?: { ordinal: number; snapshot_id: string }; onRecord: (sampleId: string | null) => void;
 }) {
   const [platform, setPlatform] = useState('');
@@ -154,6 +156,6 @@ export function CaptureRecords({ projectId, auditId, version, selectedRecord, re
     <SampleTable key={platform + ':' + status} projectId={projectId} auditId={auditId} platform={platform} status={status}
       version={version} onRecord={onRecord} />
     {selectedRecord && <CaptureRecordDrawer key={selectedRecord} projectId={projectId} auditId={auditId} sampleId={selectedRecord}
-      requestedSource={requestedSource} version={version} onClose={() => onRecord(null)} />}
+      requestedSource={requestedSource} version={version} canReadSource={canReadSource} onClose={() => onRecord(null)} />}
   </section>;
 }

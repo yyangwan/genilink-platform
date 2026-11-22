@@ -8,9 +8,9 @@ export function useVisibilityDashboard(projectId: string, view: 'overview' | 'co
   const data = result.data?.project_id === projectId && result.data.schema === 'citation-dashboard-1' ? result.data : null;
   const { refetch, loading } = result;
   useEffect(() => {
-    if (!data?.processing || loading) return;
+    if (loading || !(data?.processing || view === 'collection' && data?.context_sync_pending)) return;
     const timer = setTimeout(refetch, 10000);
     return () => clearTimeout(timer);
-  }, [data, loading, refetch]);
+  }, [data, loading, refetch, view]);
   return { ...result, data };
 }

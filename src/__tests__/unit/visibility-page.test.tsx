@@ -110,6 +110,49 @@ describe('visibility audit v4', () => {
     expect(fetcher.mock.calls.some(([url]) => url.includes('snapshotId=' + snapshotId))).toBe(true);
   });
 
+  it('keeps a historical view from launching another audit while the latest capture is active', async () => {
+    window.history.replaceState(null, '', '/visibility?project=p1&auditId=4');
+    vi.mocked(useVisibilityDashboard).mockReturnValue(dashboard(true, true));
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const query = new URL(url, 'http://localhost').searchParams;
+      if (query.get('view') === 'prompts') return Response.json([{ id: 1, text: '有哪些方案' }]);
+      if (query.get('view') === 'captureV4') {
+        return query.get('auditId') === '12'
+          ? Response.json(capture('waiting_for_capture'))
+          : Response.json({ ...capture('completed'), audit_id: '4' });
+      }
+      return Response.json({ items: [], next_cursor: null });
+    }));
+    render(<VisibilityPage />);
+    const launch = await screen.findByRole<HTMLButtonElement>('button', { name: '当前采集进行中' });
+    expect(launch.disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: '发起新审计' })).toBeNull();
+  });
+
+  it.each(['historical', 'legacy-latest'])('starts a new audit after collection ends (%s)', async mode => {
+    const historical = mode === 'historical';
+    if (historical) window.history.replaceState(null, '', '/visibility?project=p1&auditId=4');
+    vi.mocked(useVisibilityDashboard).mockReturnValue(dashboard(true, true));
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return Response.json({ audit_id: '13' });
+      const query = new URL(url, 'http://localhost').searchParams;
+      if (query.get('view') === 'prompts') return Response.json([{ id: 1, text: '有哪些方案' }]);
+      if (query.get('view') === 'captureV4') {
+        const id = query.get('auditId');
+        if (id === '13') return Response.json({ ...capture('waiting_for_capture'), audit_id: '13' });
+        if (id === '12' && historical) return Response.json(capture('running'));
+        return Response.json({ error: 'Sampling audit not found' }, { status: 404 });
+      }
+      return Response.json({ items: [], next_cursor: null });
+    });
+    vi.stubGlobal('fetch', fetcher);
+    render(<VisibilityPage />);
+    fireEvent.click(await screen.findByRole('button', { name: '发起新审计' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认开始采集' }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/visibility?project=p1&auditId=13', { scroll: false }));
+    expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+  });
+
   it('offers decision to retry analysis only after failure, without starting a collection', async () => {
     vi.mocked(useVisibilityDashboard).mockReturnValue(dashboard(true, true));
     let retried = false;

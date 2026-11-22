@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.1.0] - 2026-11-22
+
+### Fixed
+- Restore the new visibility audit entry for eligible project writers once the latest capture and source archiving finish, including while analysis is still running.
+- Allow audit subscribers to open capture records, with archived citation text available under the content insights entitlement.
+
 ## [0.7.0.0] - 2026-11-21
 
 ### Added
