@@ -15,6 +15,11 @@ export async function GET(req: NextRequest) {
   const data = upstream.data as CitationDashboard;
   if (data?.schema !== 'citation-dashboard-1' || data.project_id !== guard.ctx.projectId || data.report && (data.report.schema !== 'citation-report-1' || data.report.project_id !== data.project_id || data.report.audit_id !== data.latest_audit?.id)) return NextResponse.json({ error: '概览上下文不匹配' }, { status: 502 });
   const pending = await prisma.projectContextOutbox.count({ where: { projectId: guard.ctx.projectId, deliveredAt: null } }) > 0;
-  return NextResponse.json({ ...data, report: data.report ? scopeCitationReport(data.report, guard.ctx.billing.capabilities.auditReport, pending) : null,
-    context_sync_pending: pending, can_capture: data.enabled && !pending && ['owner', 'admin', 'editor', 'member'].includes(guard.ctx.role) && hasCapabilityLevel(guard.ctx.billing.capabilities.contentInsights, 'full') }, { headers: { 'Cache-Control': 'no-store' } });
+  const capabilities = guard.ctx.billing.capabilities;
+  const entitled = view === 'collection'
+    ? hasCapabilityLevel(capabilities.auditReport, 'basic')
+    : hasCapabilityLevel(capabilities.contentInsights, 'full');
+  return NextResponse.json({ ...data, report: data.report ? scopeCitationReport(data.report, capabilities.auditReport, pending) : null,
+    ...(view === 'collection' ? { can_read_capture_source: hasCapabilityLevel(capabilities.contentInsights, 'full') } : {}),
+    context_sync_pending: pending, can_capture: data.enabled && !pending && ['owner', 'admin', 'editor', 'member'].includes(guard.ctx.role) && entitled }, { headers: { 'Cache-Control': 'no-store' } });
 }

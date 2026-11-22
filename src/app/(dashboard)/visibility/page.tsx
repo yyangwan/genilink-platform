@@ -22,8 +22,13 @@ function ProjectVisibility({ projectId }: { projectId: string }) {
   const [createdAudit, setCreatedAudit] = useState('');
   const scoped = search.get('project') === projectId;
   const queryAudit = scoped ? search.get('auditId') : null;
-  const auditId = isAuditId(queryAudit) ? queryAudit : createdAudit || dashboard.data?.latest_audit?.id || '';
+  const latest = dashboard.data?.latest_audit;
+  const savedLatestId = latest && isAuditId(latest.id) ? latest.id : '';
+  const latestId = createdAudit && (!savedLatestId || BigInt(createdAudit) > BigInt(savedLatestId))
+    ? createdAudit : savedLatestId;
+  const auditId = isAuditId(queryAudit) ? queryAudit : latestId;
   const { data: capture, loading, error, refetch } = useAuditCapture(projectId, auditId);
+  const latestStatus = useAuditCapture(projectId, latestId !== auditId ? latestId : '');
   const selectedRecord = scoped && queryAudit === auditId ? search.get('sampleId') : null;
   const snapshotId = search.get('snapshotId'), ordinal = search.get('ordinal');
   const requestedSource = selectedRecord && isRecordId(snapshotId) && ordinal && /^[1-9][0-9]{0,2}$/.test(ordinal) && Number(ordinal) <= 200
@@ -37,9 +42,13 @@ function ProjectVisibility({ projectId }: { projectId: string }) {
   const insightHref = intelligenceUrl(search.toString(), projectId, {
     auditId: auditId || null, view: 'overview', runId: capture?.published_run_id || null,
   });
-  const active = capture?.capture?.state === 'collecting' || capture?.archive?.state === 'archiving'
-    || capture?.status === 'running' || capture?.status === 'pending';
-  const taskState = active ? 'running' : auditId && !capture ? 'checking' : 'idle';
+  const launchStatus = latestId === auditId ? { data: capture, error } : latestStatus;
+  const current = launchStatus.data;
+  const active = current?.mode === 'v4'
+    ? current.capture?.state === 'collecting' || current.archive?.state === 'archiving'
+    : ['running', 'pending'].includes(current?.status || latest?.status || '');
+  const latestTerminal = latest && latest.id === latestId && ['completed', 'partial', 'failed'].includes(latest.status);
+  const taskState = active ? 'running' : latestId && !current && !(launchStatus.error && latestTerminal) ? 'checking' : 'idle';
   return <div className="audit-workspace citation-workspace visibility-collection audit-v4">
     <header className="citation-page-head"><div><span>VISIBILITY COLLECTION</span><h1>可见性分析</h1>
       <p>发起一次采集，核对每个平台的原始结果。</p></div>
@@ -48,18 +57,23 @@ function ProjectVisibility({ projectId }: { projectId: string }) {
       </div>
     </header>
     {dashboard.loading && !dashboard.data && <p role="status">正在读取当前项目的审计…</p>}
-    {dashboard.locked && <p className="v4-warn" role="alert">当前项目权限或订阅不支持查看可见性报告。</p>}
+    {dashboard.locked && <p className="v4-warn" role="alert">当前工作空间的订阅或项目权限不支持发起采集和查看报告。</p>}
     {dashboard.error && <p className="v4-warn" role="alert">项目概览暂不可用。 <button className="v4-link" type="button" onClick={dashboard.refetch}>重新查询</button></p>}
     {dashboard.data?.can_capture
       ? <div id="visibility-capture-settings"><CaptureControls projectId={projectId} enabled={dashboard.data.enabled}
-        activeAuditId={auditId} taskState={taskState} onCreated={track} confirmStart />
+        activeAuditId={latestId} taskState={taskState} onCreated={track} confirmStart />
         <div className="visibility-collection__manage"><Link className="v4-link" href={'/settings/prompts?project=' + encodeURIComponent(projectId)}>管理提示词 ↗</Link></div>
       </div>
-      : dashboard.data && <p className="v4-note">发起采集需要完整分析和项目写入权限，品牌配置同步后即可使用。</p>}
+      : dashboard.data && <p className="v4-note">{dashboard.data.context_sync_pending
+        ? '品牌配置正在同步，同步完成后可发起采集。'
+        : '发起采集需要可用的审计订阅和项目写入权限。'}</p>}
+    {latestId !== auditId && latestStatus.error && !latestTerminal &&
+      <p className="v4-warn" role="alert">无法核对最新采集状态。 <button className="v4-link" type="button" onClick={latestStatus.refetch}>重新查询状态</button></p>}
     {loading && !capture && <p role="status">正在读取采集状态…</p>}
     {error && <p className="v4-warn" role="alert">{error} <button className="v4-link" type="button" onClick={refetch}>重新查询状态</button></p>}
     {capture?.mode === 'v4' && <CaptureSummary data={capture} insightHref={insightHref} />}
     {auditId && capture && <CaptureRecords key={auditId} projectId={projectId} auditId={auditId} version={capture}
+      canReadSource={!!dashboard.data && dashboard.data.can_read_capture_source !== false}
       selectedRecord={isRecordId(selectedRecord) ? selectedRecord : null} requestedSource={requestedSource}
       onRecord={id => router.replace(captureHref(projectId, auditId, id || undefined), { scroll: false })} />}
     {!auditId && dashboard.data && <section className="citation-panel v4-panel"><h2>采集进度</h2><p className="v4-note">当前项目暂无采集记录。</p></section>}

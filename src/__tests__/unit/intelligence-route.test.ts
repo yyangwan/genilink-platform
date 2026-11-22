@@ -107,11 +107,20 @@ describe('project-scoped intelligence proxy', () => {
     vi.mocked(fetchUpstream).mockResolvedValue({ data: { audit_id: '12' } });
     const response = await POST(samplingRequest());
     expect(response.status).toBe(202);
+    expect(resolveGuard).toHaveBeenCalledWith(expect.anything(), { capability: 'auditReport' });
     expect(fetchUpstream).toHaveBeenCalledWith(expect.anything(), '/api/intelligence/projects/trusted-project/audits', expect.objectContaining({
       body: expect.objectContaining({ sampling: expect.objectContaining({
         platforms: ['qwen', 'deepseek', 'doubao', 'kimi', 'hunyuan'], surface: 'managed_v1', rounds: 1, processingMode: 'v4',
       }) }),
     }));
+  });
+  it('allows the audit subscription to read collection data while keeping document bodies under insights', async () => {
+    for (const view of ['prompts', 'captureV4', 'captureSamples', 'captureSample']) {
+      await GET(new NextRequest(`http://localhost/api/integration/intelligence?view=${view}&auditId=123&sampleId=${'a'.repeat(32)}`));
+      expect(resolveGuard).toHaveBeenLastCalledWith(expect.anything(), { capability: 'auditReport' });
+    }
+    await GET(new NextRequest('http://localhost/api/integration/intelligence?view=captureSource&auditId=123'));
+    expect(resolveGuard).toHaveBeenLastCalledWith(expect.anything(), { capability: 'contentInsights', minimumCapabilityLevel: 'full' });
   });
   it('accepts customer settings without transport fields and bounds the full platform total', async () => {
     vi.mocked(fetchUpstream).mockResolvedValue({ data: { audit_id: '12' } });

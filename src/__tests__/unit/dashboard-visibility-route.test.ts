@@ -28,6 +28,8 @@ describe('latest-audit visibility overview proxy', () => {
     const data = await (await GET(req())).json();
     for (const key of ['entities', 'evidence', 'sources', 'diagnoses']) expect(data.report[key]).toBeUndefined();
     expect(data.report.platforms[0].metrics).toEqual([]); expect(data.can_capture).toBe(false);
+    const collection = await GET(new NextRequest(req().url + '&view=collection'));
+    expect(await collection.json()).toMatchObject({ can_capture: true, can_read_capture_source: false });
   });
   it('preserves pending context and viewer restrictions', async () => {
     vi.mocked(prisma.projectContextOutbox.count).mockResolvedValue(1);
