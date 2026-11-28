@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.2.0] - 2026-11-28
+
+### Changed
+- Render captured answer structure in the existing record detail, preserve plain-text line breaks, and link matched reference numbers to their captured sources.
+- Show archived images and video covers inside the citation original, alongside the source text and original links.
+
 ## [0.7.1.0] - 2026-11-22
 
 ### Fixed

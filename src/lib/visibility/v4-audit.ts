@@ -62,7 +62,22 @@ export interface CaptureSource {
     archived_at?: string;
     completeness?: string;
     used_in_analysis?: boolean;
+    has_media?: boolean;
   };
+}
+
+export interface CaptureSourceMedia {
+  ordinal: number;
+  kind: 'image' | 'video';
+  label: string;
+  url: string | null;
+  text_offset: number | null;
+  has_preview: boolean;
+}
+
+export interface CaptureSourceOriginal {
+  text: string;
+  media?: CaptureSourceMedia[];
 }
 
 export interface CaptureSampleDetail {
@@ -71,9 +86,15 @@ export interface CaptureSampleDetail {
   status: SampleState;
   prompt: { id: number; text: string };
   attempts: Array<{ number: number; status: string; reason: string | null; started_at: string | null; ended_at: string | null }>;
-  answer: { id: string; text: string; status: 'complete' | 'partial'; observed_at: string } | null;
+  answer: { id: string; text: string; status: 'complete' | 'partial'; observed_at: string; references?: CaptureAnswerReference[] } | null;
   sources: CaptureSource[];
   source_panel: { status: string; expectedCount: number | null; capturedCount: number } | null;
+}
+
+export interface CaptureAnswerReference {
+  start: number;
+  end: number;
+  ordinal: number;
 }
 
 export interface BrandTarget {

@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { AiPlatformLabel } from '@/components/ui/ai-platform-label';
 import { ReadingDrawer } from '@/components/ui/reading-drawer';
 import { getAiPlatformMeta } from '@/lib/ai-platforms';
 import { CAPTURE_PLATFORMS } from '@/lib/visibility/capture-policy';
 import {
-  auditApi, type CaptureSampleDetail, type CaptureSamplePage, type CaptureSource,
+  auditApi, type CaptureSampleDetail, type CaptureSamplePage, type CaptureSource, type CaptureSourceOriginal,
 } from '@/lib/visibility/v4-audit';
+import { CaptureAnswer } from './capture-answer';
+import { ArchivedOriginal, SafeSourceLink } from './capture-source-original';
 import { useAuditResource } from './use-audit-v4';
 
 const sampleStates: Record<string, string> = { received: '已入库', pending: '待采集', failed: '采集失败' };
@@ -29,20 +31,12 @@ const dateTime = new Intl.DateTimeFormat('zh-CN', {
   month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai',
 });
 
-function SafeSourceLink({ url }: { url: string | null }) {
-  if (!url) return null;
-  let parsed: URL;
-  try { parsed = new URL(url); } catch { return null; }
-  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) return null;
-  return <a className="v4-link" href={parsed.href} target="_blank" rel="noopener noreferrer">打开来源链接 ↗</a>;
-}
-
 function ArchivedText({ projectId, auditId, sampleId, source, requestedSnapshot }: {
   projectId: string; auditId: string; sampleId: string; source: CaptureSource; requestedSnapshot?: string;
 }) {
   const snapshotId = requestedSnapshot || source.archive.snapshot_id;
   const [open, setOpen] = useState(!!requestedSnapshot);
-  const text = useAuditResource<{ text: string }>(
+  const text = useAuditResource<CaptureSourceOriginal>(
     open && snapshotId ? auditApi('captureSource', projectId, auditId, {
       sampleId, ordinal: String(source.ordinal), snapshotId,
     }) : null,
@@ -50,10 +44,12 @@ function ArchivedText({ projectId, auditId, sampleId, source, requestedSnapshot 
   if (!snapshotId) return null;
   return <div className="v4-source-reader">
     <button type="button" className="v4-link" aria-expanded={open} onClick={() => setOpen(value => !value)}>
-      {open ? '收起归档正文' : '展开归档正文'}
+      {source.archive.has_media ? (open ? '收起引用原文' : '查看引用原文') : (open ? '收起归档正文' : '展开归档正文')}
     </button>
     {open && (text.loading ? <p role="status">正在读取正文…</p> : text.error ? <p role="alert">{text.error} <button className="v4-link" type="button" onClick={text.refetch}>重新查询正文</button></p>
-      : text.data && <div className="v4-pre">{text.data.text}</div>)}
+      : text.data && <ArchivedOriginal data={text.data} previewOptions={{
+        projectId, auditId, sampleId, ordinal: String(source.ordinal), snapshotId,
+      }} />)}
   </div>;
 }
 
@@ -64,22 +60,29 @@ export function CaptureRecordDrawer({ projectId, auditId, sampleId, requestedSou
 }) {
   const record = useAuditResource<CaptureSampleDetail>(auditApi('captureSample', projectId, auditId, { sampleId }), version);
   const data = record.data;
+  const sourceSection = useRef<HTMLElement>(null);
+  function focusSource(ordinal: number) {
+    const source = sourceSection.current?.querySelector<HTMLElement>(`[data-source-ordinal="${ordinal}"]`);
+    source?.focus({ preventScroll: true });
+    source?.scrollIntoView({ block: 'start' });
+  }
   return <ReadingDrawer title="采集详情" closeLabel="关闭采集详情" onClose={onClose}>
-    <div className="audit-v4 v4-reader">
+    <div className="audit-v4 v4-reader v4-capture-record">
       {record.loading && <p role="status">正在读取采集详情…</p>}
       {record.error && <p role="alert">{record.error} <button className="v4-link" type="button" onClick={record.refetch}>重新查询</button></p>}
       {data && <>
         <div className="v4-row"><AiPlatformLabel platform={data.platform} /><span className="v4-chip" data-tone={data.status === 'received' ? 'ok' : 'warn'}>{sampleStates[data.status]}</span></div>
-        <section><h3>原始问题</h3><p className="v4-pre">{data.prompt.text}</p></section>
-        <section><h3>原始回答</h3>
-          {data.answer ? <>{data.answer.status === 'partial' && <p className="v4-note v4-warn">已保存部分回答</p>}<blockquote className="v4-pre v4-quote">{data.answer.text}</blockquote></>
+        <section aria-labelledby="capture-record-question"><h3 id="capture-record-question">原始问题</h3><p className="v4-pre v4-capture-question">{data.prompt.text}</p></section>
+        <section aria-labelledby="capture-record-answer"><h3 id="capture-record-answer">原始回答</h3>
+          {data.answer ? <>{data.answer.status === 'partial' && <p className="v4-note v4-warn">已保存部分回答</p>}
+            <CaptureAnswer text={data.answer.text} references={data.answer.references} ordinals={new Set(data.sources.map(source => source.ordinal))} onReference={focusSource} /></>
             : <p className="v4-note">{data.status === 'failed' ? '该样本未取得回答，原因见采集尝试。' : '等待平台回答入库。'}</p>}
         </section>
-        <section><h3>引用和归档正文</h3>
+        <section ref={sourceSection} className="v4-capture-sources" aria-labelledby="capture-record-sources"><h3 id="capture-record-sources">引用和归档正文</h3>
           {data.source_panel && <p className="v4-note">取得 {data.source_panel.capturedCount}{data.source_panel.expectedCount !== null ? ` / ${data.source_panel.expectedCount}` : ''} 条引用。</p>}
           {!data.sources.length && <p className="v4-note">该样本暂无引用记录。</p>}
-          {data.sources.map(source => <article key={source.ordinal} className="v4-subpanel">
-            <div className="v4-row"><strong>{source.title || `引用 ${source.ordinal}`}</strong>
+          {data.sources.map(source => <article key={source.ordinal} className="v4-subpanel" data-source-ordinal={source.ordinal} tabIndex={-1}>
+            <div className="v4-row"><strong>{source.title ? <><span aria-hidden="true">{source.ordinal}. </span><span>{source.title}</span></> : `引用 ${source.ordinal}`}</strong>
               <span className="v4-chip" data-tone={source.archive.status === 'archived' ? 'ok' : 'warn'}>{archiveLabels[source.archive.status] || '归档状态待确认'}</span></div>
             <SafeSourceLink url={source.url} />
             {source.snippet && <p className="v4-note v4-pre">{source.snippet}</p>}

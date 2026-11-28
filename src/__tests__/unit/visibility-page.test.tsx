@@ -21,6 +21,7 @@ vi.mock('@/components/visibility/use-visibility-dashboard', () => ({ useVisibili
 import { useVisibilityDashboard } from '@/components/visibility/use-visibility-dashboard';
 import VisibilityPage from '@/app/(dashboard)/visibility/page';
 import { AuditInsightV4 } from '@/components/visibility/audit-insight-v4';
+import { CaptureRecordDrawer } from '@/components/visibility/capture-records-v4';
 
 const opportunity = 'f'.repeat(64);
 const sampleId = 'a'.repeat(32), snapshotId = 'b'.repeat(32), runId = 'c'.repeat(32), attemptId = 'd'.repeat(32);
@@ -83,6 +84,13 @@ describe('visibility audit v4', () => {
 
   it('opens actual capture records and fetches a specific saved article on demand', async () => {
     vi.mocked(useVisibilityDashboard).mockReturnValue(dashboard(true, false));
+    const opening = '🫘 平台返回的实际回答';
+    const answer = `${opening}【1】\n\n### 选型比较\n\n1. **权限**说明 [2]\n2. 核对 \`[1]\`\n\n| 维度 | 条件 |\n| --- | --- |\n| 实施 | 先试点 |\n\n![外部图片](https://example.com/picture.png)\n\n<script>example</script>`;
+    const markerStart = Array.from(opening).length;
+    const codeMarkerStart = Array.from(answer.slice(0, answer.indexOf('[1]'))).length;
+    const beforeImage = '🫘 图片前';
+    const afterImage = '图片后';
+    const archiveText = `${beforeImage}\n${afterImage}\n视频后`;
     const fetcher = vi.fn(async (url: string) => {
       const query = new URL(url, 'http://localhost').searchParams;
       if (query.get('view') === 'captureV4') return Response.json(capture('completed'));
@@ -91,11 +99,17 @@ describe('visibility audit v4', () => {
       }], next_cursor: null });
       if (query.get('view') === 'captureSample') return Response.json({
         id: sampleId, platform: 'qwen', status: 'received', prompt: { id: 1, text: '仓储问题' },
-        attempts: [], answer: { text: '平台返回的实际回答', status: 'complete' },
+        attempts: [], answer: { text: answer, status: 'partial', references: [
+          { start: markerStart, end: markerStart + 3, ordinal: 1 },
+          { start: codeMarkerStart, end: codeMarkerStart + 3, ordinal: 1 },
+        ] },
         sources: [{ ordinal: 1, title: '已保存的引用文章', url: 'https://example.com/article',
-          archive: { status: 'archived', snapshot_id: snapshotId } }],
+          archive: { status: 'archived', snapshot_id: snapshotId, has_media: true } }],
       });
-      return Response.json({ text: '已保存的引用正文' });
+      return Response.json({ text: archiveText, media: [
+        { ordinal: 1, kind: 'image', text_offset: Array.from(beforeImage).length, label: '素材图', url: 'https://example.com/item.png', has_preview: true },
+        { ordinal: 2, kind: 'video', text_offset: Array.from(`${beforeImage}\n${afterImage}`).length, label: '演示视频封面', url: 'https://example.com/video', has_preview: true },
+      ] });
     });
     vi.stubGlobal('fetch', fetcher);
     render(<VisibilityPage />);
@@ -103,11 +117,51 @@ describe('visibility audit v4', () => {
       .toBe('/intelligence?project=p1&auditId=12&view=overview&runId=' + runId);
     fireEvent.click(await screen.findByRole('button', { name: '查看记录' }));
     const drawer = await screen.findByRole('dialog', { name: '采集详情' });
-    expect(await within(drawer).findByText('平台返回的实际回答')).toBeTruthy();
+    const original = await within(drawer).findByRole('region', { name: '原始回答' });
+    expect(within(original).getByText(opening)).toBeTruthy();
+    expect(within(original).getByText('已保存部分回答')).toBeTruthy();
+    expect(within(original).getByRole('heading', { name: '选型比较' })).toBeTruthy();
+    expect(within(original).getByRole('list')).toBeTruthy();
+    expect(within(original).getByText('权限').tagName).toBe('STRONG');
+    expect(within(original).getByRole('table')).toBeTruthy();
+    expect(within(original).getByText(/说明 \[2\]/)).toBeTruthy();
+    expect(original.querySelector('img, script')).toBeNull();
+    expect(original.querySelector('code')?.textContent).toBe('[1]');
+    const source = within(drawer).getByText('已保存的引用文章').closest('article')!;
+    source.scrollIntoView = vi.fn();
+    fireEvent.click(within(original).getByRole('button', { name: '定位引用 1' }));
+    expect(document.activeElement).toBe(source);
+    expect(source.scrollIntoView).toHaveBeenCalledOnce();
     expect(fetcher.mock.calls.some(([url]) => url.includes('captureSource'))).toBe(false);
-    fireEvent.click(within(drawer).getByRole('button', { name: '展开归档正文' }));
-    expect(await within(drawer).findByText('已保存的引用正文')).toBeTruthy();
+    fireEvent.click(within(drawer).getByRole('button', { name: '查看引用原文' }));
+    const archived = (await within(drawer).findByRole('heading', { name: '引用正文原文' })).parentElement!;
+    expect([...archived.children].map(element => element.tagName)).toEqual(['H4', 'DIV', 'FIGURE', 'DIV', 'FIGURE', 'DIV']);
+    expect(within(archived).getByText(beforeImage)).toBeTruthy();
+    expect(within(archived).getByRole('img', { name: '演示视频封面' }).getAttribute('src')).toContain('mediaOrdinal=2');
+    fireEvent.error(within(archived).getByRole('img', { name: '演示视频封面' }));
+    expect(within(archived).getByText('视频封面暂不可查看')).toBeTruthy();
+    expect(within(archived).getByRole('link', { name: '打开原视频 ↗' }).getAttribute('href')).toBe('https://example.com/video');
     expect(fetcher.mock.calls.some(([url]) => url.includes('snapshotId=' + snapshotId))).toBe(true);
+  });
+
+  it('retains plain answer line breaks and puts the cover of a video-only reference in the original', async () => {
+    const text = '  第一行\n第二行 [3]\n\n\n最后一行';
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => String(url).includes('view=captureSample')
+      ? Response.json({ platform: 'doubao', status: 'received', prompt: { text: '示例' }, attempts: [],
+        answer: { text, status: 'complete' }, sources: [{ ordinal: 1, title: '视频引用', url: 'https://example.com/v',
+          archive: { status: 'unavailable', snapshot_id: snapshotId, has_media: true } }] })
+      : Response.json({ text: '', media: [
+        { ordinal: 1, kind: 'video', text_offset: null, label: '', url: 'https://example.com/v', has_preview: true },
+      ] })));
+    render(<CaptureRecordDrawer projectId="p1" auditId="12" sampleId={sampleId} onClose={vi.fn()} version={0} />);
+    const original = await screen.findByRole('region', { name: '原始回答' });
+    expect(original.querySelector('.v4-captured-answer')?.textContent).toBe(text);
+    expect(within(original).queryByRole('button')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '查看引用原文' }));
+    const archive = (await screen.findByRole('heading', { name: '引用正文原文' })).parentElement!;
+    expect(within(archive).getByText('该来源未取得文章正文。')).toBeTruthy();
+    expect(within(archive).getByRole('img', { name: '来源视频封面' })).toBeTruthy();
+    expect(original.querySelector('img')).toBeNull();
   });
 
   it('keeps a historical view from launching another audit while the latest capture is active', async () => {
